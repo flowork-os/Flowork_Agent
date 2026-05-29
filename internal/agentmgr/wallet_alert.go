@@ -21,6 +21,28 @@ import (
 	"flowork-gui/internal/httpx"
 )
 
+// WalletAlertFireFunc — wired di main.go ke walletalert.Engine.FireNow.
+// Caller (WalletAlertTickHandler) panggil untuk manual sweep.
+var WalletAlertFireFunc func() (int, int)
+
+// WalletAlertTickHandler — POST /api/agents/wallet/alerts/tick (admin sweep)
+func WalletAlertTickHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
+		return
+	}
+	if WalletAlertFireFunc == nil {
+		httpx.WriteJSON(w, map[string]any{"error": "wallet alert engine not wired"})
+		return
+	}
+	evaluated, fired := WalletAlertFireFunc()
+	httpx.WriteJSON(w, map[string]any{
+		"ok":        true,
+		"evaluated": evaluated,
+		"fired":     fired,
+	})
+}
+
 // WalletAlertsHandler — GET/POST/DELETE /api/agents/wallet/alerts?id=<agent>
 func WalletAlertsHandler(w http.ResponseWriter, r *http.Request) {
 	agentID := strings.TrimSpace(r.URL.Query().Get("id"))

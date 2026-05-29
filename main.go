@@ -34,6 +34,7 @@ import (
 	"flowork-gui/internal/httpx"
 	"flowork-gui/internal/kernelhost"
 	"flowork-gui/internal/scheduler"
+	"flowork-gui/internal/walletalert"
 	"flowork-gui/internal/slashcmd"
 	slashbuiltins "flowork-gui/internal/slashcmd/builtins"
 	slashcustom "flowork-gui/internal/slashcmd/custom"
@@ -171,6 +172,29 @@ func main() {
 		return schedEngine.FireNow(ctx, agentID, scheduleID)
 	}
 
+	// Section 22 phase 2: wallet alert cron evaluator. 1h tick + 24h
+	// cooldown anti-spam. Notifier dispatch via Telegram tool (atau log
+	// fallback kalau channel=log).
+	walletEngine := walletalert.New(
+		host.AgentIDs,
+		host.OpenAgentStore,
+		func(ctx context.Context, agentID, channel, target, message string) error {
+			if channel == "telegram" && target != "" {
+				// Phase 2 minimal: log dispatch saja. Phase 3 wire ke
+				// telegram_send tool via Mr.Flow.
+				log.Printf("[walletalert→telegram] agent=%s chat=%s msg=%s", agentID, target, message)
+				return nil
+			}
+			log.Printf("[walletalert→%s] %s", channel, message)
+			return nil
+		},
+	)
+	walletEngine.Start(ctx)
+	defer walletEngine.Stop()
+	agentmgr.WalletAlertFireFunc = func() (int, int) {
+		return walletEngine.FireNow(ctx)
+	}
+
 	host.AutoBootDaemons(ctx)
 	if err := host.StartWatcher(ctx); err != nil {
 		log.Printf("kernel watcher start failed: %v (hot-reload disabled)", err)
@@ -233,6 +257,7 @@ func main() {
 	mux.HandleFunc("/api/agents/wallet/snapshots", agentmgr.WalletSnapshotsHandler)
 	mux.HandleFunc("/api/agents/wallet/alerts", agentmgr.WalletAlertsHandler)
 	mux.HandleFunc("/api/agents/wallet/alerts/fired", agentmgr.WalletAlertsFiredHandler)
+	mux.HandleFunc("/api/agents/wallet/alerts/tick", agentmgr.WalletAlertTickHandler)
 	mux.HandleFunc("/api/agents/finance/ledger", agentmgr.FinanceLedgerHandler)
 	mux.HandleFunc("/api/agents/finance/summary", agentmgr.FinanceSummaryHandler)
 	mux.HandleFunc("/api/agents/finance/budget", agentmgr.FinanceBudgetHandler)
