@@ -52,6 +52,8 @@ func Init() {
 	tools.Register(&fileListTool{})
 	// phase 1e: brain (brain.go) — Router RPC
 	tools.Register(&brainSearchTool{})
+	// phase 1f: comms (telegram.go)
+	tools.Register(&telegramSendTool{})
 }
 
 // =============================================================================

@@ -4,6 +4,31 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-30 13:15 WIB — Section 11 phase 1f: telegram_send DONE + LOCK
+
+- **feat(tools/builtins)**: `internal/tools/builtins/telegram.go` (LOCKED) — `telegram_send` tool (capability `net:fetch:telegram`). Bot token + allowed_chats from agent `secrets` table via `Store.Secrets()`. Triple security:
+  - Token never logged atau echo back ke caller
+  - chat_id WAJIB ada di `TELEGRAM_ALLOWED_CHATS` (anti-spam guard) — chat_id `9999999999` test rejected
+  - Text cap 4096 char (Telegram API limit) + truncate dengan "…"
+- HTTP timeout 15s, body cap 64KB on response.
+- `Init()` register telegram_send (10 builtin tools total).
+- **verified end-to-end** + real Telegram message landing:
+  - Missing chat_id → "chat_id required (non-zero)"
+  - Missing text → "text required (non-empty)"
+  - chat_id 9999999999 → "not in TELEGRAM_ALLOWED_CHATS (anti-spam guard)"
+  - Real allowed chat_id 2012305087 → **message_id 3871, 366ms send sukses**, Mr.Dev's phone received: "🎯 Section 11 phase 1f verify..."
+
+### Section 11 progress:
+- Phase 1a (5 demo): DONE
+- Phase 1b (3 file ops): DONE
+- Phase 1e (brain_search): DONE
+- Phase 1f (telegram_send): DONE — **10 builtin tools live**
+- Phase 1c shell (bash_run): defer (security review)
+- Phase 1d web (webfetch): defer
+- Phase 1g task/plan/todo: defer P2
+
+---
+
 ## 2026-05-30 13:00 WIB — Section 11 phase 1e: brain_search (cross-tubuh tool) DONE + LOCK
 
 - **feat(routerclient)**: `internal/routerclient/brain_search.go` (NEW unlocked) — extend Client dengan `SearchBrain(ctx, query, k)` method. GET `/api/brain/search-drawers?query=&k=` ke Router. Body cap 512KB. k validation (default 5, max 20). Mirror existing brainSearchDrawersHandler response shape.
