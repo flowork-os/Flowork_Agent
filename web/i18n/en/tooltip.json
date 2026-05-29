@@ -1,0 +1,10 @@
+{
+  "header": {
+    "navToggle":   "☰ Toggle Sidebar|Show or hide the left navigation panel.||Ctrl+B",
+    "statusBadge": "System Status|● ACTIVE = kernel running normally. ● STANDBY = kernel stopped.",
+    "themeToggle": "🌓 Toggle Theme|Switch between dark and light mode. Preference auto-saves.||click"
+  },
+  "sidebar": {
+    "agents": "🤖 AI Agent|Upload .fwagent.zip, hot-reload, manage router/prompt/tools/schedule per agent.||Alt+1"
+  }
+}

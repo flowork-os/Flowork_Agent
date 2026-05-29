@@ -1,0 +1,47 @@
+# Build artifacts
+flowork-gui
+*.exe
+*.dll
+*.pyc
+*.wasm
+bin/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs / PID / runtime
+*.log
+*.pid
+
+# SQLite per-agent runtime DB (state.db + WAL/SHM)
+agents/*/workspace/state.db
+agents/*/workspace/state.db-shm
+agents/*/workspace/state.db-wal
+agents/*/workspace/*.sqlite*
+*.db-shm
+*.db-wal
+
+# Cross-agent shared workspace runtime
+/workspace/
+agents/*/workspace/cache/
+agents/*/workspace/log/
+
+# Working notes shared only with Claude
+catatan.md
+catatan_untuk_ai_external/
+catatan/
+
+# Env files (token / API key)
+.env
+.env.local
+.env.*.local
+
+# Secrets / keys
+*.key
+*.pem
+secret.key
+*-credentials.json
+secret.yaml

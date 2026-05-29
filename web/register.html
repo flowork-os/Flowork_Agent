@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<!-- Stable — register text routed through i18n dictionary, no inline copy. -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-t="common.auth.title_register">Flowork — Register</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      color: #e2e8f0;
+      padding: 20px;
+    }
+    .reg-card {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(167, 139, 250, 0.3);
+      border-radius: 16px;
+      padding: 32px 36px;
+      width: 100%; max-width: 460px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    }
+    .reg-logo { font-size: 2.4rem; text-align: center; margin-bottom: 6px; }
+    .reg-title {
+      font-size: 1.4rem; text-align: center; font-weight: 600; margin-bottom: 4px;
+      background: linear-gradient(135deg, #a78bfa 0%, #ec4899 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .reg-subtitle { font-size: 0.85rem; text-align: center; color: #94a3b8; margin-bottom: 22px; }
+    .reg-form { display: flex; flex-direction: column; gap: 12px; }
+    .reg-form label { font-size: 0.78rem; color: #94a3b8; margin-bottom: -8px; margin-top: 2px; }
+    .reg-form input {
+      padding: 11px 13px; border-radius: 8px;
+      background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(148, 163, 184, 0.2);
+      color: #e2e8f0; font-size: 0.9rem;
+    }
+    .reg-form input:focus { outline: none; border-color: #a78bfa; box-shadow: 0 0 0 2px rgba(167, 139, 250, 0.2); }
+    .reg-form button {
+      padding: 12px; margin-top: 8px;
+      background: linear-gradient(135deg, #a78bfa 0%, #ec4899 100%);
+      color: #fff; border: none; border-radius: 8px;
+      font-size: 0.95rem; font-weight: 600;
+      cursor: pointer; transition: transform 0.15s;
+    }
+    .reg-form button:hover { transform: translateY(-1px); }
+    .reg-form button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .reg-msg {
+      margin-top: 16px; padding: 10px 12px; border-radius: 6px;
+      font-size: 0.85rem; display: none;
+    }
+    .reg-msg.error   { background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3);  color: #fca5a5; display: block; }
+    .reg-msg.success { background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.3);  color: #86efac; display: block; }
+    .reg-footer { margin-top: 24px; text-align: center; font-size: 0.75rem; color: #64748b; }
+    .reg-link { display: block; text-align: center; margin-top: 14px; font-size: 0.82rem; color: #a78bfa; text-decoration: none; }
+    .reg-link:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="reg-card">
+    <div class="reg-logo">🧠</div>
+    <h1 class="reg-title" data-t="common.auth.title_register">Register</h1>
+    <p class="reg-subtitle" data-t="common.auth.subtitle_register">Family / team member.</p>
+
+    <form id="reg-form" class="reg-form">
+      <input type="text" id="name" name="name" data-t-placeholder="common.placeholder.username" required minlength="2" autocomplete="off" />
+      <input type="password" id="password" name="password" data-t-placeholder="common.placeholder.password" required minlength="6" autocomplete="new-password" />
+      <button type="submit" id="submit-btn" data-t="common.btn.register">Register</button>
+    </form>
+
+    <div id="msg" class="reg-msg"></div>
+
+    <a href="/login" class="reg-link">
+      <span data-t="common.auth.have_account"></span>
+      <span> </span>
+      <span data-t="common.auth.back_to_login"></span>
+    </a>
+    <p class="reg-footer" data-t="common.auth.footer"></p>
+  </div>
+
+  <script type="module">
+    import { loadI18n, applyI18n, t } from '/js/i18n.js?v=10';
+    await loadI18n('en');
+    applyI18n();
+    document.querySelectorAll('[data-t-placeholder]').forEach((el) => {
+      el.setAttribute('placeholder', t(el.getAttribute('data-t-placeholder')));
+    });
+
+    const form = document.getElementById('reg-form');
+    const btn = document.getElementById('submit-btn');
+    const msg = document.getElementById('msg');
+    const registerLabel = t('common.btn.register');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('name').value.trim();
+      const password = document.getElementById('password').value;
+      btn.disabled = true;
+      btn.textContent = t('common.btn.verifying');
+
+      try {
+        const r = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, password }),
+        });
+        const d = await r.json();
+        if (!r.ok) {
+          msg.className = 'reg-msg error';
+          msg.textContent = d.error || `HTTP ${r.status}`;
+          btn.disabled = false;
+          btn.textContent = registerLabel;
+          return;
+        }
+        msg.className = 'reg-msg success';
+        msg.textContent = `✅ ${t('common.auth.registered_msg')}`;
+        setTimeout(() => { window.location.href = '/login'; }, 1500);
+      } catch (err) {
+        msg.className = 'reg-msg error';
+        msg.textContent = t('error.NETWORK_FAIL');
+        btn.disabled = false;
+        btn.textContent = registerLabel;
+      }
+    });
+  </script>
+</body>
+</html>

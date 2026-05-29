@@ -1,0 +1,7 @@
+# Bundled libraries — ngga di-track repo per sovereignty doctrine.
+# Ayah install lokal sesuai instruksi di README.md.
+*.js
+*.css
+*.min.*
+!.gitignore
+!README.md
