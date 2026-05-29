@@ -58,6 +58,15 @@ func Init() {
 	tools.Register(&webFetchTool{})
 	// phase 1c: shell (shell.go) — bash exec dengan denylist + timeout
 	tools.Register(&bashTool{})
+	// P1 file ops (file_advanced.go) — edit + glob + grep
+	tools.Register(&editTool{})
+	tools.Register(&globTool{})
+	tools.Register(&grepTool{})
+	// P1 vcs (git.go) — status/diff/log/show
+	tools.Register(&gitTool{})
+	// P1 skill (skill.go) — Router skill catalog client tool
+	tools.Register(&skillTool{})
+	tools.Register(&skillSearchTool{})
 	// phase 1g: orchestration (orchestration.go) — plan/todo/goal
 	tools.Register(&planReadTool{})
 	tools.Register(&planWriteTool{})

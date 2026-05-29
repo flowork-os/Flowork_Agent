@@ -4,6 +4,54 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-30 17:40 WIB — Section 11 P1 file ops (edit/glob/grep) + git + skill DONE + LOCK → Section 11 CLOSED
+
+Section 11 sekarang ditandai ✅ DONE — phase 1a-1g + P1 file ops + git read-only + skill/skill_search complete. 22 builtin tools total. Sisanya (multiedit, websearch, task_bg, peer_review, skill_write, git_checkpoint, fact_x3) explicit defer dengan justifikasi: redundant atau butuh runtime support / mesh dep.
+
+### P1 File ops (file_advanced.go NEW LOCKED)
+
+- **edit** (cap `fs:write:/shared/*`): exact-match string replace. Reject kalau >1 match unless `replace_all=true`. File cap 4MB.
+- **glob** (cap `fs:read:/shared/*`): pattern match files. Scan all whitelist categories + root level. Cap 200 results. Symlinks skipped. Anti-escape: reject absolute path + `..`.
+- **grep** (cap `fs:read:/shared/*`): line search across shared workspace. Substring default, `regex=true` → Go regexp. Cap 200 hits + 4MB scanned. Line truncate ke 240 char with `…`. Optional category filter.
+
+### P1 git (git.go NEW LOCKED)
+
+- **git** (cap `exec:git`): read-only ops `status | diff | log | show`. Working dir = `<shared>/<category>` (default `tools`). Output cap 64KB, timeout 15s.
+- Phase 2 write ops (commit, checkpoint, push) defer ke `git_write.go` baru.
+
+### P1 skill client (skill.go NEW LOCKED)
+
+- **skill** (cap `rpc:router:skill`): retrieve full SkillDoc (name + description + body markdown) dari Router. Reuse `routerclient.GetSkill` + DefaultRetry. Caller LLM treat body sebagai system-prompt-style instruction.
+- **skill_search** (cap `rpc:router:skill`): substring search Router catalog. Cap 10 per call (Router anti over-prompt).
+
+### Wiring + manifest
+
+- **builtins.Init()** (LOCKED, +6 Register): editTool + globTool + grepTool + gitTool + skillTool + skillSearchTool.
+- **agents/mr-flow/manifest.json**: capabilities_required tambah `fs:read`, `fs:write`, `exec:git`, `rpc:router:skill`. Total cap Mr.Flow: 9.
+
+### Verified end-to-end (HTTP admin tools/run)
+
+- `/version` → `tools registered: 22` ✅ (16 phase 1 + 6 P1).
+- edit document/test1.txt → bravo→BRAVO, 1 replacement, file persisted ✅.
+- glob `document/*.txt` → 2 file `test1.txt + test2.txt` ✅.
+- grep `alpha` category=document → 2 hit (line 1 di test1.txt, line 2 di test2.txt) ✅.
+- git status di document/ → exit_code 0, status entries returned (catatan: workspace nested di repo parent Flowork_Agent, jadi git resolve ke parent — phase 2 future bisa init isolated repo per category).
+- skill_search `anti` → 10 hit dari 40 total, all dengan name+description ✅.
+
+### Section 11 — EXPLICIT DEFER (with justification)
+
+| Tool | Reason defer |
+|---|---|
+| `multiedit` | Covered by `edit` multi-call. Sequential `edit` calls = same outcome. Phase 2 kalau atomic batch dibutuhkan. |
+| `websearch` | Covered by `webfetch` ke search engine endpoint. Vendor catalog phase 2 (Tavily/Brave/SerpAPI). |
+| `fact_remember/recall/forget` | Covered by `memory_x3` + `brain_search` + `skill`. Fact API thin wrapper — defer. |
+| `task` / `task_bg` / `task_agent_bg` / `task_parallel` | Butuh agent-in-agent invoke runtime — wazero re-entry + cycle detection. Phase 2 kalau multi-agent collaboration aktif. |
+| `skill_write` | Push baru ke Router — butuh Router constitution review channel. Phase 2 bareng Section 8/12 Router. |
+| `peer_review` | Mesh-dependent (warga A → warga B request). Defer ke Mesh ready. |
+| `git_checkpoint` | Write side git — butuh per-category init repo policy. Phase 2 bareng VFS isolation. |
+
+---
+
 ## 2026-05-30 17:15 WIB — Section 11 phase 1c (bash) + phase 1g (plan/todo/goal_done) DONE + LOCK
 
 Section 11 tool catalog grew dari 11 → 16 builtin tools. Phase 1c bash + phase 1g orchestration kelar. P0 fundamental coverage solid.

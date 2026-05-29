@@ -20,7 +20,11 @@
     "net:fetch:http://127.0.0.1:2402/v1/chat/completions",
     "state:read",
     "state:write",
-    "time:read"
+    "time:read",
+    "fs:read",
+    "fs:write",
+    "exec:git",
+    "rpc:router:skill"
   ],
 
   "exposes_rpc": [

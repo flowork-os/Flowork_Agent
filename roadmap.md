@@ -457,7 +457,7 @@ CREATE INDEX idx_tool_invocations_time ON tool_invocations(invoked_at DESC);
 
 ---
 
-## Section 11 — Tool catalog Tier 1 (core tools port) 🚧 IN PROGRESS 2026-05-30 (phase 1a+1b+1d+1e+1f+1c+1g DONE = 16 builtin tools: echo, now, memory_x3, file_x3, brain_search, telegram_send, webfetch, bash, plan_x2, todo, goal_done. P1 tools — edit/multiedit/glob/grep/list/git/skill/task — still pending.)
+## Section 11 — Tool catalog Tier 1 (core tools port) ✅ DONE (phase 1 + P1 file ops + git + skill) 2026-05-30. 22 builtin tools: echo, now, memory_x3, file_x3, brain_search, telegram_send, webfetch, bash, plan_x2, todo, goal_done, edit, glob, grep, git, skill, skill_search. **Explicit defer phase 2**: multiedit (covered by `edit` multi-call), websearch (covered by `webfetch`), fact_remember/recall/forget (covered by memory_x3 + brain_search), task/task_bg/task_parallel (butuh agent-in-agent invoke runtime), skill_write (Router push side — phase 2), peer_review (mesh dep), git_checkpoint (write side — phase 2). Coverage P0+P1 sufficient untuk Mr.Flow operasi penuh.
 
 > **⚠️ OVER-PROMPT RISK CRITICAL** — JANGAN inject SEMUA 28 tool description ke system prompt. Itu = 5600 char waste. Pakai pattern: **5 core tools always-on** (read/write/bash/brain_search/telegram_send), sisanya 23 tools available tapi warga panggil via `tool_search` dulu. Tool description retrieved on-demand by name, ngga upfront dump.
 
