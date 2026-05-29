@@ -547,6 +547,79 @@ func DeathLetterHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// EduErrorsHandler — multi-method endpoint /api/agents/edu-errors?id=<id>
+//
+//	GET    list (?category=&limit=) atau single (?code=<code>)
+//	POST   upsert single (body: {code, category, title, explanation, remediation})
+//
+// Roadmap Section 9. Cache populated via Router sync (defer phase 2) atau
+// admin manual via POST.
+func EduErrorsHandler(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(r.URL.Query().Get("id"))
+	if !reID.MatchString(id) {
+		httpx.WriteJSON(w, map[string]any{"error": "invalid id"})
+		return
+	}
+	dbPath := agentdb.Resolve(id, agentFolder(id))
+	if _, err := os.Stat(dbPath); err != nil {
+		if r.Method == http.MethodGet {
+			httpx.WriteJSON(w, map[string]any{"items": []any{}, "note": "db belum ada"})
+			return
+		}
+		httpx.WriteJSON(w, map[string]any{"error": "db belum ada — boot agent dulu"})
+		return
+	}
+	store, err := agentdb.Open(dbPath)
+	if err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": "open db: " + err.Error()})
+		return
+	}
+	defer store.Close()
+
+	switch r.Method {
+	case http.MethodGet:
+		code := strings.TrimSpace(r.URL.Query().Get("code"))
+		if code != "" {
+			e, err := store.LookupEduError(code)
+			if err != nil {
+				httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+				return
+			}
+			httpx.WriteJSON(w, e)
+			return
+		}
+		category := strings.TrimSpace(r.URL.Query().Get("category"))
+		limit := 50
+		if s := strings.TrimSpace(r.URL.Query().Get("limit")); s != "" {
+			if n, perr := strconv.Atoi(s); perr == nil && n > 0 && n <= 500 {
+				limit = n
+			}
+		}
+		items, err := store.ListEduErrors(category, limit)
+		if err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": "list: " + err.Error()})
+			return
+		}
+		httpx.WriteJSON(w, map[string]any{"items": items, "count": len(items)})
+
+	case http.MethodPost:
+		r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
+		var body agentdb.EduError
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": "decode: " + err.Error()})
+			return
+		}
+		if err := store.UpsertEduError(body); err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+			return
+		}
+		httpx.WriteJSON(w, map[string]any{"ok": true, "code": body.Code})
+
+	default:
+		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
+	}
+}
+
 // PromoteRun — kernelhost daftarkan callback. Resolve agent + push
 // mistakes eligible ke Router /api/mistakes/submit. Nil-safe.
 var PromoteRun func(agentID string) (any, error)

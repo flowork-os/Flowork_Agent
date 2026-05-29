@@ -334,7 +334,7 @@ CREATE INDEX idx_workspace_meta_category ON workspace_meta(category);
 
 ---
 
-## Section 9 — Educational error lookup (lokal)
+## Section 9 — Educational error lookup (lokal) ✅ DONE (phase 1) 2026-05-29
 
 **Goal:** kalau warga kepleset (error code, validation fail), bisa lookup penjelasan + remediation dari catalog lokal. Catalog seed dari router (sync sekali) atau bring-your-own per-warga.
 

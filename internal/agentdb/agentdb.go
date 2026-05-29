@@ -254,6 +254,20 @@ func (s *Store) ensureSchema() error {
 		`CREATE INDEX IF NOT EXISTS idx_workspace_meta_category ON workspace_meta(category)`,
 		`CREATE INDEX IF NOT EXISTS idx_workspace_meta_deleted  ON workspace_meta(deleted_at)`,
 		`CREATE INDEX IF NOT EXISTS idx_workspace_meta_updated  ON workspace_meta(updated_at DESC)`,
+
+		// Section 9 — Educational error lookup (cache lokal).
+		// Mirror schema dari router educational catalog. PRIMARY KEY code.
+		`CREATE TABLE IF NOT EXISTS educational_errors_cache (
+			code        TEXT PRIMARY KEY,
+			category    TEXT NOT NULL,
+			title       TEXT NOT NULL,
+			explanation TEXT NOT NULL,
+			remediation TEXT NOT NULL,
+			synced_at   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			deleted_at  TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_edu_errors_category ON educational_errors_cache(category)`,
+		`CREATE INDEX IF NOT EXISTS idx_edu_errors_deleted  ON educational_errors_cache(deleted_at)`,
 	}
 	for _, q := range stmts {
 		if _, err := s.db.Exec(q); err != nil {

@@ -4,6 +4,27 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-29 22:05 WIB — Section 9: Educational error lookup (phase 1) DONE + LOCK
+
+- **feat(agentdb)**: tabel `educational_errors_cache` (code PK, category, title, explanation, remediation, synced_at, deleted_at) + 2 index. `internal/agentdb/edu_errors.go` (LOCKED): `UpsertEduError` (atomic ON CONFLICT DO UPDATE), `LookupEduError(code)` (return zero+code on miss — caller bedakan via Title==""), `ListEduErrors(category, limit)`, `CountEduErrors`. Hard cap 4KB explanation + remediation, 256 char title.
+- **feat(agentmgr)**: HTTP endpoint multi-method `GET/POST /api/agents/edu-errors?id=`:
+  - GET single by `?code=`
+  - GET list `?category=&limit=`
+  - POST upsert body `EduError` struct
+- **verified end-to-end via 6 scenario**:
+  - Schema clean + 2 index
+  - POST upsert ROUTER_UNREACHABLE → ok
+  - POST upsert TELEGRAM_403 → ok
+  - GET single `?code=ROUTER_UNREACHABLE` → full row returned
+  - List category=auth → 1 row (TELEGRAM_403)
+  - Not found code → zero EduError + code preserved
+
+### Defer:
+- **`routerclient.PullEduErrors()`** sync dari Router /api/edu-errors — butuh Router catalog endpoint, defer Section 9 phase 2.
+- **Mr.Flow integration**: catch error → lookup code → log decision dengan remediation suggestion. Defer sampai catalog populated.
+
+---
+
 ## 2026-05-29 21:50 WIB — Section 7: Sync interface ke router (phase 1) DONE + audit + LOCK
 
 - **feat(routerclient)**: `internal/routerclient/routerclient.go` (LOCKED) — HTTP client wrapper untuk agent↔router. `Client` struct + `New(baseURL)` constructor (URL whitelist validation, fallback default). `SubmitMistake(ctx, req) → (resp, err)`: POST `/api/mistakes/submit`. `Ping(ctx)` health check. Body size cap 64KB read, JSON marshal/decode, 30s HTTP timeout.
