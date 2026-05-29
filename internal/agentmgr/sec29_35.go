@@ -19,6 +19,7 @@ import (
 
 	"flowork-gui/internal/agentdb"
 	"flowork-gui/internal/httpx"
+	"flowork-gui/internal/zombie"
 )
 
 // =============================================================================
@@ -61,6 +62,48 @@ func ZombieFindingsHandler(w http.ResponseWriter, r *http.Request) {
 	default:
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
 	}
+}
+
+// ZombieScanHandler — POST /api/agents/zombie/scan?id=<agent>&min_age_days=
+// Section 29 phase 2 real auto-detect: walk codemap_nodes, grep callers.
+func ZombieScanHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
+		return
+	}
+	agentID := strings.TrimSpace(r.URL.Query().Get("id"))
+	if agentID == "" {
+		httpx.WriteJSON(w, map[string]any{"error": "agent id required"})
+		return
+	}
+	minAge := 30
+	if s := r.URL.Query().Get("min_age_days"); s != "" {
+		if n, perr := strconv.Atoi(s); perr == nil && n >= 0 {
+			minAge = n
+		}
+	}
+	store, err := openAgentStore(agentID)
+	if err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+		return
+	}
+	defer store.Close()
+	sharedRoot := agentFolder(agentID) + "/workspace"
+	res, err := zombie.Scan(r.Context(), store, zombie.ScanOptions{
+		SharedRoot: sharedRoot,
+		MinAgeDays: minAge,
+	})
+	if err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+		return
+	}
+	httpx.WriteJSON(w, map[string]any{
+		"ok":               true,
+		"symbols_scanned":  res.SymbolsScanned,
+		"files_grepped":    res.FilesGrepped,
+		"inserted":         res.Inserted,
+		"findings_preview": res.Findings,
+	})
 }
 
 // ZombieAckHandler — POST /api/agents/zombie/ack?id=&finding_id=
