@@ -4,6 +4,49 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-30 19:15 WIB — Section 17 phase 2: CLI adapter + Web UI slash input DONE + LOCK → Section 17 CLOSED
+
+Slash dispatcher sekarang reachable dari 4 context: Telegram (runDaemon), RPC (doHandle — chat-debug + future webhook), CLI (flowork-cli), Web UI (modal per kartu agent).
+
+### CLI adapter
+
+- **feat(cmd/flowork-cli/main.go)** (NEW LOCKED): standalone slash binary.
+  - Flags: `--agent` (default mr-flow), `--base` (default 127.0.0.1:1987), `--caller` (default flowork-cli), `--timeout` 30s, `--json` raw output, `--repl` interactive shell.
+  - One-shot: `flowork-cli /version`, `flowork-cli /tool_search net`.
+  - REPL: prompt `(agentid)>`, Ctrl+C exit, `/exit` `/quit` keluar.
+  - Exit codes: 0 ok, 1 net/HTTP error, 2 parse / slash not found.
+  - Pretty mode: print `result.text` ke stdout + `[command in Nms]` ke stderr.
+
+### Web UI quick slash modal
+
+- **feat(web/tabs/agents_slash_modal.js)** (NEW LOCKED): `openSlashModal(agentId)`. Dictionary-only labels. XSS guard via esc().
+  - UI: input field + 6 hint chip clickable (`/help`, `/version`, `/tools`, `/stats`, `/now`, `/tool_search `).
+  - Enter → POST `/api/agents/slash/run?id=<agent> {text, caller: "web-ui"}`.
+  - Output panel render hasil sebagai monospace pre-wrap.
+  - Esc close modal. Click backdrop = close. Status indicator (running / error red / success green dengan duration_ms).
+- **wire(web/tabs/agents.js)**: import + tombol `/` di card-actions baris setting button + onclick → openSlashModal.
+- **i18n en+id menu.json**: 6 dictionary key baru — btn_slash_title, slash_modal_h, slash_modal_sub, slash_run_btn, slash_running, slash_must_start.
+
+### Verified end-to-end
+
+- CLI `flowork-cli /version` → "Flowork Agent 0.4.0-embedded-kernel\nagent_id: mr-flow\ntools registered: 22\nslash commands: 12" ✅.
+- CLI `--json /tool_search net` → raw JSON dengan command, duration_ms, result.text, error="" ✅.
+- CLI `/tool_search bash` → pretty markdown 1 hit, `[tool_search in 0ms]` ke stderr ✅.
+- Web UI agents.js loads slash modal module ✅.
+- i18n dict id locale: `slash_modal_h: "Slash command"`, `slash_run_btn: "Jalan"` ✅.
+
+### Section 17 — EXPLICIT DEFER phase 3
+
+| Komponen | Reason |
+|---|---|
+| **slash_mcp.go** | Butuh MCP server protocol implementation (transport, capability negotiation). Phase Mr.Flow MCP integration. |
+| **slash_github.go** | Butuh GitHub webhook + Bearer auth + signature verify. Phase external integration. |
+| **slash_roadmap_gap analyzer** | 417 LOC tool yg analyze roadmap.md gap. Lower-priority (single-owner). |
+| **pre-/post-hook framework** | Decision log integration setelah Section 3 brain audit pattern mature. |
+| **Slash autocomplete** | Frontend complete dropdown via GET /api/agents/slash/registry. Defer phase 3 UX polish. |
+
+---
+
 ## 2026-05-30 18:50 WIB — Section 16 phase 2: hot-reload fsnotify + multi-warga + Unregister API DONE + LOCK → Section 16 CLOSED
 
 Custom slash loader sekarang bisa hot-reload tanpa restart + scan multiple agent commands dir bersamaan.

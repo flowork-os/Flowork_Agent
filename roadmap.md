@@ -893,7 +893,7 @@ CREATE TABLE slash_custom_index (
 
 ---
 
-## Section 17 — Slash dispatcher integration (multi-context)
+## Section 17 — Slash dispatcher integration (multi-context) ✅ DONE (Telegram + RPC + CLI + Web UI) 2026-05-30. Telegram adapter via runDaemon dispatch slash (phase 1 prior). Phase 2: RPC doHandle parity (chat-debug + future webhook), `cmd/flowork-cli/` standalone binary (one-shot + REPL mode + --json output, default agent=mr-flow, base 127.0.0.1:1987, --timeout flag), Web UI tombol `/` per kartu agent → modal quick slash run dengan hint chips. Defer phase 3: slash_mcp.go (MCP server integration), slash_github.go (GitHub webhook integration), pre-/post-hook framework dengan decisions log integration, slash autocomplete via /slash/registry dropdown.
 
 **Goal:** slash bisa dipakai dari multi-context — Telegram, future CLI, future Web UI input box. Setiap context punya adapter tipis yang ngomong ke dispatcher.
 

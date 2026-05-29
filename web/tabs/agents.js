@@ -11,6 +11,7 @@
 // with empty dict → t() balikin key mentah.
 import { t } from '/js/i18n.js';
 import { openRouterSkillBrowser } from './agents_router_skills.js';
+import { openSlashModal } from './agents_slash_modal.js';
 
 const API_LIST   = '/api/kernel/agents';
 const API_UPLOAD = '/api/agents/upload';
@@ -464,6 +465,7 @@ function renderCard(a) {
       ${a.reject_reason ? `<div class="ag-reject">${esc(a.reject_reason)}</div>` : ''}
       <div class="ag-card-actions">
         <button class="ag-btn primary" data-action="setting">${esc(t('menu.tab.agents.btn_setting'))}</button>
+        <button class="ag-btn"         data-action="slash" title="${esc(t('menu.tab.agents.btn_slash_title') || 'Quick slash command')}">/</button>
         <button class="ag-btn"         data-action="download" title="${esc(t('menu.tab.agents.btn_download'))}">⬇</button>
         <button class="ag-btn danger"  data-action="remove" title="${esc(t('menu.tab.agents.btn_remove'))}">🗑</button>
       </div>
@@ -475,6 +477,8 @@ function wireCard(root, a) {
   const card = root.querySelector(`.ag-card[data-id="${a.id}"]`);
   if (!card) return;
   card.querySelector('[data-action="setting"]').onclick = () => openSettingModal(root, a);
+  // Section 17 phase 2: tombol slash quick input.
+  card.querySelector('[data-action="slash"]').onclick = () => openSlashModal(a.id);
   card.querySelector('[data-action="remove"]').onclick = async () => {
     const ok = confirm(t('menu.tab.agents.remove_confirm_full').replace('{id}', a.id));
     if (!ok) return;
