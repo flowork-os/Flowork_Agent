@@ -604,7 +604,7 @@ CREATE INDEX idx_tool_audit_decision ON tool_audit(decision);
 
 ---
 
-## Section 13 — Tool discovery + suggestion (warga inventory) ✅ DONE 2026-05-30 phase 1 (/tool_search slash command via name/capability/description substring match)
+## Section 13 — Tool discovery + suggestion (warga inventory) ✅ DONE (phase 1 + phase 2) 2026-05-30. Phase 1: /tool_search slash command. Phase 2: tool_subscriptions table + 5 endpoint (catalog/my/subscribe/unsubscribe/suggest) + local heuristic suggester (name×3 + capability×2 + description×1 substring scoring). Router /api/brain/tools/suggest stub (Router section 6 tool_learner phase 3). Defer phase 3: UI popup integration, group preset (minimal_set/coder_set/researcher_set), tool_consolidate_audit lintas-warga, tool_hotreload binary, tool_alias resolver, warga_registry success-rate metric.
 
 **Goal:** warga bisa **browse catalog tool** (lihat apa yang available), **list tool aktif dia sendiri** (apa yang dia subscribe), dan dapet **auto-suggest** dari router pattern (lihat router section 6 — tool_learner).
 

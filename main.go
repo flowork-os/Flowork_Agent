@@ -159,6 +159,12 @@ func main() {
 	mux.HandleFunc("/api/agents/slash-invocations", agentmgr.SlashInvocationsHandler)
 	mux.HandleFunc("/api/agents/router-skills/list", agentmgr.RouterSkillsListHandler)
 	mux.HandleFunc("/api/agents/router-skills/get", agentmgr.RouterSkillsGetHandler)
+	// Section 13 phase 2 — tool subscriptions + suggest.
+	mux.HandleFunc("/api/agents/tools/catalog", agentmgr.ToolCatalogHandler)
+	mux.HandleFunc("/api/agents/tools/my", agentmgr.ToolMyHandler)
+	mux.HandleFunc("/api/agents/tools/subscribe", agentmgr.ToolSubscribeHandler)
+	mux.HandleFunc("/api/agents/tools/unsubscribe", agentmgr.ToolUnsubscribeHandler)
+	mux.HandleFunc("/api/agents/tools/suggest", agentmgr.ToolSuggestHandler)
 
 	// Catch-all stub utk path /api/* yang gak diregister.
 	mux.HandleFunc("/api/", mockAPI)

@@ -4,6 +4,35 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-30 18:20 WIB — Section 13 phase 2: tool_subscriptions + 5 endpoint + local suggester DONE + LOCK → Section 13 CLOSED
+
+- **feat(agentdb/tool_subscriptions.go)** (NEW LOCKED): per-warga subscription model. Lazy CREATE TABLE IF NOT EXISTS + idx. API: `SubscribeTool(name, source, configJSON)` upsert, `UnsubscribeTool(name)`, `IsSubscribed(name)`, `ListSubscriptions()` cap 500, `SubscribedSet()` map[name]bool buat efficient lookup.
+- **feat(agentmgr/tool_subscriptions.go)** (NEW LOCKED): 5 HTTP endpoint:
+  - `GET /api/agents/tools/catalog?id=&search=` — semua registered tool + `subscribed: bool` flag per agent.
+  - `GET /api/agents/tools/my?id=` — intersect subscriptions × registry, mark `active: false` kalau tool ngga registered (stale subscription).
+  - `POST /api/agents/tools/subscribe?id=&tool=&source=` — upsert (default source='manual').
+  - `POST /api/agents/tools/unsubscribe?id=&tool=` — idempotent delete.
+  - `POST /api/agents/tools/suggest?id= {query, limit?}` — local heuristic scoring: name×3 + capability×2 + description×1 substring, sort desc, top-K. `router_hit: false` (Router section 6 endpoint defer phase 3).
+- **wiring(main.go)**: 5 mux.HandleFunc registered.
+
+### Verified end-to-end
+
+- catalog `?search=plan` → 2 hit (plan_read, plan_write), `subscribed: false`, total 22 ✅.
+- subscribe plan_read → `{ok: true, tool: "plan_read", source: "manual"}` ✅.
+- my → 1 item plan_read, `active: true`, `subscribed_at` RFC3339 ✅.
+- suggest `"write file"` → file_write match (score 1, "description match") ✅.
+
+### Defer phase 3:
+- **UI popup integration** — section "Tools" di popup agent setting replace simple list dengan grid catalog + subscribe/unsubscribe toggle.
+- **Router /api/brain/tools/suggest** — Router section 6 tool_learner endpoint belum ada. `tryRouterSuggest` di agentmgr stub return false; phase 3 implementation pattern dicantum di komentar.
+- **Group preset** (minimal_set, coder_set, researcher_set) — subscribe bulk dengan source='group:<name>'.
+- **tool_consolidate_audit** lintas-warga (multi-warga only — defer ke mesh).
+- **tool_hotreload** binary swap tanpa restart.
+- **tool_alias** resolver + reverse lookup.
+- **warga_registry** snapshot (tools aktif, last_used, success_rate via join ke tool_invocations).
+
+---
+
 ## 2026-05-30 18:00 WIB — Section 12 phase 2: interceptor chain DONE + LOCK → Section 12 CLOSED
 
 Sandbox sekarang punya 4 gate (interceptor chain + 3 sandbox gate). Tool execution lewat: SandboxRunV2 → interceptors → cap gate → disabled → rate_limit → Run.
