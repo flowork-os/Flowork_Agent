@@ -605,10 +605,15 @@ func ToolRunHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Inject store + caller + agent into ctx, then dispatch.
+	// Inject store + caller + agent + shared dir into ctx, then dispatch.
 	ctx := tools.WithStore(r.Context(), store)
 	ctx = tools.WithCaller(ctx, caller)
 	ctx = tools.WithAgent(ctx, id)
+	if SharedDirForAgent != nil {
+		if shared, derr := SharedDirForAgent(id); derr == nil && shared != "" {
+			ctx = tools.WithSharedDir(ctx, shared)
+		}
+	}
 
 	t0 := time.Now()
 	result, runErr := t.Run(ctx, body.Args)
@@ -777,6 +782,10 @@ func EduErrorsHandler(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
 	}
 }
+
+// SharedDirForAgent — kernelhost daftarkan callback. Resolve agent shared
+// workspace path (`<root>/workspace/<agent_id>/`). Nil-safe.
+var SharedDirForAgent func(agentID string) (string, error)
 
 // PromoteRun — kernelhost daftarkan callback. Resolve agent + push
 // mistakes eligible ke Router /api/mistakes/submit. Nil-safe.

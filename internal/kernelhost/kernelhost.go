@@ -894,6 +894,15 @@ func (h *Host) karmaUpdate(pluginID, op, key string, value float64) (float64, er
 	}
 }
 
+// SharedDirForAgent — return absolute path ke shared workspace per agent
+// (`<SharedDir>/<agentID>/`). Buat dispatcher tool ops yang butuh fs access.
+func (h *Host) SharedDirForAgent(agentID string) (string, error) {
+	if agentID == "" {
+		return "", fmt.Errorf("agentID required")
+	}
+	return filepath.Join(h.SharedDir, agentID), nil
+}
+
 // PromoteReport — outcome RunPromoteForAgent. Agregat hasil submit ke
 // router. Section 7 phase 1.
 type PromoteReport struct {

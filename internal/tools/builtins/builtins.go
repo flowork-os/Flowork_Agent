@@ -46,6 +46,10 @@ func Init() {
 	tools.Register(&memGetTool{})
 	tools.Register(&memSetTool{})
 	tools.Register(&memDelTool{})
+	// phase 1b: file ops (file.go)
+	tools.Register(&fileReadTool{})
+	tools.Register(&fileWriteTool{})
+	tools.Register(&fileListTool{})
 }
 
 // =============================================================================

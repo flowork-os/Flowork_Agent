@@ -4,6 +4,39 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-30 12:45 WIB — Section 11 phase 1b: 3 file ops tools + SharedDir plumbing
+
+- **feat(tools/builtins)**: `internal/tools/builtins/file.go` (LOCKED) — 3 tool implementations:
+  - **file_read** (`fs:read:/shared/*`) — read file by `{category, name}`, 4MB cap, truncated flag
+  - **file_write** (`fs:write:/shared/*`) — create/overwrite file, 4MB cap, bytes_written return
+  - **file_list** (`fs:read:/shared/*`) — list filenames di category, symlinks skipped (audit Section 6 pattern)
+- **security**: triple path defense — (1) category whitelist (tools/job/document/media/cache/log mirror SharedSubfolders), (2) `filepath.Base()` strips traversal, (3) defense-in-depth `strings.HasPrefix(abs, sharedDir+sep)` post-Join sanity.
+- **feat(tools/context.go)**: extended dengan `WithSharedDir/FromSharedDir` ctx helpers. ctxKey enum added `keySharedDir`.
+- **feat(kernelhost)**: `Host.SharedDirForAgent(agentID)` — return absolute path `<SharedDir>/<agentID>/`.
+- **feat(agentmgr)**: `SharedDirForAgent` callback var + dispatcher inject ctx kalau callback wired.
+- **feat(main.go)**: wire `agentmgr.SharedDirForAgent = host.SharedDirForAgent`.
+- **feat(builtins.go)**: extend `Init()` register 3 file tools (total 8 builtin).
+- **verified end-to-end via 8 scenario** + disk inspection:
+  - Registry 8 tools (5 demo + 3 file) sorted alphabetical
+  - file_write document/section-11-1b-test.md (64 bytes) → disk verified
+  - file_read content preserved exactly
+  - file_list document returns 2 files (existing test_note.md + new)
+  - Path traversal `../../etc/passwd` → filepath.Base strips → "passwd" not found di document/ (BLOCKED safely)
+  - Invalid category 'BAD!' → whitelist rejected
+  - File not found → clear error
+  - Empty category cache → count:0
+
+### Section 11 progress:
+- Phase 1a (5 demo tools): DONE
+- Phase 1b (3 file ops): DONE — 8 builtin tools total
+- Phase 1c shell (bash_run): defer
+- Phase 1d web (webfetch): defer
+- Phase 1e brain (search/recall): defer
+- Phase 1f comms (telegram_send): defer
+- Phase 1g task/plan/todo: defer P2
+
+---
+
 ## 2026-05-30 12:30 WIB — Section 11: Tool Tier 1 phase 1a (5 demo tools + dispatcher) DONE + LOCK
 
 - **schema**: tabel `tool_memory` (k PK, v, updated_at) WITHOUT ROWID — separate dari existing `kv` table supaya ownership tool terisolasi.

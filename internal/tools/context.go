@@ -26,9 +26,10 @@ import (
 type ctxKey int
 
 const (
-	keyStore  ctxKey = iota // *agentdb.Store
-	keyCaller               // string identifier (mis. 'daemon', 'rpc', 'http-admin')
-	keyAgent                // string agent id (mr-flow)
+	keyStore     ctxKey = iota // *agentdb.Store
+	keyCaller                  // string identifier (mis. 'daemon', 'rpc', 'http-admin')
+	keyAgent                   // string agent id (mr-flow)
+	keySharedDir               // string filesystem path ke `<root>/workspace/<agent_id>/`
 )
 
 // WithStore — attach per-agent *agentdb.Store ke ctx. Dipanggil dispatcher
@@ -68,4 +69,18 @@ func WithAgent(ctx context.Context, agentID string) context.Context {
 func FromAgent(ctx context.Context) string {
 	a, _ := ctx.Value(keyAgent).(string)
 	return a
+}
+
+// WithSharedDir — attach absolute filesystem path ke shared workspace root
+// per agent (`<root>/workspace/<agent_id>/`). File ops tools resolve
+// path safely di sini.
+func WithSharedDir(ctx context.Context, path string) context.Context {
+	return context.WithValue(ctx, keySharedDir, path)
+}
+
+// FromSharedDir — extract shared dir path. Return empty kalau ngga ada
+// (tool harus reject kalau butuh fs access).
+func FromSharedDir(ctx context.Context) string {
+	p, _ := ctx.Value(keySharedDir).(string)
+	return p
 }

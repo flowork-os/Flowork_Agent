@@ -73,6 +73,9 @@ func main() {
 	agentmgr.PromoteRun = func(agentID string) (any, error) {
 		return host.RunPromoteForAgent(agentID)
 	}
+	agentmgr.SharedDirForAgent = func(agentID string) (string, error) {
+		return host.SharedDirForAgent(agentID)
+	}
 
 	host.AutoBootDaemons(ctx)
 	if err := host.StartWatcher(ctx); err != nil {
