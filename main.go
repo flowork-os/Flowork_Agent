@@ -81,18 +81,22 @@ func main() {
 	}
 	defer host.Close(context.Background())
 
-	// Section 16: load custom slash commands dari shared workspace agent
-	// `mr-flow` (subfolder `commands/`). Best-effort — kalau folder ngga
-	// ada, skip silently. Mr.Dev bikin file *.md → command tersedia
-	// (require restart untuk reload — hot-reload phase 2).
-	if sharedDir, derr := host.SharedDirForAgent("mr-flow"); derr == nil && sharedDir != "" {
-		commandsDir := filepath.Join(sharedDir, "commands")
-		loaded, skipped, lerr := slashcustom.LoadFromDir(commandsDir)
-		if lerr != nil {
-			log.Printf("custom slash load: %v", lerr)
-		} else if loaded > 0 || skipped > 0 {
-			log.Printf("custom slash: loaded=%d skipped=%d from %s", loaded, skipped, commandsDir)
+	// Section 16 phase 2: multi-warga + hot-reload fsnotify.
+	// Enumerate semua agent → resolve <sharedDir>/<agentID>/commands/ → load
+	// all + start fsnotify watcher debounce 500ms.
+	commandsDirs := []string{}
+	for _, agentID := range host.AgentIDs() {
+		if shared, derr := host.SharedDirForAgent(agentID); derr == nil && shared != "" {
+			commandsDirs = append(commandsDirs, filepath.Join(shared, "commands"))
 		}
+	}
+	if loaded, skipped, lerr := slashcustom.LoadFromDirs(commandsDirs); lerr != nil {
+		log.Printf("custom slash load: %v", lerr)
+	} else if loaded > 0 || skipped > 0 {
+		log.Printf("custom slash: loaded=%d skipped=%d across %d dirs", loaded, skipped, len(commandsDirs))
+	}
+	if werr := slashcustom.StartWatcher(ctx, commandsDirs); werr != nil {
+		log.Printf("custom slash watcher: %v (hot-reload disabled)", werr)
 	}
 
 	// Wire ConfigHandler → kernel reload callback. Tanpa ini, save config

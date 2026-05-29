@@ -4,6 +4,36 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-30 18:50 WIB — Section 16 phase 2: hot-reload fsnotify + multi-warga + Unregister API DONE + LOCK → Section 16 CLOSED
+
+Custom slash loader sekarang bisa hot-reload tanpa restart + scan multiple agent commands dir bersamaan.
+
+- **feat(slashcmd/registry_dynamic.go)** (NEW LOCKED): `Unregister(name)` strip canonical + aliases yang point ke command itu. `Has(name)` existence check. Locked registry.go ngga di-modify (regMu shared via package scope).
+- **feat(slashcmd/custom/watcher.go)** (NEW LOCKED):
+  - `LoadFromDirs(dirs)` — multi-warga loader. Snapshot registry pre/post-load → newly registered names di-`trackName` (custom-source tracking).
+  - `ClearAll()` — unregister all tracked custom commands. Idempotent.
+  - `Reload(dirs)` — ClearAll + LoadFromDirs combo. Log result.
+  - `StartWatcher(ctx, dirs)` — fsnotify NewWatcher + watch all dirs. Debounce 500ms timer (burst write coalesce). Filter `.md` ext + Create/Write/Remove/Rename op. ctx cancel → close watcher.
+  - `TrackedNames()` snapshot util.
+- **feat(kernelhost.go)**: `Host.AgentIDs()` method — public snapshot of loaded agent IDs via `h.lives` (thread-safe via h.mu.Lock).
+- **wiring(main.go)**: replace single-agent hardcoded loader dengan `for _, agentID := range host.AgentIDs() { append commandsDirs }` + `slashcustom.LoadFromDirs(commandsDirs)` + `slashcustom.StartWatcher(ctx, commandsDirs)`.
+
+### Verified end-to-end
+
+- Boot log: `custom slash: loaded=3 skipped=0 across 1 dirs` ✅ (Mr.Flow's 3 .md commands).
+- Watcher log: `[custom-slash] watching 1 commands dirs` ✅.
+- Live add `livetest.md` → `[custom-slash] reload: loaded=4 skipped=0` ✅, `/livetest hello` → "Live reload works! Argument: hello" ✅.
+- Live remove livetest.md → `[custom-slash] reload: loaded=3 skipped=0` ✅, `/livetest` → "command not found: /livetest" ✅.
+- Existing /rules + /whoami + /say tetap jalan (no regression) ✅.
+
+### Defer phase 3:
+- **`run: llm` frontmatter** — body dijadikan system prompt + dispatch ke LLM. Kompleks: butuh LLM-from-slash-dispatcher async routing + token streaming + per-call cost accounting. Defer ke phase Mr.Flow LLM wrapper restructure.
+- **Command body run via JS/Python script** — `exec: bash <script>` frontmatter. Security review berat (sandbox isolation beyond bash tool denylist).
+- **Per-warga permission gate** — saat ini single-owner share, kalau multi-warga, ambient access ke `<sharedDir>/<agentID>/commands/` dari warga lain perlu deny by default. Defer ke phase Mesh.
+- **DB-backed custom commands** — saat ini file-based. Phase 3 add DB-sourced commands (admin UI write).
+
+---
+
 ## 2026-05-30 18:20 WIB — Section 13 phase 2: tool_subscriptions + 5 endpoint + local suggester DONE + LOCK → Section 13 CLOSED
 
 - **feat(agentdb/tool_subscriptions.go)** (NEW LOCKED): per-warga subscription model. Lazy CREATE TABLE IF NOT EXISTS + idx. API: `SubscribeTool(name, source, configJSON)` upsert, `UnsubscribeTool(name)`, `IsSubscribed(name)`, `ListSubscriptions()` cap 500, `SubscribedSet()` map[name]bool buat efficient lookup.

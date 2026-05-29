@@ -904,6 +904,24 @@ func (h *Host) SharedDirForAgent(agentID string) (string, error) {
 	return filepath.Join(h.SharedDir, agentID), nil
 }
 
+// AgentIDs — Section 16 phase 2: enumerate loaded agent IDs (snapshot,
+// thread-safe). Buat caller (main.go) iterate untuk multi-warga commands
+// loading + watcher setup.
+func (h *Host) AgentIDs() []string {
+	if h == nil {
+		return nil
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	out := make([]string, 0, len(h.lives))
+	for _, l := range h.lives {
+		if l.Discovery.Manifest != nil {
+			out = append(out, l.Discovery.Manifest.ID)
+		}
+	}
+	return out
+}
+
 // CapsCheckerForAgent — Section 12: return closure bound ke broker
 // IsApproved untuk agent tertentu. Sandbox (tools.SandboxRun) pakai
 // untuk capability gate. Return nil kalau Broker ngga di-set (default-allow).
