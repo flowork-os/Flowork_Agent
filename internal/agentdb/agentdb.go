@@ -294,6 +294,15 @@ func (s *Store) ensureSchema() error {
 		`CREATE INDEX IF NOT EXISTS idx_tool_invocations_name    ON tool_invocations(tool_name)`,
 		`CREATE INDEX IF NOT EXISTS idx_tool_invocations_time    ON tool_invocations(invoked_at DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_tool_invocations_deleted ON tool_invocations(deleted_at)`,
+
+		// Section 11 — Tool catalog Tier 1 phase 1a: simple KV buat tool
+		// memory_get/set/delete. Separate dari existing `kv` table supaya
+		// ownership tool memory terisolasi.
+		`CREATE TABLE IF NOT EXISTS tool_memory (
+			k          TEXT PRIMARY KEY,
+			v          TEXT NOT NULL DEFAULT '',
+			updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+		) WITHOUT ROWID`,
 	}
 	for _, q := range stmts {
 		if _, err := s.db.Exec(q); err != nil {

@@ -31,6 +31,7 @@ import (
 	"flowork-gui/internal/agentmgr"
 	"flowork-gui/internal/httpx"
 	"flowork-gui/internal/kernelhost"
+	"flowork-gui/internal/tools/builtins"
 )
 
 //go:embed web
@@ -49,6 +50,10 @@ func main() {
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
+
+	// Section 11 phase 1a: register 5 builtin tools (echo, now, memory_get/
+	// set/delete). Panic on duplicate name — early bug catch.
+	builtins.Init()
 
 	host, err := kernelhost.Boot(ctx)
 	if err != nil {
@@ -108,6 +113,7 @@ func main() {
 	mux.HandleFunc("/api/agents/edu-errors", agentmgr.EduErrorsHandler)
 	mux.HandleFunc("/api/agents/tools/registry", agentmgr.ToolRegistryHandler)
 	mux.HandleFunc("/api/agents/tool-invocations", agentmgr.ToolInvocationsHandler)
+	mux.HandleFunc("/api/agents/tools/run", agentmgr.ToolRunHandler)
 
 	// Catch-all stub utk path /api/* yang gak diregister.
 	mux.HandleFunc("/api/", mockAPI)

@@ -31,6 +31,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"flowork-gui/internal/agentdb"
 	"flowork-gui/internal/httpx"
@@ -546,6 +547,103 @@ func DeathLetterHandler(w http.ResponseWriter, r *http.Request) {
 	default:
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
 	}
+}
+
+// ToolRunHandler — POST /api/agents/tools/run?id=<agent_id>
+// Body: {tool_name, args, caller?}
+//
+// Lookup tool dari registry, attach store ke ctx, dispatch Run, log
+// invocation. Return Result atau error.
+//
+// ⚠️ Phase 1: no broker permission gate. Tool.Capability() declared tapi
+// belum di-enforce. Defer phase 2.
+func ToolRunHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		httpx.WriteJSON(w, map[string]any{"error": "method not allowed (use POST)"})
+		return
+	}
+	id := strings.TrimSpace(r.URL.Query().Get("id"))
+	if !reID.MatchString(id) {
+		httpx.WriteJSON(w, map[string]any{"error": "invalid id"})
+		return
+	}
+	dbPath := agentdb.Resolve(id, agentFolder(id))
+	if _, err := os.Stat(dbPath); err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": "db belum ada — boot agent dulu"})
+		return
+	}
+	store, err := agentdb.Open(dbPath)
+	if err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": "open db: " + err.Error()})
+		return
+	}
+	defer store.Close()
+
+	r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
+	var body struct {
+		ToolName string         `json:"tool_name"`
+		Args     map[string]any `json:"args"`
+		Caller   string         `json:"caller"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": "decode: " + err.Error()})
+		return
+	}
+	toolName := strings.TrimSpace(body.ToolName)
+	if toolName == "" {
+		httpx.WriteJSON(w, map[string]any{"error": "tool_name required"})
+		return
+	}
+	caller := strings.TrimSpace(body.Caller)
+	if caller == "" {
+		caller = "http-admin"
+	}
+
+	t, ok := tools.Lookup(toolName)
+	if !ok {
+		httpx.WriteJSON(w, map[string]any{"error": "tool not registered: " + toolName})
+		return
+	}
+
+	// Inject store + caller + agent into ctx, then dispatch.
+	ctx := tools.WithStore(r.Context(), store)
+	ctx = tools.WithCaller(ctx, caller)
+	ctx = tools.WithAgent(ctx, id)
+
+	t0 := time.Now()
+	result, runErr := t.Run(ctx, body.Args)
+	elapsedMs := time.Since(t0).Milliseconds()
+
+	// Log invocation (best-effort — kalau log gagal, ngga blocking response).
+	errText := ""
+	if runErr != nil {
+		errText = runErr.Error()
+	}
+	if _, lerr := store.LogToolInvocation(
+		toolName,
+		tools.MarshalArgs(body.Args),
+		tools.MarshalResult(result),
+		errText,
+		caller,
+		elapsedMs,
+	); lerr != nil {
+		log.Printf("agentmgr: log invocation failed for %s: %v", toolName, lerr)
+	}
+
+	if runErr != nil {
+		httpx.WriteJSON(w, map[string]any{
+			"error":      runErr.Error(),
+			"tool_name":  toolName,
+			"latency_ms": elapsedMs,
+		})
+		return
+	}
+	httpx.WriteJSON(w, map[string]any{
+		"ok":         true,
+		"tool_name":  toolName,
+		"result":     result,
+		"latency_ms": elapsedMs,
+	})
 }
 
 // ToolRegistryHandler — GET /api/agents/tools/registry

@@ -4,6 +4,46 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-30 12:30 WIB — Section 11: Tool Tier 1 phase 1a (5 demo tools + dispatcher) DONE + LOCK
+
+- **schema**: tabel `tool_memory` (k PK, v, updated_at) WITHOUT ROWID — separate dari existing `kv` table supaya ownership tool terisolasi.
+- **feat(agentdb)**: `internal/agentdb/tool_memory.go` (LOCKED) — `GetToolMemory` (return value + found bool), `SetToolMemory` (atomic UPSERT, 32KB value cap, 256B key cap), `DelToolMemory` (DESTRUCTIVE physical remove — schema no deleted_at), `ListToolMemoryKeys` (cap 100, keys-only anti over-prompt).
+- **feat(tools)**: `internal/tools/context.go` (LOCKED) — ctx propagation helpers: WithStore/FromStore (`*agentdb.Store`), WithCaller/FromCaller (mis. 'daemon', 'http-admin', 'rpc'), WithAgent/FromAgent (agent ID). ctxKey type private anti collision.
+- **feat(tools/builtins)**: `internal/tools/builtins/builtins.go` (LOCKED) — 5 tool implementations + `Init()` bootstrap:
+  - **echo** (capability: none) — return input message
+  - **now** (`time:read`) — return RFC3339 + unix_ms
+  - **memory_get** (`state:read`) — read tool_memory by key, return found bool
+  - **memory_set** (`state:write`) — atomic upsert
+  - **memory_delete** (`state:write`) — DESTRUCTIVE remove
+- **feat(agentmgr)**: `ToolRunHandler` POST `/api/agents/tools/run?id=<agent>` body `{tool_name, args, caller?}`. Lookup tool dari registry, inject store+caller+agent ke ctx, dispatch Run, log invocation (best-effort), return Result. MaxBytesReader 64KB.
+- **feat(main.go)**: `builtins.Init()` panggil early sebelum kernel boot. Panic on duplicate name (early bug catch).
+- **verified end-to-end via 10 scenario** + 9 invocation row di tool_invocations:
+  - Registry lists 5 tools (sorted by name)
+  - echo returns input
+  - now returns RFC3339 + unix_ms
+  - memory_set + get full lifecycle (write → read found:true → delete → re-read found:false)
+  - Unknown tool rejected via "tool not registered: nonexistent"
+  - Echo missing required arg → error logged with latency
+  - Invocation log captures BOTH success + error path dengan caller correctly attributed
+
+### Phase 1a scope (DONE):
+- Foundation pattern proven: Register → Lookup → Run via ctx (store/caller/agent) → LogInvocation → Result return.
+
+### Defer phase 1b/1c/1d (real Tier 1 tools):
+- **1b file ops**: read, write, edit, multiedit, glob, grep, list (~950 LOC) — needs path traversal validation + workspace sandbox
+- **1c shell**: bash_run (~250 LOC) — exec.CommandContext + 30s timeout + capture stdout/stderr
+- **1d web**: webfetch (~150 LOC) — pipe ke existing host_net_fetch host capability (or direct HTTP client)
+- **1e brain**: brain_search, brain_recall (~160 LOC) — routerclient.QueryBrain (defer routerclient extension)
+- **1f comms**: telegram_send (~80 LOC) — reuse Mr.Flow sendMessage logic
+- **1g task/plan/todo**: orchestration (~700 LOC) — heaviest, defer P2
+
+### Section 11 phase 2 (security):
+- Permission gate enforce: dispatcher check `tools.Tool.Capability()` against broker `IsApproved(agentID, cap)` before Run.
+- Rate limiting via `tool_overrides.rate_limit` field.
+- Tool disable toggle via `tool_overrides.disabled`.
+
+---
+
 ## 2026-05-30 12:10 WIB — Section 10: Tool system foundation (phase 1) DONE + LOCK
 
 - **schema**: 2 table baru — `tool_overrides` (per-warga customization: config JSON, rate_limit, disabled), `tool_invocations` (audit log: tool_name, args_json, result_json, error_text, latency_ms, caller, invoked_at, deleted_at) + 3 index.
