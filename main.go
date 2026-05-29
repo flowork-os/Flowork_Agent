@@ -35,6 +35,7 @@ import (
 	"flowork-gui/internal/kernelhost"
 	"flowork-gui/internal/scheduler"
 	"flowork-gui/internal/walletalert"
+	"flowork-gui/internal/watchdog"
 	"flowork-gui/internal/slashcmd"
 	slashbuiltins "flowork-gui/internal/slashcmd/builtins"
 	slashcustom "flowork-gui/internal/slashcmd/custom"
@@ -195,6 +196,23 @@ func main() {
 		return walletEngine.FireNow(ctx)
 	}
 
+	// Section 26 phase 2: watchdog cron evaluator. Tick 60s, default rules
+	// (protector_burst ≥10/60s CRITICAL, scanner_critical_burst ≥5/1h HIGH,
+	// tool_call_storm ≥100/60s WARNING). 1h cooldown anti-spam per rule.
+	watchdogEngine := watchdog.New(
+		host.AgentIDs,
+		host.OpenAgentStore,
+		func(ctx context.Context, agentID, channel, message string) error {
+			log.Printf("[watchdog→%s] agent=%s %s", channel, agentID, message)
+			return nil
+		},
+	)
+	watchdogEngine.Start(ctx)
+	defer watchdogEngine.Stop()
+	agentmgr.WatchdogFireFunc = func() (int, int) {
+		return watchdogEngine.FireNow(ctx)
+	}
+
 	host.AutoBootDaemons(ctx)
 	if err := host.StartWatcher(ctx); err != nil {
 		log.Printf("kernel watcher start failed: %v (hot-reload disabled)", err)
@@ -258,6 +276,7 @@ func main() {
 	mux.HandleFunc("/api/agents/wallet/alerts", agentmgr.WalletAlertsHandler)
 	mux.HandleFunc("/api/agents/wallet/alerts/fired", agentmgr.WalletAlertsFiredHandler)
 	mux.HandleFunc("/api/agents/wallet/alerts/tick", agentmgr.WalletAlertTickHandler)
+	mux.HandleFunc("/api/agents/watchdog/tick", agentmgr.WatchdogTickHandler)
 	mux.HandleFunc("/api/agents/finance/ledger", agentmgr.FinanceLedgerHandler)
 	mux.HandleFunc("/api/agents/finance/summary", agentmgr.FinanceSummaryHandler)
 	mux.HandleFunc("/api/agents/finance/budget", agentmgr.FinanceBudgetHandler)

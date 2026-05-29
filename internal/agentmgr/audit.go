@@ -63,6 +63,27 @@ func AuditLogHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// WatchdogFireFunc — Section 26 phase 2: callback wired ke watchdog.Engine.FireNow.
+var WatchdogFireFunc func() (int, int)
+
+// WatchdogTickHandler — POST /api/agents/watchdog/tick (admin manual sweep)
+func WatchdogTickHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
+		return
+	}
+	if WatchdogFireFunc == nil {
+		httpx.WriteJSON(w, map[string]any{"error": "watchdog engine not wired"})
+		return
+	}
+	evaluated, fired := WatchdogFireFunc()
+	httpx.WriteJSON(w, map[string]any{
+		"ok":        true,
+		"evaluated": evaluated,
+		"fired":     fired,
+	})
+}
+
 // WatchdogAlertsHandler — GET /api/agents/watchdog/alerts?id=&limit=
 func WatchdogAlertsHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {

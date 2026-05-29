@@ -129,6 +129,37 @@ func SandboxRunV3(ctx context.Context, t Tool, args map[string]any, opts Sandbox
 		ArgsHash: argsHash,
 		Caller:   caller,
 	})
+	// Section 26 phase 2 auto-hook: also append to unified audit_log
+	// (event_type=tool_call) untuk watchdog rule evaluator single stream.
+	sev := agentdb.AuditSevInfo
+	if decision == "denied_interceptor" || decision == "denied_cap" || decision == "pending_approve" {
+		sev = agentdb.AuditSevWarning
+	}
+	if runErr != nil && decision == "error" {
+		sev = agentdb.AuditSevError
+	}
+	detail, _ := json.Marshal(map[string]any{
+		"tool":      toolName,
+		"decision":  decision,
+		"args_hash": argsHash,
+		"caller":    caller,
+		"reason":    reason,
+	})
+	_, _ = store.AppendAudit(agentdb.AuditEntry{
+		EventType:  agentdb.EventToolCall,
+		Severity:   sev,
+		Actor:      caller,
+		DetailJSON: string(detail),
+	})
+	// Also append event_type=protector_block kalau interceptor-blocked.
+	if decision == "denied_interceptor" {
+		_, _ = store.AppendAudit(agentdb.AuditEntry{
+			EventType:  agentdb.EventProtectorBlock,
+			Severity:   agentdb.AuditSevWarning,
+			Actor:      caller,
+			DetailJSON: string(detail),
+		})
+	}
 	return res, runErr
 }
 
