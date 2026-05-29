@@ -142,6 +142,13 @@ func (r *Runtime) registerFloworkHost(ctx context.Context, caps CapsChecker, res
 			return st.karmaUpdate(ctx, m, reqPtr, reqLen, outPtr, outMax)
 		}).
 		Export("host_karma_update").
+		NewFunctionBuilder().
+		WithFunc(func(ctx context.Context) uint64 {
+			// Wall-clock ms since epoch. Workaround TinyGo wasi time.Since()
+			// precision bug — Mr.Flow pakai untuk avg_response_ms accurate.
+			return uint64(time.Now().UnixMilli())
+		}).
+		Export("host_time_now_ms").
 		Instantiate(ctx)
 	if err != nil {
 		return fmt.Errorf("instantiate flowork host: %w", err)

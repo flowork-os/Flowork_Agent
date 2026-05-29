@@ -34,7 +34,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 	"unsafe"
 )
 
@@ -49,6 +48,9 @@ func hostLogDecision(reqPtr, reqLen, outPtr, outMax uint32) uint32
 
 //go:wasmimport flowork host_karma_update
 func hostKarmaUpdate(reqPtr, reqLen, outPtr, outMax uint32) uint32
+
+//go:wasmimport flowork host_time_now_ms
+func hostTimeNowMs() uint64
 
 // === Path konstanta (HARDCODED standar Flowork) ===
 const (
@@ -218,9 +220,11 @@ func runDaemon() {
 			})
 			sendTyping(token, chatID)
 			// Section 5: time the LLM call for avg_response_ms moving avg.
-			t0 := time.Now()
+			// TinyGo wasi target's time.Since() returns wrong precision —
+			// pakai host capability host_time_now_ms (wall-clock ms reliable).
+			t0Ms := hostTimeNowMs()
 			reply := callLLM(cfg, u.Message.Text)
-			elapsedMs := float64(time.Since(t0).Milliseconds())
+			elapsedMs := float64(hostTimeNowMs() - t0Ms)
 			// Detect LLM failure via exact known error prefixes from callLLM
 			// (sumber: callLLM returns: "router error:", "decode:", "llm:",
 			// "(no choices)", or "" for empty). JANGAN pakai "(LLM " — itu
