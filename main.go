@@ -60,10 +60,11 @@ func main() {
 	builtins.Init()
 	slashbuiltins.Init()
 
-	// Section 17: wire slash dispatcher callback ke kernelhost supaya
-	// Mr.Flow (atau warga lain) bisa panggil host_slash_dispatch dari WASM.
-	kernelhost.SlashDispatcherFunc = func(pluginID, text, caller string) (string, string, error) {
-		result, cmdName, err := slashcmd.Dispatch(context.Background(), text)
+	// Section 17/15: wire slash dispatcher callback. Kernelhost pre-populate
+	// ctx (Store/Caller/Agent) sebelum invoke ini supaya productive commands
+	// (/stats /tools dst.) bisa akses store via slashcmd.FromStore.
+	kernelhost.SlashDispatcherFunc = func(ctx context.Context, pluginID, text, caller string) (string, string, error) {
+		result, cmdName, err := slashcmd.Dispatch(ctx, text)
 		return result.Text, cmdName, err
 	}
 

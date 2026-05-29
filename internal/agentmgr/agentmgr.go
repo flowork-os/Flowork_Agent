@@ -597,8 +597,14 @@ func SlashRunHandler(w http.ResponseWriter, r *http.Request) {
 		caller = "http-admin"
 	}
 
+	// Section 15: inject store + caller + agent ke ctx supaya productive
+	// commands bisa akses lewat slashcmd.FromStore.
+	ctx := slashcmd.WithStore(r.Context(), store)
+	ctx = slashcmd.WithCaller(ctx, caller)
+	ctx = slashcmd.WithAgent(ctx, id)
+
 	t0 := time.Now()
-	result, cmdName, runErr := slashcmd.Dispatch(r.Context(), text)
+	result, cmdName, runErr := slashcmd.Dispatch(ctx, text)
 	elapsedMs := time.Since(t0).Milliseconds()
 
 	// Log invocation. cmdName mungkin kosong kalau parse fail di awal.

@@ -27,6 +27,7 @@ import (
 	"flowork-gui/internal/kernel/loader"
 	"flowork-gui/internal/kernel/runtime"
 	"flowork-gui/internal/routerclient"
+	"flowork-gui/internal/slashcmd"
 )
 
 // LiveEntry — per-agent record yang Host pegang setelah scan + load.
@@ -1051,14 +1052,17 @@ func (h *Host) RebuildWorkspaceMetaForAgent(agentID string) (agentdb.RebuildInde
 }
 
 // SlashDispatcherFunc — set di main.go untuk inject actual slashcmd
-// dispatcher. Signature: (pluginID, text, caller) → (resultText,
-// cmdName, error). Plugin (mr-flow) panggil host_slash_dispatch yang
-// route via callback ini.
+// dispatcher. Signature: (ctx, pluginID, text, caller) → (resultText,
+// cmdName, error). Ctx pre-populated dengan store/agent/caller — caller
+// di main.go invoke slashcmd.Dispatch(ctx, text).
+//
+// Section 15: pass ctx supaya slash commands bisa akses Store via
+// slashcmd.FromStore — productive commands (/stats /tools etc) butuh DB.
 //
 // Nil-safe: kalau ngga di-set, dispatchSlash return error "slash not
-// wired". Avoid circular import — kernelhost ngga import slashcmd
-// langsung, callback di-pass dari main.go.
-var SlashDispatcherFunc func(pluginID, text, caller string) (string, string, error)
+// wired". Callback in-process — Section 15 ctx passing supersedes
+// previous anti-circular note (slashcmd no-longer depends on kernel).
+var SlashDispatcherFunc func(ctx context.Context, pluginID, text, caller string) (string, string, error)
 
 // dispatchSlash — implementasi runtime.SlashDispatcher. Resolve via
 // callback `SlashDispatcherFunc`. Plus per-agent log invocation via
@@ -1084,15 +1088,27 @@ func (h *Host) dispatchSlash(pluginID, text, caller string) (string, string, err
 		return "", "", fmt.Errorf("agent not loaded: %s", pluginID)
 	}
 
+	// Section 15: open store upfront supaya bisa pass via ctx ke slash
+	// commands (slashcmd.FromStore extract). Reuse for log invocation
+	// post-dispatch. Best-effort — kalau open gagal, dispatch tanpa store
+	// (commands butuh store akan return error gracefully).
+	dbPath := agentdb.Resolve(pluginID, agentPath)
+	store, oerr := agentdb.Open(dbPath)
+
+	ctx := context.Background()
+	if oerr == nil && store != nil {
+		ctx = slashcmd.WithStore(ctx, store)
+	}
+	ctx = slashcmd.WithCaller(ctx, caller)
+	ctx = slashcmd.WithAgent(ctx, pluginID)
+
 	// Dispatch + capture timing.
 	t0 := time.Now()
-	resultText, cmdName, dErr := SlashDispatcherFunc(pluginID, text, caller)
+	resultText, cmdName, dErr := SlashDispatcherFunc(ctx, pluginID, text, caller)
 	durationMs := time.Since(t0).Milliseconds()
 
-	// Best-effort log to per-agent state.db. Ignore log errors — don't
-	// block guest reply on log fail.
-	dbPath := agentdb.Resolve(pluginID, agentPath)
-	if store, oerr := agentdb.Open(dbPath); oerr == nil {
+	// Best-effort log to per-agent state.db.
+	if oerr == nil && store != nil {
 		args := ""
 		if idx := strings.IndexAny(text, " \t"); idx >= 0 {
 			args = strings.TrimSpace(text[idx+1:])

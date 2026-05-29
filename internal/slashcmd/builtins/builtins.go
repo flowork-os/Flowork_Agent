@@ -31,6 +31,8 @@ func Init() {
 	slashcmd.Register(&helpCmd{})
 	slashcmd.Register(&echoCmd{})
 	slashcmd.Register(&pingCmd{})
+	// Section 15 phase 1: 5 Tier 1 productive commands.
+	InitTier1()
 }
 
 // =============================================================================

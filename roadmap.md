@@ -765,7 +765,7 @@ CREATE TABLE slash_aliases (
 
 ---
 
-## Section 15 — Built-in slash command Tier 1 (15 paling sering dipakai)
+## Section 15 — Built-in slash command Tier 1 ✅ DONE (phase 1: 5 productive commands) 2026-05-30
 
 **Goal:** port 15 slash command paling fundamental dari 82 yang ada di flowork lama. **Bukan semua sekaligus** — yang paling dipakai dulu.
 

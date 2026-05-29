@@ -4,6 +4,39 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-30 14:35 WIB — Section 15: Tier 1 slash commands (5 productive) DONE + LOCK
+
+- **feat(slashcmd)**: `internal/slashcmd/context.go` (LOCKED) — mirror tools/context.go pattern. `WithStore/FromStore`, `WithCaller/FromCaller`, `WithAgent/FromAgent`. ctxKey private anti-collision.
+- **feat(slashcmd/builtins/tier1.go)** (LOCKED): 5 productive commands + InitTier1():
+  - **/version** (aliases: ver, v) — daemon version, tools count, slash count, agent ID
+  - **/now** (aliases: time, date) — UTC RFC3339 + WIB local (UTC+7) + unix_ms
+  - **/stats** (alias: status) — karma metrics + counts (interactions/decisions/mistakes/letters/edu_errors/tool_invocations)
+  - **/tools** — list builtin tools dengan capability grouped by prefix (fs/net/rpc/state/time/none)
+  - **/interactions** (aliases: chat, history) — last 10 Telegram interactions with direction + actor + content preview
+- **plumbing**: kernelhost.dispatchSlash + agentmgr.SlashRunHandler open store + inject ke ctx via WithStore. SlashDispatcherFunc signature extended dengan ctx param (anti circular import note updated).
+- **feat(builtins.go)**: Init() now calls InitTier1() (8 total slash commands).
+- **verified end-to-end via 6 scenario**:
+  - Registry lists 8 commands sorted alphabetical
+  - /version returns "Flowork Agent 0.4.0-embedded-kernel" + 11 tools + 8 slash commands
+  - /now returns UTC + WIB local + unix_ms
+  - /stats returns karma (success_count=2, avg_response_ms=3016ms n=2) + counts (24 interactions, 6 decisions, 3 mistakes, 2 letters, 2 edu_errors, 29 tool_invocations)
+  - /tools groups 11 tools by capability prefix (fs/net/rpc/state/time/none)
+  - /interactions returns last 10 Telegram in/out chronologically
+  - /v alias resolves to version
+
+### Section 11 + 14 + 15 + 17 stack:
+- 11 builtin tools (echo, now, memory_x3, file_x3, brain_search, telegram_send, webfetch)
+- **8 builtin slash commands** (help, echo, ping + version, now, stats, tools, interactions)
+- Mr.Flow Telegram bot detects `/` → dispatcher → reply tanpa LLM (token saving)
+- `/help`, `/ping`, `/version`, `/stats`, `/tools`, `/interactions` ready untuk Mr.Dev kirim ke Telegram
+
+### Defer phase 2+:
+- More Tier 1: /search (wrap brain_search tool), /memory (wrap memory_get/set), /agents (list warga, multi-warga future), /mistakes (last 5)
+- Custom command loader Section 16 (.md files from workspace)
+- Permission gate (broker check) per-command capability
+
+---
+
 ## 2026-05-30 14:15 WIB — Section 17: Mr.Flow Telegram /slash integration DONE
 
 - **feat(kernel/runtime)**: host capability `host_slash_dispatch` (4-arg uint32 pattern same as host_log_*). `SlashDispatcher` type + `hostState.slash` field + `slashDispatch()` method. Capability gate `state:write`. Plugin sends `{text, caller?}`, host parses + dispatches via callback + return `{ok, command, text, error}`. Result text cap 8KB anti-overflow guest buffer.
