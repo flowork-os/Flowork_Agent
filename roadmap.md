@@ -1637,7 +1637,7 @@ CREATE INDEX idx_findings_run ON scanner_findings(run_id);
 
 ---
 
-## Section 26 — Audit log + Watchdog daemon
+## Section 26 — Audit log + Watchdog daemon ✅ DONE 2026-05-30 phase 1. `agentdb/audit.go` LOCKED: append-only audit_log (event_type enum tool_call/protector_block/scanner_finding/config_change + severity info/warning/error/critical + actor + detail_json + occurred_at + idx event+time DESC) + watchdog_alerts (rule_id + fired_at + context_json + notified flag). Append-only enforced via Go API (no Update/Delete methods exposed). `agentmgr/audit.go` LOCKED: GET/POST `/api/agents/audit/log?id=&type=&from=&to=&limit=` + GET `/api/agents/watchdog/alerts?id=&limit=`. CountAuditInWindow buat watchdog rule eval phase 2. Verified end-to-end (append 2 row tool_call + protector_block, query filter type=protector_block returns 1 row, watchdog empty). Defer phase 2: watchdog cron evaluator (≥10 protector_block/60s → CRITICAL Telegram, ≥5 scanner critical → HIGH, ≥3 budget_exceeded/24h → MEDIUM, self-modification detect → CRITICAL), Telegram dispatch via Section 11 telegram_send tool, immutability hash-chain (SHA256 chain pencegah backdating), standalone watchdog binary `cmd/flowork-audit-watchdog/main.go`, integration hook wajib (auto-append saat protector/scanner/tool/config event), 1-jam cooldown per rule.
 
 **Goal:** append-only audit log + watchdog daemon yang tail log → alert kalau anomaly (mis. 10 blocked dalam 1 menit = active attack).
 

@@ -4,6 +4,30 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-30 21:45 WIB — Section 26 phase 1: Audit log + Watchdog DONE + LOCK → Section 26 CLOSED
+
+Append-only audit_log + watchdog_alerts schema + endpoints. Cron evaluator defer phase 2.
+
+- **feat(internal/agentdb/audit.go)** (NEW LOCKED): audit_log (event_type/severity/actor/detail_json + idx event+time DESC) + watchdog_alerts (rule_id + context + notified). API: AppendAudit (default sev info, auto-stamp occurred_at), ListAudit filtered, CountAuditInWindow (untuk rule eval), InsertWatchdogAlert, ListWatchdogAlerts. NO Update/Delete API exposed — immutability via Go interface.
+- **feat(internal/agentmgr/audit.go)** (NEW LOCKED): GET/POST `/api/agents/audit/log?type=&from=&to=&limit=` + GET `/api/agents/watchdog/alerts?limit=`. parseLimitOr helper.
+- **main.go**: 2 routes.
+
+### Verified
+
+- Append `tool_call info` → id 1; append `protector_block critical` → id 2 ✅.
+- Query `?type=protector_block` → 1 hit ✅.
+- Watchdog alerts empty (sebelum cron evaluator wire) ✅.
+
+### Defer phase 2:
+- **Watchdog cron evaluator** (≥10 protector_block/60s → CRITICAL, ≥5 scanner critical → HIGH, ≥3 budget_exceeded/24h → MEDIUM, self-modification → CRITICAL).
+- **Telegram dispatch** via Section 11 telegram_send tool.
+- **Hash-chain immutability** (SHA256 prev_hash + payload → row hash) anti backdating.
+- **Standalone watchdog binary** `cmd/flowork-audit-watchdog/main.go`.
+- **Auto-integration hooks**: protector hit / scanner finding / tool call / config change → wajib auto-AppendAudit.
+- **1-hour cooldown** per rule anti-spam.
+
+---
+
 ## 2026-05-30 21:30 WIB — Section 25 phase 1: Code Scanner (6 critical auditor) DONE + LOCK → Section 25 CLOSED
 
 Code Scanner sekarang ada — 6 high-value Tier 1 auditor jalan via regex stdlib. Scan target file/dir di shared workspace, hasil persisted ke DB.
