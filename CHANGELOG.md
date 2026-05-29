@@ -4,6 +4,57 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-30 17:15 WIB — Section 11 phase 1c (bash) + phase 1g (plan/todo/goal_done) DONE + LOCK
+
+Section 11 tool catalog grew dari 11 → 16 builtin tools. Phase 1c bash + phase 1g orchestration kelar. P0 fundamental coverage solid.
+
+### Phase 1c — shell tool
+
+- **feat(tools/builtins/shell.go)** (NEW LOCKED): `bash` tool dengan capability `exec:shell`.
+  - Multi-OS: Linux/macOS via `/bin/sh -c`, Windows via `cmd /C`.
+  - Default timeout 20s, cap 60s.
+  - Output cap 64KB (stdout+stderr each, dengan `[...truncated]` marker).
+  - Working dir relative ke shared workspace; `filepath.Rel` defense in depth anti-escape.
+  - **Denylist 30+ pattern**: `rm -rf /`, fork bomb `:(){:|:&};:`, `sudo`, `su -`, `chmod 777`, `mkfs`, `dd if=/dev/zero`, `shutdown`, `reboot`, `|sh` / `|bash`, `curl -s http`, `wget -O -`, `eval $`, `~/.ssh/`, `/etc/shadow` dll. Case-insensitive match (catch `RM -RF /` style).
+  - Env scrubbing: child process inherit cuma `PATH/HOME/LANG/LC_ALL/TERM` (Unix) atau `SystemRoot/Path/TEMP/TMP/USERPROFILE` (Windows). Token/credential tidak forward — tool dedicated yang pakai.
+
+### Phase 1g — orchestration tools
+
+- **feat(tools/builtins/orchestration.go)** (NEW LOCKED): 4 tool baru, backing store tool_memory reserved key `_plan`/`_todo`/`_goal`.
+  - **plan_read** (cap `state:read`): return current plan markdown + updated_at. Empty kalau belum ada.
+  - **plan_write** (cap `state:write`): overwrite plan, body cap 32KB. JSON entry `{plan, updated_at}` di tool_memory[_plan].
+  - **todo** (cap `state:write`): 5 op — list/add/done/remove/clear. Item shape `{id: t1/t2/..., content, done, added_at, done_at?}`. Content cap 4KB. Auto-ID via Sscanf "t%d" + max+1.
+  - **goal_done** (cap `state:write`): append `{summary, done_at}` ke goal log array, keep last 20. Summary cap 4KB.
+
+### Wiring + manifest
+
+- **builtins.Init()** (LOCKED, +5 line Register): bashTool + planReadTool + planWriteTool + todoTool + goalDoneTool.
+- **agents/mr-flow/manifest.json**: capabilities_required + `state:read`, `time:read` (sebelumnya cuma `state:write`). Tanpa ini Mr.Flow ngga bisa pakai plan_read/now/grep — meskipun tool sudah register di sandbox. Sandbox (Section 12) enforce — ngga ada bypass diam-diam.
+
+### Verified end-to-end (HTTP admin tools/run via chat-debug pipeline-parity)
+
+- `/version` → `tools registered: 16` ✅ (was 11).
+- `/tool_search bash` → 1 match `bash (exec:shell)` ✅.
+- `/tool_search plan` → 2 match `plan_read`, `plan_write` ✅.
+- POST bash without cap → `sandbox: capability denied: bash requires "exec:shell"` ✅ (sandbox gate working as designed — Mr.Flow ngga punya exec:shell).
+- POST plan_write `{plan: "## Test plan..."}` → `{ok: true, length: 32}` ✅.
+- POST plan_read → return persisted plan + RFC3339 timestamp ✅ (after adding state:read cap).
+- POST todo `{op: add, content: "first todo"}` → item `t1`, count 1 ✅.
+- POST todo `{op: list}` → same item returned ✅.
+- POST now (after adding `time:read` cap) → `{rfc3339, unix_ms}` ✅.
+
+### Defer phase 2+:
+- **edit / multiedit / glob / grep / list** file ops — extension Section 11 P1.
+- **git** (status/diff/log/show) + **git_checkpoint** — P1/P2.
+- **websearch** (selain webfetch) — P1.
+- **skill / skill_search / skill_write** — Router skill catalog client (Section 7 sudah list/get, P1 tambah `skill` run-by-name).
+- **task / task_bg / task_parallel** orchestration — butuh runtime support buat invoke agent/tool inline, defer.
+- **fact_remember / fact_recall / fact_forget** — Section 11 P1 memory ops.
+- **peer_review** — multi-warga collaboration, defer ke phase Mesh siap.
+- **bash sandbox layer real** (Landlock di Linux, Job Object di Windows, Seatbelt di macOS) — currently cuma denylist + scrub env + timeout, phase 2 wrap dengan OS-specific isolator.
+
+---
+
 ## 2026-05-30 16:45 WIB — Section 7 phase 2: Sync interface ke Router (PullSkill + retry + UI Browse) DONE + LOCK
 
 Section 7 fully closed (phase 1 done 2026-05-29). Phase 2 ngebawa: PullSkill ListSkills/GetSkill methods, retry + circuit breaker primitive, Agent → Router proxy endpoint, UI modal Browse Router Catalog dengan dictionary-only labels, dan critical bug fix: RPC entry doHandle ngga detect leading `/` (slash dispatch bypassed — chat-debug script + future webhook ngga dapet slash routing). Fixed.

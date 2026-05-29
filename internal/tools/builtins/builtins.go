@@ -56,6 +56,13 @@ func Init() {
 	tools.Register(&telegramSendTool{})
 	// phase 1d: web (web.go)
 	tools.Register(&webFetchTool{})
+	// phase 1c: shell (shell.go) — bash exec dengan denylist + timeout
+	tools.Register(&bashTool{})
+	// phase 1g: orchestration (orchestration.go) — plan/todo/goal
+	tools.Register(&planReadTool{})
+	tools.Register(&planWriteTool{})
+	tools.Register(&todoTool{})
+	tools.Register(&goalDoneTool{})
 }
 
 // =============================================================================

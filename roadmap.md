@@ -457,7 +457,7 @@ CREATE INDEX idx_tool_invocations_time ON tool_invocations(invoked_at DESC);
 
 ---
 
-## Section 11 — Tool catalog Tier 1 (core tools port) 🚧 IN PROGRESS 2026-05-30 (phase 1a DONE — 5 demo tools + dispatcher; phase 1b/c/d add file/shell/web/brain tools)
+## Section 11 — Tool catalog Tier 1 (core tools port) 🚧 IN PROGRESS 2026-05-30 (phase 1a+1b+1d+1e+1f+1c+1g DONE = 16 builtin tools: echo, now, memory_x3, file_x3, brain_search, telegram_send, webfetch, bash, plan_x2, todo, goal_done. P1 tools — edit/multiedit/glob/grep/list/git/skill/task — still pending.)
 
 > **⚠️ OVER-PROMPT RISK CRITICAL** — JANGAN inject SEMUA 28 tool description ke system prompt. Itu = 5600 char waste. Pakai pattern: **5 core tools always-on** (read/write/bash/brain_search/telegram_send), sisanya 23 tools available tapi warga panggil via `tool_search` dulu. Tool description retrieved on-demand by name, ngga upfront dump.
 

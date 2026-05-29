@@ -18,7 +18,9 @@
   "capabilities_required": [
     "net:fetch:https://api.telegram.org",
     "net:fetch:http://127.0.0.1:2402/v1/chat/completions",
-    "state:write"
+    "state:read",
+    "state:write",
+    "time:read"
   ],
 
   "exposes_rpc": [
