@@ -208,6 +208,9 @@ func main() {
 	mux.HandleFunc("/api/agents/finance/ledger", agentmgr.FinanceLedgerHandler)
 	mux.HandleFunc("/api/agents/finance/summary", agentmgr.FinanceSummaryHandler)
 	mux.HandleFunc("/api/agents/finance/budget", agentmgr.FinanceBudgetHandler)
+	mux.HandleFunc("/api/agents/protector/rules", agentmgr.ProtectorRulesHandler)
+	mux.HandleFunc("/api/agents/protector/test", agentmgr.ProtectorTestHandler)
+	mux.HandleFunc("/api/agents/protector/audit", agentmgr.ProtectorAuditHandler)
 
 	// Catch-all stub utk path /api/* yang gak diregister.
 	mux.HandleFunc("/api/", mockAPI)

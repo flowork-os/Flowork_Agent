@@ -4,6 +4,43 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-30 21:10 WIB — Section 24 phase 1: File Protector (HPG) DONE + LOCK → Section 24 CLOSED
+
+Host Protection Gate sekarang ada — 28 immutable baseline rules + custom DB rules + audit log + test endpoint.
+
+- **feat(internal/protector/baseline.go)** (NEW LOCKED): 28 hardcoded baseline rules (Go memory wins — DB tampering ngga affect security):
+  - **10 file_path**: `/etc/passwd`, `/etc/shadow`, `/etc/sudoers`, `/root/`, `/.ssh/`, `/.aws/`, `/.config/secrets`, `/var/log/auth.log` (warn), `C:\Windows\System32`, `C:\Users\Administrator`.
+  - **11 command**: `rm -rf /`, `rm -rf ~`, `rm --no-preserve-root`, `:(){:|:&};:` fork bomb, `mkfs`, `dd if=/dev/zero`, `shutdown`, `reboot`, `chmod 777` (warn), `sudo `, `su -`.
+  - **3 IP**: 169.254.169.254 (AWS/GCP/Azure metadata), 100.100.100.200 (Alibaba), 192.0.0.192 (legacy).
+  - **4 env_var**: TELEGRAM_BOT_TOKEN (warn), ETHERSCAN_API_KEY (warn), GITHUB_TOKEN (warn), AWS_SECRET_ACCESS_KEY (block).
+  - `CheckPattern(ruleType, candidate, custom)` substring case-insensitive matcher. Baseline iterate first (immutable priority).
+- **feat(internal/agentdb/protector.go)** (NEW LOCKED): lazy CREATE protector_rules (UNIQUE rule_type+pattern) + protector_audit (FQP-12 append-only, idx time DESC). API: AddProtectorRule (reject source=hardcoded), ListProtectorRules, DeleteProtectorRule (reject hardcoded — double-protection), ToggleProtectorRule, InsertProtectorAudit, ListProtectorAudit paginated.
+- **feat(internal/agentmgr/protector.go)** (NEW LOCKED): 3 endpoint:
+  - `GET/POST/DELETE /api/agents/protector/rules?id=<agent>` — DB CRUD. `?include_baseline=1` → merge hardcoded immutable rules (anti DB deletion attempt visible).
+  - `POST /api/agents/protector/test {rule_type, candidate}` — match check, return matched pattern + action.
+  - `GET /api/agents/protector/audit?from=&to=&limit=` — audit list.
+- **wiring(main.go)**: 3 routes.
+
+### Verified end-to-end
+
+- Test `command rm -rf /` → `{hit: true, pattern: "rm -rf /", action: "block"}` ✅ (baseline immutable).
+- Test `ip http://169.254.169.254/latest` → `{hit: true, pattern: "169.254.169.254"}` ✅ (cloud metadata pivot block).
+- Test benign `echo hello` → `{hit: false}` ✅ (no false positive).
+- Add custom rule `/tmp/secret` block → `{ok: true, id: 1}` ✅.
+- Test custom `/tmp/secret/file.txt` → `{hit: true, pattern: "/tmp/secret", action: "block"}` ✅.
+- List `?include_baseline=1` → total 29 / 28 hardcoded / 1 custom ✅ (immutable visible).
+
+### Defer phase 2:
+
+- **Integrasi ke SandboxRunV2 interceptor chain** — saat ini protector standalone API. Section 12 phase 2 interceptors (workspace-path, sensitive-file, persona-inject) sudah cover banyak. Section 24 add DB-driven custom rule layer ke sandbox.
+- **Karma penalty** saat hit_block — Mr.Flow karma decrement Section 5 integration.
+- **50+ attack scenario test suite** — referensifile `host_protection_test.go` siap port.
+- **GUI popup section "Protector"** — rule list + toggle + test UI.
+- **`protector_gui.go`** dari referensifile — custom rule per-warga management.
+- **Pattern dynamic reload** — saat ini list dari DB tiap test call; phase 2 cache + invalidate on write.
+
+---
+
 ## 2026-05-30 20:50 WIB — Section 22 + 23 phase 1: Wallet alert + Finance ledger DONE + LOCK → Section 22+23 CLOSED
 
 Section 22 wallet alert + Section 23 finance ledger landed bersamaan (storage schema + endpoints). Cron evaluator + auto-ingestion defer phase 2.
