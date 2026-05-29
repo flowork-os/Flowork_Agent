@@ -13,9 +13,11 @@
 package agentmgr
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"flowork-gui/internal/httpx"
@@ -90,6 +92,8 @@ func SneakernetImportHandler(w http.ResponseWriter, r *http.Request) {
 	defer file.Close()
 
 	targetRoot := agentFolder(targetID)
+	// Section 19 phase 2: idempotency pre-fingerprint dari manifest existing.
+	existingHash := sneakernet.FingerprintExisting(targetRoot)
 	res, err := sneakernet.Import(file, sneakernet.ImportOptions{
 		TargetRoot: targetRoot,
 		Passphrase: passphrase,
@@ -98,6 +102,14 @@ func SneakernetImportHandler(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
 		return
 	}
+	// Section 19 phase 2: Import doesn't persist manifest to disk —
+	// write it for verify probe + future idempotency checks.
+	persistManifest(targetRoot, res.Manifest)
+	verified, vErr := sneakernet.VerifyImported(targetRoot)
+	newHash := sneakernet.FingerprintManifest(verified)
+	idempotent := existingHash != "" && existingHash == newHash
+	bootReady := vErr == nil
+
 	httpx.WriteJSON(w, map[string]any{
 		"ok":            true,
 		"target_id":     targetID,
@@ -105,5 +117,25 @@ func SneakernetImportHandler(w http.ResponseWriter, r *http.Request) {
 		"manifest":      res.Manifest,
 		"files_count":   res.FilesCount,
 		"bytes_written": res.BytesWriten,
+		"idempotent":    idempotent, // true kalau import sama file 2x
+		"boot_ready":    bootReady,  // true kalau manifest valid + format_version OK
+		"verify_error":  errString(vErr),
 	})
+}
+
+func errString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}
+
+// persistManifest — Section 19 phase 2: write Manifest ke `_meta/manifest.json`
+// supaya VerifyImported + FingerprintExisting bisa read post-import.
+// Locked import.go ngga write to disk — handler wajib.
+func persistManifest(targetRoot string, m sneakernet.Manifest) {
+	dir := filepath.Join(targetRoot, "_meta")
+	_ = os.MkdirAll(dir, 0o755)
+	raw, _ := json.Marshal(m)
+	_ = os.WriteFile(filepath.Join(dir, "manifest.json"), raw, 0o644)
 }
