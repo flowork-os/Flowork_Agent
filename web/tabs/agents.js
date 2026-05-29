@@ -10,6 +10,7 @@
 // by full URL, so `/js/i18n.js?v=11` would be a DIFFERENT instance
 // with empty dict → t() balikin key mentah.
 import { t } from '/js/i18n.js';
+import { openRouterSkillBrowser } from './agents_router_skills.js';
 
 const API_LIST   = '/api/kernel/agents';
 const API_UPLOAD = '/api/agents/upload';
@@ -594,7 +595,10 @@ async function openSettingModal(root, a) {
       <h4>🪄 4. ${esc(t('menu.tab.agents.section_skills'))}</h4>
       <p class="ag-msg-modal" style="color:#94a3b8">${esc(t('menu.tab.agents.skills_sub'))}</p>
       <div id="cf-skills-list"></div>
-      <button class="ag-btn" id="cf-skills-add" type="button" style="margin-top:8px">${esc(t('menu.tab.agents.skills_add'))}</button>
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <button class="ag-btn" id="cf-skills-add" type="button">${esc(t('menu.tab.agents.skills_add'))}</button>
+        <button class="ag-btn" id="cf-skills-browse-router" type="button" data-agent-id="${esc(id)}">${esc(t('menu.tab.agents.skills_browse_router'))}</button>
+      </div>
     </section>
 
     <section class="ag-section">
@@ -687,6 +691,19 @@ async function openSettingModal(root, a) {
   renderSkills();
   host.querySelector('#cf-skills-add').onclick = () => {
     skills.push({ id: '', trigger: '', instructions: '' }); renderSkills();
+  };
+  // Section 7 phase 2: Browse Router Catalog — open modal yang fetch dari
+  // /api/agents/router-skills/list, user pilih, Use → push ke skills[].
+  host.querySelector('#cf-skills-browse-router').onclick = () => {
+    openRouterSkillBrowser(id, (chosen) => {
+      // chosen = { name, description, body } dari Router GET endpoint.
+      skills.push({
+        id:           chosen.name,
+        trigger:      '/' + chosen.name,
+        instructions: chosen.body || chosen.description || '',
+      });
+      renderSkills();
+    });
   };
 
   // Credential list — KEY → value, dengan reveal toggle.

@@ -266,7 +266,7 @@ CREATE INDEX idx_workspace_meta_category ON workspace_meta(category);
 
 ## Section 7 — Sync interface ke router (push/pull antar-tubuh)
 
-✅ DONE (phase 1) 2026-05-29
+✅ DONE (phase 1) 2026-05-29 + ✅ DONE (phase 2) 2026-05-30 (PullSkill list+get + retry/circuit-breaker + UI Browse Router Catalog modal + RPC slash dispatch parity fix)
 
 **Goal:** definisi protokol komunikasi agent ↔ router untuk: push mistakes promotion, pull skill catalog, query brain.
 

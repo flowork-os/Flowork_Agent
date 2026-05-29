@@ -45,3 +45,4 @@ catatan/
 secret.key
 *-credentials.json
 secret.yaml
+.scratch/

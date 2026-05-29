@@ -152,6 +152,8 @@ func main() {
 	mux.HandleFunc("/api/agents/slash/run", agentmgr.SlashRunHandler)
 	mux.HandleFunc("/api/agents/slash/registry", agentmgr.SlashRegistryHandler)
 	mux.HandleFunc("/api/agents/slash-invocations", agentmgr.SlashInvocationsHandler)
+	mux.HandleFunc("/api/agents/router-skills/list", agentmgr.RouterSkillsListHandler)
+	mux.HandleFunc("/api/agents/router-skills/get", agentmgr.RouterSkillsGetHandler)
 
 	// Catch-all stub utk path /api/* yang gak diregister.
 	mux.HandleFunc("/api/", mockAPI)

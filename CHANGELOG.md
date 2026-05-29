@@ -4,6 +4,44 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-30 16:45 WIB — Section 7 phase 2: Sync interface ke Router (PullSkill + retry + UI Browse) DONE + LOCK
+
+Section 7 fully closed (phase 1 done 2026-05-29). Phase 2 ngebawa: PullSkill ListSkills/GetSkill methods, retry + circuit breaker primitive, Agent → Router proxy endpoint, UI modal Browse Router Catalog dengan dictionary-only labels, dan critical bug fix: RPC entry doHandle ngga detect leading `/` (slash dispatch bypassed — chat-debug script + future webhook ngga dapet slash routing). Fixed.
+
+### Backend
+
+- **feat(routerclient/skills.go)** (NEW LOCKED): `ListSkills(ctx, search, limit)` → GET `/api/brain/skills/list` (router cap 10 anti over-prompt). `GetSkill(ctx, name)` → GET `/api/brain/skills/get` full SkillDoc (name, description, body markdown). Body cap 256KB.
+- **feat(routerclient/retry.go)** (NEW LOCKED): `WithRetry(ctx, opts, fn)` exponential backoff (default 3 attempt, 200ms initial → 5s cap, ×2). `IsRetryable(err)` heuristic — net.Timeout + transient hints (5xx, connection refused/reset, broken pipe). `CircuitBreaker` sliding-window failure rate (default size 10, threshold 60%) — Mark/Allow/Reset + `ErrCircuitOpen` sentinel.
+- **feat(routerclient/normalize.go)** (NEW LOCKED): `NormalizeBaseURL(raw)` strip path/query/fragment, keep scheme+host:port. `NewFromAgentURL` convenience ctor. Bug fix: agent kv.router_url historically simpan full endpoint (`/v1/chat/completions`) yang bikin compose `/api/...` jadi 404. Locked routerclient.go ngga di-modify — extend via helper baru.
+- **feat(agentmgr/router_skills.go)** (NEW LOCKED): `RouterSkillsListHandler` GET `/api/agents/router-skills/list?id=&search=&limit=` + `RouterSkillsGetHandler` GET `/api/agents/router-skills/get?id=&name=`. Proxy Agent → Router via NewFromAgentURL + WithRetry default policy. Timeout 15s.
+- **wiring(main.go)**: 2 mux.HandleFunc registered.
+
+### Frontend
+
+- **feat(web/tabs/agents_router_skills.js)** (NEW LOCKED): modal "Browse Router Catalog" — fetch list, debounced search (300ms), "Use this skill" button → GET detail → callback push ke skills[] di parent. XSS guard via esc() + dictionary-only labels. Click backdrop = close.
+- **feat(web/tabs/agents.js)**: Import openRouterSkillBrowser + tombol Browse Router Catalog di skill section + onclick handler push chosen skill ke skills[] (id=name, trigger=/name, instructions=body).
+- **feat(web/i18n/en+id/menu.json)**: 9 dictionary keys baru — skills_browse_router, skills_router_modal_h, skills_router_search_ph, skills_router_fetching, skills_router_empty, skills_router_error, skills_router_use_btn, skills_router_close_btn, skills_router_count.
+
+### Critical bug fix
+
+- **fix(agents/mr-flow/main.go)**: `doHandle` (RPC entry untuk chat-debug + future Telegram webhook) ngga detect leading `/` — text masuk callLLM langsung bypass slash dispatcher. Mirror Section 17 runDaemon pattern: strings.HasPrefix(text, "/") → dispatchSlash(text, user) → emit reply. Fallback ke LLM kalau slash unknown. Tanpa fix ini, chat-debug script tidak representative buat user real.
+
+### Verified end-to-end (chat-debug script + curl proxy)
+
+- Router direct `/api/brain/skills/list?limit=3` → 3 items, total 40 ✅
+- Agent proxy `/api/agents/router-skills/list?id=mr-flow&limit=3` → same 3 items setelah fix normalize URL ✅
+- Agent proxy `/api/agents/router-skills/get?id=mr-flow&name=5w1h-gate` → name + description (80 char preview) + body 4832 char ✅
+- Agent proxy search `?search=anti` → 5 hit / 40 total ✅
+- chat-debug `/version` → slash dispatcher hit, return "**Flowork Agent 0.4.0-embedded-kernel**" (sebelum fix: respon LLM persona — sekarang real slash output) ✅
+
+### Defer phase 3:
+- Skill metadata cache lokal (avoid re-fetch every modal open)
+- ETag / If-None-Match support
+- Import skill from catalog → save sebagai local skill row (sekarang cuma push ke skills[] di-memory, save Manual via tombol Save section)
+- Per-endpoint CircuitBreaker state (saat ini global; phase 3 split)
+
+---
+
 ## 2026-05-30 15:45 WIB — Section 12 + 13: Tool execution sandbox + /tool_search DONE + LOCK
 
 Tool dispatch sekarang lewat 3-gate sandbox sebelum Run, dan Mr.Dev bisa discover tools via slash command.

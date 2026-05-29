@@ -462,6 +462,7 @@ func callLLM(cfg agentConfig, userText string) string {
 func doHandle(argsRaw string) {
 	var in struct {
 		Text string `json:"text"`
+		User string `json:"user"`
 	}
 	if err := json.Unmarshal([]byte(argsRaw), &in); err != nil {
 		emit(map[string]any{"reply": "parse: " + err.Error()})
@@ -471,6 +472,21 @@ func doHandle(argsRaw string) {
 	if in.Text == "" {
 		emit(map[string]any{"reply": "kosong bro, kirim pesan dulu"})
 		return
+	}
+	// Section 17 parity: leading "/" → dispatch slash command, skip LLM.
+	// Same path as runDaemon (Telegram path). Tanpa branch ini, RPC entry
+	// (chat-debug script + future webhook) bypass slash dispatcher.
+	if strings.HasPrefix(in.Text, "/") {
+		caller := strings.TrimSpace(in.User)
+		if caller == "" {
+			caller = "rpc"
+		}
+		if reply, ok := dispatchSlash(in.Text, caller); ok {
+			emit(map[string]any{"reply": reply})
+			return
+		}
+		// Slash unknown atau dispatch error → fallback LLM agar user dapet
+		// respons (better UX dari error mentah).
 	}
 	emit(map[string]any{"reply": callLLM(loadConfig(), in.Text)})
 }
