@@ -161,7 +161,7 @@ CREATE INDEX idx_decisions_time ON decisions(occurred_at DESC);
 
 ---
 
-## Section 4 — Death letter (legacy pesan terakhir per-warga)
+## Section 4 — Death letter (legacy pesan terakhir per-warga) ✅ DONE (phase 1) 2026-05-29
 
 **Goal:** kalau warga di-retire (toggle off + remove), simpan "death letter" — pesan terakhir, value yang dia carry, instruksi buat penerus. Bisa di-download bareng .fwagent.zip → legacy preservation.
 

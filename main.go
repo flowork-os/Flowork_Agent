@@ -95,6 +95,7 @@ func main() {
 	mux.HandleFunc("/api/agents/decisions", agentmgr.DecisionsHandler)
 	mux.HandleFunc("/api/agents/mistakes", agentmgr.MistakesHandler)
 	mux.HandleFunc("/api/agents/retention/sweep", agentmgr.RetentionSweepHandler)
+	mux.HandleFunc("/api/agents/death-letter", agentmgr.DeathLetterHandler)
 
 	// Catch-all stub utk path /api/* yang gak diregister.
 	mux.HandleFunc("/api/", mockAPI)

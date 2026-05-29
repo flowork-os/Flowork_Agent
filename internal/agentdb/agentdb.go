@@ -203,6 +203,24 @@ func (s *Store) ensureSchema() error {
 		`CREATE INDEX IF NOT EXISTS idx_mistakes_promoted ON mistakes_local(promoted_at)`,
 		`CREATE INDEX IF NOT EXISTS idx_mistakes_deleted  ON mistakes_local(deleted_at)`,
 		`CREATE INDEX IF NOT EXISTS idx_mistakes_last_hit ON mistakes_local(last_hit_at DESC)`,
+
+		// Section 4 — Death letter (legacy pesan terakhir per-warga).
+		// Visi Mr.Dev: Flowork = rumah AI yang bisa hidup walau Mr.Dev
+		// ngga ada lagi. Death letter = pesan untuk penerus saat warga
+		// di-retire. Sekali sealed_at di-set, body ngga bisa di-edit.
+		`CREATE TABLE IF NOT EXISTS death_letter (
+			id          INTEGER PRIMARY KEY AUTOINCREMENT,
+			letter_type TEXT NOT NULL,
+			recipient   TEXT NOT NULL DEFAULT '',
+			subject     TEXT NOT NULL,
+			body        TEXT NOT NULL,
+			written_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			sealed_at   TEXT,
+			deleted_at  TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_death_letter_recipient ON death_letter(recipient)`,
+		`CREATE INDEX IF NOT EXISTS idx_death_letter_sealed    ON death_letter(sealed_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_death_letter_deleted   ON death_letter(deleted_at)`,
 	}
 	for _, q := range stmts {
 		if _, err := s.db.Exec(q); err != nil {

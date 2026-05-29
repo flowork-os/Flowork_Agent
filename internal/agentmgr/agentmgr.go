@@ -316,6 +316,117 @@ func DBResetHandler(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, map[string]any{"ok": true, "path": dbPath})
 }
 
+// DeathLetterHandler — multi-method endpoint /api/agents/death-letter?id=<id>
+//
+//	GET    list (?recipient=&sealed=1&limit=N)
+//	POST   write new letter (body: {letter_type, recipient?, subject, body})
+//	PUT    update unsealed letter (?letter_id=N body: {subject, body})
+//	PATCH  seal letter (?letter_id=N&action=seal)
+//
+// Roadmap section 4. Sealed letter immutable — refuse update.
+//
+// ⚠️ Sensitif legacy content — JANGAN auto-inject ke prompt (over-prompt).
+func DeathLetterHandler(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(r.URL.Query().Get("id"))
+	if !reID.MatchString(id) {
+		httpx.WriteJSON(w, map[string]any{"error": "invalid id"})
+		return
+	}
+	dbPath := agentdb.Resolve(id, agentFolder(id))
+	if _, err := os.Stat(dbPath); err != nil {
+		if r.Method == http.MethodGet {
+			httpx.WriteJSON(w, map[string]any{"items": []any{}, "note": "db belum ada"})
+			return
+		}
+		httpx.WriteJSON(w, map[string]any{"error": "db belum ada — boot agent dulu"})
+		return
+	}
+	store, err := agentdb.Open(dbPath)
+	if err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": "open db: " + err.Error()})
+		return
+	}
+	defer store.Close()
+
+	switch r.Method {
+	case http.MethodGet:
+		recipient := strings.TrimSpace(r.URL.Query().Get("recipient"))
+		sealedOnly := r.URL.Query().Get("sealed") == "1"
+		limit := 50
+		if s := strings.TrimSpace(r.URL.Query().Get("limit")); s != "" {
+			if n, perr := strconv.Atoi(s); perr == nil && n > 0 && n <= 500 {
+				limit = n
+			}
+		}
+		items, err := store.ReadLetters(recipient, sealedOnly, limit)
+		if err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": "read: " + err.Error()})
+			return
+		}
+		httpx.WriteJSON(w, map[string]any{"items": items, "count": len(items)})
+
+	case http.MethodPost:
+		r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
+		var body struct {
+			LetterType string `json:"letter_type"`
+			Recipient  string `json:"recipient"`
+			Subject    string `json:"subject"`
+			Body       string `json:"body"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": "decode: " + err.Error()})
+			return
+		}
+		newID, err := store.WriteLetter(body.LetterType, body.Recipient, body.Subject, body.Body)
+		if err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+			return
+		}
+		httpx.WriteJSON(w, map[string]any{"ok": true, "id": newID})
+
+	case http.MethodPut:
+		letterID, perr := strconv.ParseInt(strings.TrimSpace(r.URL.Query().Get("letter_id")), 10, 64)
+		if perr != nil || letterID <= 0 {
+			httpx.WriteJSON(w, map[string]any{"error": "letter_id required"})
+			return
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
+		var body struct {
+			Subject string `json:"subject"`
+			Body    string `json:"body"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": "decode: " + err.Error()})
+			return
+		}
+		if err := store.UpdateUnsealedLetter(letterID, body.Subject, body.Body); err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+			return
+		}
+		httpx.WriteJSON(w, map[string]any{"ok": true, "id": letterID})
+
+	case http.MethodPatch:
+		action := strings.TrimSpace(r.URL.Query().Get("action"))
+		if action != "seal" {
+			httpx.WriteJSON(w, map[string]any{"error": "unsupported action (only ?action=seal)"})
+			return
+		}
+		letterID, perr := strconv.ParseInt(strings.TrimSpace(r.URL.Query().Get("letter_id")), 10, 64)
+		if perr != nil || letterID <= 0 {
+			httpx.WriteJSON(w, map[string]any{"error": "letter_id required"})
+			return
+		}
+		if err := store.SealLetter(letterID); err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+			return
+		}
+		httpx.WriteJSON(w, map[string]any{"ok": true, "sealed": letterID})
+
+	default:
+		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
+	}
+}
+
 // RetentionSweep — kernelhost daftarkan callback supaya admin endpoint
 // bisa trigger manual sweep. Nil-safe: kalau ngga di-set, endpoint return
 // error "not wired".
@@ -508,6 +619,10 @@ func InteractionsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // RemoveHandler — DELETE /api/agents/remove?id=<id>.
+//
+// Section 4 integration: SEBELUM hapus folder, auto-seal semua death_letter
+// unsealed warga ini. Pastikan legacy preserved (folder akan ikut zip
+// download future via DownloadHandler enhancement).
 func RemoveHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
@@ -523,11 +638,43 @@ func RemoveHandler(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(w, map[string]any{"error": "agent not found"})
 		return
 	}
+
+	// Section 4: auto-seal unsealed letters sebelum remove. Best-effort —
+	// kalau state.db ngga ada / corrupt, log saja + lanjut remove.
+	// Plus log decision audit trail (Section 3 doctrine) supaya
+	// kepergian warga ke-track walau folder hilang.
+	sealedCount := int64(0)
+	dbPath := agentdb.Resolve(id, dir)
+	if _, err := os.Stat(dbPath); err == nil {
+		if store, sopen := agentdb.Open(dbPath); sopen == nil {
+			if n, serr := store.SealAllUnsealed(); serr == nil {
+				sealedCount = n
+				if sealedCount > 0 {
+					_, _ = store.LogDecision("agent_retire",
+						fmt.Sprintf("Auto-sealed %d unsealed death letters sebelum agent remove.", sealedCount),
+						"success",
+						map[string]any{
+							"agent_id":       id,
+							"sealed_letters": sealedCount,
+						},
+						0)
+				}
+			} else {
+				log.Printf("agentmgr: auto-seal failed for %s: %v", id, serr)
+			}
+			_ = store.Close()
+		}
+	}
+
 	if err := os.RemoveAll(dir); err != nil {
 		httpx.WriteJSON(w, map[string]any{"error": "remove: " + err.Error()})
 		return
 	}
-	httpx.WriteJSON(w, map[string]any{"ok": true, "removed": id})
+	resp := map[string]any{"ok": true, "removed": id}
+	if sealedCount > 0 {
+		resp["auto_sealed_letters"] = sealedCount
+	}
+	httpx.WriteJSON(w, resp)
 }
 
 // ConfigHandler — GET/POST /api/agents/config?id=<id>.

@@ -4,6 +4,34 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-29 20:40 WIB — Section 4: Death letter (phase 1) DONE + audit + LOCK
+
+- **feat(agentdb)**: tabel `death_letter` (id, letter_type, recipient, subject, body, written_at, sealed_at, deleted_at) + 3 index. `internal/agentdb/death_letter.go` (LOCKED): `WriteLetter` (return id), `UpdateUnsealedLetter` (refuse kalau sealed), `SealLetter` (one-way idempotent), `SealAllUnsealed` (bulk auto-seal), `ReadLetters` (filter recipient + sealedOnly), `CountLetters`.
+- **feat(agentmgr)**: HTTP endpoint multi-method `GET/POST/PUT/PATCH /api/agents/death-letter?id=`:
+  - GET: list (`?recipient=&sealed=1&limit=N`)
+  - POST: write new letter (body: letter_type/recipient/subject/body)
+  - PUT: update unsealed letter (`?letter_id=N`, body subject/body) — refuse kalau sealed
+  - PATCH: seal letter (`?letter_id=N&action=seal`)
+- **integration RemoveHandler**: sebelum `os.RemoveAll(dir)`, auto-call `SealAllUnsealed()` — best-effort (silent log kalau DB corrupt). Response include `auto_sealed_letters` count kalau > 0. Preserve legacy sebelum folder hilang. **Plus audit trail**: `LogDecision('agent_retire', ...)` di-call kalau sealed > 0 — kepergian warga ke-track walau folder hilang.
+- **audit important fix #1 (whitelist enforcement)**: `validLetterTypes` map enforce roadmap spec — caller kirim `letter_type` di luar `farewell|handover|reflection` → reject. Cegah trash data + future analytics break.
+- **audit important fix #4 (defense in depth)**: `limit` parsing di handler reject negative/zero/>500 (sebelumnya cuma di ReadLetters internal clamp).
+- **immutable doctrine**: WHERE clause filter di `UpdateUnsealedLetter` + `SealLetter` both check `sealed_at IS NULL AND deleted_at IS NULL`. Sekali sealed → body immutable.
+- **verified end-to-end**:
+  - POST write → id=1
+  - GET list shows unsealed letter
+  - PUT update unsealed → success, subject revised
+  - PATCH seal → sealed:1
+  - PUT update SEALED → BLOCKED "letter id 1 not found, sealed, or deleted (immutable)"
+  - GET sealed=1 returns 1 row with sealed_at populated
+
+### Defer:
+- RPC method `write_death_letter` di mr-flow — defer (no self-write use case)
+- Inclusion di `.fwagent.zip` download (DownloadHandler enhancement) — Section 4 phase 2
+- Popup UI — batch UI section
+- Letter type whitelist enforcement (`farewell`/`handover`/`reflection`) — current accept any non-empty string, defer kalau perlu strict
+
+---
+
 ## 2026-05-29 20:30 WIB — Section 8: Retention policy + cron DONE + audit + LOCK
 
 - **feat(agentdb)**: `internal/agentdb/retention.go` (LOCKED) — `RetentionWindows` struct + `DefaultRetention()` (30d interactions / 90d decisions+raw mistakes / 180d promoted / 90d hard-delete grace). `PrunePromotedMistakes`, `HardDeleteSoftDeleted` (3 tabel), `RunRetentionSweep` (orchestrator + aggregate report).
