@@ -211,6 +211,10 @@ func main() {
 	mux.HandleFunc("/api/agents/protector/rules", agentmgr.ProtectorRulesHandler)
 	mux.HandleFunc("/api/agents/protector/test", agentmgr.ProtectorTestHandler)
 	mux.HandleFunc("/api/agents/protector/audit", agentmgr.ProtectorAuditHandler)
+	mux.HandleFunc("/api/agents/scanner/scan", agentmgr.ScannerScanHandler)
+	mux.HandleFunc("/api/agents/scanner/runs", agentmgr.ScannerRunsHandler)
+	mux.HandleFunc("/api/agents/scanner/findings", agentmgr.ScannerFindingsHandler)
+	mux.HandleFunc("/api/agents/scanner/auditors", agentmgr.ScannerAuditorsHandler)
 
 	// Catch-all stub utk path /api/* yang gak diregister.
 	mux.HandleFunc("/api/", mockAPI)

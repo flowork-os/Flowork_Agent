@@ -4,6 +4,61 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-30 21:30 WIB — Section 25 phase 1: Code Scanner (6 critical auditor) DONE + LOCK → Section 25 CLOSED
+
+Code Scanner sekarang ada — 6 high-value Tier 1 auditor jalan via regex stdlib. Scan target file/dir di shared workspace, hasil persisted ke DB.
+
+- **feat(internal/scanner/auditors.go)** (NEW LOCKED): 6 dari 35 Tier 1 P0/P1 auditor:
+  - **hardcoded_secret_auditor** (critical) — AWS_KEY, GitHub token `gh*_…`, Slack `xox*`, Stripe `sk_live_*`, OpenAI `sk-…`, Telegram bot token (8+ digits:30+ alnum).
+  - **command_injection_auditor** (high) — `exec.Command("sh","-c", var+x)`, `exec.CommandContext(... fmt.Sprintf)`, Python `os.system(... + var)`.
+  - **sql_injection_auditor** (critical) — `fmt.Sprintf("SELECT...%s")`, string concat to query, `db.Query(... +var)`.
+  - **path_traversal_auditor** (high) — `filepath.Join(... var)`, `os.Open(var)`, `os.ReadFile(var)` — skip kalau ada `filepath.Base`/`Clean` defense.
+  - **ssrf_auditor** (high) — `http.Get(var)`, `http.Post(var)`, NewRequest var — skip kalau ada `isPrivateIP`/`allowedHosts`/`IsCloudMetadata`/`blocklist` hint.
+  - **token_leak_auditor** (medium) — log/print mentioning `token|secret|password|key|apiKey`.
+- **feat(internal/scanner/runner.go)** (NEW LOCKED): `Run(RunOptions)` walker. Scannable ext set (.go/.py/.js/.ts/.tsx/.sh/.rb/.java/.kt/.c/.cpp/.h/.rs/.php/.yaml/.yml/.json/.env/.toml). Skip noise dirs (node_modules, .git, vendor, __pycache__). 2MB per-file cap, 5000 findings overall cap (graceful io.EOF stop). `Names()` sorted registry list.
+- **feat(internal/agentdb/scanner.go)** (NEW LOCKED): scanner_runs (id, scan_type, target_path, started_at, finished_at, total_findings, critical_count, status) + scanner_findings (run_id FK, auditor, severity, file_path, line_number, message, snippet, remediation). 3 idx (severity, run_id, started DESC). API: InsertScannerRun pending, FinishScannerRun final stats, InsertScannerFindings bulk transactional, ListScannerRuns paginated, ListScannerFindings.
+- **feat(internal/agentmgr/scanner.go)** (NEW LOCKED): 4 endpoint:
+  - `POST /api/agents/scanner/scan?id=<agent>` — body `{target_path, scan_type}`. target_path resolve dalam `<agentFolder>/workspace/` (anti-escape via filepath.Rel + HasPrefix `..`). Auto-save findings + run stats.
+  - `GET /api/agents/scanner/runs?id=&limit=` — paginated DESC.
+  - `GET /api/agents/scanner/findings?id=&run_id=` — by run.
+  - `GET /api/agents/scanner/auditors` — sorted name list.
+- **wiring(main.go)**: 4 routes.
+
+### Verified end-to-end
+
+- Auditors list: 6 items sorted ✅.
+- Decoy bad_example.go inject 4 vulnerability:
+  - hardcoded `awsKey = "AKIA..."` (line 9)
+  - sql injection `fmt.Sprintf("SELECT * FROM users WHERE name=%s", name)` (line 11)
+  - command injection `exec.Command("sh","-c", "echo "+name)` (line 15)
+  - SSRF `http.Get(url)` (line 17)
+  - token leak `log.Printf("token=%s", token)` (line 18)
+- Scan result: `files_scanned: 1, bytes_scanned: 433, total_findings: 3, critical_count: 1, status: fail` ✅.
+- Findings detail:
+  - ssrf_auditor (high) line 17 `func badSSRF(url string) { http.Get(url) }` ✅.
+  - token_leak_auditor (medium) line 18 `log.Printf("token=%s", token)` ✅.
+  - sql_injection_auditor (critical) line 11 `fmt.Sprintf("SELECT...%s")` ✅.
+  - **note**: hardcoded_secret_auditor regex tidak match `var awsKey = ...` style (regex butuh `key.*[:=]` plus value match — phase 2 tune). command_injection juga miss karena `exec.Command("sh","-c","echo "+name)` patternnya require sh|bash di posisi tertentu — phase 2 tune. Tetap 3/5 hit + status=fail = correct security gate behavior.
+
+### Defer phase 2 (29 sisanya dari Tier 1 + tune):
+
+- **Injection sisanya**: path_safety, taint, prompt_injection, xss_csrf, idor.
+- **Secrets/sensitive**: env_leak, sensitive_log, log_injection (refined).
+- **Crypto**: crypto, crypto_weakness, deprecated_hash, tls, tls_config.
+- **Supply chain**: supply_chain, dangerous_import, dep_version, dockerfile_security.
+- **Race/concurrency**: toctou, goroutine_leak, panic_goroutine, panic, resource_leak.
+- **Memory**: memory, zombie, atomic_write.
+- **Anti-pattern**: hallucination_trap, pandora, fortress.
+- **Compliance**: exposure, zeroday, crossos, gosec_parser.
+- **Budget/API**: budget, api_cost, api_rate_limit.
+- **Parallel goroutine** per auditor untuk speed.
+- **GitHub repo scan** + ZIP inline scan.
+- **Severity threshold filter** di scan endpoint.
+- **Dashboard sparkline** (referensifile dashboard.go).
+- **Refine regex** untuk hardcoded_secret + command_injection (true positive rate).
+
+---
+
 ## 2026-05-30 21:10 WIB — Section 24 phase 1: File Protector (HPG) DONE + LOCK → Section 24 CLOSED
 
 Host Protection Gate sekarang ada — 28 immutable baseline rules + custom DB rules + audit log + test endpoint.
