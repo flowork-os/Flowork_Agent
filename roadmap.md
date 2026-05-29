@@ -1119,7 +1119,7 @@ referensifile/
 
 ---
 
-## Section 19 — Sneakernet export per-warga (USB offline sync)
+## Section 19 — Sneakernet export per-warga (USB offline sync) ✅ DONE 2026-05-30 phase 1. Format `.fwsync` magic `FWSYNC0\x00` (plain) atau `FWSYNC1\x00` (encrypted AES-256-GCM via scrypt-derived key, salt 16B + nonce 12B header). Tarball gzip dengan manifest pertama (format_version, agent_id, version, host_origin, created_at, encrypted bool, state_db_bytes, files_count). Endpoints `/api/agents/sneakernet/export` (POST, header X-Sneakernet-Passphrase optional, response octet-stream) + `/sneakernet/import` (POST multipart `file`, header passphrase). Anti zip-slip via filepath.Clean + ".." reject. Per-file 100MB cap, total 200MB cap. Symlink skip. Defer phase 2: VACUUM INTO state.db snapshot (saat ini direct copy — WAL safe karena passthrough binary), CRDT merge state row-level, ed25519 signed_origin, mesh_peers_cache, atomic rename target folder.
 
 **Goal:** warga = unit portable. Export seluruh state warga (folder `agents/<id>/` lengkap dengan workspace + state.db) jadi single file `.fwsync` di USB. Import di host lain → warga "pindah host" atau "clone ke host kedua".
 

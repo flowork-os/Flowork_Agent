@@ -196,6 +196,8 @@ func main() {
 	mux.HandleFunc("/api/agents/tools/suggest", agentmgr.ToolSuggestHandler)
 	mux.HandleFunc("/api/agents/scheduler/runs", agentmgr.SchedulerRunsHandler)
 	mux.HandleFunc("/api/agents/scheduler/trigger", agentmgr.SchedulerTriggerHandler)
+	mux.HandleFunc("/api/agents/sneakernet/export", agentmgr.SneakernetExportHandler)
+	mux.HandleFunc("/api/agents/sneakernet/import", agentmgr.SneakernetImportHandler)
 
 	// Catch-all stub utk path /api/* yang gak diregister.
 	mux.HandleFunc("/api/", mockAPI)

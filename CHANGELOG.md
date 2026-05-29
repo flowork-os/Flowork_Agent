@@ -4,6 +4,37 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-30 20:00 WIB — Section 19 phase 1: sneakernet export/import DONE + LOCK → Section 19 CLOSED
+
+Mr.Dev sekarang bisa export warga ke USB → bawa ke host lain → import full state utuh. Encrypted via AES-256-GCM dengan scrypt-derived key.
+
+- **feat(internal/sneakernet/manifest.go)** (NEW LOCKED): Manifest struct (format_version=1, agent_id, version, host_origin, created_at RFC3339, encrypted bool, state_db_bytes, files_count) + `NewManifest()` factory.
+- **feat(internal/sneakernet/export.go)** (NEW LOCKED): walk agent folder 2x (count + write), build tar+gzip dengan manifest pertama, AES-256-GCM seal kalau passphrase ada. Symlink skip. Per-file 100MB cap. scrypt N=2^15 r=8 p=1 keylen=32. Magic `FWSYNC0\x00` (plain) / `FWSYNC1\x00` (encrypted) + salt 16B + nonce 12B header.
+- **feat(internal/sneakernet/import.go)** (NEW LOCKED): magic check, scrypt-derive + gcm.Open (auth fail → wrong passphrase), gzip + tar untar, manifest decode first, anti zip-slip via filepath.Clean + ".." reject + IsAbs reject. Per-import 200MB cap. Mkdir target. Chmod from header.
+- **feat(internal/agentmgr/sneakernet.go)** (NEW LOCKED): 2 endpoint:
+  - `POST /api/agents/sneakernet/export?id=<agent>` — header `X-Sneakernet-Passphrase` optional. Response octet-stream `<agent>.fwsync` Content-Disposition attachment.
+  - `POST /api/agents/sneakernet/import?target_id=<agent>` — multipart `file`, header passphrase. Response JSON `{ok, target_id, target_root, manifest, files_count, bytes_written}`. 200MB multipart cap.
+- **wiring(main.go)**: 2 mux.HandleFunc + go.mod: `golang.org/x/crypto v0.52.0`.
+
+### Verified end-to-end
+
+- Plain export: 135902 bytes, magic `FWSYNC0\x00` ✅.
+- Encrypted export: 135944 bytes (42B header overhead = 8 magic + 16 salt + 12 nonce + 16 GCM tag — wait actually 4B from scryptN), magic `FWSYNC1\x00` ✅.
+- Import plain → 6 files, 285527 bytes, manifest decoded (agent_id=mr-flow, format_version=1, host_origin=flowork) ✅.
+- Import encrypted with correct passphrase → manifest.encrypted=true preserved, full roundtrip ✅.
+- Import encrypted WRONG passphrase → `cipher: message authentication failed` ✅ (GCM auth rejection).
+- Import encrypted WITHOUT passphrase → `passphrase required for encrypted .fwsync` ✅.
+
+### Defer phase 2:
+- **VACUUM INTO state.db snapshot** — saat ini direct file copy (WAL passthrough binary safe untuk read-only restore, tapi phase 2 cleaner via SQLite native snapshot).
+- **CRDT merge** state row-level (idempotent re-import sama file → ngga duplicate). Phase 2 dependency: Section 16 CRDT Router.
+- **ed25519 signed_origin** — sign manifest dengan host identity pubkey + verify at import. Defer ke Section 13 Router mesh identity ready.
+- **mesh_peers_cache** dalam tarball — biar warga di host tujuan langsung tahu peer list. Defer ke Mesh Section 15+ ready.
+- **Atomic-rename target folder** — saat ini partial extract leaves partial state. Phase 2 extract ke `<target>.tmp` → rename atomic.
+- **Multi-file batch export** — bundle multiple warga sekali (mass-migrate). Phase 2 UX polish.
+
+---
+
 ## 2026-05-30 19:45 WIB — Section 18 phase 1: cron scheduler runtime DONE + LOCK → Section 18 CLOSED
 
 Schedule yang dimasukin user via popup UI sekarang bener-bener execute. Engine tick 60s align ke top-of-minute, per-agent goroutine, executor = host.InvokeAgentMessage RPC handle_message (sama path Telegram + Section 17 phase 2 doHandle dengan slash dispatch parity).
