@@ -35,7 +35,7 @@ import (
 // AgentVersion — bumped tiap stable release. Synced dengan main.go const.
 const AgentVersion = "0.4.0-embedded-kernel"
 
-// InitTier1 — register 5 Tier 1 commands. Caller (builtins.Init) panggil
+// InitTier1 — register Tier 1 commands. Caller (builtins.Init) panggil
 // after demo commands registered.
 func InitTier1() {
 	slashcmd.Register(&versionCmd{})

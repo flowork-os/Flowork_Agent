@@ -4,6 +4,41 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-30 15:45 WIB — Section 12 + 13: Tool execution sandbox + /tool_search DONE + LOCK
+
+Tool dispatch sekarang lewat 3-gate sandbox sebelum Run, dan Mr.Dev bisa discover tools via slash command.
+
+### Section 12 — Tool execution sandbox (phase 1)
+
+- **feat(tools/sandbox.go)** (LOCKED): `SandboxRun(ctx, tool, args, opts)` wraps `Tool.Run` dengan 3 gate:
+  1. **Capability gate** — `FromCapsChecker(ctx)` cek `tool.Capability()` vs broker `IsApproved`. Empty cap = allow (no-cap tools). Denial → `ErrSandboxCapDenied`.
+  2. **Disabled gate** — `tool_overrides.disabled=1` per agent → `ErrSandboxDisabled`.
+  3. **Rate limit gate** — `tool_overrides.rate_limit > 0` + count `tool_invocations` in 60s window. Exceed → `ErrSandboxRateLimited`.
+  - `SandboxOpts` allows explicit `SkipCapGate/SkipDisabledGate/SkipRateLimit` for admin paths.
+- **feat(tools/context.go)** (LOCKED, extended): `CapsChecker = func(string) bool` type + `WithCapsChecker/FromCapsChecker` ctx helpers.
+- **feat(agentdb/accessor.go)** (NEW LOCKED): `Store.DB() *sql.DB` — read-only handle exposed buat sandbox query tool_overrides + invocation count.
+- **feat(kernelhost/kernelhost.go)**: `Host.CapsCheckerForAgent(agentID)` method returns closure bound ke `Broker.IsApproved(agentID, cap)`. Nil-safe (return nil kalau broker absent → sandbox skip gate).
+- **wiring(agentmgr.go)**: `ToolRunHandler` inject `tools.WithCapsChecker(ctx, CapsCheckerForAgent(id))` + replace `t.Run(ctx, body.Args)` → `tools.SandboxRun(ctx, t, body.Args, tools.SandboxOpts{})`.
+- **wiring(main.go)**: `agentmgr.CapsCheckerForAgent = host.CapsCheckerForAgent` bootstrap.
+
+### Section 13 — Tool discovery (phase 1)
+
+- **feat(slashcmd/builtins/tool_search.go)** (NEW LOCKED): `/tool_search <query>` (aliases `ts`, `find_tool`) — substring match across name/capability/description. Sorted by registry order. Empty query → usage error.
+- **wiring(builtins.go)** (LOCKED, +1 line): `InitToolSearch()` panggil dari `Init()` setelah Tier 1.
+
+### Verified end-to-end
+
+- **/tool_search net** → 2 matches (`telegram_send`, `webfetch`) — correct, no false positive.
+- **/tool_search file** → 3 matches (`file_list`, `file_read`, `file_write`).
+- **Sandbox cap gate** via HTTP admin: `POST /api/agents/tools/run?id=mr-flow {"tool_name":"now"}` → `sandbox: capability denied: now requires "time:read"`. Mr.Flow's `capabilities_required` ngga include `time:read` → broker correctly deny. Sandbox enforcing.
+- **Existing /stats /tools /version /interactions** — semua masih jalan (no regression).
+
+### Defer phase 2+:
+- **Section 12 phase 2**: full interceptor chain (workspace path, sensitive file detect, bash command blacklist, persona sanitize) — saat ini cuma broker gate + DB override; referensifile/section_12 punya 13 file lengkap.
+- **Section 13 phase 2**: subscription model (`tool_subscriptions` table), per-warga catalog filter, auto-suggest via router section 6 tool_learner. Saat ini cuma discovery.
+
+---
+
 ## 2026-05-30 15:00 WIB — Section 16: Custom slash commands dari .md files DONE + LOCK
 
 Mr.Dev sekarang bisa bikin custom slash command tanpa rebuild — drop `.md` file ke shared workspace + restart.

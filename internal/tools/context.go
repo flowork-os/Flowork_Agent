@@ -30,7 +30,12 @@ const (
 	keyCaller                  // string identifier (mis. 'daemon', 'rpc', 'http-admin')
 	keyAgent                   // string agent id (mr-flow)
 	keySharedDir               // string filesystem path ke `<root>/workspace/<agent_id>/`
+	keyCapsCheck               // CapsChecker func(cap string) bool — Section 12 sandbox
 )
+
+// CapsChecker — signature buat capability gate. Caller (dispatcher) inject
+// from broker. Section 12 phase 1.
+type CapsChecker func(capability string) bool
 
 // WithStore — attach per-agent *agentdb.Store ke ctx. Dipanggil dispatcher
 // sebelum Run.
@@ -83,4 +88,17 @@ func WithSharedDir(ctx context.Context, path string) context.Context {
 func FromSharedDir(ctx context.Context) string {
 	p, _ := ctx.Value(keySharedDir).(string)
 	return p
+}
+
+// WithCapsChecker — Section 12: attach broker IsApproved closure ke ctx.
+// Dispatcher inject sebelum Run supaya tool sandbox bisa cek capability.
+func WithCapsChecker(ctx context.Context, f CapsChecker) context.Context {
+	return context.WithValue(ctx, keyCapsCheck, f)
+}
+
+// FromCapsChecker — extract. Nil kalau ngga di-set (sandbox skip check —
+// default-allow di phase 1 supaya backward compat).
+func FromCapsChecker(ctx context.Context) CapsChecker {
+	f, _ := ctx.Value(keyCapsCheck).(CapsChecker)
+	return f
 }

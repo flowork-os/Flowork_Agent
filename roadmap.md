@@ -550,7 +550,7 @@ func (t *readTool) Run(ctx context.Context, args tools.Args) (tools.Result, erro
 
 ---
 
-## Section 12 — Tool execution sandbox + interceptors
+## Section 12 — Tool execution sandbox + interceptors ✅ DONE 2026-05-30 (phase 1: capability gate via broker + disabled flag + rate limit per minute)
 
 **Goal:** safety net — tool execution lewat interceptor chain yang block command berbahaya, enforce path scoping, mask secret, log audit. Tanpa ini, `bash` tool jadi attack vector.
 
@@ -604,7 +604,7 @@ CREATE INDEX idx_tool_audit_decision ON tool_audit(decision);
 
 ---
 
-## Section 13 — Tool discovery + suggestion (warga inventory)
+## Section 13 — Tool discovery + suggestion (warga inventory) ✅ DONE 2026-05-30 phase 1 (/tool_search slash command via name/capability/description substring match)
 
 **Goal:** warga bisa **browse catalog tool** (lihat apa yang available), **list tool aktif dia sendiri** (apa yang dia subscribe), dan dapet **auto-suggest** dari router pattern (lihat router section 6 — tool_learner).
 

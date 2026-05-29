@@ -754,9 +754,15 @@ func ToolRunHandler(w http.ResponseWriter, r *http.Request) {
 			ctx = tools.WithSharedDir(ctx, shared)
 		}
 	}
+	// Section 12: inject capability checker dari broker (kalau wired).
+	if CapsCheckerForAgent != nil {
+		if check := CapsCheckerForAgent(id); check != nil {
+			ctx = tools.WithCapsChecker(ctx, check)
+		}
+	}
 
 	t0 := time.Now()
-	result, runErr := t.Run(ctx, body.Args)
+	result, runErr := tools.SandboxRun(ctx, t, body.Args, tools.SandboxOpts{})
 	elapsedMs := time.Since(t0).Milliseconds()
 
 	// Log invocation (best-effort — kalau log gagal, ngga blocking response).
@@ -926,6 +932,11 @@ func EduErrorsHandler(w http.ResponseWriter, r *http.Request) {
 // SharedDirForAgent — kernelhost daftarkan callback. Resolve agent shared
 // workspace path (`<root>/workspace/<agent_id>/`). Nil-safe.
 var SharedDirForAgent func(agentID string) (string, error)
+
+// CapsCheckerForAgent — kernelhost daftarkan callback. Return closure
+// untuk check capability per-agent via broker IsApproved. Nil-safe —
+// sandbox skip cap gate kalau callback nil (Section 12 default-allow).
+var CapsCheckerForAgent func(agentID string) func(capability string) bool
 
 // PromoteRun — kernelhost daftarkan callback. Resolve agent + push
 // mistakes eligible ke Router /api/mistakes/submit. Nil-safe.

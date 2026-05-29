@@ -33,6 +33,8 @@ func Init() {
 	slashcmd.Register(&pingCmd{})
 	// Section 15 phase 1: 5 Tier 1 productive commands.
 	InitTier1()
+	// Section 13 phase 1: /tool_search discovery command.
+	InitToolSearch()
 }
 
 // =============================================================================

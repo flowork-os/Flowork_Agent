@@ -904,6 +904,18 @@ func (h *Host) SharedDirForAgent(agentID string) (string, error) {
 	return filepath.Join(h.SharedDir, agentID), nil
 }
 
+// CapsCheckerForAgent — Section 12: return closure bound ke broker
+// IsApproved untuk agent tertentu. Sandbox (tools.SandboxRun) pakai
+// untuk capability gate. Return nil kalau Broker ngga di-set (default-allow).
+func (h *Host) CapsCheckerForAgent(agentID string) func(capability string) bool {
+	if h == nil || h.Broker == nil || agentID == "" {
+		return nil
+	}
+	return func(capability string) bool {
+		return h.Broker.IsApproved(agentID, capability)
+	}
+}
+
 // PromoteReport — outcome RunPromoteForAgent. Agregat hasil submit ke
 // router. Section 7 phase 1.
 type PromoteReport struct {

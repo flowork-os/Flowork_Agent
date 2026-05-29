@@ -105,6 +105,9 @@ func main() {
 	agentmgr.SharedDirForAgent = func(agentID string) (string, error) {
 		return host.SharedDirForAgent(agentID)
 	}
+	agentmgr.CapsCheckerForAgent = func(agentID string) func(capability string) bool {
+		return host.CapsCheckerForAgent(agentID)
+	}
 
 	host.AutoBootDaemons(ctx)
 	if err := host.StartWatcher(ctx); err != nil {
