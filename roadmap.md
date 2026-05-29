@@ -266,7 +266,12 @@ CREATE INDEX idx_workspace_meta_category ON workspace_meta(category);
 
 ## Section 7 — Sync interface ke router (push/pull antar-tubuh)
 
+✅ DONE (phase 1) 2026-05-29
+
 **Goal:** definisi protokol komunikasi agent ↔ router untuk: push mistakes promotion, pull skill catalog, query brain.
+
+> **Phase 1 scope (sekarang)**: `internal/routerclient/` package dengan SubmitMistake method, kernel-side promote cron (hourly iterate agent → list mistakes hit_count≥3 + tier='raw' → POST ke Router → mark tier='promoted').
+> **Defer phase 2**: PullSkill, QueryBrain methods, retry/circuit-breaker, popup "Browse Router Catalog".
 
 **Implementasi:**
 

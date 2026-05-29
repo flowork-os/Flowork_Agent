@@ -547,6 +547,36 @@ func DeathLetterHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// PromoteRun — kernelhost daftarkan callback. Resolve agent + push
+// mistakes eligible ke Router /api/mistakes/submit. Nil-safe.
+var PromoteRun func(agentID string) (any, error)
+
+// PromoteRunHandler — POST /api/agents/promote/run?id=<id>
+// Trigger manual: list mistakes lokal eligible (tier='raw' + hit_count ≥ 3)
+// → submit ke Router brain → mark tier='promoted' di lokal.
+// Roadmap Section 7 phase 1.
+func PromoteRunHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		httpx.WriteJSON(w, map[string]any{"error": "method not allowed (use POST)"})
+		return
+	}
+	id := strings.TrimSpace(r.URL.Query().Get("id"))
+	if !reID.MatchString(id) {
+		httpx.WriteJSON(w, map[string]any{"error": "invalid id"})
+		return
+	}
+	if PromoteRun == nil {
+		httpx.WriteJSON(w, map[string]any{"error": "promote not wired"})
+		return
+	}
+	report, err := PromoteRun(id)
+	if err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+		return
+	}
+	httpx.WriteJSON(w, map[string]any{"ok": true, "report": report})
+}
+
 // RetentionSweep — kernelhost daftarkan callback supaya admin endpoint
 // bisa trigger manual sweep. Nil-safe: kalau ngga di-set, endpoint return
 // error "not wired".

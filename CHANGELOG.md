@@ -4,6 +4,45 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-29 21:50 WIB — Section 7: Sync interface ke router (phase 1) DONE + audit + LOCK
+
+- **feat(routerclient)**: `internal/routerclient/routerclient.go` (LOCKED) — HTTP client wrapper untuk agent↔router. `Client` struct + `New(baseURL)` constructor (URL whitelist validation, fallback default). `SubmitMistake(ctx, req) → (resp, err)`: POST `/api/mistakes/submit`. `Ping(ctx)` health check. Body size cap 64KB read, JSON marshal/decode, 30s HTTP timeout.
+- **feat(agentdb)**: `internal/agentdb/mistakes_promote.go` (LOCKED) — extends locked `mistakes.go` via new file (per locking convention). `SetMistakePromoted(id, routerID)` idempotent UPDATE (WHERE tier != 'promoted'). `ListMistakesEligibleForPromote(minHitCount, limit)` filters tier='raw' + hit_count ≥ threshold + promoted_to_id empty + deleted_at NULL, ordered hit_count DESC.
+- **feat(kernelhost)**: `Host.RunPromoteForAgent(agentID)` + `PromoteReport`. Resolve agent path, open store, list eligible (≥3 hit), per-mistake submit to Router, mark promoted lokal pas sukses. Best-effort error accumulation, capped at 10 entries. Router URL dari `kv.router_url` agent config (or default).
+- **feat(agentmgr)**: HTTP endpoint `POST /api/agents/promote/run?id=` via `PromoteRun` callback. Method enforce + id validation.
+- **feat(main)**: wire `agentmgr.PromoteRun = host.RunPromoteForAgent`.
+- **verified end-to-end CROSS-TUBUH**:
+  - Seed lokal mistake id=1 hit_count=5, tier='raw'
+  - Trigger promote → `eligible:1, submitted:1, upsert_existing:1` (Router brain row id=1 was previously inserted via Router Section 7 test — atomic UPSERT increment hit_count 8→13)
+  - Lokal mistake id=1 → `tier='promoted'`, `promoted_at` set, `promoted_to_id='1'`
+  - Re-trigger promote → `eligible:0` (idempotent, sudah promoted)
+  - Re-bump mistake id=3 hit_count=5 + trigger → `eligible:1, submitted:1`
+
+### Audit critical fixes (3) applied BEFORE lock:
+- **C1 SSRF / data exfiltration risk via router_url**: agent kv.router_url ngga validated → attacker / buggy config set `https://evil.com` → mistake content (potentially PII) leak. Fixed: `allowedHosts` whitelist (127.0.0.1, localhost, 0.0.0.0), `isAllowedRouterURL()` validation, fallback ke DefaultRouterURL kalau ngga match.
+- **C2 Submitted counter increment on local mark failure**: kalau SetMistakePromoted gagal, sebelumnya count Submitted tapi lokal stale → next sweep re-submit → router atomic UPSERT inflate hit_count 2x. Fixed: classify sebagai `LocalMarkFailed` separate field, continue ke item selanjutnya (BUKAN Submitted), caller bisa monitor + investigate DB.
+- **C3 resp.ID > 0 validation**: router could HTTP 200 + `{"id":0,...}` (partial write) → lokal mark `promoted_to_id="0"` lose tracking. Fixed: refuse SetMistakePromoted kalau resp.ID ≤ 0, classify Failed.
+
+### Important + nice-to-have fixes:
+- **#11 errors slice cap**: max 10 entries via `appendErr` helper. Cegah response 10KB JSON kalau 50 mistake semua failed.
+- **N1 typo `UpserExisting` → `UpsertExisting`**: JSON field tetap `upsert_existing` (snake case).
+
+### Phase 1 scope (DONE):
+- routerclient pkg + SubmitMistake + Ping
+- Promote helpers (extend locked mistakes.go via new file)
+- Kernel-side RunPromoteForAgent + admin trigger endpoint
+- End-to-end cross-tubuh verified
+
+### Defer phase 2:
+- **Cron loop auto-promote** (hourly sweep mirror `StartRetentionCron`)
+- **PullSkill + QueryBrain methods** di routerclient
+- **Outer context propagation** dari handler ke kernelhost (currently uses Background+timeout)
+- **Single-flight lock** anti paralel admin trigger
+- **Retry + circuit breaker** untuk router instability
+- **Ping tighten** (currently accepts 4xx as healthy)
+
+---
+
 ## 2026-05-29 21:30 WIB — Section 6: Workspace meta DONE + audit + LOCK
 
 - **feat(agentdb)**: tabel `workspace_meta` (id, category, path, description, size_bytes, content_hash, shareable, created_at, updated_at, deleted_at) + UNIQUE(category, path) + 3 index. `internal/agentdb/workspace_meta.go` (LOCKED): `RegisterMeta` atomic upsert via SELECT-then-INSERT-or-UPDATE transaction (undelete on conflict). `ListMeta(category, limit)`, `LookupMeta(category, path)`, `RebuildIndexFromDir(root)` + `RebuildIndexReport`, `CountMeta(category)`. CategoryWhitelist enum (`tools/job/document/media/cache/log`). SHA-256 file content hash. Max 5000 files per sweep + 100MB per file hash cap.

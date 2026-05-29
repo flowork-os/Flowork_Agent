@@ -26,6 +26,7 @@ import (
 	"flowork-gui/internal/kernel/broker"
 	"flowork-gui/internal/kernel/loader"
 	"flowork-gui/internal/kernel/runtime"
+	"flowork-gui/internal/routerclient"
 )
 
 // LiveEntry — per-agent record yang Host pegang setelah scan + load.
@@ -891,6 +892,120 @@ func (h *Host) karmaUpdate(pluginID, op, key string, value float64) (float64, er
 	default:
 		return 0, fmt.Errorf("unknown op %q (use 'increment' or 'average')", op)
 	}
+}
+
+// PromoteReport — outcome RunPromoteForAgent. Agregat hasil submit ke
+// router. Section 7 phase 1.
+type PromoteReport struct {
+	StartedAt       string   `json:"started_at"`
+	FinishedAt      string   `json:"finished_at"`
+	Eligible        int      `json:"eligible"`        // mistakes lokal yang qualify
+	Submitted       int      `json:"submitted"`       // sukses POST + sukses mark promoted lokal
+	UpsertExisting  int      `json:"upsert_existing"` // router return added=false (audit fix N1 typo)
+	Failed          int      `json:"failed"`
+	LocalMarkFailed int      `json:"local_mark_failed"` // router OK tapi SetMistakePromoted gagal — next sweep akan re-submit (audit fix C2)
+	Errors          []string `json:"errors,omitempty"`
+}
+
+// RunPromoteForAgent — Section 7: list mistakes lokal warga yang eligible
+// (tier='raw' + hit_count ≥ 3 + belum promoted), submit ke Router brain
+// global, lalu mark `tier='promoted'` di mistakes_local. Caller: admin
+// endpoint POST /api/agents/promote/run?id= atau cron loop.
+//
+// Min hit_count default 3 (sama dengan Router validation di SubmitMistake).
+// Open store on-demand (consistent pattern dengan RetentionSweep).
+func (h *Host) RunPromoteForAgent(agentID string) (PromoteReport, error) {
+	rep := PromoteReport{StartedAt: time.Now().UTC().Format(time.RFC3339)}
+
+	h.mu.Lock()
+	var agentPath string
+	for _, l := range h.lives {
+		if l.Discovery.Manifest != nil && l.Discovery.Manifest.ID == agentID {
+			agentPath = l.Discovery.Path
+			break
+		}
+	}
+	h.mu.Unlock()
+	if agentPath == "" {
+		return rep, fmt.Errorf("agent not loaded: %s", agentID)
+	}
+
+	dbPath := agentdb.Resolve(agentID, agentPath)
+	store, err := agentdb.Open(dbPath)
+	if err != nil {
+		return rep, fmt.Errorf("open state.db: %w", err)
+	}
+	defer store.Close()
+
+	eligible, err := store.ListMistakesEligibleForPromote(3, 50)
+	if err != nil {
+		rep.Errors = append(rep.Errors, "list eligible: "+err.Error())
+		rep.FinishedAt = time.Now().UTC().Format(time.RFC3339)
+		return rep, nil
+	}
+	rep.Eligible = len(eligible)
+	if len(eligible) == 0 {
+		rep.FinishedAt = time.Now().UTC().Format(time.RFC3339)
+		return rep, nil
+	}
+
+	// Router URL: ambil dari agent kv config kalau ada, else default.
+	routerURL := routerclient.DefaultRouterURL
+	if cfg, lerr := store.Load(); lerr == nil {
+		if v, ok := cfg["router_url"].(string); ok && v != "" {
+			routerURL = v
+		}
+	}
+	client := routerclient.New(routerURL)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	// maxErrorMsgs — cap rep.Errors supaya respons ngga bloat kalau
+	// 50 mistake semua failed (50 × 200-char msg = 10KB). Audit fix #11.
+	const maxErrorMsgs = 10
+	appendErr := func(msg string) {
+		if len(rep.Errors) < maxErrorMsgs {
+			rep.Errors = append(rep.Errors, msg)
+		}
+	}
+
+	for _, m := range eligible {
+		resp, serr := client.SubmitMistake(ctx, routerclient.SubmitMistakeReq{
+			AgentID:  agentID,
+			Category: m.Category,
+			Title:    m.Title,
+			Content:  m.Content,
+			HitCount: m.HitCount,
+		})
+		if serr != nil {
+			rep.Failed++
+			appendErr(fmt.Sprintf("submit id=%d: %v", m.ID, serr))
+			continue
+		}
+		// Audit fix C3: router return resp.ID = 0 = signal "ngga tersimpan"
+		// padahal HTTP OK. JANGAN mark promoted lokal (else stale state).
+		if resp.ID <= 0 {
+			rep.Failed++
+			appendErr(fmt.Sprintf("submit id=%d: router returned invalid id", m.ID))
+			continue
+		}
+		// Mark promoted di lokal. Audit fix C2: kalau SetMistakePromoted
+		// gagal, classify as LocalMarkFailed (BUKAN Submitted) supaya
+		// caller tau lokal stale → next sweep akan re-submit (router
+		// atomic UPSERT handle dup) tapi minor hit_count inflation.
+		if perr := store.SetMistakePromoted(m.ID, resp.ID); perr != nil {
+			appendErr(fmt.Sprintf("set promoted id=%d: %v", m.ID, perr))
+			rep.LocalMarkFailed++
+			continue
+		}
+		rep.Submitted++
+		if !resp.Added {
+			rep.UpsertExisting++
+		}
+	}
+	rep.FinishedAt = time.Now().UTC().Format(time.RFC3339)
+	return rep, nil
 }
 
 // RebuildWorkspaceMetaForAgent — Section 6: scan agent shared workspace

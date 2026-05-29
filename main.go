@@ -65,6 +65,9 @@ func main() {
 	agentmgr.WorkspaceRebuildIndex = func(agentID string) (any, error) {
 		return host.RebuildWorkspaceMetaForAgent(agentID)
 	}
+	agentmgr.PromoteRun = func(agentID string) (any, error) {
+		return host.RunPromoteForAgent(agentID)
+	}
 
 	host.AutoBootDaemons(ctx)
 	if err := host.StartWatcher(ctx); err != nil {
@@ -101,6 +104,7 @@ func main() {
 	mux.HandleFunc("/api/agents/death-letter", agentmgr.DeathLetterHandler)
 	mux.HandleFunc("/api/agents/karma", agentmgr.KarmaHandler)
 	mux.HandleFunc("/api/agents/workspace-meta", agentmgr.WorkspaceMetaHandler)
+	mux.HandleFunc("/api/agents/promote/run", agentmgr.PromoteRunHandler)
 
 	// Catch-all stub utk path /api/* yang gak diregister.
 	mux.HandleFunc("/api/", mockAPI)
