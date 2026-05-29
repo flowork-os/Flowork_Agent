@@ -62,6 +62,9 @@ func main() {
 	agentmgr.RetentionSweep = func(agentID string) (any, error) {
 		return host.RunRetentionForAgent(agentID)
 	}
+	agentmgr.WorkspaceRebuildIndex = func(agentID string) (any, error) {
+		return host.RebuildWorkspaceMetaForAgent(agentID)
+	}
 
 	host.AutoBootDaemons(ctx)
 	if err := host.StartWatcher(ctx); err != nil {
@@ -97,6 +100,7 @@ func main() {
 	mux.HandleFunc("/api/agents/retention/sweep", agentmgr.RetentionSweepHandler)
 	mux.HandleFunc("/api/agents/death-letter", agentmgr.DeathLetterHandler)
 	mux.HandleFunc("/api/agents/karma", agentmgr.KarmaHandler)
+	mux.HandleFunc("/api/agents/workspace-meta", agentmgr.WorkspaceMetaHandler)
 
 	// Catch-all stub utk path /api/* yang gak diregister.
 	mux.HandleFunc("/api/", mockAPI)

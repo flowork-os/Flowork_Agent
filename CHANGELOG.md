@@ -4,6 +4,42 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-29 21:30 WIB — Section 6: Workspace meta DONE + audit + LOCK
+
+- **feat(agentdb)**: tabel `workspace_meta` (id, category, path, description, size_bytes, content_hash, shareable, created_at, updated_at, deleted_at) + UNIQUE(category, path) + 3 index. `internal/agentdb/workspace_meta.go` (LOCKED): `RegisterMeta` atomic upsert via SELECT-then-INSERT-or-UPDATE transaction (undelete on conflict). `ListMeta(category, limit)`, `LookupMeta(category, path)`, `RebuildIndexFromDir(root)` + `RebuildIndexReport`, `CountMeta(category)`. CategoryWhitelist enum (`tools/job/document/media/cache/log`). SHA-256 file content hash. Max 5000 files per sweep + 100MB per file hash cap.
+- **feat(kernelhost)**: `Host.RebuildWorkspaceMetaForAgent(agentID)` — resolve agent path via h.lives snapshot, release lock before heavy scan, scan `<SharedDir>/<agentID>/`.
+- **feat(agentmgr)**: HTTP endpoint dual-method `GET/POST /api/agents/workspace-meta?id=`:
+  - GET: list `?category=&limit=`
+  - POST: rebuild index `?action=rebuild`
+- **feat(main)**: wire `agentmgr.WorkspaceRebuildIndex = host.RebuildWorkspaceMetaForAgent`.
+- **verified end-to-end via 8 scenario**:
+  - Schema clean, 3 index, UNIQUE constraint
+  - Initial rebuild scanned 3 file (1 tools + 1 document + 1 job), all registered with size + SHA-256 hash
+  - Filter by category=tools → 1 row
+  - Delete file → soft_deleted:1 (deleted_at set)
+  - Re-create same file → updated:1 (undelete + new size 24 byte)
+  - Path traversal `../etc` rejected (regex id validation)
+  - Action validation: unknown `?action=invalid` rejected
+  - **Symlink defense**: created `tools/evil_link → /etc/passwd`, rebuild → scanned 3 (skipped symlink), DB ngga ada row evil_link ✓
+
+### Audit critical fixes (3) applied BEFORE lock:
+- **#1 symlink follow → secret leak**: `filepath.Walk` follows symlinks default. Attacker bisa taro symlink ke `/etc/passwd` atau `~/.ssh/id_rsa` → scanner hash content → leak via API. Fixed: skip via `info.Mode()&os.ModeSymlink != 0` check + defense-in-depth `strings.Contains(rel, "..")` reject post-Rel.
+- **#2 path traversal di registerMetaNoLock**: helper bypass path validation yang ada di public RegisterMeta. Fixed: mirror validation (category required, whitelist, no `/` prefix, no `..`).
+- **#3 maxFiles cap broken (`filepath.SkipDir` cuma skip current dir)**: walk continue ke sibling. Fixed: sentinel `errSkipAll` + outer loop break check via `errors.Is(werr, errSkipAll)`.
+
+### Important fix applied:
+- **#4 defer f.Close via closure** — panic-safe hash compute
+- **#6 dead alt-key fallback removed** — softDelete simplified
+- **#8 defer rows.Close** + add `rows.Err()` check
+
+### Defer:
+- Cron auto-rebuild tiap jam — currently admin trigger only (mirror StartRetentionCron pattern future)
+- Hash sentinel for size-skipped (`hash_status` column)
+- shareable=true filter di mesh-discovery future
+- Single-flight rebuild lock (anti-paralel admin trigger same agent)
+
+---
+
 ## 2026-05-29 20:50 WIB — Section 5: Karma self DONE + audit + LOCK
 
 - **feat(agentdb)**: tabel `karma_self` (metric_key PK, metric_value REAL, metric_count INT, updated_at) + idx_karma_self_updated. `internal/agentdb/karma.go` (LOCKED): `IncrementKarma(key, delta)` counter pattern via ON CONFLICT DO UPDATE upsert, `AverageUpdateKarma(key, value)` moving avg via atomic transaction (SELECT current → compute new_avg → UPSERT), `GetKarma(key)` (return zero Karma + key kalau ngga ada), `ListKarma()` (limit 100). Hard cap |delta| / value > 1e9 anti-runaway. NO soft-delete (state perpetual per Section 8 exclusion).

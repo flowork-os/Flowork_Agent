@@ -316,6 +316,79 @@ func DBResetHandler(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, map[string]any{"ok": true, "path": dbPath})
 }
 
+// WorkspaceRebuildIndex — kernelhost daftarkan callback. Resolve agent shared
+// workspace path + invoke RebuildIndexFromDir. Nil-safe.
+var WorkspaceRebuildIndex func(agentID string) (any, error)
+
+// WorkspaceMetaHandler — multi-method endpoint /api/agents/workspace-meta?id=<id>
+//
+//	GET    list (?category=&limit=)
+//	POST   trigger rebuild index (?action=rebuild)
+//
+// Roadmap section 6.
+//
+// ⚠️ NO over-prompt — workspace meta untuk inventory/discovery, JANGAN
+// auto-inject ke system prompt.
+func WorkspaceMetaHandler(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(r.URL.Query().Get("id"))
+	if !reID.MatchString(id) {
+		httpx.WriteJSON(w, map[string]any{"error": "invalid id"})
+		return
+	}
+	dbPath := agentdb.Resolve(id, agentFolder(id))
+	if _, err := os.Stat(dbPath); err != nil {
+		if r.Method == http.MethodGet {
+			httpx.WriteJSON(w, map[string]any{"items": []any{}, "note": "db belum ada"})
+			return
+		}
+		httpx.WriteJSON(w, map[string]any{"error": "db belum ada — boot agent dulu"})
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		store, err := agentdb.Open(dbPath)
+		if err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": "open db: " + err.Error()})
+			return
+		}
+		defer store.Close()
+		category := strings.TrimSpace(r.URL.Query().Get("category"))
+		limit := 100
+		if s := strings.TrimSpace(r.URL.Query().Get("limit")); s != "" {
+			if n, perr := strconv.Atoi(s); perr == nil && n > 0 && n <= 500 {
+				limit = n
+			}
+		}
+		items, err := store.ListMeta(category, limit)
+		if err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": "list: " + err.Error()})
+			return
+		}
+		httpx.WriteJSON(w, map[string]any{"items": items, "count": len(items)})
+
+	case http.MethodPost:
+		action := strings.TrimSpace(r.URL.Query().Get("action"))
+		if action != "rebuild" {
+			httpx.WriteJSON(w, map[string]any{"error": "unsupported action (only ?action=rebuild)"})
+			return
+		}
+		if WorkspaceRebuildIndex == nil {
+			httpx.WriteJSON(w, map[string]any{"error": "rebuild index not wired"})
+			return
+		}
+		report, err := WorkspaceRebuildIndex(id)
+		if err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+			return
+		}
+		httpx.WriteJSON(w, map[string]any{"ok": true, "report": report})
+
+	default:
+		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
+	}
+}
+
 // KarmaHandler — GET /api/agents/karma?id=<id>[&key=<metric_key>]
 // Tanpa key → list semua metric (cap 100 di DB layer).
 // Dengan key → single metric (zero Karma + key kalau ngga ada — bukan error).

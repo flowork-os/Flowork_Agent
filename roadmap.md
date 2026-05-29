@@ -226,7 +226,7 @@ CREATE TABLE karma_self (
 
 ---
 
-## Section 6 — Workspace meta (metadata folder workspace)
+## Section 6 — Workspace meta (metadata folder workspace) ✅ DONE 2026-05-29
 
 **Goal:** index isi workspace shared per-warga (`/shared/<id>/tools/`, `job/`, `document/`, dst). Tools generated, files created, last-modified — biar warga sendiri dan warga lain bisa browse.
 

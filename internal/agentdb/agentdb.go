@@ -233,6 +233,27 @@ func (s *Store) ensureSchema() error {
 			updated_at   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_karma_self_updated ON karma_self(updated_at DESC)`,
+
+		// Section 6 — Workspace meta (per-warga workspace file index).
+		// Scan shared workspace folder (<root>/workspace/<id>/), register
+		// file dengan size + content_hash supaya warga lain bisa discover.
+		// UNIQUE(category, path) → upsert pattern.
+		`CREATE TABLE IF NOT EXISTS workspace_meta (
+			id           INTEGER PRIMARY KEY AUTOINCREMENT,
+			category     TEXT NOT NULL,
+			path         TEXT NOT NULL,
+			description  TEXT NOT NULL DEFAULT '',
+			size_bytes   INTEGER NOT NULL DEFAULT 0,
+			content_hash TEXT NOT NULL DEFAULT '',
+			shareable    INTEGER NOT NULL DEFAULT 1,
+			created_at   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			deleted_at   TIMESTAMP,
+			UNIQUE(category, path)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_workspace_meta_category ON workspace_meta(category)`,
+		`CREATE INDEX IF NOT EXISTS idx_workspace_meta_deleted  ON workspace_meta(deleted_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_workspace_meta_updated  ON workspace_meta(updated_at DESC)`,
 	}
 	for _, q := range stmts {
 		if _, err := s.db.Exec(q); err != nil {

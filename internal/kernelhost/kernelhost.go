@@ -893,6 +893,39 @@ func (h *Host) karmaUpdate(pluginID, op, key string, value float64) (float64, er
 	}
 }
 
+// RebuildWorkspaceMetaForAgent — Section 6: scan agent shared workspace
+// folder (`<SharedDir>/<agentID>/`) + register file ke tabel workspace_meta.
+// Caller: admin endpoint POST /api/agents/workspace-meta?id=&action=rebuild.
+//
+// Hold h.mu sebentar buat resolve dbPath, lalu release sebelum heavy
+// scan (RebuildIndexFromDir bisa take seconds untuk folder besar — ngga
+// monopoli h.mu yang share dengan logInteraction/logDecision/karma).
+func (h *Host) RebuildWorkspaceMetaForAgent(agentID string) (agentdb.RebuildIndexReport, error) {
+	h.mu.Lock()
+	var agentPath string
+	for _, l := range h.lives {
+		if l.Discovery.Manifest != nil && l.Discovery.Manifest.ID == agentID {
+			agentPath = l.Discovery.Path
+			break
+		}
+	}
+	h.mu.Unlock()
+
+	if agentPath == "" {
+		return agentdb.RebuildIndexReport{}, fmt.Errorf("agent not loaded: %s", agentID)
+	}
+	dbPath := agentdb.Resolve(agentID, agentPath)
+	store, err := agentdb.Open(dbPath)
+	if err != nil {
+		return agentdb.RebuildIndexReport{}, fmt.Errorf("open state.db: %w", err)
+	}
+	defer store.Close()
+
+	// Shared workspace path: <SharedDir>/<agentID>/
+	workspaceRoot := filepath.Join(h.SharedDir, agentID)
+	return store.RebuildIndexFromDir(workspaceRoot), nil
+}
+
 // Close release semua resource.
 func (h *Host) Close(ctx context.Context) error {
 	return h.Runtime.Close(ctx)
