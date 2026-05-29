@@ -69,11 +69,15 @@ func main() {
 	// sebelum 3-gate sandbox.
 	tools.InitDefaultInterceptors()
 
+	// Section 17 phase 3: register pre-/post-hook framework + decisions log
+	// + rate limit. DispatchWithHooks wraps locked Dispatch.
+	slashcmd.InitHooks()
+
 	// Section 17/15: wire slash dispatcher callback. Kernelhost pre-populate
 	// ctx (Store/Caller/Agent) sebelum invoke ini supaya productive commands
 	// (/stats /tools dst.) bisa akses store via slashcmd.FromStore.
 	kernelhost.SlashDispatcherFunc = func(ctx context.Context, pluginID, text, caller string) (string, string, error) {
-		result, cmdName, err := slashcmd.Dispatch(ctx, text)
+		result, cmdName, err := slashcmd.DispatchWithHooks(ctx, text)
 		return result.Text, cmdName, err
 	}
 
@@ -134,7 +138,31 @@ func main() {
 			// slash dispatcher (Section 17 phase 2 parity), atau LLM
 			// kalau plain text.
 			task = strings.TrimSpace(task)
-			return host.InvokeAgentMessage(ctx, agentID, task, "scheduler")
+			reply, runErr := host.InvokeAgentMessage(ctx, agentID, task, "scheduler")
+			// Section 18 phase 2: decisions log + karma update sinkron.
+			if store, oerr := host.OpenAgentStore(agentID); oerr == nil {
+				defer store.Close()
+				outcome := "success"
+				rationale := "schedule fire: " + task
+				karmaKey := "schedule_success_count"
+				if runErr != nil {
+					outcome = "fail"
+					rationale = "schedule fire fail: " + runErr.Error()
+					if len(rationale) > 512 {
+						rationale = rationale[:512] + "…"
+					}
+					karmaKey = "schedule_fail_count"
+				}
+				inputs := map[string]any{
+					"schedule_id": scheduleID,
+					"task":        task,
+					"agent_id":    agentID,
+					"reply_len":   len(reply),
+				}
+				_, _ = store.LogDecision("schedule_fire", rationale, outcome, inputs, 0)
+				_, _ = store.IncrementKarma(karmaKey, 1)
+			}
+			return reply, runErr
 		},
 	)
 	schedEngine.Start(ctx)
