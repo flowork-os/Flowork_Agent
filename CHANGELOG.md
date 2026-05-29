@@ -4,6 +4,29 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-30 13:00 WIB — Section 11 phase 1e: brain_search (cross-tubuh tool) DONE + LOCK
+
+- **feat(routerclient)**: `internal/routerclient/brain_search.go` (NEW unlocked) — extend Client dengan `SearchBrain(ctx, query, k)` method. GET `/api/brain/search-drawers?query=&k=` ke Router. Body cap 512KB. k validation (default 5, max 20). Mirror existing brainSearchDrawersHandler response shape.
+- **feat(tools/builtins)**: `internal/tools/builtins/brain.go` (LOCKED) — `brain_search` tool (capability `rpc:router:brain`). Resolve router_url dari agent kv config (mirror kernelhost.RunPromoteForAgent pattern). Args: `{query, k}`. Returns `{query, hits[wing/room/content/score/drawer_id], count}`. k normalize float64→int (JSON number type), default 5, max 10 anti over-prompt.
+- **feat(builtins.go)**: extend `Init()` register brain_search (total 9 builtin tools).
+- **verified end-to-end cross-tubuh chain**: Agent dispatcher → routerclient.SearchBrain → Router `/api/brain/search-drawers` (handlers_brain_views.go) → brain.Retrieve BM25/FTS → 859K drawer brain → top-K hits returned.
+  - Registry 9 tools alphabetical
+  - query 'Section 1' → 3 hits dari general/knowledge + general/final_general dengan score ~0.107 (Davis Municipal Code drawer match)
+  - query 'cek log' → 2 hits dari general/openai + general/fallback rooms
+  - Missing query rejected
+  - Latency 260ms (network round-trip ke Router :2402)
+
+### Section 11 progress:
+- Phase 1a (5 demo): DONE
+- Phase 1b (3 file ops): DONE
+- Phase 1e (brain_search): DONE — **9 builtin tools live, cross-tubuh verified**
+- Phase 1c shell (bash_run): defer (security review needed)
+- Phase 1d web (webfetch): defer
+- Phase 1f comms (telegram_send): defer
+- Phase 1g task/plan/todo: defer P2
+
+---
+
 ## 2026-05-30 12:45 WIB — Section 11 phase 1b: 3 file ops tools + SharedDir plumbing
 
 - **feat(tools/builtins)**: `internal/tools/builtins/file.go` (LOCKED) — 3 tool implementations:

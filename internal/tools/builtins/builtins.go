@@ -50,6 +50,8 @@ func Init() {
 	tools.Register(&fileReadTool{})
 	tools.Register(&fileWriteTool{})
 	tools.Register(&fileListTool{})
+	// phase 1e: brain (brain.go) — Router RPC
+	tools.Register(&brainSearchTool{})
 }
 
 // =============================================================================
