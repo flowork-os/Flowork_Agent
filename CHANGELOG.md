@@ -4,6 +4,42 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-30 19:45 WIB — Section 18 phase 1: cron scheduler runtime DONE + LOCK → Section 18 CLOSED
+
+Schedule yang dimasukin user via popup UI sekarang bener-bener execute. Engine tick 60s align ke top-of-minute, per-agent goroutine, executor = host.InvokeAgentMessage RPC handle_message (sama path Telegram + Section 17 phase 2 doHandle dengan slash dispatch parity).
+
+- **feat(internal/scheduler/cron.go)** (NEW LOCKED): standard 5-field parser. Support `*`, range `a-b`, step `*/N`, list `1,3,5`, day/dow OR semantics. `Matches(time)` minute-resolution. `Next(after)` brute-force 1-tahun cap.
+- **feat(internal/scheduler/engine.go)** (NEW LOCKED): `Engine{enum, opener, executor}`. Start aligns ke top-of-minute (delay = 60-now.Second sec). tick → per-agent goroutine: SchedulerSchemaInit → ListSchedulesForRunner → parse cron → Matches? → goroutine execute. Audit via 2 InsertSchedulerRun (pending → final with status/result/error). FireNow manual trigger buat admin/test.
+- **feat(internal/agentdb/scheduler.go)** (NEW LOCKED): SchedulerSchemaInit lazy ALTER (last_run_at, next_run_at, enabled) + CREATE scheduler_runs table (id, schedule_id, cron, task, started_at, finished_at, duration_ms, status, result_text, error_text) + 3 idx. ListSchedulesForRunner, UpdateScheduleRunTime, InsertSchedulerRun, ListSchedulerRuns paginated. `AbsTime(t)` RFC3339 UTC helper.
+- **feat(internal/scheduler/cron_test.go)** (TEST): 5 test cases — TestParseStar (60 minute), TestParseStep (`*/15` → 0/15/30/45), TestParseRange (`9-17 * * 1-5` Monday match, Saturday no), TestNext (`*/5` from 10:02 → 10:05), TestInvalid (3 fields + minute 99). ALL PASS.
+- **feat(internal/kernelhost/kernelhost.go)** (extension):
+  - `OpenAgentStore(agentID)` — convenience opener buat scheduler. Resolves agent folder dari h.lives.
+  - `InvokeAgentMessage(ctx, agentID, text, caller)` — call WASM `handle_message` RPC. Return reply or error. 90s timeout.
+- **feat(internal/agentmgr/scheduler.go)** (NEW LOCKED): `SchedulerFireFunc` callback var + 2 endpoint:
+  - `GET /api/agents/scheduler/runs?id=&schedule=&limit=` — list audit rows ORDER BY id DESC.
+  - `POST /api/agents/scheduler/trigger?id=&schedule_id=` — FireNow manual.
+- **wiring(main.go)**: scheduler.New + Start(ctx) + defer Stop + agentmgr.SchedulerFireFunc bind + 2 mux.HandleFunc.
+
+### Verified end-to-end (insert schedule via /api/agents/config + trigger via /api/agents/scheduler/trigger)
+
+- Boot log: `[scheduler] engine started — tick interval 1m0s` ✅.
+- 5 cron parser tests PASS (TestParseStar, TestParseStep, TestParseRange, TestNext, TestInvalid).
+- POST `/api/agents/config?id=mr-flow {schedule: [{id: "test-1", cron: "* * * * *", task: "/version"}]}` → ok ✅.
+- POST `/api/agents/scheduler/trigger?id=mr-flow&schedule_id=test-1` → `{ok: true, run_id: 1}` ✅.
+- GET `/api/agents/scheduler/runs?id=mr-flow` → 1 row: schedule_id=test-1, cron=* * * * *, task=/version, status=success, duration_ms=38, result_text=`**Flowork Agent 0.4.0...**\n- tools registered: 22\n- slash commands: 12` ✅.
+- End-to-end: cron schedule → WASM RPC handle_message → doHandle (Section 17 phase 2 fix) → slash dispatcher detect `/` → versionCmd Run → result audit log ✅.
+
+### Defer phase 2:
+- **Natural language cron**: "setiap pagi jam 7" → `0 7 * * *`. Phase 2 referensi: `cron_natural.go`.
+- **Distributed lock** multi-instance: single-agent doang sekarang, ngga perlu.
+- **Advanced cron syntax** (L last-of-month, W nearest-weekday, # nth-day): standard 5-field cukup phase 1.
+- **Seconds resolution**: minute cukup buat agent task; phase 2 kalau realtime butuh.
+- **Decisions log integration** (Section 3): scheduler_runs row sudah audit complete; phase 2 dual-log ke decisions dengan type='schedule_fire'.
+- **Karma counters** (Section 5): scheduler_success_count/scheduler_fail_count — phase 2.
+- **Watcher hot-reload** (Reload callback dari ConfigHandler): saat ini scheduler re-fetch tiap tick. Phase 2 invalidate cache.
+
+---
+
 ## 2026-05-30 19:15 WIB — Section 17 phase 2: CLI adapter + Web UI slash input DONE + LOCK → Section 17 CLOSED
 
 Slash dispatcher sekarang reachable dari 4 context: Telegram (runDaemon), RPC (doHandle — chat-debug + future webhook), CLI (flowork-cli), Web UI (modal per kartu agent).

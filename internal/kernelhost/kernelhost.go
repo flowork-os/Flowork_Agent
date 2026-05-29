@@ -904,6 +904,62 @@ func (h *Host) SharedDirForAgent(agentID string) (string, error) {
 	return filepath.Join(h.SharedDir, agentID), nil
 }
 
+// OpenAgentStore — Section 18: convenience opener buat scheduler. Resolves
+// agent folder dari h.lives + open agentdb.Store. Caller WAJIB Close().
+func (h *Host) OpenAgentStore(agentID string) (*agentdb.Store, error) {
+	if h == nil || agentID == "" {
+		return nil, fmt.Errorf("nil host or empty agentID")
+	}
+	h.mu.Lock()
+	var path string
+	for _, l := range h.lives {
+		if l.Discovery.Manifest != nil && l.Discovery.Manifest.ID == agentID {
+			path = l.Discovery.Path
+			break
+		}
+	}
+	h.mu.Unlock()
+	if path == "" {
+		return nil, fmt.Errorf("agent %q not loaded", agentID)
+	}
+	dbPath := agentdb.Resolve(agentID, path)
+	return agentdb.Open(dbPath)
+}
+
+// InvokeAgentMessage — Section 18 scheduler executor: call WASM agent
+// handle_message RPC dengan task text. Return reply text or error.
+func (h *Host) InvokeAgentMessage(ctx context.Context, agentID, text, caller string) (string, error) {
+	if h == nil || h.Runtime == nil {
+		return "", fmt.Errorf("nil host/runtime")
+	}
+	inst := h.Runtime.Get(agentID)
+	if inst == nil {
+		return "", fmt.Errorf("agent %q not loaded", agentID)
+	}
+	args := map[string]any{
+		"text": text,
+		"user": caller,
+	}
+	bodyJSON, _ := json.Marshal(args)
+	callCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
+	defer cancel()
+	respBytes, err := inst.Call(callCtx, "handle_message", bodyJSON)
+	if err != nil {
+		return "", err
+	}
+	var out struct {
+		Reply string `json:"reply"`
+		Error string `json:"error"`
+	}
+	if jerr := json.Unmarshal(respBytes, &out); jerr != nil {
+		return string(respBytes), nil
+	}
+	if out.Error != "" {
+		return "", fmt.Errorf("%s", out.Error)
+	}
+	return out.Reply, nil
+}
+
 // AgentIDs — Section 16 phase 2: enumerate loaded agent IDs (snapshot,
 // thread-safe). Buat caller (main.go) iterate untuk multi-warga commands
 // loading + watcher setup.

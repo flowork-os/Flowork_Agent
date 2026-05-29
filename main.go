@@ -29,9 +29,11 @@ import (
 	"syscall"
 	"time"
 
+	"flowork-gui/internal/agentdb"
 	"flowork-gui/internal/agentmgr"
 	"flowork-gui/internal/httpx"
 	"flowork-gui/internal/kernelhost"
+	"flowork-gui/internal/scheduler"
 	"flowork-gui/internal/slashcmd"
 	slashbuiltins "flowork-gui/internal/slashcmd/builtins"
 	slashcustom "flowork-gui/internal/slashcmd/custom"
@@ -118,6 +120,29 @@ func main() {
 		return host.CapsCheckerForAgent(agentID)
 	}
 
+	// Section 18 phase 1: scheduler engine. Tick 60s align ke top-of-minute.
+	// Executor: kalau task mulai `/` → slash dispatch; selain itu → RPC
+	// handle_message ke agent WASM (sama path Telegram).
+	schedEngine := scheduler.New(
+		host.AgentIDs,
+		func(agentID string) (*agentdb.Store, error) {
+			return host.OpenAgentStore(agentID)
+		},
+		func(ctx context.Context, agentID, scheduleID, task string) (string, error) {
+			// Scheduler executor: forward task as user message ke agent
+			// WASM. Agent's doHandle akan deteksi leading `/` dan route ke
+			// slash dispatcher (Section 17 phase 2 parity), atau LLM
+			// kalau plain text.
+			task = strings.TrimSpace(task)
+			return host.InvokeAgentMessage(ctx, agentID, task, "scheduler")
+		},
+	)
+	schedEngine.Start(ctx)
+	defer schedEngine.Stop()
+	agentmgr.SchedulerFireFunc = func(agentID, scheduleID string) (int64, error) {
+		return schedEngine.FireNow(ctx, agentID, scheduleID)
+	}
+
 	host.AutoBootDaemons(ctx)
 	if err := host.StartWatcher(ctx); err != nil {
 		log.Printf("kernel watcher start failed: %v (hot-reload disabled)", err)
@@ -169,6 +194,8 @@ func main() {
 	mux.HandleFunc("/api/agents/tools/subscribe", agentmgr.ToolSubscribeHandler)
 	mux.HandleFunc("/api/agents/tools/unsubscribe", agentmgr.ToolUnsubscribeHandler)
 	mux.HandleFunc("/api/agents/tools/suggest", agentmgr.ToolSuggestHandler)
+	mux.HandleFunc("/api/agents/scheduler/runs", agentmgr.SchedulerRunsHandler)
+	mux.HandleFunc("/api/agents/scheduler/trigger", agentmgr.SchedulerTriggerHandler)
 
 	// Catch-all stub utk path /api/* yang gak diregister.
 	mux.HandleFunc("/api/", mockAPI)

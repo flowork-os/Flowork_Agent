@@ -989,7 +989,7 @@ referensifile/
 
 # === BAGIAN 4 — SCHEDULER RUNTIME ===
 
-## Section 18 — Cron scheduler runtime (eksekusi `schedules[]`)
+## Section 18 — Cron scheduler runtime (eksekusi `schedules[]`) ✅ DONE 2026-05-30 phase 1. Komponen: `internal/scheduler/cron.go` (5-field parser dengan `*`, range `a-b`, step `*/N`, list `1,3,5`, Matches OR semantics day/dow, Next 1-tahun brute search), `internal/scheduler/engine.go` (60s tick aligned ke top-of-minute, per-agent goroutine, executor callback via host.InvokeAgentMessage RPC handle_message), `internal/agentdb/scheduler.go` (lazy ALTER schedules + new scheduler_runs table + audit log), endpoints `/api/agents/scheduler/runs` + `/api/agents/scheduler/trigger`, 5 cron parser tests pass. Defer phase 2: natural language cron ("setiap pagi jam 7"), distributed lock untuk multi-instance, advanced syntax (L/W/#), seconds resolution, decisions log integration, karma_self counters.
 
 **Goal:** UI section 2 (Schedule) udah ada — user input cron + task di popup, tersimpan di DB tabel `schedules`. Tapi **belum ada runtime yang execute** schedule itu. Roadmap ini implementasi runtime scheduler in-process di agent.
 
