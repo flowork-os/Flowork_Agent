@@ -200,6 +200,9 @@ func main() {
 	mux.HandleFunc("/api/agents/sneakernet/import", agentmgr.SneakernetImportHandler)
 	mux.HandleFunc("/api/agents/mesh/identity", agentmgr.MeshIdentityHandler)
 	mux.HandleFunc("/api/agents/mesh/peers", agentmgr.MeshPeersHandler)
+	mux.HandleFunc("/api/agents/wallet/addresses", agentmgr.WalletAddressesHandler)
+	mux.HandleFunc("/api/agents/wallet/portfolio", agentmgr.WalletPortfolioHandler)
+	mux.HandleFunc("/api/agents/wallet/snapshots", agentmgr.WalletSnapshotsHandler)
 
 	// Catch-all stub utk path /api/* yang gak diregister.
 	mux.HandleFunc("/api/", mockAPI)

@@ -4,6 +4,37 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-30 20:35 WIB — Section 21 phase 1: Wallet (Etherscan + CoinGecko) DONE + LOCK → Section 21 CLOSED
+
+Owner sekarang bisa attach wallet address (ETH/Polygon/Arbitrum), fetch portfolio (native + USDT/USDC/DAI), auto-snapshot ke DB. Read-only, ngga ada private key.
+
+- **feat(internal/wallet/tokens.go)** (NEW LOCKED, copy-adapt): Supported chains (ETH/Polygon/Arbitrum + free-tier Etherscan V2), MonitoredTokens (USDT/USDC/DAI per chain dengan contract addr + decimals + CGID).
+- **feat(internal/wallet/etherscan.go)** (NEW LOCKED, copy-adapt): V2 API client. Balance (native), TokenBalance (ERC20), TxList, TokenTx. ETHERSCAN_API_KEY env required. Replace `safeclient` → stdlib `&http.Client{Timeout: 15s}`.
+- **feat(internal/wallet/coingecko.go)** (NEW LOCKED, copy-adapt): free-tier USD price (5min cache). 30 calls/min limit.
+- **feat(internal/wallet/portfolio.go)** (NEW LOCKED, copy-adapt): `Snapshot(ctx, address)` aggregator native + ERC20 per chain → Holding[] + TotalUSD + PartialErr (best-effort per-chain).
+- **feat(internal/agentdb/wallet.go)** (NEW LOCKED): lazy CREATE wallet_addresses (PK chain_id+address) + wallet_snapshots (idx taken_at DESC). API: AddWalletAddress upsert, DeleteWalletAddress, ListWalletAddresses, InsertWalletSnapshot, ListWalletSnapshots paginated.
+- **feat(internal/agentmgr/wallet.go)** (NEW LOCKED): 3 endpoint:
+  - `GET/POST/DELETE /api/agents/wallet/addresses?id=<agent>` — CRUD address.
+  - `GET /api/agents/wallet/portfolio?id=&address=` — auto-fallback ke first stored address. Save snapshot setelah fetch sukses.
+  - `GET /api/agents/wallet/snapshots?id=&limit=` — paginated.
+- **wiring(main.go)**: 3 routes.
+
+### Verified end-to-end
+
+- POST address (chain_id=1, vitalik addr, label="vitalik") → `{ok: true}` ✅.
+- GET list → 1 item, RFC3339 added_at ✅.
+- GET portfolio tanpa API key → graceful `{error: "ETHERSCAN_API_KEY not set"}` ✅.
+- GET snapshots → empty ✅.
+
+### Defer phase 2:
+- **Snapshot cron daily** — `internal/scheduler` integration: auto-fetch portfolio tiap 24h → snapshots row.
+- **Multi-address aggregation** — total portfolio across multiple owned addresses (single-owner farm).
+- **Sparkline UI** — popup section Wallet dengan total_usd time-series chart.
+- **Paid Etherscan tier** — BSC/Optimism/Base sekarang return NOTOK di free tier.
+- **Alt providers**: Tatum, Alchemy fallback kalau Etherscan rate-limited.
+
+---
+
 ## 2026-05-30 20:15 WIB — Section 20 phase 1: Mesh API client thin proxy DONE + LOCK → Section 20 CLOSED
 
 Agent sekarang bisa lihat Router mesh state via proxy. Phase 1 subset = Identity + ListPeers (Router endpoints siap dari Section 13 phase 1).

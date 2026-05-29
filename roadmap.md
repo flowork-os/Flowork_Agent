@@ -1250,7 +1250,7 @@ referensifile/
 
 ---
 
-## Section 21 — Wallet (ETH/USDC balance via Etherscan + CoinGecko)
+## Section 21 — Wallet (ETH/USDC balance via Etherscan + CoinGecko) ✅ DONE 2026-05-30 phase 1. Copy-adapt 4 file dari referensifile/section_21_wallet_eth (tokens.go LOCKED — ETH/Polygon/Arbitrum chain + USDT/USDC/DAI ERC20 registry; etherscan.go LOCKED — V2 API client read-only, ETHERSCAN_API_KEY env required, native + ERC20 + tx endpoints; coingecko.go LOCKED — 5min cache USD price free-tier; portfolio.go LOCKED — Snapshot aggregator native+ERC20+price per chain → Holding[] + total USD). `internal/agentdb/wallet.go` LOCKED: lazy CREATE wallet_addresses + wallet_snapshots (idx taken_at DESC). `internal/agentmgr/wallet.go` LOCKED: GET/POST/DELETE `/api/agents/wallet/addresses`, GET `/api/agents/wallet/portfolio` (auto-snapshot insert), GET `/api/agents/wallet/snapshots?limit=`. Verified end-to-end (add address vitalik, list, snapshots empty, portfolio gracefully error tanpa API_KEY). Defer phase 2: snapshot cron daily, multi-address aggregation, sparkline chart UI, paid Etherscan tier untuk BSC/OP/Base, alternate providers (Tatum).
 
 **Goal:** owner bisa lihat wallet warga (balance ETH/USDC per chain) dari satu panel. **READ-ONLY** — ngga ada signing, ngga ada private key.
 
