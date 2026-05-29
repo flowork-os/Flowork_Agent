@@ -24,6 +24,7 @@ import (
 	"log"
 	"net/http"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -33,6 +34,7 @@ import (
 	"flowork-gui/internal/kernelhost"
 	"flowork-gui/internal/slashcmd"
 	slashbuiltins "flowork-gui/internal/slashcmd/builtins"
+	slashcustom "flowork-gui/internal/slashcmd/custom"
 	"flowork-gui/internal/tools/builtins"
 )
 
@@ -73,6 +75,20 @@ func main() {
 		log.Fatalf("kernel boot: %v", err)
 	}
 	defer host.Close(context.Background())
+
+	// Section 16: load custom slash commands dari shared workspace agent
+	// `mr-flow` (subfolder `commands/`). Best-effort — kalau folder ngga
+	// ada, skip silently. Mr.Dev bikin file *.md → command tersedia
+	// (require restart untuk reload — hot-reload phase 2).
+	if sharedDir, derr := host.SharedDirForAgent("mr-flow"); derr == nil && sharedDir != "" {
+		commandsDir := filepath.Join(sharedDir, "commands")
+		loaded, skipped, lerr := slashcustom.LoadFromDir(commandsDir)
+		if lerr != nil {
+			log.Printf("custom slash load: %v", lerr)
+		} else if loaded > 0 || skipped > 0 {
+			log.Printf("custom slash: loaded=%d skipped=%d from %s", loaded, skipped, commandsDir)
+		}
+	}
 
 	// Wire ConfigHandler → kernel reload callback. Tanpa ini, save config
 	// dari popup ngga restart daemon → env baru ngga kebawa.

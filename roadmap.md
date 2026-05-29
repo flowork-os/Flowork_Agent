@@ -836,7 +836,7 @@ func (c *helpCmd) Run(ctx context.Context, args slashcmd.Args) (slashcmd.Result,
 
 ---
 
-## Section 16 — Custom slash command (user-defined `.md` files)
+## Section 16 — Custom slash command (user-defined `.md` files) ✅ DONE (phase 1) 2026-05-30
 
 **Goal:** owner bisa define slash command sendiri tanpa rebuild binary. Drop file `.md` di folder → command tersedia langsung. Pattern dari [`internal/commands/custom.go` di flowork lama](referensifile/section_16_slash_custom/custom.go).
 

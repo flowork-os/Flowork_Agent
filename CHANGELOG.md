@@ -4,6 +4,44 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-30 15:00 WIB — Section 16: Custom slash commands dari .md files DONE + LOCK
+
+Mr.Dev sekarang bisa bikin custom slash command tanpa rebuild — drop `.md` file ke shared workspace + restart.
+
+- **feat(slashcmd/custom/loader.go)** (LOCKED): `LoadFromDir(dir)` scans .md files (max 64KB body), parses YAML-ish frontmatter (name, aliases, description), registers via `slashcmd.Register`. Skip symlinks (anti follow). Body served sebagai template — `{args}` placeholder replaced dengan caller's argsRaw.
+- **format `.md`**:
+  ```
+  ---
+  name: rules
+  aliases: [r, rule]
+  description: Show project rules
+  ---
+  Body markdown with {args} placeholder
+  ```
+- **fallback**: kalau frontmatter ngga ada / malformed, filename (`.md` stripped, lowercase) jadi command name + raw body.
+- **validation**: name alphanumeric + dash + underscore only (anti dispatcher parse conflict).
+- **wiring**: `main.go` panggil `LoadFromDir(<sharedDir>/mr-flow/commands/)` setelah host.Boot, log loaded/skipped count.
+- **seeded 3 example commands** di `workspace/mr-flow/commands/`:
+  - `/rules` (aliases `r`, `rule`) — Flowork core rules markdown
+  - `/whoami` — Mr.Flow identity card
+  - `/say <text>` — template demo (renders `{args}`)
+- **verified end-to-end via 4 scenario**:
+  - Boot log: `custom slash: loaded=3 skipped=0`
+  - Registry now 11 commands (8 builtin + 3 custom) sorted alphabetical
+  - /rules renders 5 rules markdown
+  - /whoami renders identity card
+  - /say halo Mr.Dev! → renders with {args} replaced
+  - /r alias correctly resolves to rules
+
+### Defer phase 2+:
+- **Hot-reload** via fsnotify (currently restart required after .md change)
+- **Multi-warga**: currently hardcoded `mr-flow` agent in main.go. Multi-agent loop later.
+- **Body via LLM**: kalau `run: llm` di frontmatter → body sebagai system prompt + LLM call (instead of static text)
+- **Endpoint admin reload**: `POST /api/agents/slash/reload?id=` re-scan + re-register
+- **List custom-only**: filter di /registry endpoint `?source=custom`
+
+---
+
 ## 2026-05-30 14:35 WIB — Section 15: Tier 1 slash commands (5 productive) DONE + LOCK
 
 - **feat(slashcmd)**: `internal/slashcmd/context.go` (LOCKED) — mirror tools/context.go pattern. `WithStore/FromStore`, `WithCaller/FromCaller`, `WithAgent/FromAgent`. ctxKey private anti-collision.
