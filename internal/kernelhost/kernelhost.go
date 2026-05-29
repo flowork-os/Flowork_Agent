@@ -150,7 +150,7 @@ func Boot(ctx context.Context) (*Host, error) {
 		AgentsDir: agentsDir,
 		SharedDir: sharedDir,
 	}
-	if err := rt.Bootstrap(ctx, br.IsApproved, rt.Get, h.logInteraction, h.logDecision, h.karmaUpdate); err != nil {
+	if err := rt.Bootstrap(ctx, br.IsApproved, rt.Get, h.logInteraction, h.logDecision, h.karmaUpdate, h.dispatchSlash); err != nil {
 		return nil, fmt.Errorf("runtime bootstrap: %w", err)
 	}
 
@@ -1048,6 +1048,64 @@ func (h *Host) RebuildWorkspaceMetaForAgent(agentID string) (agentdb.RebuildInde
 	// Shared workspace path: <SharedDir>/<agentID>/
 	workspaceRoot := filepath.Join(h.SharedDir, agentID)
 	return store.RebuildIndexFromDir(workspaceRoot), nil
+}
+
+// SlashDispatcherFunc — set di main.go untuk inject actual slashcmd
+// dispatcher. Signature: (pluginID, text, caller) → (resultText,
+// cmdName, error). Plugin (mr-flow) panggil host_slash_dispatch yang
+// route via callback ini.
+//
+// Nil-safe: kalau ngga di-set, dispatchSlash return error "slash not
+// wired". Avoid circular import — kernelhost ngga import slashcmd
+// langsung, callback di-pass dari main.go.
+var SlashDispatcherFunc func(pluginID, text, caller string) (string, string, error)
+
+// dispatchSlash — implementasi runtime.SlashDispatcher. Resolve via
+// callback `SlashDispatcherFunc`. Plus per-agent log invocation via
+// store.LogSlashInvocation. Roadmap section 17.
+func (h *Host) dispatchSlash(pluginID, text, caller string) (string, string, error) {
+	if pluginID == "" {
+		return "", "", fmt.Errorf("pluginID required")
+	}
+	if SlashDispatcherFunc == nil {
+		return "", "", fmt.Errorf("slash dispatcher not wired")
+	}
+	// Resolve agent path supaya bisa log invocation per-warga.
+	h.mu.Lock()
+	var agentPath string
+	for _, l := range h.lives {
+		if l.Discovery.Manifest != nil && l.Discovery.Manifest.ID == pluginID {
+			agentPath = l.Discovery.Path
+			break
+		}
+	}
+	h.mu.Unlock()
+	if agentPath == "" {
+		return "", "", fmt.Errorf("agent not loaded: %s", pluginID)
+	}
+
+	// Dispatch + capture timing.
+	t0 := time.Now()
+	resultText, cmdName, dErr := SlashDispatcherFunc(pluginID, text, caller)
+	durationMs := time.Since(t0).Milliseconds()
+
+	// Best-effort log to per-agent state.db. Ignore log errors — don't
+	// block guest reply on log fail.
+	dbPath := agentdb.Resolve(pluginID, agentPath)
+	if store, oerr := agentdb.Open(dbPath); oerr == nil {
+		args := ""
+		if idx := strings.IndexAny(text, " \t"); idx >= 0 {
+			args = strings.TrimSpace(text[idx+1:])
+		}
+		errText := ""
+		if dErr != nil {
+			errText = dErr.Error()
+		}
+		_, _ = store.LogSlashInvocation(cmdName, args, caller, resultText, errText, durationMs)
+		_ = store.Close()
+	}
+
+	return resultText, cmdName, dErr
 }
 
 // Close release semua resource.

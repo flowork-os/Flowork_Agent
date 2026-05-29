@@ -31,6 +31,7 @@ import (
 	"flowork-gui/internal/agentmgr"
 	"flowork-gui/internal/httpx"
 	"flowork-gui/internal/kernelhost"
+	"flowork-gui/internal/slashcmd"
 	slashbuiltins "flowork-gui/internal/slashcmd/builtins"
 	"flowork-gui/internal/tools/builtins"
 )
@@ -58,6 +59,13 @@ func main() {
 	// Both Init panic on duplicate name — early bug catch.
 	builtins.Init()
 	slashbuiltins.Init()
+
+	// Section 17: wire slash dispatcher callback ke kernelhost supaya
+	// Mr.Flow (atau warga lain) bisa panggil host_slash_dispatch dari WASM.
+	kernelhost.SlashDispatcherFunc = func(pluginID, text, caller string) (string, string, error) {
+		result, cmdName, err := slashcmd.Dispatch(context.Background(), text)
+		return result.Text, cmdName, err
+	}
 
 	host, err := kernelhost.Boot(ctx)
 	if err != nil {

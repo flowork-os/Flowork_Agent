@@ -52,6 +52,9 @@ func hostKarmaUpdate(reqPtr, reqLen, outPtr, outMax uint32) uint32
 //go:wasmimport flowork host_time_now_ms
 func hostTimeNowMs() uint64
 
+//go:wasmimport flowork host_slash_dispatch
+func hostSlashDispatch(reqPtr, reqLen, outPtr, outMax uint32) uint32
+
 // === Path konstanta (HARDCODED standar Flowork) ===
 const (
 	WorkspacePrivate = "/workspace"            // mount per-agent (eksklusif)
@@ -218,6 +221,27 @@ func runDaemon() {
 				"message_id": u.Message.MessageID,
 				"update_id":  u.UpdateID,
 			})
+			// Section 17: leading "/" → dispatch slash command, skip LLM.
+			// Caller format: telegram:<chat_id>.
+			if strings.HasPrefix(strings.TrimSpace(u.Message.Text), "/") {
+				slashCaller := "telegram:" + strconv.FormatInt(chatID, 10)
+				slashReply, _ := dispatchSlash(u.Message.Text, slashCaller)
+				if slashReply == "" {
+					slashReply = "(slash dispatcher returned empty result)"
+				}
+				if len(slashReply) > 3900 {
+					slashReply = slashReply[:3900] + "\n…(truncated)"
+				}
+				if err := sendMessage(token, chatID, slashReply); err != nil {
+					fmt.Fprintf(os.Stderr, "[mr-flow] sendMessage err (slash): %v\n", err)
+				} else {
+					logInteraction("telegram", "out", strconv.FormatInt(chatID, 10), slashReply, map[string]any{
+						"source":           "slash",
+						"reply_to_message": u.Message.MessageID,
+					})
+				}
+				continue
+			}
 			sendTyping(token, chatID)
 			// Section 5: time the LLM call for avg_response_ms moving avg.
 			// TinyGo wasi target's time.Since() returns wrong precision —
@@ -562,6 +586,49 @@ var logBuf [4096]byte
 // ⚠️ JANGAN baca log ini ke system prompt. Akses cuma via HTTP endpoint
 // atau tool call (lihat standar_ai_agent.md section 11).
 var decisionBuf [4096]byte
+
+// dispatchSlash — wrap host_slash_dispatch. Return result text + ok flag.
+// Caller branch ke LLM kalau ok=false (parse fail atau command not found).
+//
+// ⚠️ Buffer 16KB cukup untuk slash result yang text-only (cap 8KB di host).
+var slashBuf [16384]byte
+
+func dispatchSlash(text, caller string) (resultText string, ok bool) {
+	req := map[string]any{"text": text}
+	if caller != "" {
+		req["caller"] = caller
+	}
+	reqJSON, err := json.Marshal(req)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[mr-flow] slash marshal: %v\n", err)
+		return "", false
+	}
+	written := hostSlashDispatch(
+		bytesPtr(reqJSON), uint32(len(reqJSON)),
+		bytesPtr(slashBuf[:]), uint32(len(slashBuf)),
+	)
+	if written == 0 {
+		fmt.Fprintf(os.Stderr, "[mr-flow] slash returned 0 bytes\n")
+		return "", false
+	}
+	var resp struct {
+		OK      bool   `json:"ok"`
+		Command string `json:"command"`
+		Text    string `json:"text"`
+		Error   string `json:"error"`
+	}
+	if err := json.Unmarshal(slashBuf[:written], &resp); err != nil {
+		fmt.Fprintf(os.Stderr, "[mr-flow] slash decode: %v\n", err)
+		return "", false
+	}
+	if !resp.OK {
+		// Error path masih return string supaya caller bisa kasih ke user
+		// (mis. "command not found: /xyz"). Tapi ok=false → caller mungkin
+		// pilih fallback ke LLM atau just emit error.
+		return resp.Error, false
+	}
+	return resp.Text, true
+}
 
 // logKarma — wrapper helper untuk hostKarmaUpdate. op = 'increment' atau
 // 'average'. Best-effort silent error supaya daemon ngga crash kalau DB lock.

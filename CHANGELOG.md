@@ -4,6 +4,31 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-30 14:15 WIB — Section 17: Mr.Flow Telegram /slash integration DONE
+
+- **feat(kernel/runtime)**: host capability `host_slash_dispatch` (4-arg uint32 pattern same as host_log_*). `SlashDispatcher` type + `hostState.slash` field + `slashDispatch()` method. Capability gate `state:write`. Plugin sends `{text, caller?}`, host parses + dispatches via callback + return `{ok, command, text, error}`. Result text cap 8KB anti-overflow guest buffer.
+- **feat(kernel/runtime)**: Bootstrap signature extended dengan SlashDispatcher param.
+- **feat(kernelhost)**: `SlashDispatcherFunc` package-level callback var (anti circular import dengan slashcmd). `Host.dispatchSlash` resolver — resolve agent path, call callback, log invocation per-agent via `store.LogSlashInvocation` (best-effort, ngga blocking guest reply).
+- **feat(main.go)**: wire `kernelhost.SlashDispatcherFunc = func(...) { slashcmd.Dispatch(ctx, text) ... }`.
+- **feat(mr-flow/main.go)**: `wasmimport host_slash_dispatch` + helper `dispatchSlash()` dengan `slashBuf [16384]byte`. Branch di `runDaemon`: kalau message text mulai `/`, skip LLM call + dispatch via host, send slash result back ke Telegram dengan source='slash' di metadata.
+- **Mr.Flow caps now 3**: `net:fetch:https://api.telegram.org`, `net:fetch:http://127.0.0.1:2402/v1/chat/completions`, `state:write` (shared dengan log_interaction/log_decision/karma/slash).
+
+### Integration ready, behavior verify pending Telegram trigger:
+- Daemon up `caps=3`
+- WASM rebuilt 282KB
+- Mr.Flow detects leading `/` → branch ke host_slash_dispatch (skip LLM = no token waste)
+- Caller format: `telegram:<chat_id>` propagated ke audit log
+- Reply path: slash result → sendMessage → logInteraction direction='out' source='slash'
+
+### End-to-end test path (Mr.Dev → bot):
+- `/help` → list 3 commands
+- `/ping` → "pong"
+- `/echo halo` → "halo"
+- `/xyz` → "command not found: /xyz"
+- `text without slash` → fallback ke LLM (unchanged behavior)
+
+---
+
 ## 2026-05-30 13:50 WIB — Section 14: Slash command foundation (phase 1) DONE + LOCK
 
 - **schema**: 2 table baru — `slash_invocations` (audit log: command, args, caller, result_text, error_text, duration_ms, invoked_at, deleted_at) + 3 index; `slash_aliases` (alias→canonical mapping, PK alias).

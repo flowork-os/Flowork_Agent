@@ -56,6 +56,12 @@ type DecisionLogger func(pluginID, decisionType, rationale, outcome string, inpu
 // (pluginID dari ctx). Lihat roadmap section 5.
 type KarmaUpdater func(pluginID, op, key string, value float64) (float64, error)
 
+// SlashDispatcher — kernel-side callback yang dispatch slash command via
+// slashcmd.Dispatch + log invocation ke agent state.db. Plugin (mr-flow)
+// terima full text mis. "/help", host parse + run + return result.Text.
+// Lihat roadmap section 17 (Mr.Flow Telegram integration).
+type SlashDispatcher func(pluginID, text, caller string) (result string, cmdName string, err error)
+
 // hostState dibawa per-instantiation supaya host_exec_run tau pluginID
 // pemanggil. Setiap instance plugin diberi ApiContext dengan pluginID
 // melalui WithGuestPluginID() saat Call.
@@ -65,6 +71,7 @@ type hostState struct {
 	interaction InteractionLogger
 	decision    DecisionLogger
 	karma       KarmaUpdater
+	slash       SlashDispatcher
 	http        *http.Client
 }
 
@@ -101,13 +108,14 @@ type execResp struct {
 // Roadmap section 1: nambah `host_log_interaction` untuk episodic log.
 // Roadmap section 3: nambah `host_log_decision` untuk decisions audit trail.
 // Roadmap section 5: nambah `host_karma_update` untuk metric self.
-func (r *Runtime) registerFloworkHost(ctx context.Context, caps CapsChecker, resolver InstanceResolver, interaction InteractionLogger, decision DecisionLogger, karma KarmaUpdater) error {
+func (r *Runtime) registerFloworkHost(ctx context.Context, caps CapsChecker, resolver InstanceResolver, interaction InteractionLogger, decision DecisionLogger, karma KarmaUpdater, slash SlashDispatcher) error {
 	st := &hostState{
 		caps:        caps,
 		resolver:    resolver,
 		interaction: interaction,
 		decision:    decision,
 		karma:       karma,
+		slash:       slash,
 		http:        &http.Client{Timeout: 120 * time.Second},
 	}
 
@@ -149,6 +157,11 @@ func (r *Runtime) registerFloworkHost(ctx context.Context, caps CapsChecker, res
 			return uint64(time.Now().UnixMilli())
 		}).
 		Export("host_time_now_ms").
+		NewFunctionBuilder().
+		WithFunc(func(ctx context.Context, m api.Module, reqPtr, reqLen, outPtr, outMax uint32) uint32 {
+			return st.slashDispatch(ctx, m, reqPtr, reqLen, outPtr, outMax)
+		}).
+		Export("host_slash_dispatch").
 		Instantiate(ctx)
 	if err != nil {
 		return fmt.Errorf("instantiate flowork host: %w", err)
@@ -234,6 +247,68 @@ type karmaUpdateResp struct {
 //
 // Capability gate: `state:write` (sama dengan host_log_interaction +
 // host_log_decision). Section 5 roadmap.
+type slashDispatchReq struct {
+	Text   string `json:"text"`
+	Caller string `json:"caller,omitempty"`
+}
+
+type slashDispatchResp struct {
+	OK      bool   `json:"ok"`
+	Command string `json:"command,omitempty"`
+	Text    string `json:"text,omitempty"`
+	Error   string `json:"error,omitempty"`
+}
+
+// slashDispatch — host import `host_slash_dispatch`. Plugin kirim
+// {text, caller?} (e.g. "/help"), host parse + dispatch via slashcmd
+// registry + log invocation, balas {ok, command, text, error}.
+//
+// Capability gate: `state:write` (sama dengan host_log_decision —
+// kalau guest boleh log invocation, boleh dispatch).
+//
+// Plugin cuma dispatch & log untuk dirinya sendiri (pluginID dari ctx).
+// Roadmap section 17.
+func (st *hostState) slashDispatch(ctx context.Context, m api.Module, reqPtr, reqLen, outPtr, outMax uint32) uint32 {
+	pluginID := guestPluginID(ctx)
+	if pluginID == "" {
+		return writeJSONOrCrop(m, outPtr, outMax, errorJSON("pluginID missing in context"))
+	}
+	if st.caps != nil {
+		const want = "state:write"
+		if !st.caps(pluginID, want) {
+			return writeJSONOrCrop(m, outPtr, outMax, errorJSON("capability denied: "+want))
+		}
+	}
+
+	reqBytes, ok := m.Memory().Read(reqPtr, reqLen)
+	if !ok {
+		return writeJSONOrCrop(m, outPtr, outMax, errorJSON("cannot read request memory"))
+	}
+	var req slashDispatchReq
+	if err := json.Unmarshal(reqBytes, &req); err != nil {
+		return writeJSONOrCrop(m, outPtr, outMax, errorJSON("decode request: "+err.Error()))
+	}
+
+	if st.slash == nil {
+		return writeJSONOrCrop(m, outPtr, outMax, errorJSON("slash dispatcher not wired"))
+	}
+	result, cmdName, err := st.slash(pluginID, req.Text, req.Caller)
+	if err != nil {
+		msg := err.Error()
+		if len(msg) > 400 {
+			msg = msg[:400] + "…"
+		}
+		out, _ := json.Marshal(slashDispatchResp{OK: false, Command: cmdName, Error: msg})
+		return writeJSONOrCrop(m, outPtr, outMax, out)
+	}
+	// Cap result text 8KB supaya guest buffer ngga overflow.
+	if len(result) > 8192 {
+		result = result[:8192] + "…[truncated]"
+	}
+	out, _ := json.Marshal(slashDispatchResp{OK: true, Command: cmdName, Text: result})
+	return writeJSONOrCrop(m, outPtr, outMax, out)
+}
+
 func (st *hostState) karmaUpdate(ctx context.Context, m api.Module, reqPtr, reqLen, outPtr, outMax uint32) uint32 {
 	pluginID := guestPluginID(ctx)
 	if pluginID == "" {
@@ -624,10 +699,10 @@ func errorJSON(msg string) []byte {
 
 // Bootstrap register WASI snapshot preview1 + flowork host module.
 // Caller wajib panggil sekali sebelum Load() pertama.
-func (r *Runtime) Bootstrap(ctx context.Context, caps CapsChecker, resolver InstanceResolver, interaction InteractionLogger, decision DecisionLogger, karma KarmaUpdater) error {
+func (r *Runtime) Bootstrap(ctx context.Context, caps CapsChecker, resolver InstanceResolver, interaction InteractionLogger, decision DecisionLogger, karma KarmaUpdater, slash SlashDispatcher) error {
 	// WASI preview 1 — TinyGo target=wasi expect `_start` resolve via ini.
 	if _, err := wasi_snapshot_preview1.Instantiate(ctx, r.rt); err != nil {
 		return fmt.Errorf("instantiate wasi: %w", err)
 	}
-	return r.registerFloworkHost(ctx, caps, resolver, interaction, decision, karma)
+	return r.registerFloworkHost(ctx, caps, resolver, interaction, decision, karma, slash)
 }
