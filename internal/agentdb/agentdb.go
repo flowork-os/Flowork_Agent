@@ -268,6 +268,32 @@ func (s *Store) ensureSchema() error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_edu_errors_category ON educational_errors_cache(category)`,
 		`CREATE INDEX IF NOT EXISTS idx_edu_errors_deleted  ON educational_errors_cache(deleted_at)`,
+
+		// Section 10 — Tool system foundation (phase 1).
+		// tool_overrides: per-warga customization (default args, rate limit, disabled flag)
+		// tool_invocations: audit log setiap tool call (anti over-prompt:
+		// jangan inject ke chat context, akses via endpoint dashboard).
+		`CREATE TABLE IF NOT EXISTS tool_overrides (
+			tool_name  TEXT PRIMARY KEY,
+			config     TEXT NOT NULL DEFAULT '{}',
+			rate_limit INTEGER DEFAULT 0,
+			disabled   INTEGER NOT NULL DEFAULT 0,
+			updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS tool_invocations (
+			id          INTEGER PRIMARY KEY AUTOINCREMENT,
+			tool_name   TEXT NOT NULL,
+			args_json   TEXT NOT NULL,
+			result_json TEXT NOT NULL DEFAULT '{}',
+			error_text  TEXT NOT NULL DEFAULT '',
+			latency_ms  INTEGER NOT NULL DEFAULT 0,
+			caller      TEXT NOT NULL DEFAULT '',
+			invoked_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			deleted_at  TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_tool_invocations_name    ON tool_invocations(tool_name)`,
+		`CREATE INDEX IF NOT EXISTS idx_tool_invocations_time    ON tool_invocations(invoked_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_tool_invocations_deleted ON tool_invocations(deleted_at)`,
 	}
 	for _, q := range stmts {
 		if _, err := s.db.Exec(q); err != nil {

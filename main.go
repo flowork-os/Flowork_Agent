@@ -106,6 +106,8 @@ func main() {
 	mux.HandleFunc("/api/agents/workspace-meta", agentmgr.WorkspaceMetaHandler)
 	mux.HandleFunc("/api/agents/promote/run", agentmgr.PromoteRunHandler)
 	mux.HandleFunc("/api/agents/edu-errors", agentmgr.EduErrorsHandler)
+	mux.HandleFunc("/api/agents/tools/registry", agentmgr.ToolRegistryHandler)
+	mux.HandleFunc("/api/agents/tool-invocations", agentmgr.ToolInvocationsHandler)
 
 	// Catch-all stub utk path /api/* yang gak diregister.
 	mux.HandleFunc("/api/", mockAPI)

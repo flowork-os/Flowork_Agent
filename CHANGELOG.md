@@ -4,6 +4,41 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-30 12:10 WIB — Section 10: Tool system foundation (phase 1) DONE + LOCK
+
+- **schema**: 2 table baru — `tool_overrides` (per-warga customization: config JSON, rate_limit, disabled), `tool_invocations` (audit log: tool_name, args_json, result_json, error_text, latency_ms, caller, invoked_at, deleted_at) + 3 index.
+- **feat(tools)**: package baru `internal/tools/`:
+  - `types.go` (LOCKED): Tool interface (Name/Schema/Capability/Run), Schema struct, Param taxonomy, Result, MarshalArgs/MarshalResult helpers.
+  - `registry.go` (LOCKED): singleton via sync.RWMutex. Register (panic on dup name — early bug catch), Lookup, List, ListNames, Count, ListSummaries (anti over-prompt summary).
+- **feat(agentdb)**: `internal/agentdb/tool_invocations.go` (LOCKED) — LogToolInvocation (8KB cap args/result/error), ListToolInvocations (tool_name/caller filter, cap 500), CountToolInvocations.
+- **feat(agentmgr)**: 2 endpoint baru:
+  - `GET /api/agents/tools/registry` — list registered tools (phase 1 empty — Tier 1 di-register Section 11)
+  - `GET /api/agents/tool-invocations?id=&tool_name=&caller=&limit=` — browse audit log
+- **verified end-to-end via 6 scenario**:
+  - Schema clean: tool_overrides + tool_invocations + 3 index
+  - Registry empty (no tools registered yet — Tier 1 defer Section 11)
+  - Invocations empty list initially
+  - Seed 2 row via direct DB (simulate tool calls: read_file success, bash_run permission_denied)
+  - List endpoint returns 2 rows with full schema
+  - Filter tool_name=bash_run returns 1 matching
+  - Path traversal id rejected
+
+### Phase 1 scope (DONE):
+- Schema + Tool interface + Registry skeleton + Invocation log + endpoints.
+
+### Defer phase 2/3:
+- **Permission gate**: Tool.Capability() declared tapi belum di-enforce. Phase 2 wire dengan broker `IsApproved` check di pre-Run hook.
+- **Categories DB-backed taxonomy**: `tool_categories` + per-warga `division_tool_priors` weighted ordering.
+- **Capability map**: tool → required capability strings (`fs:write`, `net:fetch:*`, `exec:shell`).
+- **Aliases**: sinonim tool name (`read` ↔ `read_tool`).
+- **tool_overrides UI** (popup setting per-warga: enable/disable + config args + rate_limit).
+- **Host capability `host_log_tool_invocation`** buat WASM agent log dari sandbox.
+- **Section 11 Tier 1 tools**: actual implementations (read_file, write_file, bash_run, web_fetch, brain_search, dll).
+- **Section 12 execution sandbox**: interceptors + permission runtime check.
+- **Section 13 discovery**: `list_my_tools` + catalog browse via Router skill catalog.
+
+---
+
 ## 2026-05-29 22:05 WIB — Section 9: Educational error lookup (phase 1) DONE + LOCK
 
 - **feat(agentdb)**: tabel `educational_errors_cache` (code PK, category, title, explanation, remediation, synced_at, deleted_at) + 2 index. `internal/agentdb/edu_errors.go` (LOCKED): `UpsertEduError` (atomic ON CONFLICT DO UPDATE), `LookupEduError(code)` (return zero+code on miss — caller bedakan via Title==""), `ListEduErrors(category, limit)`, `CountEduErrors`. Hard cap 4KB explanation + remediation, 256 char title.

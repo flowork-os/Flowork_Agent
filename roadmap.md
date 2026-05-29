@@ -398,7 +398,7 @@ CREATE TABLE educational_errors_cache (
 
 ---
 
-## Section 10 — Tool system foundation (registry + permission + categories)
+## Section 10 — Tool system foundation (registry + permission + categories) ✅ DONE (phase 1) 2026-05-30
 
 **Goal:** kerangka tool — pattern register, dispatch, permission check, kategori. Tanpa ini, tool implementasi-nya scatter dan ngga konsisten.
 

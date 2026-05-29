@@ -35,6 +35,7 @@ import (
 	"flowork-gui/internal/agentdb"
 	"flowork-gui/internal/httpx"
 	"flowork-gui/internal/kernel/loader"
+	"flowork-gui/internal/tools"
 )
 
 // reID — sinkron sama loader.manifest.go reID.
@@ -545,6 +546,65 @@ func DeathLetterHandler(w http.ResponseWriter, r *http.Request) {
 	default:
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
 	}
+}
+
+// ToolRegistryHandler — GET /api/agents/tools/registry
+// Return list of registered tools (built-in dari binary, plug-and-play via
+// init()). Phase 1 likely empty — Tier 1 tools di-register Section 11.
+//
+// ⚠️ Anti over-prompt: summary only (name + description + capability).
+// Full schema fetch via /tools/get?name= future endpoint.
+func ToolRegistryHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		httpx.WriteJSON(w, map[string]any{"error": "method not allowed (use GET)"})
+		return
+	}
+	items := tools.ListSummaries()
+	httpx.WriteJSON(w, map[string]any{
+		"items":        items,
+		"count":        len(items),
+		"algo_version": tools.AlgoVersion,
+	})
+}
+
+// ToolInvocationsHandler — GET /api/agents/tool-invocations?id=<id>&tool_name=&caller=&limit=
+// Browse invocation log per-warga.
+func ToolInvocationsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		httpx.WriteJSON(w, map[string]any{"error": "method not allowed (use GET)"})
+		return
+	}
+	id := strings.TrimSpace(r.URL.Query().Get("id"))
+	if !reID.MatchString(id) {
+		httpx.WriteJSON(w, map[string]any{"error": "invalid id"})
+		return
+	}
+	dbPath := agentdb.Resolve(id, agentFolder(id))
+	if _, err := os.Stat(dbPath); err != nil {
+		httpx.WriteJSON(w, map[string]any{"items": []any{}, "note": "db belum ada"})
+		return
+	}
+	store, err := agentdb.Open(dbPath)
+	if err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": "open db: " + err.Error()})
+		return
+	}
+	defer store.Close()
+
+	toolName := strings.TrimSpace(r.URL.Query().Get("tool_name"))
+	caller := strings.TrimSpace(r.URL.Query().Get("caller"))
+	limit := 50
+	if s := strings.TrimSpace(r.URL.Query().Get("limit")); s != "" {
+		if n, perr := strconv.Atoi(s); perr == nil && n > 0 && n <= 500 {
+			limit = n
+		}
+	}
+	items, err := store.ListToolInvocations(toolName, caller, limit)
+	if err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": "list: " + err.Error()})
+		return
+	}
+	httpx.WriteJSON(w, map[string]any{"items": items, "count": len(items)})
 }
 
 // EduErrorsHandler — multi-method endpoint /api/agents/edu-errors?id=<id>
