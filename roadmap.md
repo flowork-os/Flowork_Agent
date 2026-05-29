@@ -1751,7 +1751,7 @@ referensifile/
 
 ---
 
-## Section 27 — Codemap engine (codeindex + AST indexer)
+## Section 27 — Codemap engine (codeindex + AST indexer) ✅ DONE 2026-05-30 phase 1. `agentdb/codemap.go` LOCKED — codemap_nodes (node_type ∈ func/type/method/var, name, file_path, line range, layer, signature, size_loc, indexed_at) + 4 idx (file, type, layer, name). `codemap/goparser.go` LOCKED — stdlib go/ast extract FuncDecl + TypeSpec dengan line range. `agentmgr/codemap.go` LOCKED — POST `/api/agents/codemap/index` (phase 1 single .go file, anti-escape filepath.Rel) + GET `/api/agents/codemap/nodes` filter. Verified (sample.go → 4 nodes: type Config + 2 func + 1 method, line range correct). Defer phase 2: codemap_edges + AST call edges, codemap_index_runs audit, JS parser, layer auto-classify, flowtracer entry→leaf, diffhighlight post-commit impact, githook auto re-index, docgen, tourbuilder, ast_indexer/query — 13 file di referensifile/section_27.
 
 > **⚠️ OVER-PROMPT RISK** — graph hasil query JANGAN dump ke prompt. Cuma return top-N nodes + neighborhood (depth ≤ 2). Tool `codemap_*` wajib return SUMMARY (mis. "fungsi X dipanggil 5x dari Y, Z, ..."), bukan full nodes JSON. Limit max 10 nodes per response.
 

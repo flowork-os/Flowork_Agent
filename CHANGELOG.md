@@ -4,6 +4,36 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-30 22:00 WIB — Section 27 phase 1: Codemap engine (Go AST) DONE + LOCK → Section 27 CLOSED
+
+Codemap engine phase 1 — Go AST parser via stdlib + minimal node schema + endpoint.
+
+- **feat(internal/agentdb/codemap.go)** (NEW LOCKED): codemap_nodes (node_type/name/file_path/line_start+end/layer/signature/docstring/size_loc/complexity/last_modified/indexed_at) + 4 idx (file, type, layer, name). API: UpsertCodemapNode, ListCodemapNodes (filter type+layer+search LIKE), DeleteCodemapNodesByFile.
+- **feat(internal/codemap/goparser.go)** (NEW LOCKED): `ParseGo(path, content)` via `go/ast` + `go/parser` + `go/token`. Extract FuncDecl (func / method via Recv detect) + TypeSpec dengan line range. shortSig helper minimal "func Name(...)".
+- **feat(internal/agentmgr/codemap.go)** (NEW LOCKED): POST `/api/agents/codemap/index` (phase 1 single .go file, anti-escape via filepath.Rel + HasPrefix `..`), GET `/api/agents/codemap/nodes?node_type=&layer=&search=&limit=`.
+- **main.go**: 2 routes.
+
+### Verified
+
+- Sample.go inject 1 type + 2 func + 1 method → 4 nodes extracted ✅.
+- Greet method line 12-14, size_loc 3 ✅. main func line 16-19 ✅.
+- Layer 'agent' tag persisted ✅.
+
+### Defer phase 2:
+- **codemap_edges table** + AST call edge extraction (CallExpr Visitor).
+- **codemap_index_runs** audit log.
+- **JS parser** (esprima Go binding atau regex fallback).
+- **Layer auto-classify** (cmd/internal/web/agents → kernel/tool/brain/gui/agent).
+- **flowtracer** entry → leaf path traversal.
+- **diffhighlight** post-git-diff impact visualization.
+- **githook** auto re-index on commit.
+- **docgen** AST → markdown.
+- **tourbuilder** guided tour.
+- **ast_indexer + ast_query** advanced query.
+- **registry singleton** + **review helper**.
+
+---
+
 ## 2026-05-30 21:45 WIB — Section 26 phase 1: Audit log + Watchdog DONE + LOCK → Section 26 CLOSED
 
 Append-only audit_log + watchdog_alerts schema + endpoints. Cron evaluator defer phase 2.
