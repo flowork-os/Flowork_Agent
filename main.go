@@ -198,6 +198,8 @@ func main() {
 	mux.HandleFunc("/api/agents/scheduler/trigger", agentmgr.SchedulerTriggerHandler)
 	mux.HandleFunc("/api/agents/sneakernet/export", agentmgr.SneakernetExportHandler)
 	mux.HandleFunc("/api/agents/sneakernet/import", agentmgr.SneakernetImportHandler)
+	mux.HandleFunc("/api/agents/mesh/identity", agentmgr.MeshIdentityHandler)
+	mux.HandleFunc("/api/agents/mesh/peers", agentmgr.MeshPeersHandler)
 
 	// Catch-all stub utk path /api/* yang gak diregister.
 	mux.HandleFunc("/api/", mockAPI)

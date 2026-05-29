@@ -4,6 +4,36 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-30 20:15 WIB — Section 20 phase 1: Mesh API client thin proxy DONE + LOCK → Section 20 CLOSED
+
+Agent sekarang bisa lihat Router mesh state via proxy. Phase 1 subset = Identity + ListPeers (Router endpoints siap dari Section 13 phase 1).
+
+- **feat(internal/routerclient/mesh.go)** (NEW LOCKED): `MeshIdentity` + `MeshPeer` struct + `Identity(ctx)` + `ListPeers(ctx, includeBlocked)`. Reuse locked Client + DefaultRetry. `getJSON` helper shared.
+- **feat(internal/agentmgr/mesh.go)** (NEW LOCKED): 2 endpoint:
+  - `GET /api/agents/mesh/identity?id=<agent>` — proxy Router /api/mesh/identity.
+  - `GET /api/agents/mesh/peers?id=<agent>&include_blocked=` — proxy Router /api/mesh/peers ORDER BY last_seen DESC.
+- **wiring(main.go)**: 2 mux.HandleFunc.
+
+### Bug fix bonus
+
+- **fix(kernelhost.AgentIDs())**: dedupe by id. Kernel scan multiple roots (`Documents/Flowork_Agent/agents/` + `/home/mrflow/.flowork/agents/`) yang punya same agent id — rejected sebagai "plugin already loaded" tapi LiveEntry tetap di-append → AgentIDs returns duplicates → custom slash loader call LoadFromDir 2x → panic "duplicate name". Fix via `seen map[string]bool`.
+
+### Verified end-to-end
+
+- Identity proxy: `{pubkey: 0f5b2c14...8b97, hostname: flowork, version: 1.0.0-phase1.5-..., peer_count: 1}` ✅.
+- Peers proxy: 1 peer dari Router Section 13 phase 1 (test-peer abcd1234@192.168.1.50:2402, trust_score: 0.5, blocked: false) ✅.
+- Boot log: `custom slash: loaded=3 skipped=0 across 1 dirs` + `[scheduler] engine started` ✅ (no more panic).
+
+### Defer phase 2:
+- **BroadcastTool** — Router endpoint POST /api/mesh/broadcast-tool belum exist (Router Section 18 mesh toolshare).
+- **BroadcastMistake** — Router endpoint POST /api/mesh/broadcast-mistake belum (depends Router Section 17 mesh knowledge).
+- **FindTool by capability** — Router endpoint GET /api/mesh/find-tool belum.
+- **RequestKnowledge** — Router endpoint GET /api/mesh/knowledge belum.
+- **Mr.Flow auto-broadcast** mistakes saat promotion threshold (Section 7 phase 1 sudah SubmitMistake ke local Router brain; Section 20 phase 2 expand: BroadcastMistake ke peer mesh).
+- **UI popup section "Mesh"** — tombol "List Peers" + "Find Tool" + render peer cards.
+
+---
+
 ## 2026-05-30 20:00 WIB — Section 19 phase 1: sneakernet export/import DONE + LOCK → Section 19 CLOSED
 
 Mr.Dev sekarang bisa export warga ke USB → bawa ke host lain → import full state utuh. Encrypted via AES-256-GCM dengan scrypt-derived key.

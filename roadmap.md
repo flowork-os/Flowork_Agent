@@ -1157,7 +1157,7 @@ Beda dengan **download zip** (sudah ada di [`/api/agents/download`](internal/age
 
 ---
 
-## Section 20 — Mesh API client (thin client → router)
+## Section 20 — Mesh API client (thin client → router) ✅ DONE 2026-05-30 phase 1. `routerclient/mesh.go` LOCKED: `Identity` (Router /api/mesh/identity) + `ListPeers(includeBlocked)` (Router /api/mesh/peers). Agent proxy `/api/agents/mesh/identity` + `/api/agents/mesh/peers` dengan WithRetry default policy + 10s timeout. Bug fix bonus: `Host.AgentIDs()` dedupe (kernel scan multiple roots Documents+`.flowork` produces duplicate LiveEntry yang ngebreak custom slash loader pas hot-reload). Defer phase 2: BroadcastTool / BroadcastMistake / FindTool / RequestKnowledge — butuh Router endpoints Section 17-19 mesh (knowledge/tool/karma share) yang belum exist. Implementation pattern documented di referensifile/section_20_mesh_client.
 
 **Goal:** agent ngga jalanin mesh stack sendiri — agent panggil router untuk operasi mesh. Sama pattern dengan section 7 (sync router), extend dengan endpoint mesh.
 

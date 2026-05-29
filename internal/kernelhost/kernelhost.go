@@ -963,17 +963,28 @@ func (h *Host) InvokeAgentMessage(ctx context.Context, agentID, text, caller str
 // AgentIDs — Section 16 phase 2: enumerate loaded agent IDs (snapshot,
 // thread-safe). Buat caller (main.go) iterate untuk multi-warga commands
 // loading + watcher setup.
+//
+// Dedupe: kernel kadang scan multiple roots (Documents/agents +
+// .flowork/agents) yang punya same id — rejected sebagai "plugin already
+// loaded" tapi LiveEntry tetap di-append. Caller cuma butuh distinct id.
 func (h *Host) AgentIDs() []string {
 	if h == nil {
 		return nil
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	seen := map[string]bool{}
 	out := make([]string, 0, len(h.lives))
 	for _, l := range h.lives {
-		if l.Discovery.Manifest != nil {
-			out = append(out, l.Discovery.Manifest.ID)
+		if l.Discovery.Manifest == nil {
+			continue
 		}
+		id := l.Discovery.Manifest.ID
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		out = append(out, id)
 	}
 	return out
 }
