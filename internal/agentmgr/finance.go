@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"flowork-gui/internal/agentdb"
 	"flowork-gui/internal/httpx"
@@ -99,6 +100,104 @@ func FinanceSummaryHandler(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, map[string]any{
 		"by_category": summary,
 		"total_usd":   total,
+	})
+}
+
+// FinanceCheckBudgetHandler — GET /api/agents/finance/check_budget?id=&metric_key=
+// Return {allowed, current_value, budget_value, warning_pct, exceeded}
+// Caller (Mr.Flow pre-LLM-call wrapper) panggil ini → kalau allowed=false → block
+// + log decision "budget_exceeded".
+func FinanceCheckBudgetHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
+		return
+	}
+	agentID := strings.TrimSpace(r.URL.Query().Get("id"))
+	metricKey := strings.TrimSpace(r.URL.Query().Get("metric_key"))
+	if agentID == "" || metricKey == "" {
+		httpx.WriteJSON(w, map[string]any{"error": "id + metric_key required"})
+		return
+	}
+	store, err := openAgentStore(agentID)
+	if err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+		return
+	}
+	defer store.Close()
+
+	budgets, err := store.ListBudgets()
+	if err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+		return
+	}
+	var targetBudget *agentdb.FinanceBudget
+	for i := range budgets {
+		if budgets[i].MetricKey == metricKey {
+			targetBudget = &budgets[i]
+			break
+		}
+	}
+	if targetBudget == nil {
+		// No budget configured → always allowed.
+		httpx.WriteJSON(w, map[string]any{
+			"allowed":      true,
+			"reason":       "no budget configured",
+			"metric_key":   metricKey,
+			"current_value": 0,
+		})
+		return
+	}
+	if !targetBudget.Enabled {
+		httpx.WriteJSON(w, map[string]any{
+			"allowed":      true,
+			"reason":       "budget disabled",
+			"metric_key":   metricKey,
+			"current_value": 0,
+			"budget_value":  targetBudget.BudgetValue,
+		})
+		return
+	}
+
+	// Sum cost_usd today (UTC).
+	from := time.Now().UTC().Format("2006-01-02") + "T00:00:00Z"
+	to := time.Now().UTC().Format(time.RFC3339)
+	summary, err := store.SummaryLedger(from, to)
+	if err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+		return
+	}
+	var totalToday float64
+	for _, s := range summary {
+		totalToday += s.CostUSD
+	}
+
+	exceeded := totalToday >= targetBudget.BudgetValue
+	atWarning := totalToday >= targetBudget.BudgetValue*targetBudget.WarningAtPct
+
+	allowed := !exceeded
+	reason := ""
+	if exceeded {
+		reason = "daily budget exceeded"
+		// Log decision.
+		inputs := map[string]any{
+			"metric_key":    metricKey,
+			"current_value": totalToday,
+			"budget_value":  targetBudget.BudgetValue,
+		}
+		_, _ = store.LogDecision("budget_exceeded", reason, "fail", inputs, 0)
+	} else if atWarning {
+		reason = "at warning threshold"
+	}
+
+	httpx.WriteJSON(w, map[string]any{
+		"allowed":       allowed,
+		"reason":        reason,
+		"metric_key":    metricKey,
+		"current_value": totalToday,
+		"budget_value":  targetBudget.BudgetValue,
+		"warning_pct":   targetBudget.WarningAtPct,
+		"exceeded":      exceeded,
+		"at_warning":    atWarning,
 	})
 }
 
