@@ -12,6 +12,7 @@
 import { t } from '/js/i18n.js';
 import { openRouterSkillBrowser } from './agents_router_skills.js';
 import { openSlashModal } from './agents_slash_modal.js';
+import { renderToolCatalog } from './agents_tool_catalog.js';
 
 const API_LIST   = '/api/kernel/agents';
 const API_UPLOAD = '/api/agents/upload';
@@ -593,6 +594,10 @@ async function openSettingModal(root, a) {
       <h4>🧰 3. ${esc(t('menu.tab.agents.section_tools'))}</h4>
       <p class="ag-msg-modal" style="color:#94a3b8">${esc(t('menu.tab.agents.tools_sub'))}</p>
       <div class="ag-tools-grid">${toolsHTML}</div>
+      <details style="margin-top:12px">
+        <summary style="cursor:pointer;color:#94a3b8;font-size:13px">${esc(t('menu.tab.agents.tools_catalog_h') || '📚 Browse all registered tools (Section 13)')}</summary>
+        <div id="cf-tools-catalog" data-agent-id="${esc(id)}" style="margin-top:8px"></div>
+      </details>
     </section>
 
     <section class="ag-section">
@@ -696,6 +701,18 @@ async function openSettingModal(root, a) {
   host.querySelector('#cf-skills-add').onclick = () => {
     skills.push({ id: '', trigger: '', instructions: '' }); renderSkills();
   };
+  // Section 13 phase 3: lazy render tool catalog when <details> toggled open.
+  const catalogHost = host.querySelector('#cf-tools-catalog');
+  if (catalogHost) {
+    const details = catalogHost.closest('details');
+    let loaded = false;
+    details.addEventListener('toggle', () => {
+      if (details.open && !loaded) {
+        loaded = true;
+        renderToolCatalog(catalogHost, id);
+      }
+    });
+  }
   // Section 7 phase 2: Browse Router Catalog — open modal yang fetch dari
   // /api/agents/router-skills/list, user pilih, Use → push ke skills[].
   host.querySelector('#cf-skills-browse-router').onclick = () => {

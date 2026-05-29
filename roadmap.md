@@ -604,7 +604,7 @@ CREATE INDEX idx_tool_audit_decision ON tool_audit(decision);
 
 ---
 
-## Section 13 — Tool discovery + suggestion (warga inventory) ✅ DONE (phase 1 + phase 2) 2026-05-30. Phase 1: /tool_search slash command. Phase 2: tool_subscriptions table + 5 endpoint (catalog/my/subscribe/unsubscribe/suggest) + local heuristic suggester (name×3 + capability×2 + description×1 substring scoring). Router /api/brain/tools/suggest stub (Router section 6 tool_learner phase 3). Defer phase 3: UI popup integration, group preset (minimal_set/coder_set/researcher_set), tool_consolidate_audit lintas-warga, tool_hotreload binary, tool_alias resolver, warga_registry success-rate metric.
+## Section 13 — Tool discovery + suggestion (warga inventory) ✅ DONE (phase 1+2+3) 2026-05-30 — ALL acceptance 100% met. Phase 1: /tool_search. Phase 2: tool_subscriptions table + 5 endpoint + local suggester. Phase 3: **UI popup section Tools catalog** — `web/tabs/agents_tool_catalog.js` LOCKED renderToolCatalog() di expand `<details>` browse all registered, checkbox subscribe/unsubscribe instant POST + status indicator (subscribing/✓/error), lazy load on first open. Dictionary-only (en+id menu.json 4 key baru). Defer phase 4: Router /api/brain/tools/suggest (tool_learner endpoint), group preset (minimal/coder/researcher bulk), tool_consolidate_audit lintas-warga, tool_hotreload binary swap, tool_alias resolver, warga_registry success-rate metric.
 
 **Goal:** warga bisa **browse catalog tool** (lihat apa yang available), **list tool aktif dia sendiri** (apa yang dia subscribe), dan dapet **auto-suggest** dari router pattern (lihat router section 6 — tool_learner).
 
