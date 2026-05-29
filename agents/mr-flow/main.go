@@ -43,6 +43,9 @@ func hostNetFetch(reqPtr, reqLen, outPtr, outMax uint32) uint32
 //go:wasmimport flowork host_log_interaction
 func hostLogInteraction(reqPtr, reqLen, outPtr, outMax uint32) uint32
 
+//go:wasmimport flowork host_log_decision
+func hostLogDecision(reqPtr, reqLen, outPtr, outMax uint32) uint32
+
 // === Path konstanta (HARDCODED standar Flowork) ===
 const (
 	WorkspacePrivate = "/workspace"            // mount per-agent (eksklusif)
@@ -193,6 +196,15 @@ func runDaemon() {
 			chatID := u.Message.Chat.ID
 			if !allowed[chatID] {
 				fmt.Fprintf(os.Stderr, "[mr-flow] drop unauthorized chat=%d\n", chatID)
+				// Section 3: log decision skip_task (drop chat unauthorized).
+				logDecision("skip_task",
+					"chat_id ngga ada di TELEGRAM_ALLOWED_CHATS — drop",
+					"success",
+					map[string]any{
+						"chat_id":    chatID,
+						"message_id": u.Message.MessageID,
+					},
+					0)
 				continue
 			}
 			fmt.Fprintf(os.Stderr, "[mr-flow] received chat=%d text=%q\n", chatID, truncStr(u.Message.Text, 80))
@@ -202,12 +214,48 @@ func runDaemon() {
 			})
 			sendTyping(token, chatID)
 			reply := callLLM(cfg, u.Message.Text)
+			// Detect LLM failure via exact known error prefixes from callLLM
+			// (sumber: callLLM returns: "router error:", "decode:", "llm:",
+			// "(no choices)", or "" for empty). JANGAN pakai "(LLM " — itu
+			// ngga pernah keluar dan bisa false-positive reply LLM yang
+			// kebetulan mulai "(LLM..." (audit Section 3 finding).
+			origReply := reply
+			llmFailed := reply == "" ||
+				strings.HasPrefix(reply, "router error:") ||
+				strings.HasPrefix(reply, "decode:") ||
+				strings.HasPrefix(reply, "llm:") ||
+				reply == "(no choices)"
 			if reply == "" {
 				reply = "(LLM returned no text)"
 			}
 			fmt.Fprintf(os.Stderr, "[mr-flow] reply len=%d preview=%q\n", len(reply), truncStr(reply, 80))
 			if len(reply) > 3900 {
 				reply = reply[:3900] + "\n…(truncated)"
+			}
+			// Section 3: log decision model_choice (sukses) atau escalate (fail).
+			// Log `reply_head` capture origReply (sebelum overwrite ke fallback
+			// "(LLM returned no text)") supaya debug actionable.
+			if llmFailed {
+				logDecision("escalate",
+					"LLM call gagal / kosong — reply fallback ke user. Cek router :2402 + provider quota.",
+					"fail",
+					map[string]any{
+						"model":      cfg.Router.Model,
+						"router":     cfg.Router.URL,
+						"reply_head": truncStr(origReply, 120),
+					},
+					0)
+			} else {
+				logDecision("model_choice",
+					"Dispatch ke router primary model (sukses).",
+					"success",
+					map[string]any{
+						"model":      cfg.Router.Model,
+						"chat_id":    chatID,
+						"reply_len":  len(origReply),
+						"reply_head": truncStr(origReply, 120),
+					},
+					0)
 			}
 			if err := sendMessage(token, chatID, reply); err != nil {
 				fmt.Fprintf(os.Stderr, "[mr-flow] sendMessage err: %v\n", err)
@@ -483,6 +531,57 @@ func truncStr(s string, n int) string {
 // `{"ok":true}` 12B saja. 4KB jaga margin kalau metadata error JSON
 // bengkak (path full, stacktrace mini).
 var logBuf [4096]byte
+
+// logDecision — append row ke tabel `decisions` di state.db agent ini
+// lewat host capability `host_log_decision`. Best-effort (silent on error
+// supaya daemon loop ngga crash kalau DB lock).
+//
+// decisionType: 'model_choice' | 'skip_task' | 'escalate' | 'tool_pick' | dst
+// outcome: 'success' | 'fail' | 'pending' (kosong → 'pending' di host)
+//
+// ⚠️ JANGAN baca log ini ke system prompt. Akses cuma via HTTP endpoint
+// atau tool call (lihat standar_ai_agent.md section 11).
+var decisionBuf [4096]byte
+
+func logDecision(decisionType, rationale, outcome string, inputs map[string]any, refInteractionID int64) {
+	req := map[string]any{
+		"decision_type": decisionType,
+		"rationale":     rationale,
+	}
+	if outcome != "" {
+		req["outcome"] = outcome
+	}
+	if len(inputs) > 0 {
+		req["inputs"] = inputs
+	}
+	if refInteractionID > 0 {
+		req["ref_interaction_id"] = refInteractionID
+	}
+	reqJSON, err := json.Marshal(req)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[mr-flow] decision marshal: %v\n", err)
+		return
+	}
+	written := hostLogDecision(
+		bytesPtr(reqJSON), uint32(len(reqJSON)),
+		bytesPtr(decisionBuf[:]), uint32(len(decisionBuf)),
+	)
+	if written == 0 {
+		fmt.Fprintf(os.Stderr, "[mr-flow] host_log_decision returned 0 bytes\n")
+		return
+	}
+	var resp struct {
+		OK    bool   `json:"ok"`
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(decisionBuf[:written], &resp); err != nil {
+		fmt.Fprintf(os.Stderr, "[mr-flow] decision decode: %v\n", err)
+		return
+	}
+	if !resp.OK {
+		fmt.Fprintf(os.Stderr, "[mr-flow] decision err: %s\n", resp.Error)
+	}
+}
 
 func logInteraction(channel, direction, actor, content string, metadata map[string]any) {
 	req := map[string]any{

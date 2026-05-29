@@ -316,6 +316,49 @@ func DBResetHandler(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, map[string]any{"ok": true, "path": dbPath})
 }
 
+// DecisionsHandler — GET /api/agents/decisions?id=<id>&type=&limit=
+// List decisions log dari state.db agent. Roadmap section 3.
+//
+// ⚠️ Endpoint ini buat dashboard / audit / manual recall — JANGAN
+// di-auto-inject ke system prompt (over-prompt risk). Max 500 row per
+// call, default 50.
+func DecisionsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
+		return
+	}
+	id := strings.TrimSpace(r.URL.Query().Get("id"))
+	if !reID.MatchString(id) {
+		httpx.WriteJSON(w, map[string]any{"error": "invalid id"})
+		return
+	}
+	dbPath := agentdb.Resolve(id, agentFolder(id))
+	if _, err := os.Stat(dbPath); err != nil {
+		httpx.WriteJSON(w, map[string]any{"items": []any{}, "note": "db belum ada"})
+		return
+	}
+	store, err := agentdb.Open(dbPath)
+	if err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": "open db: " + err.Error()})
+		return
+	}
+	defer store.Close()
+
+	typeFilter := strings.TrimSpace(r.URL.Query().Get("type"))
+	limit := 50
+	if s := strings.TrimSpace(r.URL.Query().Get("limit")); s != "" {
+		if n, perr := strconv.Atoi(s); perr == nil {
+			limit = n
+		}
+	}
+	items, err := store.ListDecisions(typeFilter, limit)
+	if err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": "list: " + err.Error()})
+		return
+	}
+	httpx.WriteJSON(w, map[string]any{"items": items, "count": len(items)})
+}
+
 // InteractionsHandler — GET /api/agents/interactions?id=<id>&channel=&actor=&limit=
 // List episodic interaction log dari state.db agent. Roadmap section 1.
 //

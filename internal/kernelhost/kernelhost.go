@@ -149,7 +149,7 @@ func Boot(ctx context.Context) (*Host, error) {
 		AgentsDir: agentsDir,
 		SharedDir: sharedDir,
 	}
-	if err := rt.Bootstrap(ctx, br.IsApproved, rt.Get, h.logInteraction); err != nil {
+	if err := rt.Bootstrap(ctx, br.IsApproved, rt.Get, h.logInteraction, h.logDecision); err != nil {
 		return nil, fmt.Errorf("runtime bootstrap: %w", err)
 	}
 
@@ -715,6 +715,47 @@ func (h *Host) logInteraction(pluginID, channel, direction, actor, content strin
 
 	_, err = store.LogInteraction(channel, direction, actor, content, metadata)
 	return err
+}
+
+// logDecision — implementasi `runtime.DecisionLogger`. Pola sama dengan
+// logInteraction: resolve pluginID → agent folder, open state.db, insert
+// row decision. Hold h.mu sepanjang Open+Log (anti race dengan Unload).
+// Return decision ID supaya caller bisa reuse buat cross-ref future.
+//
+// Plugin cuma log ke state.db nya sendiri — pluginID dari ctx (anti spoof).
+// Anti over-prompt: data ini ngga boleh auto-inject ke system prompt;
+// dashboard / tool call only.
+//
+// TODO Section 8 (perf): open-on-demand pattern serial Mr.Flow chat
+// triggers 2 logInteraction + 1 logDecision = 3 SQLite Open per pesan.
+// Cache *Store per pluginID di sync.Map kalau warga > 1 atau chat freq
+// scale up.
+func (h *Host) logDecision(pluginID, decisionType, rationale, outcome string, inputs map[string]any, refInteractionID int64) (int64, error) {
+	if pluginID == "" {
+		return 0, fmt.Errorf("pluginID required")
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	var agentPath string
+	for _, l := range h.lives {
+		if l.Discovery.Manifest != nil && l.Discovery.Manifest.ID == pluginID {
+			agentPath = l.Discovery.Path
+			break
+		}
+	}
+	if agentPath == "" {
+		return 0, fmt.Errorf("agent not loaded: %s", pluginID)
+	}
+
+	dbPath := agentdb.Resolve(pluginID, agentPath)
+	store, err := agentdb.Open(dbPath)
+	if err != nil {
+		return 0, fmt.Errorf("open state.db: %w", err)
+	}
+	defer store.Close()
+
+	return store.LogDecision(decisionType, rationale, outcome, inputs, refInteractionID)
 }
 
 // Close release semua resource.

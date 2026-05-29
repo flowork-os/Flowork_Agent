@@ -44,6 +44,12 @@ type InstanceResolver func(pluginID string) *Instance
 // bukan attack surface (lihat roadmap section 1, standar section 11).
 type InteractionLogger func(pluginID, channel, direction, actor, content string, metadata map[string]any) error
 
+// DecisionLogger — kernel-side callback yang route decision log dari guest
+// plugin ke `agentdb.Store.LogDecision`. Pola sama InteractionLogger —
+// per-warga isolation, pluginID dari ctx (anti spoof). Return ID supaya
+// caller bisa reuse buat cross-ref future. Lihat roadmap section 3.
+type DecisionLogger func(pluginID, decisionType, rationale, outcome string, inputs map[string]any, refInteractionID int64) (int64, error)
+
 // hostState dibawa per-instantiation supaya host_exec_run tau pluginID
 // pemanggil. Setiap instance plugin diberi ApiContext dengan pluginID
 // melalui WithGuestPluginID() saat Call.
@@ -51,6 +57,7 @@ type hostState struct {
 	caps        CapsChecker
 	resolver    InstanceResolver
 	interaction InteractionLogger
+	decision    DecisionLogger
 	http        *http.Client
 }
 
@@ -85,11 +92,13 @@ type execResp struct {
 // registerFloworkHost build dan instantiate host module "flowork".
 // Phase 8: nambah `host_rpc_call` setelah `host_exec_run` + `host_net_fetch`.
 // Roadmap section 1: nambah `host_log_interaction` untuk episodic log.
-func (r *Runtime) registerFloworkHost(ctx context.Context, caps CapsChecker, resolver InstanceResolver, interaction InteractionLogger) error {
+// Roadmap section 3: nambah `host_log_decision` untuk decisions audit trail.
+func (r *Runtime) registerFloworkHost(ctx context.Context, caps CapsChecker, resolver InstanceResolver, interaction InteractionLogger, decision DecisionLogger) error {
 	st := &hostState{
 		caps:        caps,
 		resolver:    resolver,
 		interaction: interaction,
+		decision:    decision,
 		http:        &http.Client{Timeout: 120 * time.Second},
 	}
 
@@ -114,11 +123,76 @@ func (r *Runtime) registerFloworkHost(ctx context.Context, caps CapsChecker, res
 			return st.logInteraction(ctx, m, reqPtr, reqLen, outPtr, outMax)
 		}).
 		Export("host_log_interaction").
+		NewFunctionBuilder().
+		WithFunc(func(ctx context.Context, m api.Module, reqPtr, reqLen, outPtr, outMax uint32) uint32 {
+			return st.logDecision(ctx, m, reqPtr, reqLen, outPtr, outMax)
+		}).
+		Export("host_log_decision").
 		Instantiate(ctx)
 	if err != nil {
 		return fmt.Errorf("instantiate flowork host: %w", err)
 	}
 	return nil
+}
+
+type logDecisionReq struct {
+	DecisionType     string         `json:"decision_type"`
+	Rationale        string         `json:"rationale"`
+	Outcome          string         `json:"outcome,omitempty"`
+	Inputs           map[string]any `json:"inputs,omitempty"`
+	RefInteractionID int64          `json:"ref_interaction_id,omitempty"`
+}
+
+type logDecisionResp struct {
+	OK    bool   `json:"ok"`
+	ID    int64  `json:"id,omitempty"`
+	Error string `json:"error,omitempty"`
+}
+
+// logDecision — host import `host_log_decision`. Plugin kirim
+// {decision_type, rationale, outcome?, inputs?, ref_interaction_id?},
+// host route ke per-agent state.db via decision callback. Plugin cuma log
+// ke DB nya sendiri (pluginID dari ctx, anti spoof).
+//
+// Capability gate: `state:write` (sama dengan host_log_interaction).
+// JANGAN inject decisions ke system prompt (anti over-prompt, lihat
+// standar section 11).
+func (st *hostState) logDecision(ctx context.Context, m api.Module, reqPtr, reqLen, outPtr, outMax uint32) uint32 {
+	pluginID := guestPluginID(ctx)
+	if pluginID == "" {
+		return writeJSONOrCrop(m, outPtr, outMax, errorJSON("pluginID missing in context"))
+	}
+
+	if st.caps != nil {
+		const want = "state:write"
+		if !st.caps(pluginID, want) {
+			return writeJSONOrCrop(m, outPtr, outMax, errorJSON("capability denied: "+want))
+		}
+	}
+
+	reqBytes, ok := m.Memory().Read(reqPtr, reqLen)
+	if !ok {
+		return writeJSONOrCrop(m, outPtr, outMax, errorJSON("cannot read request memory"))
+	}
+	var req logDecisionReq
+	if err := json.Unmarshal(reqBytes, &req); err != nil {
+		return writeJSONOrCrop(m, outPtr, outMax, errorJSON("decode request: "+err.Error()))
+	}
+
+	if st.decision == nil {
+		return writeJSONOrCrop(m, outPtr, outMax, errorJSON("decision logger not wired"))
+	}
+	id, err := st.decision(pluginID, req.DecisionType, req.Rationale, req.Outcome, req.Inputs, req.RefInteractionID)
+	if err != nil {
+		msg := err.Error()
+		if len(msg) > 400 {
+			msg = msg[:400] + "…"
+		}
+		out, _ := json.Marshal(logDecisionResp{OK: false, Error: msg})
+		return writeJSONOrCrop(m, outPtr, outMax, out)
+	}
+	out, _ := json.Marshal(logDecisionResp{OK: true, ID: id})
+	return writeJSONOrCrop(m, outPtr, outMax, out)
 }
 
 type logInteractionReq struct {
@@ -473,10 +547,10 @@ func errorJSON(msg string) []byte {
 
 // Bootstrap register WASI snapshot preview1 + flowork host module.
 // Caller wajib panggil sekali sebelum Load() pertama.
-func (r *Runtime) Bootstrap(ctx context.Context, caps CapsChecker, resolver InstanceResolver, interaction InteractionLogger) error {
+func (r *Runtime) Bootstrap(ctx context.Context, caps CapsChecker, resolver InstanceResolver, interaction InteractionLogger, decision DecisionLogger) error {
 	// WASI preview 1 — TinyGo target=wasi expect `_start` resolve via ini.
 	if _, err := wasi_snapshot_preview1.Instantiate(ctx, r.rt); err != nil {
 		return fmt.Errorf("instantiate wasi: %w", err)
 	}
-	return r.registerFloworkHost(ctx, caps, resolver, interaction)
+	return r.registerFloworkHost(ctx, caps, resolver, interaction, decision)
 }

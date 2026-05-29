@@ -4,6 +4,28 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-29 20:15 WIB — Section 3: Decisions log DONE + audit + LOCK
+
+- **feat(agentdb)**: tabel `decisions` (id, decision_type, rationale, inputs, outcome, ref_interaction_id, occurred_at, deleted_at) + 3 index. `internal/agentdb/decisions.go` (LOCKED): `LogDecision()` return ID, `ListDecisions(type, limit)`, `PruneDecisions`, `CountDecisions`. RFC3339 timestamp explicit (mirror Section 1 fix). Rationale hard-cap 4KB. Outcome empty → 'pending' default.
+- **feat(kernel/runtime)**: host capability `host_log_decision` + type `DecisionLogger` (signature `(int64, error)` — return ID). Capability gate `state:write` (sama dengan host_log_interaction). Error message cap 400 char.
+- **feat(kernelhost)**: `Host.logDecision()` resolver — hold `h.mu` sepanjang Open+Log (race-safe). TODO comment defer cache `*Store` per pluginID ke Section 8.
+- **feat(mr-flow)**: wasmimport `hostLogDecision`, helper `logDecision()` dengan `decisionBuf [4096]byte`. Hook 3 call site di `runDaemon`:
+  - `skip_task` outcome=success — drop chat unauthorized (chat_id ngga di TELEGRAM_ALLOWED_CHATS)
+  - `escalate` outcome=fail — LLM call gagal (exact error prefix detect: "router error:" / "decode:" / "llm:" / "(no choices)" / "")
+  - `model_choice` outcome=success — dispatch ke router primary sukses, log model + reply_head
+- **feat(agentmgr)**: HTTP endpoint `GET /api/agents/decisions?id=&type=&limit=` (default 50, max 500).
+- **audit critical fix #1**: `llmFailed` heuristic semula pakai `(LLM ` prefix yang ngga pernah keluar dari callLLM (false-positive risk). Diganti exact prefix list dari callLLM (`router error:`, `decode:`, `llm:`, `(no choices)`, empty).
+- **audit critical fix #2**: `LogDecision` return ID di-discard di kernel side (logDecisionResp.ID field deklarasi tapi ngga di-set). Fixed: DecisionLogger signature `(int64, error)`, host forward ID di response.
+- **audit important fix**: capture `origReply` sebelum overwrite ke fallback string supaya `reply_head` di rationale log debug actionable.
+
+### Audit deferred items:
+- **Lock contention** (2 logInteraction + 1 logDecision serial per chat): defer cache `*Store` per pluginID ke Section 8 (perf). TODO comment di kernelhost.go.
+- **Outcome schema default cosmetic**: schema `DEFAULT ''` tapi runtime default `'pending'`. Inkonsisten ringan kalau raw SQL insert. Defer.
+- **Error message expose detail**: low risk single-user localhost. Sanitize kalau go public.
+- **`(LLM ` false-positive risk lama**: ngga keluar di callLLM real path. Sudah aman dengan exact prefix list.
+
+---
+
 ## 2026-05-29 19:50 WIB — Section 1: Adversarial audit + hardening + LOCK
 
 - **fix(security/cap)**: `host_log_interaction` sekarang gate dengan capability `state:write` (sebelumnya: tanpa gate — plugin bisa spam tabel `interactions` tanpa declare cap). Manifest mr-flow tambah `"state:write"` ke `capabilities_required`. Validator `internal/kernel/loader/manifest.go::validateCapability` tambah `"state"` ke whitelist primitive.

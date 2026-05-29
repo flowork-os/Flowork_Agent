@@ -161,6 +161,23 @@ func (s *Store) ensureSchema() error {
 		`CREATE INDEX IF NOT EXISTS idx_interactions_actor   ON interactions(actor)`,
 		`CREATE INDEX IF NOT EXISTS idx_interactions_time    ON interactions(occurred_at DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_interactions_deleted ON interactions(deleted_at)`,
+
+		// Section 3 — Decisions log (per-warga audit trail).
+		// Setiap keputusan non-trivial: model fallback, drop chat, LLM fail,
+		// tool pick, dst. ref_interaction_id optional link ke interactions.id.
+		`CREATE TABLE IF NOT EXISTS decisions (
+			id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+			decision_type      TEXT NOT NULL,
+			rationale          TEXT NOT NULL,
+			inputs             TEXT NOT NULL DEFAULT '{}',
+			outcome            TEXT NOT NULL DEFAULT '',
+			ref_interaction_id INTEGER,
+			occurred_at        TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			deleted_at         TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_decisions_type    ON decisions(decision_type)`,
+		`CREATE INDEX IF NOT EXISTS idx_decisions_time    ON decisions(occurred_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_decisions_deleted ON decisions(deleted_at)`,
 	}
 	for _, q := range stmts {
 		if _, err := s.db.Exec(q); err != nil {

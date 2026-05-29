@@ -113,9 +113,19 @@ CREATE INDEX idx_mistakes_local_deleted_at ON mistakes_local(deleted_at);
 
 ---
 
-## Section 3 — Decisions log (audit trail keputusan warga)
+## Section 3 — Decisions log (audit trail keputusan warga) ✅ DONE 2026-05-29
 
 **Goal:** setiap keputusan non-trivial yang warga ambil (mis. pilih model, skip task, eskalasi) tercatat dengan rationale. Penting buat debugging + accountability + training future warga.
+
+> **✅ Selesai 2026-05-29** — adversarial-audit passed (2 critical + 4 important fixed). Implementation:
+> - `internal/agentdb/decisions.go` (LOCKED) — Log/List/Prune/Count, return decision ID
+> - Host capability `host_log_decision` di `internal/kernel/runtime/host.go` (state:write gate)
+> - `Host.logDecision` di `internal/kernelhost/kernelhost.go` (hold-lock-through-Open+Log)
+> - Mr.Flow hook 3 call site di `runDaemon`: `skip_task` (drop unauthorized chat), `escalate` (LLM fail — known prefixes), `model_choice` (success)
+> - Endpoint `GET /api/agents/decisions?type=&limit=` di `internal/agentmgr/agentmgr.go`
+> - Audit critical fix: `llmFailed` heuristic akurat (router error / decode / llm / no choices) + capture `origReply` sebelum overwrite + forward decision ID di response.
+> - Behavior verify pending Telegram trigger Mr.Dev (build + audit clean).
+> - Popup section UI defer ke batch UI section.
 
 **Tabel baru:**
 

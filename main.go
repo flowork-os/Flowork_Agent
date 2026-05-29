@@ -87,6 +87,7 @@ func main() {
 	mux.HandleFunc("/api/agents/toggle", agentmgr.ToggleHandler)
 	mux.HandleFunc("/api/agents/db/reset", agentmgr.DBResetHandler)
 	mux.HandleFunc("/api/agents/interactions", agentmgr.InteractionsHandler)
+	mux.HandleFunc("/api/agents/decisions", agentmgr.DecisionsHandler)
 
 	// Catch-all stub utk path /api/* yang gak diregister.
 	mux.HandleFunc("/api/", mockAPI)
