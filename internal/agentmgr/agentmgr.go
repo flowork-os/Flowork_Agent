@@ -316,6 +316,75 @@ func DBResetHandler(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, map[string]any{"ok": true, "path": dbPath})
 }
 
+// MistakesHandler — GET /api/agents/mistakes?id=<id>&tier=&limit=
+// POST /api/agents/mistakes?id=<id> body {category, title, content, context_origin?}
+// List + admin-add mistakes journal per-warga. Roadmap section 2.
+//
+// ⚠️ Endpoint ini buat dashboard / admin manual add — JANGAN
+// di-auto-inject ke system prompt (over-prompt). Max 500 row per call.
+func MistakesHandler(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(r.URL.Query().Get("id"))
+	if !reID.MatchString(id) {
+		httpx.WriteJSON(w, map[string]any{"error": "invalid id"})
+		return
+	}
+	dbPath := agentdb.Resolve(id, agentFolder(id))
+	if _, err := os.Stat(dbPath); err != nil {
+		if r.Method == http.MethodGet {
+			httpx.WriteJSON(w, map[string]any{"items": []any{}, "note": "db belum ada"})
+			return
+		}
+		httpx.WriteJSON(w, map[string]any{"error": "db belum ada — boot agent dulu"})
+		return
+	}
+	store, err := agentdb.Open(dbPath)
+	if err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": "open db: " + err.Error()})
+		return
+	}
+	defer store.Close()
+
+	switch r.Method {
+	case http.MethodGet:
+		tier := strings.TrimSpace(r.URL.Query().Get("tier"))
+		limit := 50
+		if s := strings.TrimSpace(r.URL.Query().Get("limit")); s != "" {
+			if n, perr := strconv.Atoi(s); perr == nil {
+				limit = n
+			}
+		}
+		items, err := store.ListMistakes(tier, limit)
+		if err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": "list: " + err.Error()})
+			return
+		}
+		httpx.WriteJSON(w, map[string]any{"items": items, "count": len(items)})
+
+	case http.MethodPost:
+		// Hard cap body 64KB — anti accidental giant payload.
+		r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
+		var body struct {
+			Category      string `json:"category"`
+			Title         string `json:"title"`
+			Content       string `json:"content"`
+			ContextOrigin string `json:"context_origin"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": "decode body: " + err.Error()})
+			return
+		}
+		idNew, addedNew, err := store.AddMistake(body.Category, body.Title, body.Content, body.ContextOrigin)
+		if err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": "add: " + err.Error()})
+			return
+		}
+		httpx.WriteJSON(w, map[string]any{"id": idNew, "added": addedNew})
+
+	default:
+		httpx.WriteJSON(w, map[string]any{"error": "method not allowed (use GET or POST)"})
+	}
+}
+
 // DecisionsHandler — GET /api/agents/decisions?id=<id>&type=&limit=
 // List decisions log dari state.db agent. Roadmap section 3.
 //

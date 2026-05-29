@@ -178,6 +178,31 @@ func (s *Store) ensureSchema() error {
 		`CREATE INDEX IF NOT EXISTS idx_decisions_type    ON decisions(decision_type)`,
 		`CREATE INDEX IF NOT EXISTS idx_decisions_time    ON decisions(occurred_at DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_decisions_deleted ON decisions(deleted_at)`,
+
+		// Section 2 — Mistakes journal (per-warga lesson sebelum promote ke
+		// router brain antibody). Tier raw → reviewed → promoted (defer ke
+		// section 7 untuk cross-tubuh sync). UNIQUE(category,title) supaya
+		// AddMistake idempotent: insert atau increment hit_count.
+		`CREATE TABLE IF NOT EXISTS mistakes_local (
+			id              INTEGER PRIMARY KEY AUTOINCREMENT,
+			category        TEXT NOT NULL,
+			title           TEXT NOT NULL,
+			content         TEXT NOT NULL,
+			context_origin  TEXT NOT NULL DEFAULT '',
+			tier            TEXT NOT NULL DEFAULT 'raw',
+			hit_count       INTEGER NOT NULL DEFAULT 1,
+			last_hit_at     TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			created_at      TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			promoted_at     TEXT,
+			promoted_to_id  TEXT,
+			deleted_at      TIMESTAMP,
+			deleted_by      TEXT,
+			UNIQUE(category, title)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_mistakes_tier     ON mistakes_local(tier)`,
+		`CREATE INDEX IF NOT EXISTS idx_mistakes_promoted ON mistakes_local(promoted_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_mistakes_deleted  ON mistakes_local(deleted_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_mistakes_last_hit ON mistakes_local(last_hit_at DESC)`,
 	}
 	for _, q := range stmts {
 		if _, err := s.db.Exec(q); err != nil {

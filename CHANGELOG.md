@@ -4,6 +4,25 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-29 20:25 WIB — Section 2: Mistakes journal (phase 1) DONE + audit + LOCK
+
+- **feat(agentdb)**: tabel `mistakes_local` (id, category, title, content, context_origin, tier, hit_count, last_hit_at, created_at, promoted_at, promoted_to_id, deleted_at, deleted_by) + UNIQUE(category, title) + 4 index. `internal/agentdb/mistakes.go` (LOCKED): `AddMistake` (return id + addedNew), `ListMistakes(tier, limit)`, `PruneMistakes` (tier='raw' only — 'reviewed'/'promoted' sakral), `CountMistakes(tier)`.
+- **feat(agentmgr)**: HTTP endpoint dual-method `GET/POST /api/agents/mistakes?id=` (POST body cap 64KB).
+- **audit critical fix #1**: ON CONFLICT DO UPDATE dengan `WHERE deleted_at IS NULL` filter → silent no-op kalau row sebelumnya soft-deleted, lalu `SELECT id WHERE deleted_at IS NULL` ngga ketemu → error "no rows". Fixed: refactor ke SELECT-then-INSERT-or-UPDATE atomic transaction. UPDATE path clear `deleted_at` + `deleted_by` (undelete semantic — pattern muncul lagi = re-validate). Verified via edge case test (soft-delete id=1 → re-add → undelete + hit_count 2→3).
+- **audit critical fix #2**: `addedNew` logic broken — SQLite `ON CONFLICT DO UPDATE` set `LastInsertId = rowid yang di-update` (sama dengan id existing), jadi `lastInsertID == id` selalu true → addedNew selalu true. Fixed: explicit branch `sql.ErrNoRows` (INSERT path → addedNew=true) vs default (UPDATE path → addedNew=false). Verified fresh add id=5 → `added:true`, upsert same → `added:false, hit_count:2`.
+
+### Phase 1 scope (selesai):
+- Schema + Go pkg + admin endpoint POST add + GET list.
+
+### Defer ke phase berikutnya / section lain:
+- **host capability `host_log_mistake`** + Mr.Flow auto-log self-reflect — defer sampai ada use case real (Mr.Flow saat ini ngga punya self-detect mistake path).
+- **PromoteMistake** lokal (set tier='reviewed' + promoted_at) — endpoint POST `/api/agents/mistakes/review` ditunda sampai ada workflow review.
+- **Promotion ke router brain antibody** — Section 7 (cross-tubuh sync).
+- **Popup UI "Lesson Learned"** — batch UI section.
+- **Tier whitelist validation** + error message generic sanitize — audit important, defer (low impact single-user).
+
+---
+
 ## 2026-05-29 20:15 WIB — Section 3: Decisions log DONE + audit + LOCK
 
 - **feat(agentdb)**: tabel `decisions` (id, decision_type, rationale, inputs, outcome, ref_interaction_id, occurred_at, deleted_at) + 3 index. `internal/agentdb/decisions.go` (LOCKED): `LogDecision()` return ID, `ListDecisions(type, limit)`, `PruneDecisions`, `CountDecisions`. RFC3339 timestamp explicit (mirror Section 1 fix). Rationale hard-cap 4KB. Outcome empty → 'pending' default.

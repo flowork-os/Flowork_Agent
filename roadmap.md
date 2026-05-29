@@ -68,9 +68,11 @@ CREATE INDEX idx_interactions_time    ON interactions(occurred_at DESC);
 
 ---
 
-## Section 2 — Mistakes journal (lesson lokal sebelum promote)
+## Section 2 — Mistakes journal (lesson lokal sebelum promote) ✅ DONE (phase 1) 2026-05-29
 
 > **⚠️ OVER-PROMPT RISK** — mistakes lama JANGAN auto-inject ke persona ("hindari pattern X, Y, Z, ..." → bloat). Pakai pattern: insert ringkasan **top-3 mistakes terbaru** saja kalau relevant context (semantic match query). Sisanya retrieved via `brain_search` tool.
+
+> **Phase 1 scope (sekarang)**: schema `mistakes_local`, `internal/agentdb/mistakes.go` (Add UNIQUE upsert hit_count, List, Prune, Count), endpoint admin add + list. **Defer**: host capability auto-log (Mr.Flow ngga punya self-reflect use case yet), promotion ke router brain (Section 7 cross-tubuh sync), popup UI (batch UI section).
 
 **Goal:** warga catat kesalahan / insight personal. Tier `raw` dulu di lokal. Setelah validasi (frequency, importance), di-promote ke router brain (jadi `brain_antibody` global).
 
