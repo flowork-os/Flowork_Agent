@@ -196,7 +196,7 @@ CREATE INDEX idx_death_letter_recipient ON death_letter(recipient);
 
 ---
 
-## Section 5 — Karma self (reputation tracking per-warga)
+## Section 5 — Karma self (reputation tracking per-warga) ✅ DONE 2026-05-29
 
 **Goal:** warga track score sendiri — success rate, response time, user satisfaction. Bukan ranking antar-warga (itu router kalau perlu), tapi metrik diri sendiri buat self-improvement.
 

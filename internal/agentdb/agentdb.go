@@ -221,6 +221,18 @@ func (s *Store) ensureSchema() error {
 		`CREATE INDEX IF NOT EXISTS idx_death_letter_recipient ON death_letter(recipient)`,
 		`CREATE INDEX IF NOT EXISTS idx_death_letter_sealed    ON death_letter(sealed_at)`,
 		`CREATE INDEX IF NOT EXISTS idx_death_letter_deleted   ON death_letter(deleted_at)`,
+
+		// Section 5 — Karma self (per-warga reputation/metrics tracking).
+		// metric_key PRIMARY KEY → upsert via INSERT OR REPLACE / INCR pattern.
+		// metric_count untuk moving average (avg_response_ms style).
+		// NO soft-delete: state perpetual per roadmap section 8.
+		`CREATE TABLE IF NOT EXISTS karma_self (
+			metric_key   TEXT PRIMARY KEY,
+			metric_value REAL NOT NULL DEFAULT 0,
+			metric_count INTEGER NOT NULL DEFAULT 0,
+			updated_at   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_karma_self_updated ON karma_self(updated_at DESC)`,
 	}
 	for _, q := range stmts {
 		if _, err := s.db.Exec(q); err != nil {

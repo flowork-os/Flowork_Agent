@@ -316,6 +316,53 @@ func DBResetHandler(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, map[string]any{"ok": true, "path": dbPath})
 }
 
+// KarmaHandler — GET /api/agents/karma?id=<id>[&key=<metric_key>]
+// Tanpa key → list semua metric (cap 100 di DB layer).
+// Dengan key → single metric (zero Karma + key kalau ngga ada — bukan error).
+// Roadmap section 5.
+//
+// ⚠️ JANGAN auto-inject ke prompt (over-prompt risk). Dashboard / per-line
+// teaser yang 1-baris OK.
+func KarmaHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		httpx.WriteJSON(w, map[string]any{"error": "method not allowed (use GET)"})
+		return
+	}
+	id := strings.TrimSpace(r.URL.Query().Get("id"))
+	if !reID.MatchString(id) {
+		httpx.WriteJSON(w, map[string]any{"error": "invalid id"})
+		return
+	}
+	dbPath := agentdb.Resolve(id, agentFolder(id))
+	if _, err := os.Stat(dbPath); err != nil {
+		httpx.WriteJSON(w, map[string]any{"items": []any{}, "note": "db belum ada"})
+		return
+	}
+	store, err := agentdb.Open(dbPath)
+	if err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": "open db: " + err.Error()})
+		return
+	}
+	defer store.Close()
+
+	key := strings.TrimSpace(r.URL.Query().Get("key"))
+	if key != "" {
+		k, err := store.GetKarma(key)
+		if err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": "get: " + err.Error()})
+			return
+		}
+		httpx.WriteJSON(w, k)
+		return
+	}
+	items, err := store.ListKarma()
+	if err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": "list: " + err.Error()})
+		return
+	}
+	httpx.WriteJSON(w, map[string]any{"items": items, "count": len(items)})
+}
+
 // DeathLetterHandler — multi-method endpoint /api/agents/death-letter?id=<id>
 //
 //	GET    list (?recipient=&sealed=1&limit=N)

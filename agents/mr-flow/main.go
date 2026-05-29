@@ -34,6 +34,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 	"unsafe"
 )
 
@@ -45,6 +46,9 @@ func hostLogInteraction(reqPtr, reqLen, outPtr, outMax uint32) uint32
 
 //go:wasmimport flowork host_log_decision
 func hostLogDecision(reqPtr, reqLen, outPtr, outMax uint32) uint32
+
+//go:wasmimport flowork host_karma_update
+func hostKarmaUpdate(reqPtr, reqLen, outPtr, outMax uint32) uint32
 
 // === Path konstanta (HARDCODED standar Flowork) ===
 const (
@@ -213,7 +217,10 @@ func runDaemon() {
 				"update_id":  u.UpdateID,
 			})
 			sendTyping(token, chatID)
+			// Section 5: time the LLM call for avg_response_ms moving avg.
+			t0 := time.Now()
 			reply := callLLM(cfg, u.Message.Text)
+			elapsedMs := float64(time.Since(t0).Milliseconds())
 			// Detect LLM failure via exact known error prefixes from callLLM
 			// (sumber: callLLM returns: "router error:", "decode:", "llm:",
 			// "(no choices)", or "" for empty). JANGAN pakai "(LLM " — itu
@@ -225,6 +232,15 @@ func runDaemon() {
 				strings.HasPrefix(reply, "decode:") ||
 				strings.HasPrefix(reply, "llm:") ||
 				reply == "(no choices)"
+			// Section 5: karma update — counter (success/fail) + moving avg
+			// response time. Best-effort silent error.
+			fmt.Fprintf(os.Stderr, "[mr-flow] llm took %vms (llmFailed=%v)\n", elapsedMs, llmFailed)
+			if llmFailed {
+				logKarma("increment", "fail_count", 1)
+			} else {
+				logKarma("increment", "success_count", 1)
+				logKarma("average", "avg_response_ms", elapsedMs)
+			}
 			if reply == "" {
 				reply = "(LLM returned no text)"
 			}
@@ -542,6 +558,50 @@ var logBuf [4096]byte
 // ⚠️ JANGAN baca log ini ke system prompt. Akses cuma via HTTP endpoint
 // atau tool call (lihat standar_ai_agent.md section 11).
 var decisionBuf [4096]byte
+
+// logKarma — wrapper helper untuk hostKarmaUpdate. op = 'increment' atau
+// 'average'. Best-effort silent error supaya daemon ngga crash kalau DB lock.
+//
+// Audit fix C3: pakai struct typed (bukan map[string]any) supaya konsisten
+// dengan Section 1/3 pattern + JSON key order deterministic di TinyGo.
+//
+// ⚠️ JANGAN inject karma value ke system prompt (anti over-prompt). Akses
+// HTTP endpoint only.
+var karmaBuf [1024]byte
+
+type karmaReq struct {
+	Op    string  `json:"op"`
+	Key   string  `json:"key"`
+	Value float64 `json:"value"`
+}
+
+func logKarma(op, key string, value float64) {
+	req := karmaReq{Op: op, Key: key, Value: value}
+	reqJSON, err := json.Marshal(req)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[mr-flow] karma marshal: %v\n", err)
+		return
+	}
+	written := hostKarmaUpdate(
+		bytesPtr(reqJSON), uint32(len(reqJSON)),
+		bytesPtr(karmaBuf[:]), uint32(len(karmaBuf)),
+	)
+	if written == 0 {
+		fmt.Fprintf(os.Stderr, "[mr-flow] host_karma_update returned 0 bytes\n")
+		return
+	}
+	var resp struct {
+		OK    bool   `json:"ok"`
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(karmaBuf[:written], &resp); err != nil {
+		fmt.Fprintf(os.Stderr, "[mr-flow] karma decode: %v\n", err)
+		return
+	}
+	if !resp.OK {
+		fmt.Fprintf(os.Stderr, "[mr-flow] karma err: %s\n", resp.Error)
+	}
+}
 
 func logDecision(decisionType, rationale, outcome string, inputs map[string]any, refInteractionID int64) {
 	req := map[string]any{

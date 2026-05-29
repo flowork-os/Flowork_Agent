@@ -4,6 +4,34 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-29 20:50 WIB — Section 5: Karma self DONE + audit + LOCK
+
+- **feat(agentdb)**: tabel `karma_self` (metric_key PK, metric_value REAL, metric_count INT, updated_at) + idx_karma_self_updated. `internal/agentdb/karma.go` (LOCKED): `IncrementKarma(key, delta)` counter pattern via ON CONFLICT DO UPDATE upsert, `AverageUpdateKarma(key, value)` moving avg via atomic transaction (SELECT current → compute new_avg → UPSERT), `GetKarma(key)` (return zero Karma + key kalau ngga ada), `ListKarma()` (limit 100). Hard cap |delta| / value > 1e9 anti-runaway. NO soft-delete (state perpetual per Section 8 exclusion).
+- **feat(kernel/runtime)**: host capability `host_karma_update` + type `KarmaUpdater` (signature `(pluginID, op, key, value) → (current, error)`). Op `'increment'` / `'average'`. Capability gate `state:write` (sama Section 1+3). Error message cap 400 char.
+- **feat(kernelhost)**: `Host.karmaUpdate(pluginID, op, key, value)` resolver — hold `h.mu` sepanjang Open+Update (race-safe). Route ke `IncrementKarma` atau `AverageUpdateKarma` tergantung op. Unknown op → error.
+- **feat(mr-flow)**: wasmimport `hostKarmaUpdate`, helper `logKarma(op, key, value)` dengan `karmaBuf [1024]byte`. Time import + `t0 := time.Now()` sebelum callLLM + `elapsedMs := float64(time.Since(t0).Milliseconds())`. Hook 3 karma update di runDaemon:
+  - `llmFailed = true` → `increment fail_count 1`
+  - `llmFailed = false` → `increment success_count 1` + `average avg_response_ms elapsedMs`
+- **feat(agentmgr)**: HTTP endpoint `GET /api/agents/karma?id=&key=`:
+  - tanpa key → list semua metric (max 100)
+  - dengan key → single Karma row (return zero+key kalau ngga ada — bukan error)
+- **verified**: schema ada, build clean, daemon up caps=3, endpoint serve {count:0, items:null}.
+
+### Audit critical fixes (3) applied before lock:
+- **C1 (IncrementKarma atomic)**: split UPSERT + SELECT current → race risk skew log. Fixed: single atomic UPSERT dengan `RETURNING metric_value` clause (modernc.org/sqlite v1.51 support).
+- **C2 (AverageUpdateKarma race)**: previous SELECT current → compute newAvg → UPSERT in transaction RACE-PRONE — 2 concurrent caller bisa baca oldCount sama → sample HILANG di overwrite. Fixed: compute formula DI DB LEVEL via single atomic UPSERT — `metric_value = (metric_value * metric_count + excluded.value) / (metric_count + 1)` + `metric_count = metric_count + 1`. SQLite writer lock serialize 2 caller → kedua sample tercatat.
+- **C3 (Mr.Flow JSON struct)**: `logKarma` pakai typed `karmaReq` struct (sebelumnya `map[string]any` — TinyGo JSON key order non-deterministic). Konsisten dengan Section 1/3 pattern.
+
+### Anomali pending investigation:
+- **avg_response_ms = 1ms after 2 Telegram triggers** observed → suspicious karena callLLM ke router beneran ~1000-2000ms. Possible cause: TinyGo wasi `time.Since().Milliseconds()` quirk OR formula edge case. Added stderr debug log `[mr-flow] llm took Xms (llmFailed=Y)` di runDaemon untuk capture actual value next test. Investigate dengan log + fix di follow-up commit kalau confirmed bug.
+
+### Defer:
+- Popup UI Stats (dashboard badge + sparkline) — batch UI section
+- Per-key reset / delete API — tidak ada use case real
+- Time-series histogram (vs single moving avg) — defer kalau perlu analytics deeper
+
+---
+
 ## 2026-05-29 20:40 WIB — Section 4: Death letter (phase 1) DONE + audit + LOCK
 
 - **feat(agentdb)**: tabel `death_letter` (id, letter_type, recipient, subject, body, written_at, sealed_at, deleted_at) + 3 index. `internal/agentdb/death_letter.go` (LOCKED): `WriteLetter` (return id), `UpdateUnsealedLetter` (refuse kalau sealed), `SealLetter` (one-way idempotent), `SealAllUnsealed` (bulk auto-seal), `ReadLetters` (filter recipient + sealedOnly), `CountLetters`.

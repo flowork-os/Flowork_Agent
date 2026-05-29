@@ -149,7 +149,7 @@ func Boot(ctx context.Context) (*Host, error) {
 		AgentsDir: agentsDir,
 		SharedDir: sharedDir,
 	}
-	if err := rt.Bootstrap(ctx, br.IsApproved, rt.Get, h.logInteraction, h.logDecision); err != nil {
+	if err := rt.Bootstrap(ctx, br.IsApproved, rt.Get, h.logInteraction, h.logDecision, h.karmaUpdate); err != nil {
 		return nil, fmt.Errorf("runtime bootstrap: %w", err)
 	}
 
@@ -850,6 +850,47 @@ func (h *Host) logDecision(pluginID, decisionType, rationale, outcome string, in
 	defer store.Close()
 
 	return store.LogDecision(decisionType, rationale, outcome, inputs, refInteractionID)
+}
+
+// karmaUpdate — implementasi `runtime.KarmaUpdater`. Resolve pluginID →
+// agent folder, open state.db, call IncrementKarma atau AverageUpdateKarma
+// tergantung op. Return current value (post-update) ke caller.
+//
+// Hold h.mu sepanjang Open+Update (race-safe pattern Section 1).
+// Section 5 roadmap.
+func (h *Host) karmaUpdate(pluginID, op, key string, value float64) (float64, error) {
+	if pluginID == "" {
+		return 0, fmt.Errorf("pluginID required")
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	var agentPath string
+	for _, l := range h.lives {
+		if l.Discovery.Manifest != nil && l.Discovery.Manifest.ID == pluginID {
+			agentPath = l.Discovery.Path
+			break
+		}
+	}
+	if agentPath == "" {
+		return 0, fmt.Errorf("agent not loaded: %s", pluginID)
+	}
+
+	dbPath := agentdb.Resolve(pluginID, agentPath)
+	store, err := agentdb.Open(dbPath)
+	if err != nil {
+		return 0, fmt.Errorf("open state.db: %w", err)
+	}
+	defer store.Close()
+
+	switch op {
+	case "increment":
+		return store.IncrementKarma(key, value)
+	case "average":
+		return store.AverageUpdateKarma(key, value)
+	default:
+		return 0, fmt.Errorf("unknown op %q (use 'increment' or 'average')", op)
+	}
 }
 
 // Close release semua resource.

@@ -50,6 +50,12 @@ type InteractionLogger func(pluginID, channel, direction, actor, content string,
 // caller bisa reuse buat cross-ref future. Lihat roadmap section 3.
 type DecisionLogger func(pluginID, decisionType, rationale, outcome string, inputs map[string]any, refInteractionID int64) (int64, error)
 
+// KarmaUpdater — kernel-side callback yang route karma update dari guest
+// plugin ke `agentdb.Store.IncrementKarma` atau `AverageUpdateKarma`.
+// op = 'increment' atau 'average'. Plugin cuma update karma diri sendiri
+// (pluginID dari ctx). Lihat roadmap section 5.
+type KarmaUpdater func(pluginID, op, key string, value float64) (float64, error)
+
 // hostState dibawa per-instantiation supaya host_exec_run tau pluginID
 // pemanggil. Setiap instance plugin diberi ApiContext dengan pluginID
 // melalui WithGuestPluginID() saat Call.
@@ -58,6 +64,7 @@ type hostState struct {
 	resolver    InstanceResolver
 	interaction InteractionLogger
 	decision    DecisionLogger
+	karma       KarmaUpdater
 	http        *http.Client
 }
 
@@ -93,12 +100,14 @@ type execResp struct {
 // Phase 8: nambah `host_rpc_call` setelah `host_exec_run` + `host_net_fetch`.
 // Roadmap section 1: nambah `host_log_interaction` untuk episodic log.
 // Roadmap section 3: nambah `host_log_decision` untuk decisions audit trail.
-func (r *Runtime) registerFloworkHost(ctx context.Context, caps CapsChecker, resolver InstanceResolver, interaction InteractionLogger, decision DecisionLogger) error {
+// Roadmap section 5: nambah `host_karma_update` untuk metric self.
+func (r *Runtime) registerFloworkHost(ctx context.Context, caps CapsChecker, resolver InstanceResolver, interaction InteractionLogger, decision DecisionLogger, karma KarmaUpdater) error {
 	st := &hostState{
 		caps:        caps,
 		resolver:    resolver,
 		interaction: interaction,
 		decision:    decision,
+		karma:       karma,
 		http:        &http.Client{Timeout: 120 * time.Second},
 	}
 
@@ -128,6 +137,11 @@ func (r *Runtime) registerFloworkHost(ctx context.Context, caps CapsChecker, res
 			return st.logDecision(ctx, m, reqPtr, reqLen, outPtr, outMax)
 		}).
 		Export("host_log_decision").
+		NewFunctionBuilder().
+		WithFunc(func(ctx context.Context, m api.Module, reqPtr, reqLen, outPtr, outMax uint32) uint32 {
+			return st.karmaUpdate(ctx, m, reqPtr, reqLen, outPtr, outMax)
+		}).
+		Export("host_karma_update").
 		Instantiate(ctx)
 	if err != nil {
 		return fmt.Errorf("instantiate flowork host: %w", err)
@@ -192,6 +206,62 @@ func (st *hostState) logDecision(ctx context.Context, m api.Module, reqPtr, reqL
 		return writeJSONOrCrop(m, outPtr, outMax, out)
 	}
 	out, _ := json.Marshal(logDecisionResp{OK: true, ID: id})
+	return writeJSONOrCrop(m, outPtr, outMax, out)
+}
+
+type karmaUpdateReq struct {
+	Op    string  `json:"op"`    // 'increment' | 'average'
+	Key   string  `json:"key"`   // 'success_count' | 'fail_count' | 'avg_response_ms' | dst
+	Value float64 `json:"value"` // delta untuk increment, sample untuk average
+}
+
+type karmaUpdateResp struct {
+	OK      bool    `json:"ok"`
+	Current float64 `json:"current,omitempty"` // value setelah update
+	Error   string  `json:"error,omitempty"`
+}
+
+// karmaUpdate — host import `host_karma_update`. Plugin kirim {op, key, value},
+// host route ke per-agent state.db via karma callback. Plugin cuma update
+// karma diri sendiri (pluginID dari ctx, anti spoof).
+//
+// Capability gate: `state:write` (sama dengan host_log_interaction +
+// host_log_decision). Section 5 roadmap.
+func (st *hostState) karmaUpdate(ctx context.Context, m api.Module, reqPtr, reqLen, outPtr, outMax uint32) uint32 {
+	pluginID := guestPluginID(ctx)
+	if pluginID == "" {
+		return writeJSONOrCrop(m, outPtr, outMax, errorJSON("pluginID missing in context"))
+	}
+
+	if st.caps != nil {
+		const want = "state:write"
+		if !st.caps(pluginID, want) {
+			return writeJSONOrCrop(m, outPtr, outMax, errorJSON("capability denied: "+want))
+		}
+	}
+
+	reqBytes, ok := m.Memory().Read(reqPtr, reqLen)
+	if !ok {
+		return writeJSONOrCrop(m, outPtr, outMax, errorJSON("cannot read request memory"))
+	}
+	var req karmaUpdateReq
+	if err := json.Unmarshal(reqBytes, &req); err != nil {
+		return writeJSONOrCrop(m, outPtr, outMax, errorJSON("decode request: "+err.Error()))
+	}
+
+	if st.karma == nil {
+		return writeJSONOrCrop(m, outPtr, outMax, errorJSON("karma updater not wired"))
+	}
+	current, err := st.karma(pluginID, req.Op, req.Key, req.Value)
+	if err != nil {
+		msg := err.Error()
+		if len(msg) > 400 {
+			msg = msg[:400] + "…"
+		}
+		out, _ := json.Marshal(karmaUpdateResp{OK: false, Error: msg})
+		return writeJSONOrCrop(m, outPtr, outMax, out)
+	}
+	out, _ := json.Marshal(karmaUpdateResp{OK: true, Current: current})
 	return writeJSONOrCrop(m, outPtr, outMax, out)
 }
 
@@ -547,10 +617,10 @@ func errorJSON(msg string) []byte {
 
 // Bootstrap register WASI snapshot preview1 + flowork host module.
 // Caller wajib panggil sekali sebelum Load() pertama.
-func (r *Runtime) Bootstrap(ctx context.Context, caps CapsChecker, resolver InstanceResolver, interaction InteractionLogger, decision DecisionLogger) error {
+func (r *Runtime) Bootstrap(ctx context.Context, caps CapsChecker, resolver InstanceResolver, interaction InteractionLogger, decision DecisionLogger, karma KarmaUpdater) error {
 	// WASI preview 1 — TinyGo target=wasi expect `_start` resolve via ini.
 	if _, err := wasi_snapshot_preview1.Instantiate(ctx, r.rt); err != nil {
 		return fmt.Errorf("instantiate wasi: %w", err)
 	}
-	return r.registerFloworkHost(ctx, caps, resolver, interaction, decision)
+	return r.registerFloworkHost(ctx, caps, resolver, interaction, decision, karma)
 }
