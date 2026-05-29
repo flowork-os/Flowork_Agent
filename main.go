@@ -35,6 +35,7 @@ import (
 	"flowork-gui/internal/slashcmd"
 	slashbuiltins "flowork-gui/internal/slashcmd/builtins"
 	slashcustom "flowork-gui/internal/slashcmd/custom"
+	"flowork-gui/internal/tools"
 	"flowork-gui/internal/tools/builtins"
 )
 
@@ -61,6 +62,10 @@ func main() {
 	// Both Init panic on duplicate name — early bug catch.
 	builtins.Init()
 	slashbuiltins.Init()
+	// Section 12 phase 2: register 3 built-in interceptor (workspace-path,
+	// sensitive-file, persona-inject). SandboxRunV2 di agentmgr panggil chain
+	// sebelum 3-gate sandbox.
+	tools.InitDefaultInterceptors()
 
 	// Section 17/15: wire slash dispatcher callback. Kernelhost pre-populate
 	// ctx (Store/Caller/Agent) sebelum invoke ini supaya productive commands

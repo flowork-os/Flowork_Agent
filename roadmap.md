@@ -550,7 +550,7 @@ func (t *readTool) Run(ctx context.Context, args tools.Args) (tools.Result, erro
 
 ---
 
-## Section 12 — Tool execution sandbox + interceptors ✅ DONE 2026-05-30 (phase 1: capability gate via broker + disabled flag + rate limit per minute)
+## Section 12 — Tool execution sandbox + interceptors ✅ DONE (phase 1 + phase 2) 2026-05-30 — phase 1: capability gate via broker + disabled flag + rate limit per minute. Phase 2: SandboxRunV2 wrap interceptor chain — workspace-path (anti-traversal + dangerous prefix block), sensitive-file (.env / id_rsa / *.key block), persona-inject (prompt injection pattern detection). Sentinel ErrInterceptorBlocked. Defer phase 3: hooks_pretool dynamic per-warga, OS-isolator (Landlock/JobObject/Seatbelt) bash sandbox real, dynamic protector rules dari DB.
 
 **Goal:** safety net — tool execution lewat interceptor chain yang block command berbahaya, enforce path scoping, mask secret, log audit. Tanpa ini, `bash` tool jadi attack vector.
 
