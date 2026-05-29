@@ -72,6 +72,9 @@ func Init() {
 	tools.Register(&planWriteTool{})
 	tools.Register(&todoTool{})
 	tools.Register(&goalDoneTool{})
+	// Section 28: codemap warga query tools (codemap_tools.go)
+	tools.Register(&codemapSearchTool{})
+	tools.Register(&codemapStatsTool{})
 }
 
 // =============================================================================

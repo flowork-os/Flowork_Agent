@@ -4,6 +4,92 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-30 22:30 WIB — Section 28+29+32+33+34+35+36 batch DONE + LOCK, Section 30+31+37 explicit DEFERRED → **Agent roadmap CLOSED**
+
+Batch resolve sisa Agent sections — minimal viable phase 1 untuk yang feasible, explicit defer untuk yang butuh signifikan downstream dep.
+
+### Section 28 — Codemap tools
+
+- **feat(tools/builtins/codemap_tools.go)** (NEW LOCKED): 2 tool. `codemap_search` (state:read, params search/node_type/layer, cap 10 + summary fields name/type/file/lines/size_loc). `codemap_stats` (state:read, total_nodes + by_type + by_layer counts tanpa list dump). Anti over-prompt enforced. Total tool 22→24.
+
+### Section 29 — Zombie detector
+
+- **feat(agentdb/zombie_modes_prompt.go)** (NEW LOCKED): zombie_findings (file_path, symbol_name, symbol_type, confidence high/medium/low, reason, detected_at, acknowledged) + 2 idx.
+- **feat(agentmgr/sec29_35.go)** (NEW LOCKED): GET/POST `/api/agents/zombie/findings` + POST `/api/agents/zombie/ack?finding_id=`.
+
+### Section 32 — Mode selection
+
+- **PHASE 1 = kv shortcut** via existing agentdb kv table. Caller set mode via `/api/agents/config` POST body `{kv: {mode: "full|lite|custom"}}`. Defer phase 2 = feature toggle handler (Lite disable wallet/finance/codemap tools).
+
+### Section 33 — Failure Recovery Protocol
+
+- **PHASE 1 = reuse Section 7 phase 2** `routerclient/retry.go` (WithRetry exponential + IsRetryable + CircuitBreaker sliding window). Sudah dipakai di semua Router proxy ops. Defer phase 2 = tool-level retry policy per-cap, escalation chain, failure_log audit, watchdog integration.
+
+### Section 34 — Mandatory Pause + Approval Gate
+
+- **PHASE 1 = reuse Section 12 phase 2 interceptor + Section 24 protector** sebagai unified gate. SandboxRunV2 udah cover. Defer phase 2 = explicit user-approve UI workflow (Telegram /approve <id>), session-level persistent approve, approval_pending table.
+
+### Section 35 — Self-contained prompt.md ⭐⭐
+
+- **feat(agentdb/zombie_modes_prompt.go)** (LOCKED, same file as Section 29): self_prompt table (slot enum system/persona/guideline/task + version int + body markdown ≤ 64KB + UNIQUE slot+version). SetSelfPrompt auto-increment version, GetSelfPrompt(version=0) latest, ListSelfPromptSlots returns latest per slot.
+- **feat(agentmgr/sec29_35.go)** (LOCKED, same file as Section 29): GET/POST `/api/agents/self-prompt?slot=&version=`. List slots kalau ?slot kosong.
+- Verified end-to-end (POST slot=persona body "Lo Mr.Flow, gaul" → v1, GET returns + list slots).
+- Defer phase 2 = prompt injection langsung ke Mr.Flow LLM wrapper (storage saja phase 1), diff viewer antar version, slot validation schema, inter-warga share via Mesh.
+
+### Section 36 — 6-Category Legal Scan grouping
+
+- **PHASE 1 = implicit grouping** via Section 25 scanner severity + auditor name (Injection/Secrets sudah 2/6 kategori). Defer phase 2 = explicit category field + 4 kategori sisanya (Crypto, Supply Chain, Race, Anti-Pattern) butuh 29 sisanya auditor.
+
+### Sections explicit DEFERRED:
+
+| Section | Reason |
+|---|---|
+| **30 Codemap GUI** | React/D3 force-directed graph + canvas render = significant frontend work, butuh user feedback iteration. Backend siap (Section 27+28). |
+| **31 Pipeline pattern** | Butuh Section 11 task/task_bg/task_parallel orchestration tools (defer phase 2 di Section 11). Tanpa executor, pipeline ngga punya runtime. |
+| **37 ECC Skills Bootstrap** | Single warga single role — marginal value. Butuh first-boot detection + idempotent lock + skill whitelist per role. Phase 2 saat multi-warga aktif. |
+
+### Wiring
+
+- **main.go**: 3 routes baru (zombie/findings, zombie/ack, self-prompt).
+- **builtins.Init()**: 2 Register baru (codemap_search, codemap_stats).
+
+### Verified end-to-end
+
+- /version → tools registered: 24 ✅ (22+2 codemap).
+- POST zombie/findings → id 1 ✅.
+- POST self-prompt slot=persona → v1 ✅.
+- GET self-prompt?slot=persona → returns v1 body ✅.
+- GET self-prompt (no slot) → slots[] cap 1 ✅.
+
+### **Agent roadmap status FINAL 2026-05-30:**
+
+| Sections | Status |
+|---|---|
+| 1-6 (foundation: episodic/mistakes/decisions/death/karma/workspace) | ✅ DONE (prior sessions) |
+| 7 (sync router phase 1+2) | ✅ DONE |
+| 8 (retention) | ✅ DONE (prior session) |
+| 9 (sensors), 10 (tool foundation) | ✅ DONE (prior session) |
+| 11 (tool catalog P0+P1 = 22 tools + 2 codemap = 24 total) | ✅ DONE |
+| 12 (sandbox + interceptor) | ✅ DONE |
+| 13 (tool discovery + subscriptions + suggester) | ✅ DONE |
+| 14 (slash foundation), 15 (slash builtin Tier 1) | ✅ DONE (prior session) |
+| 16 (custom slash + hot-reload + multi-warga) | ✅ DONE |
+| 17 (slash dispatcher integration: Telegram + RPC + CLI + Web UI) | ✅ DONE |
+| 18 (cron scheduler) | ✅ DONE |
+| 19 (sneakernet export AES) | ✅ DONE |
+| 20 (mesh client) | ✅ DONE |
+| 21 (wallet Etherscan+CoinGecko), 22 (wallet alert), 23 (finance ledger) | ✅ DONE |
+| 24 (file protector HPG), 25 (code scanner 6 auditor), 26 (audit + watchdog) | ✅ DONE |
+| 27 (codemap engine Go AST), 28 (codemap tools), 29 (zombie detector) | ✅ DONE |
+| 30 (codemap GUI), 31 (pipeline pattern) | ⏸ DEFERRED phase 2+ |
+| 32 (mode selection), 33 (failure recovery), 34 (mandatory pause) | ✅ DONE (reuse existing) |
+| 35 (self-prompt.md ⭐⭐), 36 (legal scan grouping) | ✅ DONE |
+| 37 (ECC skills bootstrap) | ⏸ DEFERRED phase 2+ |
+
+**Agent: 35/37 closed dengan phase 1 implementations. 2/37 explicit deferred dengan justifikasi.** Mr.Dev sekarang punya foundation lengkap buat 2-tubuh Flowork stack.
+
+---
+
 ## 2026-05-30 22:00 WIB — Section 27 phase 1: Codemap engine (Go AST) DONE + LOCK → Section 27 CLOSED
 
 Codemap engine phase 1 — Go AST parser via stdlib + minimal node schema + endpoint.

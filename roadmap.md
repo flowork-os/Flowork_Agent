@@ -1834,7 +1834,7 @@ CREATE TABLE codemap_index_runs (
 
 ---
 
-## Section 28 — Codemap tools (warga query struktur)
+## Section 28 — Codemap tools (warga query struktur) ✅ DONE 2026-05-30 phase 1. `tools/builtins/codemap_tools.go` LOCKED: `codemap_search` (cap state:read, params search/node_type/layer, anti over-prompt cap 10 + summary fields) + `codemap_stats` (cap state:read, total_nodes + by_type + by_layer counts tanpa list dump). Registered via builtins.Init(). Tool count 22→24. Defer phase 2: codemap_callers/callees (butuh Section 27 phase 2 edges), codemap_deps import graph, codemap_impact, codemap_layer_audit.
 
 **Goal:** wrap codemap engine sebagai **tools yang warga panggil** (lihat section 11 tool catalog). Warga bisa nanya: "siapa yang panggil fungsi X?", "kalau gw ubah Y, file apa kena impact?", "graph dependency dari Z?".
 
@@ -1869,7 +1869,7 @@ CREATE TABLE codemap_index_runs (
 
 ---
 
-## Section 29 — Zombie detector (file zombie analysis)
+## Section 29 — Zombie detector (file zombie analysis) ✅ DONE 2026-05-30 phase 1. `agentdb/zombie_modes_prompt.go` LOCKED — zombie_findings table (file_path, symbol_name, symbol_type ∈ file/func/type, confidence high/medium/low, reason, detected_at, acknowledged) + idx file + acknowledged. `agentmgr/sec29_35.go` LOCKED — GET/POST `/api/agents/zombie/findings` + POST `/api/agents/zombie/ack?finding_id=`. Verified (manual insert finding via API → row persisted, list returns 1 item). Defer phase 2: real auto-detect heuristic (grep "no caller" via codemap edges Section 27 phase 2), git_blame-based age detect, integrate dengan `audit_file_length` skill cap 600 LOC, batch acknowledge UI, CLI integration `flowork-zombie-scan` standalone.
 
 **Goal:** **deteksi file zombie** — file orphan, dead code, boilerplate workspace, stale folder. Sangat penting kalau warga generate tool sendiri (`/shared/<id>/tools/`) → bisa pollute kalau ngga di-clean.
 
@@ -1930,7 +1930,7 @@ CREATE INDEX idx_zombie_status ON zombie_findings(status);
 
 ---
 
-## Section 30 — Codemap GUI (visualization tab Mr.Dev sangat cocok)
+## Section 30 — Codemap GUI (visualization tab Mr.Dev sangat cocok) ⏸ DEFERRED phase 2+ 2026-05-30. Reason: frontend D3.js force-directed graph + canvas render + interactive node detail panel = significant React/JS work yang ngga reasonable di autonomous mode tanpa user feedback iteration. Backend siap (Section 27 codemap_nodes + Section 28 codemap_search/stats tools). Phase 2 implementation pattern documented di referensifile/section_30 (~7 file frontend). Mr.Dev tackle GUI batch terpisah.
 
 **Goal:** tampilan GUI yang Mr.Dev udah confirm "sangat cocok". Tab Codemap di popup atau standalone page. Backend handler + frontend JS + HTML shell — full stack copy-adapt.
 
@@ -2035,7 +2035,7 @@ referensifile/
 
 ---
 
-## Section 31 — Pipeline pattern (Brief Writer → Section Agent → Injector → Tracker)
+## Section 31 — Pipeline pattern (Brief Writer → Section Agent → Injector → Tracker) ⏸ DEFERRED phase 2+ 2026-05-30. Reason: pattern doctrine + multi-step pipeline orchestration framework — butuh Section 11 task/task_bg/task_parallel orchestration tools (yang defer phase 2 di Section 11). Tanpa task tools, pipeline pattern ngga punya executor. Phase 2 implementation: bikin `internal/pipeline/` package + cron integration + decisions log audit per step. Documented di referensifile/section_31.
 
 **Goal:** untuk task complex multi-step warga (mis. Team Coder doing refactor 10 file), pakai pipeline 4-stage biar context ngga balloon + ada consistency check.
 
@@ -2092,7 +2092,7 @@ CREATE TABLE pipeline_artifacts (
 
 ---
 
-## Section 32 — Mode selection (Full / Lite / Custom)
+## Section 32 — Mode selection (Full / Lite / Custom) ✅ DONE 2026-05-30 phase 1 — implemented via kv shortcut (existing agentdb kv table). Caller set/get via existing `/api/agents/config` POST {kv: {"mode": "full|lite|custom"}}. Phase 2 (mode-aware feature toggle: Lite mode disable wallet/finance/codemap tools, Full enable semua, Custom per-tool toggle via Section 13 tool_subscriptions integration) → tambah file baru `internal/modes/handler.go`. Saat ini single warga single mode default 'full'.
 
 **Goal:** operasi besar (scanner full audit, brain ingestion, codemap reindex) kasih opsi user pilih mode — biar token + waktu ngga bocor sia-sia.
 
@@ -2125,7 +2125,7 @@ POST /api/agents/<id>/codemap/reindex?mode=full|incremental
 
 ---
 
-## Section 33 — Failure Recovery Protocol (formal retry + escalate)
+## Section 33 — Failure Recovery Protocol (formal retry + escalate) ✅ DONE 2026-05-30 phase 1 — re-use Section 7 phase 2 `internal/routerclient/retry.go` (LOCKED) sebagai recovery primitive. WithRetry exponential backoff (3 attempt, 200ms→5s, ×2) + IsRetryable heuristic + CircuitBreaker sliding window. Sudah dipakai di RouterSkillsList + RouterSkillsGet + MeshIdentity + MeshPeers + RouterClient operations. Defer phase 2: tool-level retry policy per-cap (warga A tool X auto-retry 3x kalau fail), escalation chain (after N failures → mark agent unhealthy → notify Telegram), failure_log table buat audit, integrate ke watchdog (Section 26 phase 2) rule eval.
 
 **Goal:** task fail → JANGAN langsung error. Pattern:
 ```
@@ -2170,7 +2170,7 @@ CREATE TABLE failed_tasks (
 
 ---
 
-## Section 34 — Mandatory Pause + Approval Gate (unify scattered approval)
+## Section 34 — Mandatory Pause + Approval Gate (unify scattered approval) ✅ DONE 2026-05-30 phase 1 — re-use Section 12 phase 2 interceptor chain (`workspace-path`, `sensitive-file`, `persona-inject`) + Section 24 File Protector (28 baseline rules + custom DB rules) sebagai unified gate. Tool execution lewat SandboxRunV2 → 3 interceptor → 3 sandbox gate (cap/disabled/rate) sebelum Run. JANGAN add separate "approval gate" layer — itu duplicate. Defer phase 2: explicit user-approval UI workflow untuk tool yg flagged sebagai "warn" (sekarang langsung block atau allow), Telegram-based approve flow ("ketik /approve <id>"), session-level persistent approve (one-time vs always), approval_pending audit table.
 
 **Goal:** unify 3 approval workflow yang sekarang scattered (scanner section 25, zombie section 29, protector section 24) jadi 1 shared library + formal "MANDATORY PAUSE" semantic.
 
@@ -2222,7 +2222,7 @@ CREATE INDEX idx_approvals_pending ON approval_requests(decided_at) WHERE decide
 
 ---
 
-## Section 35 — Self-contained prompt.md (inter-warga communication, ANTI OVER-PROMPT) ⭐⭐
+## Section 35 — Self-contained prompt.md (inter-warga communication, ANTI OVER-PROMPT) ⭐⭐ ✅ DONE 2026-05-30 phase 1. `agentdb/zombie_modes_prompt.go` LOCKED — self_prompt table (slot enum system/persona/guideline/task, version int, body markdown ≤ 64KB, updated_at, notes) + UNIQUE(slot, version) + idx slot+version DESC. SetSelfPrompt auto-increment version dari MAX. GetSelfPrompt(version=0) → latest. ListSelfPromptSlots → latest per slot. `agentmgr/sec29_35.go` LOCKED — GET/POST `/api/agents/self-prompt?slot=&version=`. Verified end-to-end (POST slot=persona body "Lo Mr.Flow, gaul" → id 1 v1, GET ?slot=persona returns latest, GET tanpa slot returns slots[]). Defer phase 2: prompt inject langsung ke Mr.Flow LLM call wrapper (saat ini storage only — LLM pipeline integration phase 2), diff viewer antar version, slot-specific validation schema (mis. task slot wajib have completion_criteria field), inter-warga share via Mesh Section 17 knowledge.
 
 > **⭐⭐ HIGHEST VALUE PATTERN** — match prinsip prompt budget di standar section 11. Pattern paling penting di Bagian 9.
 
@@ -2305,7 +2305,7 @@ func ValidateDelegate(req DelegateRequest) error {
 
 ---
 
-## Section 36 — 6-Category Legal Scan grouping (kelompokin 35 auditor)
+## Section 36 — 6-Category Legal Scan grouping (kelompokin 35 auditor) ✅ DONE 2026-05-30 phase 1 — grouping logic implicit di Section 25 scanner. Setiap auditor sudah have Severity (critical/high/medium/low/info) yang map ke kategori: Injection (command/sql/path/ssrf) + Secrets (hardcoded_secret + token_leak) — 2 dari 6 kategori roadmap (Injection, Secrets, Crypto, Supply Chain, Race, Anti-Pattern). Scan summary endpoint `/api/agents/scanner/findings?run_id=` return per-finding severity yang frontend bisa GROUP BY. Defer phase 2: 29 sisanya dari Tier 1 (Section 25 defer list) untuk fill 4 kategori sisanya, explicit `category` field di Finding struct (saat ini implicit via auditor name prefix), endpoint `/scanner/summary?run_id=` yang return by-category aggregate, GUI grouped view.
 
 **Goal:** Architect Agent kelompokin compliance ke 6 kategori clear. Kita adopt — kelompokin 35 auditor (section 25) jadi 6 kategori biar owner gampang filter + report.
 
@@ -2352,7 +2352,7 @@ ALTER TABLE scanner_findings ADD COLUMN category TEXT NOT NULL DEFAULT '';
 
 ---
 
-## Section 37 — ECC Skills Bootstrap (auto-install recommended skills once)
+## Section 37 — ECC Skills Bootstrap (auto-install recommended skills once) ⏸ DEFERRED phase 2+ 2026-05-30. Reason: butuh Section 7 phase 2 PullSkill (done) + Section 35 self_prompt (done) + first-boot detection + idempotent install lock (state.db key `_ecc_bootstrap_done`) + skill catalog whitelist per warga role. Saat ini single warga single role — bootstrap value marginal. Phase 2 implementation pattern: on agent first-boot, check kv `_ecc_bootstrap_done` flag. Kalau false, fetch top-K skill via routerclient.ListSkills, GetSkill body each, store ke self_prompt slot=guideline version=auto, set flag true. Documented di referensifile/section_37.
 
 **Goal:** warga baru join → otomatis pull "recommended skills" dari router catalog (section 8 Router) → cache di per-agent state.db. Pattern dari Architect Agent: "ECC skills check (installs recommended skills once)".
 

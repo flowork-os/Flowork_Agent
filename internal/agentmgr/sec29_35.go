@@ -1,0 +1,144 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/flowork-ai-agent
+// Locked at: 2026-05-30
+// Reason: Section 29 + Section 35 phase 1 endpoints. Phase 2 (real
+//   zombie scan integration with codemap, prompt diff viewer, slot
+//   constraints) → tambah file baru.
+//
+// sec29_35.go — Section 29 zombie + Section 35 prompt endpoints.
+
+package agentmgr
+
+import (
+	"encoding/json"
+	"net/http"
+	"strconv"
+	"strings"
+
+	"flowork-gui/internal/agentdb"
+	"flowork-gui/internal/httpx"
+)
+
+// =============================================================================
+// Section 29: Zombie findings
+// =============================================================================
+
+// ZombieFindingsHandler — GET/POST /api/agents/zombie/findings?id=<agent>
+func ZombieFindingsHandler(w http.ResponseWriter, r *http.Request) {
+	agentID := strings.TrimSpace(r.URL.Query().Get("id"))
+	if agentID == "" {
+		httpx.WriteJSON(w, map[string]any{"error": "agent id required"})
+		return
+	}
+	store, err := openAgentStore(agentID)
+	if err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+		return
+	}
+	defer store.Close()
+	switch r.Method {
+	case http.MethodGet:
+		rows, err := store.ListZombieFindings(parseLimitOr(r.URL.Query().Get("limit"), 100))
+		if err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+			return
+		}
+		httpx.WriteJSON(w, map[string]any{"items": rows, "count": len(rows)})
+	case http.MethodPost:
+		var body agentdb.ZombieFinding
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": "invalid json: " + err.Error()})
+			return
+		}
+		id, err := store.AddZombieFinding(body)
+		if err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+			return
+		}
+		httpx.WriteJSON(w, map[string]any{"ok": true, "id": id})
+	default:
+		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
+	}
+}
+
+// ZombieAckHandler — POST /api/agents/zombie/ack?id=&finding_id=
+func ZombieAckHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
+		return
+	}
+	agentID := strings.TrimSpace(r.URL.Query().Get("id"))
+	findingID, _ := strconv.ParseInt(r.URL.Query().Get("finding_id"), 10, 64)
+	if agentID == "" || findingID == 0 {
+		httpx.WriteJSON(w, map[string]any{"error": "id + finding_id required"})
+		return
+	}
+	store, err := openAgentStore(agentID)
+	if err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+		return
+	}
+	defer store.Close()
+	if err := store.AcknowledgeZombie(findingID); err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+		return
+	}
+	httpx.WriteJSON(w, map[string]any{"ok": true})
+}
+
+// =============================================================================
+// Section 35: Self-contained prompt.md
+// =============================================================================
+
+// SelfPromptHandler — GET/POST /api/agents/self-prompt?id=<agent>&slot=
+//   GET ?slot=&version= → return latest (version=0) atau specific.
+//   POST body {slot, body, notes, version} → upsert next version.
+func SelfPromptHandler(w http.ResponseWriter, r *http.Request) {
+	agentID := strings.TrimSpace(r.URL.Query().Get("id"))
+	if agentID == "" {
+		httpx.WriteJSON(w, map[string]any{"error": "agent id required"})
+		return
+	}
+	store, err := openAgentStore(agentID)
+	if err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+		return
+	}
+	defer store.Close()
+	switch r.Method {
+	case http.MethodGet:
+		slot := strings.TrimSpace(r.URL.Query().Get("slot"))
+		if slot == "" {
+			rows, err := store.ListSelfPromptSlots()
+			if err != nil {
+				httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+				return
+			}
+			httpx.WriteJSON(w, map[string]any{"slots": rows, "count": len(rows)})
+			return
+		}
+		version, _ := strconv.Atoi(r.URL.Query().Get("version"))
+		sp, err := store.GetSelfPrompt(slot, version)
+		if err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+			return
+		}
+		httpx.WriteJSON(w, sp)
+	case http.MethodPost:
+		var body agentdb.SelfPrompt
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": "invalid json: " + err.Error()})
+			return
+		}
+		id, err := store.SetSelfPrompt(body.Slot, body.Body, body.Notes, body.Version)
+		if err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+			return
+		}
+		httpx.WriteJSON(w, map[string]any{"ok": true, "id": id})
+	default:
+		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
+	}
+}
