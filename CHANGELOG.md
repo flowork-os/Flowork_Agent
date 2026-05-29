@@ -4,6 +4,49 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-30 13:50 WIB — Section 14: Slash command foundation (phase 1) DONE + LOCK
+
+- **schema**: 2 table baru — `slash_invocations` (audit log: command, args, caller, result_text, error_text, duration_ms, invoked_at, deleted_at) + 3 index; `slash_aliases` (alias→canonical mapping, PK alias).
+- **feat(slashcmd)**: package baru `internal/slashcmd/`:
+  - `types.go` (LOCKED): SlashCommand interface (Name/Aliases/Description/Run), Result (Text + Format)
+  - `registry.go` (LOCKED): singleton via sync.RWMutex. Register panic on dup name OR alias collision. Lookup resolves name OR alias case-insensitive
+  - `dispatcher.go` (LOCKED): `Dispatch(ctx, text)` → (Result, cmdName, error). Parse: strip "/", split first token as name, rest as argsRaw
+- **feat(slashcmd/builtins)**: `internal/slashcmd/builtins/builtins.go` (LOCKED) — 3 commands + Init():
+  - `/help` (aliases: h, ?) — list all registered commands dengan descriptions, markdown format
+  - `/echo <text>` — echo input back
+  - `/ping` (alias pong) — health check, returns "pong"
+- **feat(agentdb)**: `internal/agentdb/slash_invocations.go` (LOCKED) — LogSlashInvocation (8KB cap fields), ListSlashInvocations (command/caller filter, cap 500).
+- **feat(agentmgr)**: 3 endpoint:
+  - `POST /api/agents/slash/run?id=<agent>` body `{text, caller?}` → dispatch + log
+  - `GET /api/agents/slash/registry` → list registered commands
+  - `GET /api/agents/slash-invocations?id=&command=&caller=&limit=` → browse audit log
+- **feat(main.go)**: `slashbuiltins.Init()` panggil early sebelum kernel boot.
+- **verified end-to-end via 10 scenario** + 7 invocation log rows:
+  - Schema clean: slash_invocations + slash_aliases + 3 index
+  - Registry lists 3 commands sorted alphabetical
+  - `/help` returns markdown list dengan aliases
+  - `/h` alias resolves to help → text_len 218
+  - `/echo halo Mr.Flow phase 14 verify` → returns input back
+  - `/ping` → "pong"
+  - `/pong` (alias) → resolves to ping, returns "pong"
+  - Unknown `/nonexistent` → 404 error logged
+  - Plain text "plain text" → "not a slash command (missing /)"
+  - `/echo` missing args → "usage: /echo <text>" error logged
+  - Audit log captures 7 invocations dengan correct caller + duration + error_flag
+
+### Phase 1 scope (DONE):
+- Schema + interface + registry + dispatcher + 3 demo commands + 3 endpoints + audit log.
+
+### Defer phase 2+:
+- **Section 15 Tier 1 commands**: `/search /list /stats /agents /tools /skill /memory /now /uptime /version` dst — real productive commands.
+- **Section 16 custom command loader**: `.md` files di `<workspace>/.flowork/commands/*.md` → auto-register.
+- **Section 17 integration handler**: Mr.Flow Telegram bot detect leading `/` → call dispatcher (via host capability host_slash_dispatch).
+- **Fuzzy match fallback**: kalau `/sumar` typo → suggest `/summarize`.
+- **Skill catalog fallback**: kalau slash ngga di-register, query Router skill catalog (Section 8 Router done).
+- **Permission gate**: pre-Run check broker capability (mirror tools).
+
+---
+
 ## 2026-05-30 13:30 WIB — Section 11 phase 1d: webfetch (SSRF-guarded) DONE + LOCK
 
 - **feat(tools/builtins)**: `internal/tools/builtins/web.go` (LOCKED) — `webfetch` tool (capability `net:fetch:*`). Defense:

@@ -31,6 +31,7 @@ import (
 	"flowork-gui/internal/agentmgr"
 	"flowork-gui/internal/httpx"
 	"flowork-gui/internal/kernelhost"
+	slashbuiltins "flowork-gui/internal/slashcmd/builtins"
 	"flowork-gui/internal/tools/builtins"
 )
 
@@ -51,9 +52,12 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	// Section 11 phase 1a: register 5 builtin tools (echo, now, memory_get/
-	// set/delete). Panic on duplicate name — early bug catch.
+	// Section 11 phase 1a-1f: register 11 builtin tools (echo, now,
+	// memory_x3, file_x3, brain_search, telegram_send, webfetch).
+	// Section 14 phase 1: register 3 builtin slash commands (help, echo, ping).
+	// Both Init panic on duplicate name — early bug catch.
 	builtins.Init()
+	slashbuiltins.Init()
 
 	host, err := kernelhost.Boot(ctx)
 	if err != nil {
@@ -117,6 +121,9 @@ func main() {
 	mux.HandleFunc("/api/agents/tools/registry", agentmgr.ToolRegistryHandler)
 	mux.HandleFunc("/api/agents/tool-invocations", agentmgr.ToolInvocationsHandler)
 	mux.HandleFunc("/api/agents/tools/run", agentmgr.ToolRunHandler)
+	mux.HandleFunc("/api/agents/slash/run", agentmgr.SlashRunHandler)
+	mux.HandleFunc("/api/agents/slash/registry", agentmgr.SlashRegistryHandler)
+	mux.HandleFunc("/api/agents/slash-invocations", agentmgr.SlashInvocationsHandler)
 
 	// Catch-all stub utk path /api/* yang gak diregister.
 	mux.HandleFunc("/api/", mockAPI)

@@ -709,7 +709,7 @@ referensifile/
 
 ---
 
-## Section 14 — Slash command foundation (registry + dispatcher)
+## Section 14 — Slash command foundation (registry + dispatcher) ✅ DONE (phase 1) 2026-05-30
 
 **Goal:** kerangka slash — pattern register, parse `/cmd args`, dispatch ke handler. Tanpa ini, slash logic scattered seperti di flowork lama.
 

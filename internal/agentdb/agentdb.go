@@ -303,6 +303,30 @@ func (s *Store) ensureSchema() error {
 			v          TEXT NOT NULL DEFAULT '',
 			updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 		) WITHOUT ROWID`,
+
+		// Section 14 — Slash command foundation.
+		// slash_invocations: audit log per warga.
+		// slash_aliases: alias → target canonical mapping.
+		`CREATE TABLE IF NOT EXISTS slash_invocations (
+			id          INTEGER PRIMARY KEY AUTOINCREMENT,
+			command     TEXT NOT NULL,
+			args        TEXT NOT NULL DEFAULT '',
+			caller      TEXT NOT NULL DEFAULT '',
+			result_text TEXT NOT NULL DEFAULT '',
+			error_text  TEXT NOT NULL DEFAULT '',
+			duration_ms INTEGER NOT NULL DEFAULT 0,
+			invoked_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			deleted_at  TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_slash_invocations_cmd     ON slash_invocations(command)`,
+		`CREATE INDEX IF NOT EXISTS idx_slash_invocations_time    ON slash_invocations(invoked_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_slash_invocations_deleted ON slash_invocations(deleted_at)`,
+
+		`CREATE TABLE IF NOT EXISTS slash_aliases (
+			alias       TEXT PRIMARY KEY,
+			target_name TEXT NOT NULL,
+			created_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
 	}
 	for _, q := range stmts {
 		if _, err := s.db.Exec(q); err != nil {

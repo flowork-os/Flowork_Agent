@@ -36,6 +36,7 @@ import (
 	"flowork-gui/internal/agentdb"
 	"flowork-gui/internal/httpx"
 	"flowork-gui/internal/kernel/loader"
+	"flowork-gui/internal/slashcmd"
 	"flowork-gui/internal/tools"
 )
 
@@ -547,6 +548,139 @@ func DeathLetterHandler(w http.ResponseWriter, r *http.Request) {
 	default:
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
 	}
+}
+
+// SlashRunHandler — POST /api/agents/slash/run?id=<agent_id>
+// Body: {text, caller?}
+//
+// Parse + dispatch + log invocation.
+//
+// ⚠️ Phase 1: no rate limit / permission enforcement. Defer phase 2.
+func SlashRunHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		httpx.WriteJSON(w, map[string]any{"error": "method not allowed (use POST)"})
+		return
+	}
+	id := strings.TrimSpace(r.URL.Query().Get("id"))
+	if !reID.MatchString(id) {
+		httpx.WriteJSON(w, map[string]any{"error": "invalid id"})
+		return
+	}
+	dbPath := agentdb.Resolve(id, agentFolder(id))
+	if _, err := os.Stat(dbPath); err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": "db belum ada — boot agent dulu"})
+		return
+	}
+	store, err := agentdb.Open(dbPath)
+	if err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": "open db: " + err.Error()})
+		return
+	}
+	defer store.Close()
+
+	r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
+	var body struct {
+		Text   string `json:"text"`
+		Caller string `json:"caller"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": "decode: " + err.Error()})
+		return
+	}
+	text := strings.TrimSpace(body.Text)
+	if text == "" {
+		httpx.WriteJSON(w, map[string]any{"error": "text required"})
+		return
+	}
+	caller := strings.TrimSpace(body.Caller)
+	if caller == "" {
+		caller = "http-admin"
+	}
+
+	t0 := time.Now()
+	result, cmdName, runErr := slashcmd.Dispatch(r.Context(), text)
+	elapsedMs := time.Since(t0).Milliseconds()
+
+	// Log invocation. cmdName mungkin kosong kalau parse fail di awal.
+	argsRaw := ""
+	if idx := strings.IndexAny(text, " \t"); idx >= 0 {
+		argsRaw = strings.TrimSpace(text[idx+1:])
+	}
+	errText := ""
+	if runErr != nil {
+		errText = runErr.Error()
+	}
+	if _, lerr := store.LogSlashInvocation(cmdName, argsRaw, caller, result.Text, errText, elapsedMs); lerr != nil {
+		log.Printf("agentmgr: log slash invocation failed: %v", lerr)
+	}
+
+	if runErr != nil {
+		httpx.WriteJSON(w, map[string]any{
+			"error":       runErr.Error(),
+			"command":     cmdName,
+			"duration_ms": elapsedMs,
+		})
+		return
+	}
+	httpx.WriteJSON(w, map[string]any{
+		"ok":          true,
+		"command":     cmdName,
+		"result":      result,
+		"duration_ms": elapsedMs,
+	})
+}
+
+// SlashRegistryHandler — GET /api/agents/slash/registry
+func SlashRegistryHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		httpx.WriteJSON(w, map[string]any{"error": "method not allowed (use GET)"})
+		return
+	}
+	items := slashcmd.ListSummaries()
+	httpx.WriteJSON(w, map[string]any{
+		"items":        items,
+		"count":        len(items),
+		"algo_version": slashcmd.AlgoVersion,
+	})
+}
+
+// SlashInvocationsHandler — GET /api/agents/slash-invocations?id=&command=&caller=&limit=
+func SlashInvocationsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		httpx.WriteJSON(w, map[string]any{"error": "method not allowed (use GET)"})
+		return
+	}
+	id := strings.TrimSpace(r.URL.Query().Get("id"))
+	if !reID.MatchString(id) {
+		httpx.WriteJSON(w, map[string]any{"error": "invalid id"})
+		return
+	}
+	dbPath := agentdb.Resolve(id, agentFolder(id))
+	if _, err := os.Stat(dbPath); err != nil {
+		httpx.WriteJSON(w, map[string]any{"items": []any{}, "note": "db belum ada"})
+		return
+	}
+	store, err := agentdb.Open(dbPath)
+	if err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": "open db: " + err.Error()})
+		return
+	}
+	defer store.Close()
+
+	command := strings.TrimSpace(r.URL.Query().Get("command"))
+	caller := strings.TrimSpace(r.URL.Query().Get("caller"))
+	limit := 50
+	if s := strings.TrimSpace(r.URL.Query().Get("limit")); s != "" {
+		if n, perr := strconv.Atoi(s); perr == nil && n > 0 && n <= 500 {
+			limit = n
+		}
+	}
+	items, err := store.ListSlashInvocations(command, caller, limit)
+	if err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": "list: " + err.Error()})
+		return
+	}
+	httpx.WriteJSON(w, map[string]any{"items": items, "count": len(items)})
 }
 
 // ToolRunHandler — POST /api/agents/tools/run?id=<agent_id>
