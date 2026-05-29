@@ -54,6 +54,8 @@ func Init() {
 	tools.Register(&brainSearchTool{})
 	// phase 1f: comms (telegram.go)
 	tools.Register(&telegramSendTool{})
+	// phase 1d: web (web.go)
+	tools.Register(&webFetchTool{})
 }
 
 // =============================================================================

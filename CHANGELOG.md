@@ -4,6 +4,34 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-30 13:30 WIB — Section 11 phase 1d: webfetch (SSRF-guarded) DONE + LOCK
+
+- **feat(tools/builtins)**: `internal/tools/builtins/web.go` (LOCKED) — `webfetch` tool (capability `net:fetch:*`). Defense:
+  - Scheme whitelist: http, https only (file/javascript/etc rejected)
+  - Hostname resolve via net.LookupIP + IP CIDR block: 127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16 (cloud metadata), IPv6 ::1/128, fc00::/7, fe80::/10
+  - CheckRedirect re-validates target + strips Authorization header
+  - Response body cap 1MB, HTTP timeout 30s
+  - User-Agent identifies Mr.Flow
+- `Init()` register webfetch (11 builtin tools total).
+- **verified end-to-end via 6 SSRF + 1 real fetch scenario**:
+  - 127.0.0.1 → blocked "private/loopback/metadata range"
+  - 169.254.169.254 (AWS/GCP IMDS) → blocked
+  - 192.168.1.1 (private LAN) → blocked
+  - file:// scheme → blocked "scheme must be http/https"
+  - https://example.com → status 200, 528 bytes HTML body fetched ✓
+  - Missing url → reject
+
+### Section 11 progress (auto-incremental):
+- Phase 1a (5 demo): DONE
+- Phase 1b (3 file ops): DONE
+- Phase 1d (webfetch): DONE
+- Phase 1e (brain_search): DONE
+- Phase 1f (telegram_send): DONE — **11 builtin tools live**
+- Phase 1c shell (bash_run): defer (sandbox harder)
+- Phase 1g task/plan/todo orchestration: defer P2
+
+---
+
 ## 2026-05-30 13:15 WIB — Section 11 phase 1f: telegram_send DONE + LOCK
 
 - **feat(tools/builtins)**: `internal/tools/builtins/telegram.go` (LOCKED) — `telegram_send` tool (capability `net:fetch:telegram`). Bot token + allowed_chats from agent `secrets` table via `Store.Secrets()`. Triple security:
