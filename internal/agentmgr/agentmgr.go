@@ -316,6 +316,41 @@ func DBResetHandler(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, map[string]any{"ok": true, "path": dbPath})
 }
 
+// RetentionSweep — kernelhost daftarkan callback supaya admin endpoint
+// bisa trigger manual sweep. Nil-safe: kalau ngga di-set, endpoint return
+// error "not wired".
+var RetentionSweep func(agentID string) (any, error)
+
+// RetentionSweepHandler — POST /api/agents/retention/sweep?id=<id>
+// Manual trigger retention sweep untuk satu agent. Cron 24h jalan otomatis;
+// endpoint ini buat admin force-run (testing atau immediate cleanup).
+// Roadmap section 8.
+//
+// ⚠️ DESTRUCTIVE: hard-delete row soft-deleted > grace period. Soft-delete
+// reversible via backup; hard-delete final. Cron jalan default — manual
+// trigger jarang perlu.
+func RetentionSweepHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		httpx.WriteJSON(w, map[string]any{"error": "method not allowed (use POST)"})
+		return
+	}
+	id := strings.TrimSpace(r.URL.Query().Get("id"))
+	if !reID.MatchString(id) {
+		httpx.WriteJSON(w, map[string]any{"error": "invalid id"})
+		return
+	}
+	if RetentionSweep == nil {
+		httpx.WriteJSON(w, map[string]any{"error": "retention sweep not wired"})
+		return
+	}
+	report, err := RetentionSweep(id)
+	if err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+		return
+	}
+	httpx.WriteJSON(w, map[string]any{"ok": true, "report": report})
+}
+
 // MistakesHandler — GET /api/agents/mistakes?id=<id>&tier=&limit=
 // POST /api/agents/mistakes?id=<id> body {category, title, content, context_origin?}
 // List + admin-add mistakes journal per-warga. Roadmap section 2.

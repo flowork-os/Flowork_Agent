@@ -302,7 +302,7 @@ CREATE INDEX idx_workspace_meta_category ON workspace_meta(category);
 
 ---
 
-## Section 8 — Retention policy & soft-delete consistency
+## Section 8 — Retention policy & soft-delete consistency ✅ DONE 2026-05-29
 
 **Goal:** tabel-tabel di atas ngga boleh grow unbounded. Define retention per tabel + soft-delete semua data buat audit.
 

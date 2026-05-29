@@ -4,6 +4,34 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-29 20:30 WIB — Section 8: Retention policy + cron DONE + audit + LOCK
+
+- **feat(agentdb)**: `internal/agentdb/retention.go` (LOCKED) — `RetentionWindows` struct + `DefaultRetention()` (30d interactions / 90d decisions+raw mistakes / 180d promoted / 90d hard-delete grace). `PrunePromotedMistakes`, `HardDeleteSoftDeleted` (3 tabel), `RunRetentionSweep` (orchestrator + aggregate report).
+- **feat(kernelhost)**: `StartRetentionCron(ctx, 24h)` goroutine — initial 1min warm-up delay, ticker 24h, iterate snapshot of `h.lives` then sweep per agent. Aman terhadap shutdown via `ctx.Done()`. `RunRetentionForAgent(agentID)` helper resolve path + open store + run sweep (pakai DefaultRetention).
+- **feat(agentmgr)**: HTTP endpoint `POST /api/agents/retention/sweep?id=` via callback wire — admin manual trigger (testing / immediate cleanup). Method enforced POST, id validation.
+- **feat(main)**: wire `host.StartRetentionCron(ctx, 24*time.Hour)` di boot + `agentmgr.RetentionSweep` callback.
+- **audit critical fix C1 (defense)**: minimum retention duration 24h hard-coded. `RunRetentionSweep` normalize windows — zero/under-min auto-fallback ke `DefaultRetention()` values. `PrunePromotedMistakes` + `HardDeleteSoftDeleted` refuse run kalau duration < 24h (cegah caller accidentally pass `RetentionWindows{}` → DELETE row baru detik lalu).
+- **audit critical fix C2 (atomicity)**: `HardDeleteSoftDeleted` wrap 3 DELETE dalam `db.BeginTx` — crash di tengah sebelumnya bisa bikin `ref_interaction_id` di decisions point ke interactions yang udah ke-DELETE (silent orphan, audit Section 3 cross-ref rusak). Sekarang atomic.
+- **audit important fix I1 (auditability)**: `RunRetentionSweep` log hasil ke tabel `decisions` (`decision_type='retention_sweep'`) supaya audit trail survive restart (kernel `log.Printf` hilang). Guard: skip log kalau 0 affected + 0 errors (reduce noise). Verified row id=2 muncul setelah trigger 2nd sweep.
+- **verified end-to-end**:
+  - cron armed log `interval=24h0m0s`
+  - manual trigger sweep return aggregate report 8 field
+  - backdated 2 row (interaction 2026-04-15, decision 2026-02-15) → sweep soft-deleted both (`soft_deleted_interactions:1, soft_deleted_decisions:1`)
+  - invalid id rejected, wrong method rejected
+
+### Tidak di-prune (sengaja):
+- `workspace_meta` (Section 6, sumber-of-truth filesystem)
+- `karma_self` (Section 5, state perpetual)
+- `death_letter` (Section 4, legacy)
+
+Section 4-6 belum di-implement, retention adapt nanti ketika tabel-nya ada.
+
+### Defer:
+- Log retention sweep result ke tabel `decisions` (acceptance criteria minta — defer kalau ngga perlu audit deep, kernel log sudah cover via `log.Printf`).
+- Configurable retention windows per agent (admin override via settings.kv) — defer sampai use case real.
+
+---
+
 ## 2026-05-29 20:25 WIB — Section 2: Mistakes journal (phase 1) DONE + audit + LOCK
 
 - **feat(agentdb)**: tabel `mistakes_local` (id, category, title, content, context_origin, tier, hit_count, last_hit_at, created_at, promoted_at, promoted_to_id, deleted_at, deleted_by) + UNIQUE(category, title) + 4 index. `internal/agentdb/mistakes.go` (LOCKED): `AddMistake` (return id + addedNew), `ListMistakes(tier, limit)`, `PruneMistakes` (tier='raw' only — 'reviewed'/'promoted' sakral), `CountMistakes(tier)`.

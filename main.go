@@ -59,11 +59,16 @@ func main() {
 	// Wire ConfigHandler → kernel reload callback. Tanpa ini, save config
 	// dari popup ngga restart daemon → env baru ngga kebawa.
 	agentmgr.Reload = host.ReloadAgent
+	agentmgr.RetentionSweep = func(agentID string) (any, error) {
+		return host.RunRetentionForAgent(agentID)
+	}
 
 	host.AutoBootDaemons(ctx)
 	if err := host.StartWatcher(ctx); err != nil {
 		log.Printf("kernel watcher start failed: %v (hot-reload disabled)", err)
 	}
+	// Section 8: retention cron — sweep tiap 24h, hard-delete grace 90 hari.
+	host.StartRetentionCron(ctx, 24*time.Hour)
 
 	mux := http.NewServeMux()
 
@@ -89,6 +94,7 @@ func main() {
 	mux.HandleFunc("/api/agents/interactions", agentmgr.InteractionsHandler)
 	mux.HandleFunc("/api/agents/decisions", agentmgr.DecisionsHandler)
 	mux.HandleFunc("/api/agents/mistakes", agentmgr.MistakesHandler)
+	mux.HandleFunc("/api/agents/retention/sweep", agentmgr.RetentionSweepHandler)
 
 	// Catch-all stub utk path /api/* yang gak diregister.
 	mux.HandleFunc("/api/", mockAPI)

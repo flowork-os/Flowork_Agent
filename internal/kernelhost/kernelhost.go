@@ -292,6 +292,100 @@ func (h *Host) AutoBootDaemons(ctx context.Context) {
 	}
 }
 
+// StartRetentionCron — spawn goroutine yang jalan retention sweep tiap
+// interval. Default 24h interval (per roadmap section 8). Iterate semua
+// agent di h.lives, call agentdb.Store.RunRetentionSweep per agent.
+//
+// Aman terhadap shutdown — listen ke ctx.Done(). Sweep per agent serial
+// (open-on-demand pattern, same as logInteraction/logDecision).
+//
+// Roadmap section 8.
+func (h *Host) StartRetentionCron(ctx context.Context, interval time.Duration) {
+	if interval <= 0 {
+		interval = 24 * time.Hour
+	}
+	go func() {
+		// Initial delay supaya ngga jalan persis boot — kasih 1 menit warm-up.
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(time.Minute):
+		}
+
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			h.runRetentionSweepAllAgents(ctx)
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+	log.Printf("kernel: retention cron armed (interval=%s)", interval)
+}
+
+// runRetentionSweepAllAgents — iterate snapshot lives, call sweep per agent.
+// Hold h.mu sebentar buat snapshot — release sebelum heavy sweep (long-running
+// per agent ngga lock semua agent lain).
+func (h *Host) runRetentionSweepAllAgents(ctx context.Context) {
+	h.mu.Lock()
+	type sweepTarget struct {
+		ID   string
+		Path string
+	}
+	targets := make([]sweepTarget, 0, len(h.lives))
+	for _, l := range h.lives {
+		if l.Discovery.Manifest != nil && l.Enabled {
+			targets = append(targets, sweepTarget{
+				ID:   l.Discovery.Manifest.ID,
+				Path: l.Discovery.Path,
+			})
+		}
+	}
+	h.mu.Unlock()
+
+	for _, t := range targets {
+		if ctx.Err() != nil {
+			return
+		}
+		report, err := h.RunRetentionForAgent(t.ID)
+		if err != nil {
+			log.Printf("kernel: retention sweep %s failed: %v", t.ID, err)
+			continue
+		}
+		log.Printf("kernel: retention sweep %s done: %+v", t.ID, report)
+	}
+}
+
+// RunRetentionForAgent — sweep satu agent dengan default retention windows.
+// Caller: cron, atau admin endpoint POST /api/agents/retention/sweep?id=.
+// Return agentdb.RetentionReport.
+func (h *Host) RunRetentionForAgent(agentID string) (agentdb.RetentionReport, error) {
+	h.mu.Lock()
+	var agentPath string
+	for _, l := range h.lives {
+		if l.Discovery.Manifest != nil && l.Discovery.Manifest.ID == agentID {
+			agentPath = l.Discovery.Path
+			break
+		}
+	}
+	h.mu.Unlock()
+
+	if agentPath == "" {
+		return agentdb.RetentionReport{}, fmt.Errorf("agent not loaded: %s", agentID)
+	}
+	dbPath := agentdb.Resolve(agentID, agentPath)
+	store, err := agentdb.Open(dbPath)
+	if err != nil {
+		return agentdb.RetentionReport{}, fmt.Errorf("open state.db: %w", err)
+	}
+	defer store.Close()
+
+	return store.RunRetentionSweep(agentdb.DefaultRetention()), nil
+}
+
 // StartWatcher — fsnotify watcher untuk hot-reload. Spawn goroutine yang
 // receive change events + reload agent.
 func (h *Host) StartWatcher(ctx context.Context) error {
