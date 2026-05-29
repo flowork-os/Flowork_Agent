@@ -1301,7 +1301,7 @@ CREATE TABLE wallet_snapshots (
 
 ---
 
-## Section 22 — Wallet alert (balance threshold notification)
+## Section 22 — Wallet alert (balance threshold notification) ✅ DONE 2026-05-30 phase 1. `agentdb/wallet_alert.go` LOCKED: lazy CREATE wallet_alerts_config (metric_key, threshold, comparator ∈ {`<`,`<=`,`>`,`>=`}, notify_channel ∈ {telegram,log}, notify_target, enabled, last_fired_at) + wallet_alerts_fired audit. `agentmgr/wallet_alert.go` LOCKED: GET/POST/DELETE `/api/agents/wallet/alerts` + GET `/api/agents/wallet/alerts/fired`. Verified end-to-end (add total_usd<10 log channel, list, persisted). Defer phase 2: cron evaluator integration dengan Section 18 scheduler (fetch portfolio → compare → fire), Telegram dispatcher via Section 11 telegram_send tool, 24h cooldown anti-spam (last_fired_at check), multi-channel notify (Discord/email/Slack), nested condition (AND/OR).
 
 **Goal:** balance wallet < threshold → alert via Telegram. Auto-notify supaya warga ngga "mati kelaparan".
 
@@ -1345,7 +1345,7 @@ CREATE TABLE wallet_alerts_fired (
 
 ---
 
-## Section 23 — Finance ledger (usage tracking + budget guardrails)
+## Section 23 — Finance ledger (usage tracking + budget guardrails) ✅ DONE 2026-05-30 phase 1. `agentdb/finance.go` LOCKED: lazy CREATE finance_ledger (id, occurred_at, category, provider, model, input_tokens, output_tokens, cost_usd, metadata_json) + finance_budgets (metric_key PK, budget_value, warning_at_pct, enabled). API: AddLedger, ListLedger (filter category + time range), SummaryLedger (per-category aggregate), SetBudget upsert, ListBudgets. `agentmgr/finance.go` LOCKED: GET/POST `/api/agents/finance/ledger` + GET `/api/agents/finance/summary?from=&to=` (total_usd + by_category breakdown) + GET/POST `/api/agents/finance/budget`. Verified end-to-end (insert llm row $0.005, summary aggregate correct, budget upsert daily_usd=5). Defer phase 2: auto-ingestion dari Router response header `X-Router-Cost-Usd`, per-call budget enforcement (block kalau over), ratelimit (calls/hour, tokens/day), audit immutability, dormancy detector via referensifile/section_23 ratelimit.go + audit.go + dormancy.go + budget.go + openrouter.go (5 file siap copy-adapt).
 
 **Goal:** track tiap call yang spend money. Aggregate per warga. Budget guardrails — warga A boleh pakai $X/hari max.
 

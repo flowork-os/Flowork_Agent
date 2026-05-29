@@ -203,6 +203,11 @@ func main() {
 	mux.HandleFunc("/api/agents/wallet/addresses", agentmgr.WalletAddressesHandler)
 	mux.HandleFunc("/api/agents/wallet/portfolio", agentmgr.WalletPortfolioHandler)
 	mux.HandleFunc("/api/agents/wallet/snapshots", agentmgr.WalletSnapshotsHandler)
+	mux.HandleFunc("/api/agents/wallet/alerts", agentmgr.WalletAlertsHandler)
+	mux.HandleFunc("/api/agents/wallet/alerts/fired", agentmgr.WalletAlertsFiredHandler)
+	mux.HandleFunc("/api/agents/finance/ledger", agentmgr.FinanceLedgerHandler)
+	mux.HandleFunc("/api/agents/finance/summary", agentmgr.FinanceSummaryHandler)
+	mux.HandleFunc("/api/agents/finance/budget", agentmgr.FinanceBudgetHandler)
 
 	// Catch-all stub utk path /api/* yang gak diregister.
 	mux.HandleFunc("/api/", mockAPI)

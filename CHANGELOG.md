@@ -4,6 +4,45 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-30 20:50 WIB — Section 22 + 23 phase 1: Wallet alert + Finance ledger DONE + LOCK → Section 22+23 CLOSED
+
+Section 22 wallet alert + Section 23 finance ledger landed bersamaan (storage schema + endpoints). Cron evaluator + auto-ingestion defer phase 2.
+
+### Section 22 — Wallet alert
+
+- **feat(internal/agentdb/wallet_alert.go)** (NEW LOCKED): lazy CREATE wallet_alerts_config (metric_key, threshold_value, comparator `<|<=|>|>=`, notify_channel `telegram|log`, notify_target, enabled, last_fired_at) + wallet_alerts_fired (config_id FK, fired_at, metric_value, message). API: AddWalletAlert (validator comparator + default channel `log`), ListWalletAlerts, DeleteWalletAlert, InsertWalletAlertFired (transactional update last_fired_at), ListWalletAlertsFired.
+- **feat(internal/agentmgr/wallet_alert.go)** (NEW LOCKED): GET/POST/DELETE `/api/agents/wallet/alerts?id=<agent>` + GET `/api/agents/wallet/alerts/fired`. DELETE by `?alert_id=`.
+
+### Section 23 — Finance ledger
+
+- **feat(internal/agentdb/finance.go)** (NEW LOCKED): lazy CREATE finance_ledger (id, occurred_at, category, provider, model, input_tokens, output_tokens, cost_usd, metadata_json) + idx time DESC + idx category + finance_budgets (metric_key PK, budget_value, warning_at_pct=0.8 default, enabled). API: AddLedger (validate category required, auto-stamp occurred_at), ListLedger (filter category + from + to), SummaryLedger (GROUP BY category SUM(cost_usd) + COUNT + SUM tokens), SetBudget upsert, ListBudgets.
+- **feat(internal/agentmgr/finance.go)** (NEW LOCKED): GET/POST `/api/agents/finance/ledger?id=&category=&from=&to=&limit=` + GET `/api/agents/finance/summary?id=&from=&to=` (by_category + total_usd) + GET/POST `/api/agents/finance/budget?id=`.
+
+### Wiring + verified
+
+- **main.go**: 5 routes new (alerts, alerts/fired, ledger, summary, budget).
+- POST add alert `total_usd<10` log channel → `{ok: true, id: 1}` ✅.
+- List alerts → 1 row persisted ✅.
+- POST finance ledger `category=llm provider=router model=claude-haiku-4-5 input=100 output=50 cost=0.005` → `{ok: true, id: 1}` ✅.
+- GET summary → `by_category: [{category: llm, cost_usd: 0.005, call_count: 1, ...}], total_usd: 0.005` ✅.
+- POST budget `daily_usd=5 warning_at_pct=0.8` + GET list → 1 row ✅.
+
+### Defer phase 2:
+
+| Section | Komponen | Reason defer |
+|---|---|---|
+| 22 | Cron evaluator (Section 18 scheduler integration: fetch portfolio + compare + fire) | Cron framework siap; eval logic phase 2 |
+| 22 | Telegram dispatcher via Section 11 telegram_send tool | Tool siap; integration phase 2 |
+| 22 | 24h cooldown anti-spam | Schema sudah punya last_fired_at field |
+| 22 | Multi-channel notify (Discord/email/Slack) | notify_channel field generic — phase 2 add channel handlers |
+| 22 | Nested AND/OR condition | Schema simple comparator — phase 2 extend |
+| 23 | Auto-ingestion dari Router `X-Router-Cost-Usd` header | Mr.Flow LLM call wrapper restructure phase 2 |
+| 23 | Per-call budget enforcement (block kalau over) | budget.go di referensifile Section 23 |
+| 23 | Ratelimit (calls/hour, tokens/day) | ratelimit.go di referensifile |
+| 23 | Audit immutability + dormancy detector | audit.go + dormancy.go di referensifile |
+
+---
+
 ## 2026-05-30 20:35 WIB — Section 21 phase 1: Wallet (Etherscan + CoinGecko) DONE + LOCK → Section 21 CLOSED
 
 Owner sekarang bisa attach wallet address (ETH/Polygon/Arbitrum), fetch portfolio (native + USDT/USDC/DAI), auto-snapshot ke DB. Read-only, ngga ada private key.
