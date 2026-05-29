@@ -162,6 +162,9 @@ func (bashTool) Run(ctx context.Context, args map[string]any) (tools.Result, err
 	}
 	c.Dir = workDir
 	c.Env = scrubEnv() // strip sensitive vars (tokens) sebelum spawn
+	// Section 12 phase 3: enforce memory limit via OS-specific helper.
+	// Linux: RLIMIT_AS via `ulimit -v` prepend. Windows/macOS: no-op.
+	applyMemLimit(c, cmd)
 
 	var outBuf, errBuf bytes.Buffer
 	const outCap = 64 * 1024

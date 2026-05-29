@@ -222,6 +222,10 @@ func main() {
 	mux.HandleFunc("/api/agents/zombie/findings", agentmgr.ZombieFindingsHandler)
 	mux.HandleFunc("/api/agents/zombie/ack", agentmgr.ZombieAckHandler)
 	mux.HandleFunc("/api/agents/self-prompt", agentmgr.SelfPromptHandler)
+	mux.HandleFunc("/api/agents/protector/approval/queue", agentmgr.ApprovalQueueHandler)
+	mux.HandleFunc("/api/agents/protector/approve_pending", agentmgr.ApproveHandler)
+	mux.HandleFunc("/api/agents/protector/reject_pending", agentmgr.RejectHandler)
+	mux.HandleFunc("/api/agents/tool-audit", agentmgr.ToolAuditHandler)
 
 	// Catch-all stub utk path /api/* yang gak diregister.
 	mux.HandleFunc("/api/", mockAPI)

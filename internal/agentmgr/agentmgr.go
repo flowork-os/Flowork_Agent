@@ -762,8 +762,9 @@ func ToolRunHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	t0 := time.Now()
-	// Section 12 phase 2: SandboxRunV2 = interceptor chain + 3 gate sandbox.
-	result, runErr := tools.SandboxRunV2(ctx, t, body.Args, tools.SandboxOpts{})
+	// Section 12 phase 3: SandboxRunV3 = approval queue + tool_audit append
+	// + interceptor chain + 3 gate sandbox (cap/disabled/rate).
+	result, runErr := tools.SandboxRunV3(ctx, t, body.Args, tools.SandboxOpts{})
 	elapsedMs := time.Since(t0).Milliseconds()
 
 	// Log invocation (best-effort — kalau log gagal, ngga blocking response).
