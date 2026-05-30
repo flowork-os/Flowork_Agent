@@ -1,3 +1,39 @@
+## 2026-05-30 12:15 WIB — Port batch 3: 10 auditor + 6 tool
+
+### internal/scanner/auditors_v4.go (NEW LOCKED) — 10 auditor
+
+- regex_complexity_auditor — ReDoS nested quantifier HIGH
+- sha_collision_auditor — sha1/md5 hash usage HIGH
+- time_zone_auditor — time.Now().Format tanpa UTC LOW
+- mutex_unlock_missing_auditor — Lock() tanpa defer Unlock() HIGH
+- panic_in_init_auditor — panic() di func init() MEDIUM
+- large_struct_auditor — struct >25 field LOW
+- http_no_timeout_auditor — http.Client{} default MEDIUM
+- env_secret_log_auditor — log os.Getenv("...TOKEN/KEY/SECRET") CRITICAL
+- sql_concat_auditor — db.Query(fmt.Sprintf) CRITICAL
+- json_unmarshal_check_auditor — `_ = json.Unmarshal` MEDIUM
+
+Total auditors: 26 → 36. Reference 109 → 73 sisa.
+
+### internal/tools/builtins/v4_extras.go (NEW LOCKED) — 6 tool
+
+- tool_audit_log — query tool_audit (Section 26)
+- scheduler_list — list schedules per agent (Section 18)
+- mistake_search — search mistakes by category/substring
+- death_letter_read — baca wasiat pendahulu (ADR-010 Predecessor)
+- workspace_lookup — single workspace_meta entry
+- system_health — runtime status (GOOS, mem, goroutine, time)
+
+Total tools: 34 → 40. Reference 112 → 72 sisa.
+
+### QC
+
+- Build clean
+- /api/agents/tools/catalog returns 40
+- /api/agents/scanner/auditors returns 36
+
+---
+
 ## 2026-05-30 12:11 WIB — Port batch 2: 10 auditor + 6 tool
 
 ### internal/scanner/auditors_v3.go (NEW LOCKED) — 10 auditor
