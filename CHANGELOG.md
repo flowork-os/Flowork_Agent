@@ -1,3 +1,43 @@
+## 2026-05-30 11:34 WIB — Port batch 1: 10 scanner auditor + 4 tool
+
+Per Mr.Dev: "loe ngak ambil semua tools/slash/scanner dari referensi".
+Start porting batch — single-warga BY DESIGN, pilih high-value subset.
+
+### internal/scanner/auditors_v2.go (NEW LOCKED) — 10 auditor baru
+
+Pattern-based (extends locked auditors.go via init() auto-register):
+- bare_goroutine_auditor — go func() tanpa recover (HIGH)
+- mutex_copy_auditor — sync.Mutex value receiver (HIGH)
+- nil_map_write_auditor — write ke nil map (CRITICAL)
+- crypto_weakness_auditor — md5/sha1/des/rc4 (HIGH)
+- context_leak_auditor — WithCancel tanpa defer cancel (MEDIUM)
+- defer_in_loop_auditor — defer dalam for loop (MEDIUM)
+- error_ignored_auditor — _ = op() discard (LOW)
+- channel_unbuffered_auditor — make(chan T) (LOW)
+- deprecated_api_auditor — io/ioutil (LOW)
+- hardcoded_path_auditor — /home/*, C:\\Users\\ (MEDIUM)
+
+Total auditors: 6 → 16. Reference 109 total → 93 sisa.
+
+### internal/tools/builtins/v2_extras.go (NEW LOCKED) — 4 tool baru
+
+Auto-register via init() (extends locked builtins.go):
+- death_letter_write — Section 4 wasiat (Predecessor Honor Protocol ADR-010)
+- fact_recall — KV fact store baca on-demand (anti over-prompt)
+- fact_write — KV fact store tulis (upsert idempotent, 32KB cap)
+- askuser — clarification escape hatch (log ke decisions table)
+
+Total tools: 24 → 28. Reference 112 → 84 sisa.
+
+### QC
+
+- Build clean: go build ./... pass
+- 16 auditors via /api/agents/scanner/auditors verified
+- 28 tools via /api/agents/tools/catalog verified
+- chat-debug smoke pass
+
+---
+
 ## 2026-05-30 10:50 WIB — JS audit complete: 19/19 JS file locked (100%)
 
 Batch lock 16 JS file (3 sebelumnya udah locked: agents_router_skills,
