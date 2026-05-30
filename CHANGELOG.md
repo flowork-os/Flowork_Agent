@@ -1,3 +1,25 @@
+## 2026-05-30 12:29 WIB — Port batch 7: 10 auditor + 6 tool
+
+### auditors_v8.go (NEW LOCKED) — 10 auditor (security-focused)
+gosec_bind_all, csrf_disable, cookie_no_secure, jwt_none_alg,
+open_redirect, cors_wildcard, header_x_forwarded, password_hash_weak,
+yaml_unsafe, http_basic_auth.
+Total 66 → 76.
+
+### v8_extras.go (NEW LOCKED) — 6 tool
+self_prompt_render, self_prompt_set, codemap_search_advanced,
+wallet_alert_list, wallet_alerts_fired_list, ledger_list.
+Total 58 → 64.
+
+### Stats overall
+
+| | Awal sesi | Sekarang | Ref total |
+|---|---|---|---|
+| Tools | 24 | **64** | 112 (48 sisa) |
+| Auditors | 6 | **76** | 109 (33 sisa) |
+
+---
+
 ## 2026-05-30 12:26 WIB — Port batch 6: 10 auditor + 6 tool
 
 ### auditors_v7.go (NEW LOCKED) — 10 auditor
