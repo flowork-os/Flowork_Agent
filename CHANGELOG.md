@@ -1,3 +1,25 @@
+## 2026-05-30 12:22 WIB — Port batch 5: 10 auditor + 6 tool
+
+### auditors_v6.go (NEW LOCKED) — 10 auditor
+global_log_init, env_dependency, magic_number, struct_tag_typo,
+integer_overflow, file_no_close, http_no_body_close, string_concat_loop,
+slice_append_loop, sync_once_misuse.
+Total 46 → 56.
+
+### v6_extras.go (NEW LOCKED) — 6 tool
+wallet_balance, finance_summary, finance_log, kv_list,
+tool_invocations_list, protector_rules_list.
+Total 46 → 52.
+
+### Stats overall
+
+| | Awal | Sekarang | Ref total |
+|---|---|---|---|
+| Tools | 24 | **52** | 112 (60 sisa) |
+| Auditors | 6 | **56** | 109 (53 sisa) |
+
+---
+
 ## 2026-05-30 12:18 WIB — Port batch 4: 10 auditor + 6 tool
 
 ### internal/scanner/auditors_v5.go (NEW LOCKED) — 10 auditor
