@@ -297,6 +297,32 @@ func main() {
 	mux.HandleFunc("/api/agents/zombie/scan", agentmgr.ZombieScanHandler)
 	mux.HandleFunc("/api/agents/self-prompt", agentmgr.SelfPromptHandler)
 	mux.HandleFunc("/api/agents/self-prompt/render", agentmgr.SelfPromptRenderHandler)
+
+	// Legacy reference GUI compat shim — map paths dari reference tabs ke
+	// agent-scoped endpoint (default agent mr-flow).
+	mux.HandleFunc("/api/wallet", agentmgr.WalletCompatHandler)
+	mux.HandleFunc("/api/wallet/tx", agentmgr.WalletTxCompatHandler)
+	mux.HandleFunc("/api/finance/snapshot", agentmgr.FinanceSnapshotCompatHandler)
+	mux.HandleFunc("/api/brain/prompt-templates", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			agentmgr.PromptTemplatesUpsertCompatHandler(w, r)
+			return
+		}
+		agentmgr.PromptTemplatesListCompatHandler(w, r)
+	})
+	mux.HandleFunc("/api/brain/prompt-templates/detail", agentmgr.PromptTemplatesDetailCompatHandler)
+	mux.HandleFunc("/api/brain/prompt-templates/update", agentmgr.PromptTemplatesUpsertCompatHandler)
+	mux.HandleFunc("/api/brain/prompt-templates/delete", agentmgr.PromptTemplatesDeleteCompatHandler)
+	mux.HandleFunc("/api/protector", agentmgr.ProtectorListCompatHandler)
+	mux.HandleFunc("/api/protector/add", agentmgr.ProtectorAddCompatHandler)
+	mux.HandleFunc("/api/protector/remove", agentmgr.ProtectorRemoveCompatHandler)
+	mux.HandleFunc("/api/protector/toggle", agentmgr.ProtectorToggleCompatHandler)
+	mux.HandleFunc("/api/protector/test", agentmgr.ProtectorTestCompatHandler)
+	mux.HandleFunc("/api/codemap/graph", agentmgr.CodemapGraphCompatHandler)
+	mux.HandleFunc("/api/codemap/status", agentmgr.CodemapStatusCompatHandler)
+	mux.HandleFunc("/api/codemap/zombies", agentmgr.CodemapZombiesCompatHandler)
+	mux.HandleFunc("/api/codemap/reindex", agentmgr.CodemapReindexCompatHandler)
+	mux.HandleFunc("/api/codemap/roots", agentmgr.CodemapRootsCompatHandler)
 	mux.HandleFunc("/api/agents/protector/approval/queue", agentmgr.ApprovalQueueHandler)
 	mux.HandleFunc("/api/agents/protector/approve_pending", agentmgr.ApproveHandler)
 	mux.HandleFunc("/api/agents/protector/reject_pending", agentmgr.RejectHandler)
