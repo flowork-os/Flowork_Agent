@@ -1,3 +1,28 @@
+## 2026-05-30 12:35 WIB — Port batch 9: 10 auditor + 6 tool
+
+### auditors_v10.go (NEW LOCKED) — 10 auditor
+timezone_load, init_order, panic_log, panic_runtime, shell_pipe,
+command_injection_pipe, embed_directory, wasm_unsafe_export,
+network_print, struct_pack_align.
+Total 86 → 96.
+
+### v10_extras.go (NEW LOCKED) — 6 tool
+sneakernet_export_query, slash_alias_list (placeholder),
+tool_subscriptions_count, schedule_runs_query, scanner_quick_scan,
+scheduler_next.
+Total 70 → 76.
+
+### Stats overall
+
+| | Awal sesi | Sekarang | Ref total |
+|---|---|---|---|
+| Tools | 24 | **76** | 112 (36 sisa) |
+| Auditors | 6 | **96** | 109 (13 sisa) |
+
+Auditor 88% covered. Tool 68% covered.
+
+---
+
 ## 2026-05-30 12:32 WIB — Port batch 8: 10 auditor + 6 tool
 
 ### auditors_v9.go (NEW LOCKED) — 10 auditor
