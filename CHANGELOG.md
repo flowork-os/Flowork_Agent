@@ -1,3 +1,40 @@
+## 2026-05-30 12:11 WIB — Port batch 2: 10 auditor + 6 tool
+
+### internal/scanner/auditors_v3.go (NEW LOCKED) — 10 auditor
+
+- complexity_auditor — function panjang (>80 line) MEDIUM
+- dockerfile_security_auditor — USER root, no HEALTHCHECK, ADD http HIGH/MED/LOW
+- dep_version_auditor — go.mod tanpa pin (v0.0.0/latest) MEDIUM
+- atomic_write_auditor — WriteFile non-atomic LOW
+- concurrency_auditor — go func() range capture MEDIUM
+- dangerous_import_auditor — unsafe/plugin/syscall HIGH/MEDIUM
+- crossos_auditor — Unix-only syscall di file portable MEDIUM
+- defer_close_auditor — defer Close() tanpa err check LOW
+- empty_select_auditor — select {} dead-block MEDIUM
+- context_value_auditor — string key WithValue LOW
+
+Total auditors: 16 → 26. Reference 109 → 83 sisa.
+
+### internal/tools/builtins/v3_extras.go (NEW LOCKED) — 6 tool
+
+- mistake_log — log halu/error ke mistakes_local table (Section 2)
+- interaction_recall — query chat history on-demand (Section 1)
+- decision_log — log keputusan non-trivial ke decisions (Section 3)
+- audit_event — append-only external event audit (Section 8)
+- workspace_list — list workspace_meta entries (Section 6)
+- karma_query — read karma metric (Section 5)
+
+Total tools: 28 → 34. Reference 112 → 78 sisa.
+
+### QC
+
+- Build clean
+- /api/agents/tools/catalog returns 34
+- /api/agents/scanner/auditors returns 26
+- chat-debug pipeline OK
+
+---
+
 ## 2026-05-30 11:34 WIB — Port batch 1: 10 scanner auditor + 4 tool
 
 Per Mr.Dev: "loe ngak ambil semua tools/slash/scanner dari referensi".
