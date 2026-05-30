@@ -1,3 +1,26 @@
+## 2026-05-30 12:26 WIB — Port batch 6: 10 auditor + 6 tool
+
+### auditors_v7.go (NEW LOCKED) — 10 auditor
+error_string_format, todo_comment, debug_fmt_print, switch_no_default,
+shadowed_err, ineffective_assign, conditional_inversion (info-only),
+redundant_nil_check (placeholder, gofmt covers), unused_var,
+missing_doc_comment.
+Total 56 → 66.
+
+### v7_extras.go (NEW LOCKED) — 6 tool
+finance_budgets, wallet_snapshots, scanner_runs_query,
+scanner_findings_query, retention_report, codemap_count.
+Total 52 → 58.
+
+### Stats overall
+
+| | Awal sesi | Sekarang | Ref total |
+|---|---|---|---|
+| Tools | 24 | **58** | 112 (54 sisa) |
+| Auditors | 6 | **66** | 109 (43 sisa) |
+
+---
+
 ## 2026-05-30 12:22 WIB — Port batch 5: 10 auditor + 6 tool
 
 ### auditors_v6.go (NEW LOCKED) — 10 auditor
