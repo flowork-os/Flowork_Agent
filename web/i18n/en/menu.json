@@ -1,7 +1,6 @@
 {
   "sidebar": {
-    "agents": "AI Agent",
-    "monitor": "Monitor"
+    "agents": "AI Agent"
   },
   "header": {
     "brand": "Flowork",
@@ -123,20 +122,6 @@
       "save_ok": "✅ Saved. Hot-reload re-injects env into the agent.",
       "save_err": "Save failed:",
       "load_err": "Load config failed:"
-    },
-    "monitor": {
-      "title": "Monitor — Operations Dashboard",
-      "approval": "🛡️ Approval Queue (Section 12 phase 3)",
-      "watchdog": "🚨 Watchdog Alerts (Section 26)",
-      "audit": "📋 Audit Log (Section 26)",
-      "scanner": "🔍 Code Scanner (Section 25)",
-      "protector": "⚔️ File Protector Rules (Section 24)",
-      "codemap": "🗺️ Codemap Nodes (Section 27)",
-      "zombie": "🧟 Zombie Findings (Section 29)",
-      "wallet": "👛 Wallet (Section 21+22)",
-      "finance": "💰 Finance Ledger (Section 23)",
-      "prompt": "✍️ Self-Prompt Slots (Section 35)",
-      "router": "🛣️ Router Admin (Section 24-27 + 13)"
     }
   }
 }

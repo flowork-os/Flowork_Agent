@@ -596,7 +596,7 @@ async function openSettingModal(root, a) {
       <div class="ag-tools-grid">${toolsHTML}</div>
       <details style="margin-top:12px">
         <summary style="cursor:pointer;color:#94a3b8;font-size:13px">${esc(t('menu.tab.agents.tools_catalog_h') || '📚 Browse all registered tools (Section 13)')}</summary>
-        <div id="cf-tools-catalog" data-agent-id="${esc(id)}" style="margin-top:8px"></div>
+        <div id="cf-tools-catalog" data-agent-id="${esc(a.id)}" style="margin-top:8px"></div>
       </details>
     </section>
 
@@ -606,7 +606,7 @@ async function openSettingModal(root, a) {
       <div id="cf-skills-list"></div>
       <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
         <button class="ag-btn" id="cf-skills-add" type="button">${esc(t('menu.tab.agents.skills_add'))}</button>
-        <button class="ag-btn" id="cf-skills-browse-router" type="button" data-agent-id="${esc(id)}">${esc(t('menu.tab.agents.skills_browse_router'))}</button>
+        <button class="ag-btn" id="cf-skills-browse-router" type="button" data-agent-id="${esc(a.id)}">${esc(t('menu.tab.agents.skills_browse_router'))}</button>
       </div>
     </section>
 
