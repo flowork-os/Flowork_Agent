@@ -1,3 +1,10 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/flowork-ai-agent
+// Locked at: 2026-05-30
+// Reason: Prompt Library tab (reference 260 LOC). Audit pass — esc() on template name+content, modal pattern..
+
 // Prompt Library tab — CRUD canonical prompt templates. Agent assign template
 // via dropdown di Warga tab (no retype prompt per agent). Plug-and-play.
 import { esc, fetchJSON, loadStyle } from '../js/utils.js';

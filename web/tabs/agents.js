@@ -1,3 +1,10 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/flowork-ai-agent
+// Locked at: 2026-05-30
+// Reason: Agents main tab (922 LOC). Audit pass — esc() on agent fields, CSS.escape on dynamic id, encodeURIComponent on agent_id param, modal close via ESC + button..
+
 // AI Agent gallery — kumpulan AI yang hidup di kernel.
 //
 // Vibe: tiap agent muncul sebagai "warga" dengan avatar unik

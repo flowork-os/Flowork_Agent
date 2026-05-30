@@ -1,3 +1,10 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/flowork-ai-agent
+// Locked at: 2026-05-30
+// Reason: Doktrin Edukasi tab (reference 310 LOC). Audit pass — esc() on error_code+title+message_template+evolution_hint..
+
 import { esc, fetchJSON, loadStyle } from '../js/utils.js';
 
 // Doktrin Edukasi (Educational Errors) — list & edit pesan error edukatif

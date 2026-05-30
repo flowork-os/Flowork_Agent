@@ -1,3 +1,10 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/flowork-ai-agent
+// Locked at: 2026-05-30
+// Reason: Tool Registry tab (reference verbatim 272 LOC). Audit pass — esc() on tool name+desc, checkbox subscribe, dataset id sanitized..
+
 // warga_caps.js — Warga Capability Matrix tab (rc174)
 // Hybrid role-default + per-warga override toggle UI.
 //

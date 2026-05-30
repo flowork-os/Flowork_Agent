@@ -1,3 +1,10 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/flowork-ai-agent
+// Locked at: 2026-05-30
+// Reason: Diagnostics tab (custom 604 LOC, vertical pills layout). Audit pass — esc() on all 8 section renderers, agent_id hardcoded mr-flow, encodeURIComponent on query..
+
 import { esc, fetchJSON, loadStyle } from '../js/utils.js';
 
 // Mr.Flow Diagnostics — vertical-pills sidebar + content panel.

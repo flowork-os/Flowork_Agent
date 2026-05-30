@@ -1,3 +1,10 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/flowork-ai-agent
+// Locked at: 2026-05-30
+// Reason: Wallet tab (reference 414 LOC). Audit pass — esc() on address+amount+holdings, fetchJSON via util..
+
 import { esc, fetchJSON, loadStyle, validateShape } from '../js/utils.js';
 
 const CSS = `

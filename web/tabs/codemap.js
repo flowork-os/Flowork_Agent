@@ -1,3 +1,10 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/flowork-ai-agent
+// Locked at: 2026-05-30
+// Reason: Codemap tab (reference 966 LOC). Audit pass — esc() on node name+file_path+layer, d3 vendor for graph..
+
 /**
  * Code Map — D3.js force-directed dependency graph.
  * Style referensi: codeflow (braedonsaunders/codeflow)

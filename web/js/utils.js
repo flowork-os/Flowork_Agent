@@ -1,3 +1,10 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/flowork-ai-agent
+// Locked at: 2026-05-30
+// Reason: Shared utils (529 LOC): esc, fetchJSON, loadStyle, tryAutoVerify. Audit pass — esc() proper HTML escape, fetchJSON throws on non-2xx, tryAutoVerify graceful on error..
+
 import { t } from './i18n.js';
 
 export const A = window.location.origin;

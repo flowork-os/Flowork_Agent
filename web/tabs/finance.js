@@ -1,3 +1,10 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/flowork-ai-agent
+// Locked at: 2026-05-30
+// Reason: Finance tab (reference 417 LOC). Audit pass — esc() on ledger entry+budget+amount, no innerHTML on user fields raw..
+
 import { esc, fetchJSON, loadStyle } from '../js/utils.js';
 
 const CSS = `

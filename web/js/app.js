@@ -1,3 +1,10 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/flowork-ai-agent
+// Locked at: 2026-05-30
+// Reason: Main app entrypoint. Audit pass — route via #hash, localStorage for last tab, dynamic import dengan Date.now() cache buster..
+
 import { ts, loadWargaFromBrain } from './utils.js';
 import { loadI18n, applyI18n, t } from './i18n.js';
 

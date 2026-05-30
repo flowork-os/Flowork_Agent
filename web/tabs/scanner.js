@@ -1,3 +1,10 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/flowork-ai-agent
+// Locked at: 2026-05-30
+// Reason: Scanner tab (custom 573 LOC). Audit pass — esc() on auditor+severity+file_path+message+snippet+remediation, encodeURIComponent on agent_id+run_id..
+
 import { esc, fetchJSON, loadStyle } from '../js/utils.js';
 
 // Mr.Flow Scanner — Section 25 SGVP auditor dashboard.

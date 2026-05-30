@@ -1,3 +1,10 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/flowork-ai-agent
+// Locked at: 2026-05-30
+// Reason: i18n dictionary loader. Audit pass — local fetch /i18n/<locale>/, fallback to key string on miss, no innerHTML..
+
 // Stable foundation — every GUI string flows through this module. Treat
 // the public surface (loadI18n / t / applyI18n) as a contract. New
 // requirements add keys to the JSON dictionaries, not new code here.
