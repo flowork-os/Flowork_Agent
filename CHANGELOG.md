@@ -1,3 +1,37 @@
+## 2026-05-30 12:18 WIB — Port batch 4: 10 auditor + 6 tool
+
+### internal/scanner/auditors_v5.go (NEW LOCKED) — 10 auditor
+
+- tls_min_version_auditor — tls.Config tanpa MinVersion HIGH
+- panic_recover_missing_auditor — HTTP handler tanpa recover MEDIUM
+- http_redirect_open_auditor — follow redirect default MEDIUM
+- xml_external_entity_auditor — XXE via xml.Decode MEDIUM
+- weak_random_auditor — math/rand untuk security MEDIUM
+- world_writable_perm_auditor — 0666/0777 file mode HIGH
+- logger_concat_auditor — log.Print(Sprintf) redundant LOW
+- race_global_init_auditor — global var func init LOW
+- channel_no_close_auditor — make(chan) tanpa close LOW
+- reflect_usage_auditor — reflect package usage LOW
+
+Total auditors: 36 → 46. Reference 109 → 63 sisa.
+
+### internal/tools/builtins/v5_extras.go (NEW LOCKED) — 6 tool
+
+- slash_history — slash command audit query
+- edu_error_lookup — single edu error by code
+- edu_error_list — list edu catalog
+- audit_search — search audit log by event_type
+- protector_audit_query — protector rule trigger log
+- tool_subscribed_list — list active subscriptions
+
+Total tools: 40 → 46. Reference 112 → 66 sisa.
+
+### QC
+
+Build clean. Endpoints verified 46/46.
+
+---
+
 ## 2026-05-30 12:15 WIB — Port batch 3: 10 auditor + 6 tool
 
 ### internal/scanner/auditors_v4.go (NEW LOCKED) — 10 auditor
