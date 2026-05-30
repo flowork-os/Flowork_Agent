@@ -1,3 +1,22 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/flowork-ai-agent
+// Locked at: 2026-05-30
+// Reason: Mr.Flow WASM agent (CRITICAL). Audit pass:
+//   - Token + TELEGRAM_ALLOWED_CHATS validation (drop kalau invalid)
+//   - chatID whitelist check (drop unauthorized + log decision skip_task)
+//   - LLM failure detection via EXACT prefix match (anti false-positive
+//     "router error:", "decode:", "llm:", "(no choices)", "")
+//   - Length cap 3900 chars per Telegram message limit
+//   - Anti-halu guards di callLLM (CURRENT_TIME_UTC inject, IDENTITY guard,
+//     helpfulness rule, anti-invent tool whitelist)
+//   - Skill auto-inject MAX 3 (maxActiveSkills), per-item 300 char (maxSkillCharsPerItem),
+//     total persona 4000 char (maxPersonaTotalChars) — anti over-prompt
+//   - Karma update best-effort (silent error OK)
+//   - Self-prompt slot prepend (Section 35 phase 2)
+//   - Log interactions + decisions per chat outcome
+//
 // mr-flow — Telegram AI agent untuk Flowork.
 //
 // === Layout standar (HARDCODED, lihat doc/standar_ai_agent.md) ===

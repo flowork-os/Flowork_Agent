@@ -1,3 +1,15 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/flowork-ai-agent
+// Locked at: 2026-05-30
+// Reason: Manifest parser + validator. Audit pass — DisallowUnknownFields
+//   (anti typo), strict regex (ID, semver, capability syntax), reject `*`
+//   wildcard (anti privesc), known primitive whitelist (fs/net/kv/exec/bus/
+//   secret/time/rpc/state), boundary checks (memory 1-512MB, timeout 1-300s),
+//   batch error reporting (errors.Join), lifecycle nil-safe, duplicate RPC
+//   detection. Note: primitive whitelist butuh update saat spec evolve.
+//
 // Package loader — manifest parser + plugin folder scanner.
 //
 //// Manifest parser.

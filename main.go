@@ -1,3 +1,14 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/flowork-ai-agent
+// Locked at: 2026-05-30
+// Reason: Single-binary bootstrap. Audit pass — flag.Parse addr, embed.FS
+//   static, SIGINT/SIGTERM signal handling, srv timeout (ReadHeader 15s,
+//   Idle 120s), graceful shutdown 5s, scheduler/walletalert/watchdog
+//   engines wired dengan ctx propagation, mock API fallback handler.
+//   Owner-mode auth stub OK untuk single-user.
+//
 // flowork-gui — Flowork microkernel + control panel, single binary.
 //
 // Sebelumnya GUI lama (:1987) proxy ke kernel terpisah (:1988). Sekarang

@@ -1,3 +1,21 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/flowork-ai-agent
+// Locked at: 2026-05-30
+// Reason: Kernel orchestrator (CRITICAL). Audit pass:
+//   - Boot: per-agent rejection isolation (one bad agent ngga kill boot)
+//   - Workspace mkdir 0o755, state.db touch
+//   - Broker.Approve dari manifest.CapabilitiesRequired only
+//   - mu.Lock per public lifecycle method (Reload, handleAgentChange)
+//   - No direct SQL — delegate to agentdb.Store (proper layer separation)
+//   - HTTP handlers (RPC/Status/Agents/UISchema) input-validated
+//   - Host fn callbacks (logInteraction/Decision/karmaUpdate/dispatchSlash)
+//     resolve pluginID dari ctx unexported key — anti spoof
+//   - Cron: retention sweep + promote + workspace rebuild per-agent
+//   - Watcher: fsnotify hot-reload dengan debounce (delegate ke loader)
+//   - AgentIDs(), CapsCheckerForAgent() — read-only accessors
+//
 // Package kernelhost — embedded kernel runtime. Single-binary embedded kernel — wazero runtime + capability broker
 // + scanner running in-process. Sebelum: kernel terpisah di :1988.
 // Sekarang: satu binary, satu port (:1987).

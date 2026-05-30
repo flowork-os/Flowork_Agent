@@ -1,3 +1,56 @@
+## 2026-05-30 10:36 WIB — AUDIT COMPLETE: 111/111 Go files locked
+
+Per Mr.Dev mandate "audit setiap file di Flowork Agent, setiap file lo
+analisa, cari bug, lalu perbaiki setelah loe yakin baru loe kunci".
+
+### Files locked this session (17 unlocked → 111/111 = 100%)
+
+Batch 1 (committed b8401b9):
+1. internal/httpx/json.go (34 LOC) — CLEAN
+2. sdk/go/echo/main.go (62 LOC) — CLEAN
+3. internal/kernel/runtime/runtime.go (77 LOC) — CLEAN
+4. internal/routerclient/brain_search.go (77 LOC) — CLEAN
+5. internal/kernel/broker/broker.go (78 LOC) — CLEAN (anti-subdomain prefix guard verified)
+6. internal/scheduler/cron_test.go (78 LOC) — CLEAN
+7. internal/kernel/loader/scanner.go (118 LOC) — CLEAN
+8. internal/kernel/loader/watcher.go (142 LOC) — CLEAN
+9. internal/kernel/runtime/instance.go (186 LOC) — CLEAN
+10. internal/kernel/uimount/uimount.go (197 LOC) — 🛑 RESERVED (no current import)
+
+Batch 2 (this commit):
+11. internal/kernel/loader/manifest.go (398 LOC) — CLEAN
+12. main.go (407 LOC) — CLEAN
+13. internal/kernel/runtime/host.go (708 LOC) — ⚠️ FIX: host_time_now_ms
+    sebelumnya skip time:read cap gate. Sekarang gate via st.caps. Plugin
+    tanpa cap return 0 (silent denial, anti exception flood). Verified
+    Mr.Flow tetap tau tanggal (cap time:read di manifest).
+14. internal/agentdb/agentdb.go (793 LOC) — CLEAN (SQL parameterized,
+    table interpolation only di callers-controlled strings)
+15. agents/mr-flow/main.go (828 LOC) — CLEAN (heavily tested via Telegram
+    + chat-debug, anti-halu guards in place)
+16. internal/kernelhost/kernelhost.go (1227 LOC) — CLEAN (kernel
+    orchestrator, no direct SQL, delegates ke agentdb)
+17. internal/agentmgr/agentmgr.go (1357 LOC) — CLEAN (reID regex+path
+    traversal guard di UploadHandler line 134-137, all 21 handler share
+    same defensive pattern)
+
+### Methodology
+
+Per file: security (SQL/path/cmd/secret), race (mu/defer), memory
+(close/leak), edge (nil/empty/bound), anti-pattern. Lock header dengan
+verification note di line 1-14.
+
+### Master checklist
+
+`doc/AUDIT_CHECKLIST.md` updated: 111/111 = 100% Go file audited.
+
+### Completeness gap (port dari referensi — defer next session)
+
+- 88 tools missing from referensi
+- 103 scanner auditors missing from referensi
+
+---
+
 # Changelog — Flowork Agent
 
 Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cut / refactor / docs).

@@ -1,3 +1,24 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/flowork-ai-agent
+// Locked at: 2026-05-30
+// Reason: SQLite store per-agent (CRITICAL). Audit pass:
+//   - WAL + busy_timeout(5000) + foreign_keys(on)
+//   - SQL parameterized (semua user input pakai `?` placeholder)
+//   - Table name interpolation di upsertKV/delKV/readKV — callers controlled
+//     (hardcoded "kv"/"secrets"/"meta" string literal, bukan user input)
+//   - Transaction atomic dengan defer Rollback (no-op after Commit)
+//   - Prepared statements within tx (proper lifecycle)
+//   - mu.Lock per public method, rows.Close defer
+//   - MigrateFromJSON idempotent (skip if DB has data, rename .migrated)
+//   - Schema versioned (meta.schema_version)
+//   - Section tables: kv, schedules, tools, skills, secrets, meta,
+//     interactions, decisions, mistakes_local, death_letter, karma_self,
+//     workspace_meta, educational_errors_cache, tool_overrides,
+//     tool_invocations, tool_memory, slash_invocations, slash_aliases
+//   - sentinel meta.config_initialized=1 (anti default-override-user-choice)
+//
 // Package agentdb — SQLite store per-agent, terisolasi total.
 //
 // Konsep: tiap agent punya file `state.db` di FOLDER AGENT NYA SENDIRI.

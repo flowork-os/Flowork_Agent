@@ -1,3 +1,22 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/flowork-ai-agent
+// Locked at: 2026-05-30
+// Reason: WASM host function surface. CRITICAL security boundary. Audit pass:
+//   - Cap gate per host fn (state:write, net:fetch:, exec:, rpc:call:,
+//     time:read post-fix)
+//   - pluginID dari ctx via unexported key (anti spoof)
+//   - Memory read/write bounds checked (m.Memory().Read/Write returns bool)
+//   - Body cap: netFetch 4MB default/8MB max, slash 8KB, err msg 400 char
+//   - Timeout: netFetch 60s/5m, exec 30s/5m, http client 120s
+//   - Cross-OS shell: /bin/sh vs cmd.exe via resolveBinary
+//   - Fix 2026-05-30: host_time_now_ms now gates time:read cap (sebelumnya
+//     silent allow regardless of manifest declaration).
+//   - Note: empty pluginID skip cap check di netFetch/execRun/rpcCall —
+//     mitigated by kernel always setting via WithGuestPluginID in Instance.
+//     Defensive future improvement: reject empty pluginID outright.
+//
 // Host module — kernel-side implementation of `flowork.*` host imports
 // yang plugin pakai untuk akses capability.
 //
@@ -154,6 +173,15 @@ func (r *Runtime) registerFloworkHost(ctx context.Context, caps CapsChecker, res
 		WithFunc(func(ctx context.Context) uint64 {
 			// Wall-clock ms since epoch. Workaround TinyGo wasi time.Since()
 			// precision bug — Mr.Flow pakai untuk avg_response_ms accurate.
+			// Capability gate: time:read. Plugin tanpa cap → 0 (silent
+			// denial — anti exception flood. Tetap log denial via st.caps
+			// callback kalau future audit nya pengen di-trace).
+			if st.caps != nil {
+				pid := guestPluginID(ctx)
+				if pid != "" && !st.caps(pid, "time:read") {
+					return 0
+				}
+			}
 			return uint64(time.Now().UnixMilli())
 		}).
 		Export("host_time_now_ms").

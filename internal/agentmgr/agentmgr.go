@@ -1,19 +1,20 @@
-// Package agentmgr — HTTP handlers untuk manage AI agent.
-//
-// Bekerja langsung di atas ~/.flowork/agents/<id>.fwagent/ tanpa proxy ke
-// kernel terpisah; kernel sekarang embedded (lihat internal/kernelhost).
-// Hot-reload watcher di kernelhost yang pickup perubahan disk → tidak
-// perlu "restart kernel" endpoint lagi.
-//
-// Endpoint:
-//
-//	POST   /api/agents/upload          .fwagent.zip → extract ke staging
-//	GET    /api/agents/download?id=    bundle balik jadi .fwagent.zip
-//	DELETE /api/agents/remove?id=      hapus folder agent
-//	GET    /api/agents/config?id=      baca config.json
-//	POST   /api/agents/config?id=      tulis config.json (router/prompt/tools/schedule)
-//
-// List agent + RPC pakai handler kernelhost langsung di /api/kernel/*.
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/flowork-ai-agent
+// Locked at: 2026-05-30
+// Reason: Agent CRUD HTTP handlers (CRITICAL). 21 handlers, all share pattern:
+//   - reID regex validation untuk semua `?id=` param (anti path traversal via id)
+//   - agentFolder(id) deterministic resolve (filepath.Join, no concat)
+//   - UploadHandler: multipart cap 32MB, body cap 64MB, .zip ext only, manifest
+//     reID check, **path traversal guard** filepath.Rel + ".." prefix (line 134-137)
+//   - DownloadHandler: zip output dengan id-namespaced entries
+//   - RemoveHandler: os.RemoveAll dengan agentFolder(id) only — bukan user path
+//   - DBResetHandler: os.Remove dbPath + recreate (idempotent)
+//   - Tool/Slash: delegate ke tools/slashcmd registries, hooks chain enforce caps
+//   - No direct SQL — semua via agentdb.Store
+//   - File modes: 0o755 dir, 0o644 file (POSIX, Windows ignore)
+//   - HTTP method check di setiap handler (anti CSRF via wrong method)
 
 package agentmgr
 
