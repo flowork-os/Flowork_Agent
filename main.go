@@ -330,6 +330,14 @@ func main() {
 	// Section 9 reference GUI tab (doktrin_edukasi.js) — compat shim
 	// → agents/edu-errors agent-scoped (lihat legacy_compat_v2.go).
 	mux.HandleFunc("/api/settings/educational-errors", agentmgr.EduErrorsCompatHandler)
+	// Tool Registry reference GUI tab (warga_caps.js) — single-warga shim.
+	mux.HandleFunc("/api/warga-caps/warga",     agentmgr.WargaListCompatHandler)
+	mux.HandleFunc("/api/warga-caps/catalog",   agentmgr.WargaCapsCatalogCompatHandler)
+	mux.HandleFunc("/api/warga-caps/effective", agentmgr.WargaCapsEffectiveCompatHandler)
+	mux.HandleFunc("/api/warga-caps/override",  agentmgr.WargaCapsOverrideCompatHandler)
+	mux.HandleFunc("/api/warga-caps/seed",      agentmgr.WargaCapsSeedCompatHandler)
+	// Audit Log reference GUI tab (commits.js) — adapt audit → git-style.
+	mux.HandleFunc("/api/commits", agentmgr.CommitsCompatHandler)
 
 	// Catch-all stub utk path /api/* yang gak diregister.
 	mux.HandleFunc("/api/", mockAPI)

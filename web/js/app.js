@@ -12,7 +12,7 @@ window.dispatchEvent(new Event('flowork:i18n-ready'));
 // Single source of truth = sidebar buttons di index.html.
 // Add tab baru = update ACTIVE_TABS + index.html nav button +
 // tabs/<n>.js render() + i18n/<locale>/menu.json + tooltip.json.
-const ACTIVE_TABS = new Set(['agents', 'wallet', 'finance', 'protector', 'prompt', 'codemap', 'doktrin_edukasi', 'diagnostics']);
+const ACTIVE_TABS = new Set(['agents', 'wallet', 'finance', 'protector', 'prompt', 'codemap', 'doktrin_edukasi', 'scanner', 'warga_caps', 'commits', 'diagnostics']);
 
 // Routing: URL hash wins, then localStorage, then default. Hash format is
 // `#top/sub` (e.g. `#tasking/caps`). Sub-tab is read by segmentedTab via

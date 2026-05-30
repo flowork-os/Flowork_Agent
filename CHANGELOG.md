@@ -4,6 +4,68 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-30 10:10 WIB — Scanner + Tool Caps + Audit Log + Diagnostics rewrite (4 new GUI tabs)
+
+User mandate baru: "COPAS GUI dari reference, jangan bikin sendiri" + audit matrix reference tabs vs backend → adopt yang fit single-warga.
+
+### feat(web/tabs/scanner.js) — Section 25 SGVP scanner
+
+- Trigger scan form (target_path input) + auditor strip (6 active: command_injection, hardcoded_secret, path_traversal, sql_injection, ssrf, token_leak).
+- 2-pane: runs list kiri (350px) + findings detail kanan. Click run → drill ke findings dengan severity badge (critical/high/medium/low/info), file:line, snippet, remediation chip.
+- Endpoint: `/api/agents/scanner/{scan,runs,findings,auditors}` — all live.
+- Reference: arsenal.js (350 LOC) — adapt single-warga.
+
+### feat(web/tabs/warga_caps.js) — Tool Registry (Section 13)
+
+- Copy reference warga_caps.js (272 LOC) verbatim — multi-warga loop, single-warga returns 1 warga (Mr.Flow).
+- Edit per-tool subscription via checkbox → POST /api/warga-caps/override.
+- Reset to default → POST /api/warga-caps/seed (re-subscribe semua tool as 'default').
+- Shim di `internal/agentmgr/legacy_compat_v3.go` (NEW LOCKED):
+  - `/api/warga-caps/warga` → single-warga list (Mr.Flow owner)
+  - `/api/warga-caps/catalog` → tools.ListSummaries() → {tool, description, category}
+  - `/api/warga-caps/effective?warga=` → store.ListSubscriptions → {tool, enabled, is_override}
+  - `/api/warga-caps/override` → store.SubscribeTool/UnsubscribeTool
+  - `/api/warga-caps/seed` → reset all to default
+
+### feat(web/tabs/commits.js) — Audit Log
+
+- Copy reference commits.js (36 LOC) verbatim.
+- Adapt audit log → fake git log shape:
+  - date = e.OccurredAt
+  - author = e.Actor
+  - subject = e.EventType + truncated DetailJSON
+  - hash = fmt 7-char hex(e.ID)
+- Shim di legacy_compat_v3.go: `/api/commits` → store.ListAudit.
+
+### refactor(web/tabs/diagnostics.js) — vertical pills layout
+
+- Original cards grid jelek (Mr.Dev: "kayak desain anak SMA"). Rewrite ke vertical pills column 220px kiri + content panel kanan.
+- Fix field mapping sesuai backend real:
+  - Decisions: decision_type + outcome (classify ok/err/warn) + rationale
+  - Mistakes: tier (raw/promoted) + category + hit_count + title + content
+  - Tool Audit: tool_name + decision (allowed/denied/pending) + reason + caller
+  - Slash: command + args + caller + duration_ms + result_text preview
+- Filter input per section + responsive media query (< 920px icon-only).
+
+### Skipped Kategori 2 (no reference fit single-warga BY DESIGN)
+
+Bridge (cross-agent messaging) · Identity (just segmentedTab wrapper) · Calendar (event-based, gak match scheduler) · Tasking (19 LOC stub) · Scheduler trigger UI (no ref) · Approval Queue (no ref) · Sneakernet (no ref) · Self-Prompt slots (no ref). 
+
+Untuk yang tanpa reference, defer ke Mr.Dev approval — atau copy salah satu reference closest + adapt.
+
+### nav + i18n
+
+- 3 nav button baru di [web/index.html](web/index.html): 🔍 Scanner, 🛠️ Tool Caps, 📋 Audit Log
+- ACTIVE_TABS di [web/js/app.js](web/js/app.js) += 4 entry (scanner, warga_caps, commits — plus diagnostics tetap)
+
+### QC
+
+- 4/4 shim endpoints return 200 + proper shape (warga/catalog/effective/commits)
+- Scanner endpoint smoke pass (runs + findings + auditors)
+- Diagnostics 8/8 sections render dengan field mapping benar (no more "?")
+
+---
+
 ## 2026-05-30 08:56 WIB — Mr.Flow anti-halu guard (time + identity)
 
 Live Telegram chat reveal 2 halu pattern:
