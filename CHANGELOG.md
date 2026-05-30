@@ -1,3 +1,22 @@
+## 2026-05-30 12:41 WIB — Port batch 11: 8 tool
+
+### v12_extras.go (NEW LOCKED) — 8 tool tambahan
+workspace_upsert, edu_error_upsert, workspace_meta_count, audit_count,
+decision_count, mistake_promote_eligible, protector_rule_add,
+slash_alias_resolve.
+Total 82 → 90 = **80% reference coverage**.
+
+### Cumulative stats — Hari 1
+
+| | Awal | Sekarang | Coverage |
+|---|---|---|---|
+| Tools | 24 | **90/112** | **80%** |
+| Auditors | 6 | **109/109** | **100%** ✅ |
+
+11 batches commit, 90/112 tools + 109/109 auditors.
+
+---
+
 ## 2026-05-30 12:38 WIB — Port batch 10: 13 auditor + 6 tool — **AUDITOR 100% MATCH REF**
 
 ### auditors_v11.go (NEW LOCKED) — 13 auditor (final to 109/109)
