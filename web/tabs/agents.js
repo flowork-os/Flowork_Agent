@@ -709,14 +709,14 @@ async function openSettingModal(root, a) {
     details.addEventListener('toggle', () => {
       if (details.open && !loaded) {
         loaded = true;
-        renderToolCatalog(catalogHost, id);
+        renderToolCatalog(catalogHost, a.id);
       }
     });
   }
   // Section 7 phase 2: Browse Router Catalog — open modal yang fetch dari
   // /api/agents/router-skills/list, user pilih, Use → push ke skills[].
   host.querySelector('#cf-skills-browse-router').onclick = () => {
-    openRouterSkillBrowser(id, (chosen) => {
+    openRouterSkillBrowser(a.id, (chosen) => {
       // chosen = { name, description, body } dari Router GET endpoint.
       skills.push({
         id:           chosen.name,
