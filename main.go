@@ -296,6 +296,7 @@ func main() {
 	mux.HandleFunc("/api/agents/zombie/ack", agentmgr.ZombieAckHandler)
 	mux.HandleFunc("/api/agents/zombie/scan", agentmgr.ZombieScanHandler)
 	mux.HandleFunc("/api/agents/self-prompt", agentmgr.SelfPromptHandler)
+	mux.HandleFunc("/api/agents/self-prompt/render", agentmgr.SelfPromptRenderHandler)
 	mux.HandleFunc("/api/agents/protector/approval/queue", agentmgr.ApprovalQueueHandler)
 	mux.HandleFunc("/api/agents/protector/approve_pending", agentmgr.ApproveHandler)
 	mux.HandleFunc("/api/agents/protector/reject_pending", agentmgr.RejectHandler)

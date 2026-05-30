@@ -18,6 +18,7 @@
   "capabilities_required": [
     "net:fetch:https://api.telegram.org",
     "net:fetch:http://127.0.0.1:2402/v1/chat/completions",
+    "net:fetch:http://127.0.0.1:1987/api/agents/self-prompt/render",
     "state:read",
     "state:write",
     "time:read",

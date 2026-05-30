@@ -415,6 +415,12 @@ func callLLM(cfg agentConfig, userText string) string {
 		}
 		persona += "\n\nSkill aktif:\n" + strings.Join(lines, "\n")
 	}
+	// Section 35 phase 2: prepend self_prompt slots (system/persona/
+	// guideline/task) dari /api/agents/self-prompt/render. Best-effort —
+	// kalau endpoint unreachable, skip + lanjut. Aborted via short timeout.
+	if injected := fetchSelfPrompt(); injected != "" {
+		persona = injected + "\n\n" + persona
+	}
 	// Hard cap persona total — last-ditch defense.
 	if len(persona) > maxPersonaTotalChars {
 		persona = persona[:maxPersonaTotalChars] + "\n…[truncated to respect prompt budget]"
@@ -764,4 +770,22 @@ func logInteraction(channel, direction, actor, content string, metadata map[stri
 	if !resp.OK {
 		fmt.Fprintf(os.Stderr, "[mr-flow] log err: %s\n", resp.Error)
 	}
+}
+
+// fetchSelfPrompt — Section 35 phase 2: GET /api/agents/self-prompt/render?
+// id=mr-flow. Best-effort: short timeout, swallow errors. Inject result
+// sebagai prepended system prompt.
+func fetchSelfPrompt() string {
+	url := "http://127.0.0.1:1987/api/agents/self-prompt/render?id=mr-flow"
+	resp, err := fetch("GET", url, nil, nil, 2000)
+	if err != nil || resp == nil || resp.Status >= 400 {
+		return ""
+	}
+	var out struct {
+		Rendered string `json:"rendered"`
+	}
+	if jerr := json.Unmarshal(resp.Body, &out); jerr != nil {
+		return ""
+	}
+	return strings.TrimSpace(out.Rendered)
 }

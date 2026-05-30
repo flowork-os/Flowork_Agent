@@ -135,6 +135,73 @@ func ZombieAckHandler(w http.ResponseWriter, r *http.Request) {
 // Section 35: Self-contained prompt.md
 // =============================================================================
 
+// SelfPromptRenderHandler — GET /api/agents/self-prompt/render?id=<agent>
+// Section 35 phase 2: assemble latest slots → markdown → LLM wrapper inject.
+func SelfPromptRenderHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
+		return
+	}
+	agentID := strings.TrimSpace(r.URL.Query().Get("id"))
+	if agentID == "" {
+		httpx.WriteJSON(w, map[string]any{"error": "agent id required"})
+		return
+	}
+	store, err := openAgentStore(agentID)
+	if err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+		return
+	}
+	defer store.Close()
+	slots, err := store.ListSelfPromptSlots()
+	if err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+		return
+	}
+	slotOrder := []string{"system", "persona", "guideline", "task"}
+	byName := map[string]agentdb.SelfPrompt{}
+	for _, s := range slots {
+		byName[s.Slot] = s
+	}
+	var b strings.Builder
+	emitted := []string{}
+	emitOne := func(slot string) {
+		if sp, ok := byName[slot]; ok {
+			b.WriteString("# ")
+			b.WriteString(strings.ToUpper(slot))
+			b.WriteString(" (v")
+			b.WriteString(strconv.Itoa(sp.Version))
+			b.WriteString(")\n")
+			b.WriteString(sp.Body)
+			b.WriteString("\n\n")
+			emitted = append(emitted, slot)
+			delete(byName, slot)
+		}
+	}
+	for _, s := range slotOrder {
+		emitOne(s)
+	}
+	leftKeys := make([]string, 0, len(byName))
+	for k := range byName {
+		leftKeys = append(leftKeys, k)
+	}
+	for i := 0; i < len(leftKeys); i++ {
+		for j := i + 1; j < len(leftKeys); j++ {
+			if leftKeys[j] < leftKeys[i] {
+				leftKeys[i], leftKeys[j] = leftKeys[j], leftKeys[i]
+			}
+		}
+	}
+	for _, s := range leftKeys {
+		emitOne(s)
+	}
+	httpx.WriteJSON(w, map[string]any{
+		"rendered":     b.String(),
+		"slots_used":   emitted,
+		"length_bytes": b.Len(),
+	})
+}
+
 // SelfPromptHandler — GET/POST /api/agents/self-prompt?id=<agent>&slot=
 //   GET ?slot=&version= → return latest (version=0) atau specific.
 //   POST body {slot, body, notes, version} → upsert next version.
