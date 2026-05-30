@@ -1,3 +1,24 @@
+## 2026-05-30 12:32 WIB — Port batch 8: 10 auditor + 6 tool
+
+### auditors_v9.go (NEW LOCKED) — 10 auditor
+double_lock, race_struct_field (placeholder), http_chunked_max,
+regex_no_anchor, slice_index_unchecked, var_naming, dead_code_func,
+env_default_missing, unused_struct_field (placeholder), log_format_mismatch.
+Total 76 → 86.
+
+### v9_extras.go (NEW LOCKED) — 6 tool
+karma_set, kv_get, kv_set, manifest_inspect, tool_lookup, tool_search.
+Total 64 → 70.
+
+### Stats overall
+
+| | Awal sesi | Sekarang | Ref total |
+|---|---|---|---|
+| Tools | 24 | **70** | 112 (42 sisa) |
+| Auditors | 6 | **86** | 109 (23 sisa) |
+
+---
+
 ## 2026-05-30 12:29 WIB — Port batch 7: 10 auditor + 6 tool
 
 ### auditors_v8.go (NEW LOCKED) — 10 auditor (security-focused)
