@@ -1,3 +1,20 @@
+## 2026-05-30 12:43 WIB — Port batch 12: 8 tool (98/112 = 88% tools)
+
+### v13_extras.go (NEW LOCKED) — 8 tool
+scheduler_schedule_add, scheduler_schedule_remove, mistake_promote_mark,
+protector_rule_toggle, edu_error_count, mistakes_count, interaction_count,
+wallet_address_add.
+Total 90 → 98 = **88% reference coverage**.
+
+### Cumulative — 12 batch
+
+| | Awal | Sekarang | Coverage |
+|---|---|---|---|
+| Tools | 24 | **98/112** | **88%** |
+| Auditors | 6 | **109/109** | **100%** ✅ |
+
+---
+
 ## 2026-05-30 12:41 WIB — Port batch 11: 8 tool
 
 ### v12_extras.go (NEW LOCKED) — 8 tool tambahan
