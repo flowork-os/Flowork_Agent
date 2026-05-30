@@ -4,6 +4,42 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-30 08:30 WIB — Bug fix Phase A trio + Phase B Doktrin Edukasi + Mr.Flow Diagnostics
+
+### Phase A — Bug fix (3 critical)
+
+- **fix(web/tabs/agents.js)**: popup setting blank — root cause `${esc(id)}` di line 599 + 609 (undefined ref dalam scope `openSettingModal(root, a)`). Template literal lempar ReferenceError → innerHTML body stuck di `<p>⏳</p>`. Ganti `${esc(a.id)}`. Verified via curl `/tabs/agents.js | grep esc(id)` = 0.
+- **fix(runtime)**: agent error duplikat — cleanup stale `.fwagent` folders di `~/.flowork/agents/` (test-clone, mr-flow-clone-*). Daemon log "agent scan complete: 1 accepted, 0 rejected".
+- **fix(unblock)**: Telegram chat ngga work — root cause `TELEGRAM_BOT_TOKEN` belum di-set. Setelah popup fix (atas), Mr.Dev bisa input token via Setting → Credentials di popup.
+- **feat(.scratch/chat-debug.sh)**: QC pipeline real via `/api/kernel/rpc` POST `{plugin: 'mr-flow', function: 'handle_message'}` — bukan curl direct. Verified roundtrip Mr.Flow reply Bahasa Indonesia colloquial.
+
+### Phase A — Zombie purge i18n
+
+- **cut(web/i18n/{en,id}/menu.json)**: hapus key `sidebar.monitor` + `tab.monitor` (Monitor tab udah di-cut sebelumnya).
+- **chore(web/index.html)**: bump `app.js?v=15` → `v=16` cache buster (force reload via embedded fs).
+
+### Phase B — Reference GUI re-scope + 1 reference tab + Mr.Flow Diagnostics
+
+**Scope decision**: reference `karma.js` (multi-agent karma scoreboard), `topology.js` (mesh peer browser), `bugs.js` (no backend), `bridge.js` (no backend), `death_letters.js`/`workspace_meta.js` (shape mismatch: per-agent_id vs single-warga) **NOT applicable** untuk Mr.Flow plug-and-play single-warga (BY DESIGN — lihat user mandate). Defer ke kalau warga lain spawn / endpoint baru.
+
+- **feat(internal/agentmgr/legacy_compat_v2.go)** (NEW LOCKED): `EduErrorsCompatHandler` → GET/PUT `/api/settings/educational-errors`. Shape transform: backend `{items:[{code, title, explanation, remediation, category, synced_at}]}` ↔ reference `{data:[{error_code, title, message_template, evolution_hint, ...}]}`. PUT preserve title + category dari existing entry (reference cuma edit message + hint).
+- **feat(web/tabs/doktrin_edukasi.js)**: copy verbatim dari reference (310 LOC). Wired via compat shim atas.
+- **feat(web/tabs/diagnostics.js)**: Mr.Flow Diagnostics dashboard custom — 8 glass cards per Section. Render data agent-scoped real (bukan reference multi-agent): Interactions (Section 1), Decisions (Section 3), Mistakes Journal (Section 2/7), Karma Metrics (Section 5), Death Letter (Section 4), Workspace Meta (Section 6), Tool Audit (Section 26), Slash Invocations (Section 13). Styling glass-card pakai CSS vars dari `style_legacy.css` (--glass-border, --font-heading, accent #8b5cf6 + radial gradient).
+- **chore(web/index.html)**: 2 nav button baru — Doktrin (📚) + Diagnostics (🔬).
+- **chore(web/js/app.js)**: ACTIVE_TABS += `doktrin_edukasi`, `diagnostics`.
+- **chore(main.go)**: register route `/api/settings/educational-errors`.
+
+### QC
+
+- Bug 1: `agent scan complete: 1 accepted, 0 rejected` ✅
+- Bug 2: `curl /tabs/agents.js | grep 'esc(id)' = 0` ✅
+- Bug 3: chat-debug.sh "halo bro" → Mr.Flow reply colloquial ✅
+- Doktrin endpoint: `/api/settings/educational-errors` → 200, shape `data:[{error_code, title, message_template, evolution_hint, ...}]` ✅
+- Diagnostics endpoints: 8/8 endpoints return 200, counts populated ✅
+- chat-debug post-deploy: "ada update apa hari ini?" → response normal (Mr.Flow ngecek workspace, ngga halu) ✅
+
+---
+
 ## 2026-05-30 22:30 WIB — Section 28+29+32+33+34+35+36 batch DONE + LOCK, Section 30+31+37 explicit DEFERRED → **Agent roadmap CLOSED**
 
 Batch resolve sisa Agent sections — minimal viable phase 1 untuk yang feasible, explicit defer untuk yang butuh signifikan downstream dep.

@@ -327,6 +327,9 @@ func main() {
 	mux.HandleFunc("/api/agents/protector/approve_pending", agentmgr.ApproveHandler)
 	mux.HandleFunc("/api/agents/protector/reject_pending", agentmgr.RejectHandler)
 	mux.HandleFunc("/api/agents/tool-audit", agentmgr.ToolAuditHandler)
+	// Section 9 reference GUI tab (doktrin_edukasi.js) — compat shim
+	// → agents/edu-errors agent-scoped (lihat legacy_compat_v2.go).
+	mux.HandleFunc("/api/settings/educational-errors", agentmgr.EduErrorsCompatHandler)
 
 	// Catch-all stub utk path /api/* yang gak diregister.
 	mux.HandleFunc("/api/", mockAPI)
