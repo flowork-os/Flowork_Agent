@@ -34,6 +34,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 	"unsafe"
 )
 
@@ -394,8 +395,30 @@ func sendTyping(token string, chatID int64) {
 //
 // Per skill: max maxSkillCharsPerItem chars (truncate instruction). Per
 // total persona: max maxPersonaTotalChars (hard cap).
+// nowISO format current time dari host_time_now_ms ke "YYYY-MM-DD HH:MM UTC".
+// Inject ke persona supaya LLM punya ground truth tanggal (anti-halu cutoff).
+func nowISO() string {
+	ms := hostTimeNowMs()
+	return time.Unix(int64(ms/1000), 0).UTC().Format("2006-01-02 15:04 UTC")
+}
+
 func callLLM(cfg agentConfig, userText string) string {
-	persona := cfg.Prompt
+	// Anti-halu identity + time guard. Prepend ke persona setiap call —
+	// LLM (claude-haiku-4-5 via flow_router) kalo gak di-reminded suka
+	// claim "training cutoff May 2024" dan halu tanggal hari ini. Mr.Flow
+	// itu wrapper WASM yang call router, bukan model base; identity guard
+	// disable claim training cutoff sendiri. Time guard kasih ground truth.
+	guard := fmt.Sprintf(
+		"[CURRENT_TIME_UTC: %s]\n"+
+			"[IDENTITY: Lo Mr.Flow — WASM agent di Flowork microkernel. "+
+			"Lo BUKAN Claude/GPT/model base. Lo wrapper yang dispatch ke "+
+			"flow_router. Jangan claim \"training cutoff\" — lo ngga punya "+
+			"training history sendiri. Kalo ditanya tanggal, pakai "+
+			"CURRENT_TIME_UTC di atas. Kalo gak tau info real-time, "+
+			"bilang jujur 'gw gak punya real-time data' — jangan tebak.]\n\n",
+		nowISO(),
+	)
+	persona := guard + cfg.Prompt
 	if len(cfg.Skills) > 0 {
 		// Auto-inject hanya N skill pertama (asumsi ordered by importance).
 		active := cfg.Skills

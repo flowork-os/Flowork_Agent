@@ -4,6 +4,32 @@ Format: `YYYY-MM-DD HH:MM WIB` per entry, semantic-style bullet (feat / fix / cu
 
 ---
 
+## 2026-05-30 08:56 WIB — Mr.Flow anti-halu guard (time + identity)
+
+Live Telegram chat reveal 2 halu pattern:
+- Mr.Flow claim "training cutoff May 2024" — padahal dia WASM wrapper, bukan model base.
+- Mr.Flow halu tanggal hari ini (bilang "2026-05-21" padahal real 2026-05-30).
+
+### feat(agents/mr-flow/main.go)
+
+- **`nowISO()`** helper: convert `hostTimeNowMs()` ms-since-epoch → "YYYY-MM-DD HH:MM UTC" via `time.Unix`.
+- **`callLLM`** prepend persona dengan guard block:
+  - `[CURRENT_TIME_UTC: <ISO>]` — ground truth tanggal tiap call.
+  - `[IDENTITY: Lo Mr.Flow — WASM agent di Flowork microkernel. Lo BUKAN Claude/GPT/model base. Lo wrapper yang dispatch ke flow_router. Jangan claim "training cutoff" — lo ngga punya training history sendiri. Kalo ditanya tanggal, pakai CURRENT_TIME_UTC di atas. Kalo gak tau info real-time, bilang jujur 'gw gak punya real-time data' — jangan tebak.]`
+- Import `time` package. TinyGo wasi target support `time.Unix(...).Format(...)`.
+
+### QC
+
+- chat-debug "tanggal berapa hari ini bro?" → "30 Mei 2026, Minggu. Pukul 01:55 UTC — WIB ~08:55 pagi" ✅
+- chat-debug "lo Claude bukan? training cutoff lo sampe kapan?" → "Gw bukan Claude. Gw Mr.Flow WASM agent... Gak ada training cutoff — gw ngga dilatih" ✅
+- Live Telegram pre-fix: halu tanggal "2026-05-21" + halu "training cutoff May 2024". Post-fix: ground truth jam UTC + identity firm.
+
+### chore(web/tabs/agents.js)
+
+- Remove debug try/catch instrumentation yang ditambah pas diagnose popup blank (popup confirmed render OK setelah `${esc(a.id)}` fix + state.db seed).
+
+---
+
 ## 2026-05-30 08:30 WIB — Bug fix Phase A trio + Phase B Doktrin Edukasi + Mr.Flow Diagnostics
 
 ### Phase A — Bug fix (3 critical)
