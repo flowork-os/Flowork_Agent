@@ -1,3 +1,14 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/flowork-ai-agent
+// Locked at: 2026-05-30
+// Reason: WASM instance per-call wrapper. Audit pass — atomic counter unique
+//   module name (anti race), per-call WASI re-instantiate, FS preopen mount
+//   /workspace + /shared (sandbox), stderr cap 200 chars, output copy (no
+//   alias), compile error %w, empty input guards, ExitError(0) success path,
+//   stderr tee realtime.
+//
 // Instance wrapper — plugin compiled module yang siap di-instantiate
 // per call (command pattern). Pattern ini bypass keterbatasan TinyGo
 // wasmexport yang panic setelah _start exit; setiap call jadi lifecycle

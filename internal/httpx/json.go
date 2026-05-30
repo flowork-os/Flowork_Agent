@@ -1,3 +1,12 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/flowork-ai-agent
+// Locked at: 2026-05-30
+// Reason: Dependency-free HTTP helpers. Audit pass — no SQL/path/nil/race.
+//   WriteJSON returns 200 always (callers w.WriteHeader before kalau butuh).
+//   Encode error silently dropped — acceptable untuk write-only handler.
+//
 // Package httpx — small shared HTTP helpers used by every internal package.
 //
 // Kept dependency-free so every other package can import it without

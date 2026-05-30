@@ -1,3 +1,12 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/flowork-ai-agent
+// Locked at: 2026-05-30
+// Reason: Wazero engine wrapper. Audit pass — mu protects instances map,
+//   Close() Unlock sebelum engine close (anti-deadlock), Unload+Close
+//   resource-safe.
+//
 // Package runtime — wazero wrapper. Phase 5 menambah real instantiate +
 // host module bindings. Pattern: kernel construct sekali, panggil
 // Bootstrap untuk WASI + flowork host imports, lalu LoadInstance per

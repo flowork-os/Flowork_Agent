@@ -1,3 +1,12 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/flowork-ai-agent
+// Locked at: 2026-05-30
+// Reason: Agent folder scanner. Audit pass — FLOWORK_AGENTS_DIR env override,
+//   0o700 dir perm, continue past invalid entries (anti boot crash), sort
+//   deterministic, entry file existence verify, errors wrapped %w.
+//
 // Agent folder scanner.
 //
 // Scans ~/.flowork/agents/ (override via FLOWORK_AGENTS_DIR env), parses

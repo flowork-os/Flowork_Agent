@@ -1,3 +1,11 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/flowork-ai-agent
+// Locked at: 2026-05-30
+// Reason: SDK sample. Audit pass — args bounds checked, json error handled,
+//   empty input handled. Sample-only (not runtime), ABI pattern reference.
+//
 // echo — minimum Flowork agent sample.
 //
 // ABI (command pattern): kernel invoke binary dengan

@@ -1,3 +1,14 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/flowork-ai-agent
+// Locked at: 2026-05-30
+// Reason: fsnotify watcher dengan debounce 1500ms. Audit pass — ctx cancel
+//   handled, channel close on exit, buffer fallback (skip kalau listener
+//   busy), Add fail → Close watcher cleanup, parent path check (.fwagent
+//   bubbling). Minor: debounceAt map grows unbounded (acceptable for limited
+//   agent count).
+//
 // Watcher — fsnotify hook supaya kernel auto-detect plugin baru atau yang
 // dihapus tanpa restart manual. Phase 12 add-on; kernel main.go spawn satu
 // instance ini di goroutine kalau caller pass NewWatcher.

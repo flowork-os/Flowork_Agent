@@ -1,3 +1,11 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/flowork-ai-agent
+// Locked at: 2026-05-30
+// Reason: Scheduler cron parser test. Audit pass — covers star/step/range/
+//   next/invalid edge cases, time fixed UTC, Monday skip guard.
+
 package scheduler
 
 import (

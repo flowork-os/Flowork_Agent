@@ -1,3 +1,16 @@
+// === LOCKED FILE ===
+// Status: STABLE (RESERVED for future) — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/flowork-ai-agent
+// Locked at: 2026-05-30
+// Reason: Plugin UI mount package — currently NOT imported by main.go.
+//   Reserved for Phase 11+ multi-plugin GUI shell. Audit pass:
+//   - Path traversal guard di ServeAsset (filepath.Rel + ".." check)
+//   - Cache-Control no-store
+//   - I18n locale fallback to "en"
+//   - Minor: Index handler line 113 pakai dummy Request — kalau di-wire,
+//     ganti ke ServeIndex yang pakai real r.
+//
 // Package uimount — kumpulkan kontribusi UI dari plugin discovery,
 // expose handler HTTP untuk:
 //

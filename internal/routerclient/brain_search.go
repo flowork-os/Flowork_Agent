@@ -1,3 +1,11 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/flowork-ai-agent
+// Locked at: 2026-05-30
+// Reason: Router brain search method. Audit pass — nil check, k bounds 1-20,
+//   url.QueryEscape, 512KB body cap, context propagation, defer close.
+//
 // brain_search.go — Section 11 phase 1e extension: brain search method.
 //
 // Reuse existing locked Client (routerclient.go). Add new method untuk

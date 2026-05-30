@@ -1,3 +1,12 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/flowork-ai-agent
+// Locked at: 2026-05-30
+// Reason: Capability broker (cap gate). Audit pass — RWMutex thread-safe,
+//   Approve copies caps slice, Approved returns copy (no leak), prefix match
+//   dengan boundary char ':', '/', '?' (anti subdomain hijack).
+//
 // Package broker — capability gate. Phase 5 menambah dev-mode auto-approve
 // dari manifest.capabilities_required. Phase 11 nanti diganti modal
 // permission Android-style; sementara di dev kita trust manifest.
