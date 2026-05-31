@@ -1,6 +1,7 @@
 {
   "sidebar": {
-    "agents": "AI Agent"
+    "agents": "AI Agent",
+    "settings": "Settings"
   },
   "header": {
     "brand": "Flowork",
@@ -122,6 +123,55 @@
       "save_ok": "✅ Saved. Hot-reload re-injects env into the agent.",
       "save_err": "Save failed:",
       "load_err": "Load config failed:"
+    },
+    "settings": {
+      "title": "Settings",
+      "desc": "Owner-level configuration — sign-in, API keys, and your personal wallet. AI agents stay fully isolated.",
+      "seg_account": "Account & Security",
+      "seg_keys": "Crypto Tokens / API Keys",
+      "seg_wallet": "Personal Wallet",
+      "seg_aiwallet": "AI Wallet",
+      "account_h": "Change owner password",
+      "account_sub": "Update the password you use to sign in.",
+      "change_pw_old_ph": "Current password",
+      "change_pw_new_ph": "New password (min 6 chars)",
+      "change_pw_btn": "Change password",
+      "change_pw_ok": "✅ Password changed.",
+      "change_pw_err": "Failed:",
+      "logout_h": "Session",
+      "logout_sub": "Sign out of this browser session.",
+      "logout_btn": "Logout",
+      "keys_h": "Crypto tokens / API keys",
+      "keys_sub": "Global API keys used by Flowork (e.g. ETHERSCAN_API_KEY for wallet balances, COINGECKO_API_KEY). Stored in flowork.db, injected as env vars. Values are masked.",
+      "keys_key_ph": "KEY (e.g. ETHERSCAN_API_KEY)",
+      "keys_val_ph": "value / secret",
+      "keys_empty": "No API keys yet.",
+      "keys_saved": "✅ Saved.",
+      "wallet_h": "Personal wallet addresses",
+      "wallet_sub": "Your own crypto wallet addresses (owner-level, stored in flowork.db). Read-only — no private keys, balance lookup only.",
+      "wallet_addr_ph": "0x… wallet address",
+      "wallet_label_ph": "label (optional)",
+      "wallet_empty": "No addresses yet.",
+      "wallet_portfolio_h": "Portfolio",
+      "wallet_portfolio_sub": "Live balance across supported chains (needs ETHERSCAN_API_KEY).",
+      "wallet_portfolio_btn": "↻ Refresh portfolio",
+      "wallet_loading": "Fetching balances…",
+      "wallet_need_key": "Tip: set ETHERSCAN_API_KEY under Crypto Tokens / API Keys first.",
+      "aiwallet_h": "AI agent wallets",
+      "aiwallet_sub": "Read-only view of each AI agent's wallet (data stays isolated in the agent's own state.db).",
+      "aiwallet_empty": "No agents found.",
+      "aiwallet_none": "No wallet address set for this agent.",
+      "seg_notify": "Notifications",
+      "notify_h": "Telegram notifications (owner)",
+      "notify_sub": "Owner-level Telegram for host alerts (scanner findings, watchdog). SEPARATE from AI agents — agents stay isolated/plug-and-play with their own channel.",
+      "notify_token_ph": "Bot token (from @BotFather)",
+      "notify_chat_ph": "Your chat ID (e.g. 123456789)",
+      "notify_chat_hint": "Get your chat ID: message @userinfobot on Telegram. Can reuse the same bot token as your agent, or a separate notifier bot.",
+      "notify_save": "Save",
+      "notify_test": "Send test",
+      "notify_saved": "✅ Saved.",
+      "notify_test_sent": "✅ Test sent — check your Telegram.",
+      "notify_test_fail": "Test failed:"
     }
   }
 }

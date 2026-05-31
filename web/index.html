@@ -18,6 +18,11 @@
     <h1>⚡ <span data-t="menu.header.brand">Flowork</span></h1>
     <span id="sb" class="ba" data-tooltip-key="tooltip.header.statusBadge">● <span data-t="status.aktif">AKTIF</span></span>
     <span id="ts"></span>
+    <span class="hdr-spacer"></span>
+    <a href="https://github.com/flowork-os/Flowork_Agent" target="_blank" rel="noopener noreferrer" class="hdr-btn hdr-btn--gh" title="Source code — Flowork Agent">★ GitHub</a>
+    <a href="https://github.com/flowork-os/flowork_Router" target="_blank" rel="noopener noreferrer" class="hdr-btn hdr-btn--router" title="Flowork Router — pasang buat performa terbaik (multi-provider LLM gateway)">⚡ Router</a>
+    <a href="https://t.me/+55oqrk75lc43YWE1" target="_blank" rel="noopener noreferrer" class="hdr-btn hdr-btn--tg" title="Komunitas Telegram">✈ Telegram</a>
+    <a href="https://www.paypal.com/paypalme/TeetahDev" target="_blank" rel="noopener noreferrer" class="hdr-btn hdr-btn--pp" title="Dukung pengembangan">❤ Donate</a>
     <span id="auth-badge" class="auth-badge">—</span>
     <a href="#" id="logout-link" class="header-logout" data-t="menu.header.logout">logout</a>
     <button id="themeToggle" data-tooltip-key="tooltip.header.themeToggle"
@@ -25,12 +30,26 @@
   </header>
 
   <style>
+    .hdr-spacer { margin-left: auto; }
+    .hdr-btn {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 0.78rem; font-weight: 600; text-decoration: none;
+      padding: 6px 12px; border-radius: 8px; color: #e2e8f0;
+      border: 1px solid rgba(148,163,184,0.2); margin-left: 6px;
+      transition: transform .12s, box-shadow .12s, filter .12s; white-space: nowrap;
+    }
+    .hdr-btn:hover { transform: translateY(-1px); filter: brightness(1.12); }
+    .hdr-btn--gh     { background: linear-gradient(135deg,#1f2430,#11151c); border-color: rgba(148,163,184,0.32); }
+    .hdr-btn--router { background: linear-gradient(135deg,#8b5cf6,#6d28d9); border-color: transparent; box-shadow: 0 0 14px rgba(139,92,246,0.35); }
+    .hdr-btn--tg     { background: linear-gradient(135deg,#2aabee,#1f8fd0); border-color: transparent; color: #fff; }
+    .hdr-btn--pp     { background: linear-gradient(135deg,#f43f5e,#e11d48); border-color: transparent; color: #fff; }
+    @media (max-width: 720px) { .hdr-btn span, .hdr-btn { font-size: 0.7rem; padding: 5px 8px; } }
     .auth-badge {
-      margin-left: auto;
       font-size: 0.82rem;
       color: var(--text-muted, #94a3b8);
       padding: 4px 10px;
       align-self: center;
+      margin-left: 10px;
     }
     .header-logout {
       font-size: 0.78rem;
@@ -77,17 +96,18 @@
 
   <div id="layout">
     <nav id="nav">
-      <button data-tab="agents" class="active" data-tooltip-key="tooltip.sidebar.agents">🤖 <span data-t="menu.sidebar.agents">AI Agent</span></button>
+      <button data-tab="scanner" class="active">🛡️ <span>Threat Radar</span></button>
+      <button data-tab="agents" data-tooltip-key="tooltip.sidebar.agents">🤖 <span data-t="menu.sidebar.agents">AI Agent</span></button>
       <button data-tab="wallet">👛 <span>Wallet</span></button>
       <button data-tab="finance">💰 <span>Finance</span></button>
       <button data-tab="protector">🛡️ <span>Protector</span></button>
       <button data-tab="prompt">✍️ <span>Prompt</span></button>
       <button data-tab="codemap">🗺️ <span>Codemap</span></button>
       <button data-tab="doktrin_edukasi">📚 <span>Doktrin</span></button>
-      <button data-tab="scanner">🔍 <span>Scanner</span></button>
       <button data-tab="warga_caps">🛠️ <span>Tool Caps</span></button>
       <button data-tab="commits">📋 <span>Audit Log</span></button>
       <button data-tab="diagnostics">🔬 <span>Diagnostics</span></button>
+      <button data-tab="settings" data-tooltip-key="tooltip.sidebar.settings">⚙️ <span data-t="menu.sidebar.settings">Settings</span></button>
     </nav>
     <main id="main">
       <div class="empty">Loading dashboard modules...</div>

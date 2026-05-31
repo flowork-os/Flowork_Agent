@@ -2,579 +2,291 @@
 // Status: STABLE — DO NOT MODIFY without owner approval.
 // Owner: Aola Sahidin (Mr.Dev)
 // Repo: https://github.com/flowork-os/flowork-ai-agent
-// Locked at: 2026-05-30
-// Reason: Scanner tab (custom 573 LOC). Audit pass — esc() on auditor+severity+file_path+message+snippet+remediation, encodeURIComponent on agent_id+run_id..
+// Locked at: 2026-05-31
+// Reason: Scanner tab — radar besar + scan log + findings (no manual target
+//   input; full background-watch). Audit pass: esc() semua field, encodeURIComponent
+//   run_id, auto-poll interval di-clear tiap render (no leak).
+//
+// scanner.js — Mr.Flow "Threat Radar". Layout: radar gede (kiri) + scan log
+// stream & findings detail (kanan). Background codescan engine isi log otomatis.
 
 import { esc, fetchJSON, loadStyle } from '../js/utils.js';
 
-// Mr.Flow Scanner — Section 25 SGVP auditor dashboard.
-// Trigger scan + browse runs history + drill ke findings detail.
-// Single-warga BY DESIGN — agent_id hardcoded ke 'mr-flow'.
-
 const AGENT_ID = 'mr-flow';
+const SEV_ORDER = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+const SEV_COLOR = { critical: '#ff3b3b', high: '#ff8c1a', medium: '#ffd11a', low: '#22ff88', info: '#5eead4' };
+const SEV_RADIUS = { critical: 0.30, high: 0.50, medium: 0.68, low: 0.84, info: 0.92 };
 
-const SEVERITY_ORDER = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+let pollTimer = null;
+let selectedRun = null;
 
 const CSS = `
-.sc-root {
-  display: flex;
-  flex-direction: column;
-  height: calc(100vh - 100px);
-  min-height: 560px;
-  padding: 14px 18px;
-  gap: 12px;
-}
+.rx { --neon:#22ff88; --neon2:#5eead4; --line:rgba(34,255,136,0.16);
+  font-family:'JetBrains Mono','SFMono-Regular',ui-monospace,Menlo,Consolas,monospace;
+  color:#bdf5d6; position:relative; height:calc(100vh - 150px); min-height:560px;
+  display:flex; flex-direction:column; }
+.rx-top { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:14px; flex:0 0 auto; }
+.rx-title { font-size:1.2rem; font-weight:700; letter-spacing:.2em; text-transform:uppercase;
+  color:var(--neon); text-shadow:0 0 14px rgba(34,255,136,0.5); margin:0; }
+.rx-live { display:inline-flex; align-items:center; gap:7px; font-size:0.68rem; letter-spacing:.12em;
+  padding:4px 12px; border:1px solid rgba(34,255,136,0.4); border-radius:20px; color:var(--neon);
+  background:rgba(34,255,136,0.06); }
+.rx-live .dot { width:8px;height:8px;border-radius:50%;background:var(--neon);
+  box-shadow:0 0 8px var(--neon); animation:rx-blink 1.2s ease-in-out infinite; }
+@keyframes rx-blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+.rx-spacer { flex:1; }
+.rx-btn { padding:9px 16px; border-radius:8px; border:1px solid rgba(34,255,136,0.35); cursor:pointer;
+  background:rgba(34,255,136,0.10); color:var(--neon); font-family:inherit; font-weight:600;
+  font-size:0.78rem; letter-spacing:.06em; transition:all .15s; }
+.rx-btn:hover { background:rgba(34,255,136,0.22); box-shadow:0 0 14px rgba(34,255,136,0.3); }
 
-/* ── Top bar ── */
-.sc-topbar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
-  background: rgba(15, 17, 26, 0.65);
-  border: 1px solid var(--glass-border);
-  border-radius: 12px;
-  flex-shrink: 0;
-}
-.sc-title {
-  font-family: var(--font-heading, 'Outfit', sans-serif);
-  font-size: 1.05rem;
-  color: #e2e8f0;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  margin: 0;
-}
-.sc-icon-glow {
-  width: 22px;
-  height: 22px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.22), rgba(245, 158, 11, 0.16));
-  border-radius: 6px;
-  border: 1px solid rgba(239, 68, 68, 0.34);
-}
-.sc-agent-tag {
-  margin-left: auto;
-  font-family: ui-monospace, monospace;
-  font-size: 0.74rem;
-  color: #c4b5fd;
-  background: rgba(139, 92, 246, 0.14);
-  padding: 4px 10px;
-  border-radius: 6px;
-  border: 1px solid rgba(139, 92, 246, 0.26);
-}
+.rx-grid { display:grid; grid-template-columns: 460px 1fr; gap:18px; flex:1 1 auto; min-height:0; }
+@media(max-width:980px){ .rx-grid{ grid-template-columns:1fr; } }
 
-/* ── Action bar ── */
-.sc-action {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  padding: 12px 16px;
-  background: rgba(15, 17, 26, 0.65);
-  border: 1px solid var(--glass-border);
-  border-radius: 12px;
-  flex-shrink: 0;
-  flex-wrap: wrap;
-}
-.sc-action label {
-  font-size: 0.78rem;
-  color: #94a3b8;
-}
-.sc-input {
-  background: rgba(15, 23, 42, 0.7);
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  border-radius: 7px;
-  padding: 7px 12px;
-  font: inherit;
-  font-size: 0.84rem;
-  color: #e2e8f0;
-  flex: 1;
-  min-width: 240px;
-  font-family: ui-monospace, monospace;
-}
-.sc-input:focus {
-  outline: none;
-  border-color: #7c3aed;
-  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.22);
-}
-.sc-btn {
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.24), rgba(124, 58, 237, 0.16));
-  border: 1px solid rgba(139, 92, 246, 0.42);
-  color: #e2e8f0;
-  padding: 7px 16px;
-  border-radius: 8px;
-  font-size: 0.84rem;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 500;
-  transition: background 0.12s;
-}
-.sc-btn:hover { background: linear-gradient(135deg, rgba(139, 92, 246, 0.36), rgba(124, 58, 237, 0.24)); }
-.sc-btn:active { transform: scale(0.97); }
-.sc-btn[disabled] { opacity: 0.5; cursor: wait; }
-.sc-btn.ghost {
-  background: transparent;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  color: #94a3b8;
-}
-.sc-btn.ghost:hover { background: rgba(148, 163, 184, 0.10); color: #cbd5e1; }
+/* ── RADAR (kiri, gede) ── */
+.rx-left { display:flex; flex-direction:column; gap:16px; align-items:center;
+  padding:24px 20px; border:1px solid var(--line); border-radius:18px;
+  background:radial-gradient(circle at 50% 38%, rgba(34,255,136,0.06), rgba(0,0,0,0.45)); }
+.rx-radar { position:relative; width:400px; height:400px; max-width:100%; aspect-ratio:1; border-radius:50%;
+  background:radial-gradient(circle, rgba(0,52,30,0.6), rgba(0,12,7,0.96));
+  border:1px solid rgba(34,255,136,0.5);
+  box-shadow:inset 0 0 60px rgba(34,255,136,0.12), 0 0 34px rgba(34,255,136,0.14); overflow:hidden; }
+.rx-radar::before { content:''; position:absolute; inset:0; border-radius:50%;
+  background:repeating-radial-gradient(circle, transparent 0 49px, rgba(34,255,136,0.13) 49px 50px); }
+.rx-cross-v { position:absolute; left:50%; top:0; width:1px; height:100%; background:rgba(34,255,136,0.12); }
+.rx-cross-h { position:absolute; left:0; top:50%; width:100%; height:1px; background:rgba(34,255,136,0.12); }
+.rx-sweep { position:absolute; inset:0; border-radius:50%;
+  background:conic-gradient(from 0deg, rgba(34,255,136,0) 0deg 300deg, rgba(34,255,136,0.08) 322deg, rgba(34,255,136,0.5) 358deg, rgba(34,255,136,0.72) 360deg);
+  animation:rx-spin 3.4s linear infinite; }
+@keyframes rx-spin { to { transform:rotate(360deg); } }
+.rx-core { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); text-align:center; z-index:3; pointer-events:none; }
+.rx-core .st { font-size:1.5rem; font-weight:700; letter-spacing:.14em; text-shadow:0 0 16px currentColor; }
+.rx-core .ct { font-size:0.72rem; color:#7fb89c; margin-top:4px; letter-spacing:.1em; }
+.rx-blip { position:absolute; width:12px; height:12px; border-radius:50%; transform:translate(-50%,-50%);
+  z-index:2; box-shadow:0 0 12px currentColor; animation:rx-pulse 1.7s ease-out infinite; }
+@keyframes rx-pulse { 0%{box-shadow:0 0 0 0 currentColor; opacity:1} 70%{box-shadow:0 0 0 12px transparent; opacity:.65} 100%{opacity:1} }
 
-/* ── Auditors strip ── */
-.sc-auditors {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-.sc-auditor-chip {
-  font-size: 0.7rem;
-  font-family: ui-monospace, monospace;
-  color: #c4b5fd;
-  background: rgba(139, 92, 246, 0.12);
-  border: 1px solid rgba(139, 92, 246, 0.26);
-  padding: 3px 9px;
-  border-radius: 5px;
-}
+.rx-stats { display:flex; gap:12px; flex-wrap:wrap; justify-content:center; }
+.rx-stat { text-align:center; padding:10px 18px; border:1px solid var(--line); border-radius:12px;
+  background:rgba(0,0,0,0.3); min-width:78px; }
+.rx-stat .n { font-size:1.7rem; font-weight:700; color:var(--neon); line-height:1; }
+.rx-stat .l { font-size:0.6rem; letter-spacing:.12em; color:#7fb89c; text-transform:uppercase; margin-top:6px; }
+.rx-aud { font-size:0.66rem; color:#5c8a73; letter-spacing:.05em; text-align:center; }
 
-/* ── Two-column layout ── */
-.sc-layout {
-  display: grid;
-  grid-template-columns: 340px 1fr;
-  gap: 12px;
-  flex: 1;
-  min-height: 0;
-}
-.sc-runs, .sc-findings {
-  background: rgba(15, 17, 26, 0.65);
-  border: 1px solid var(--glass-border);
-  border-radius: 12px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  min-width: 0;
-}
-.sc-pane-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.10);
-}
-.sc-pane-head h3 {
-  margin: 0;
-  font-size: 0.92rem;
-  color: #e2e8f0;
-  font-family: var(--font-heading, 'Outfit', sans-serif);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.sc-pane-sub {
-  font-size: 0.72rem;
-  color: #94a3b8;
-  margin-left: auto;
-  font-family: ui-monospace, monospace;
-}
+/* ── KANAN: log + findings ── */
+.rx-right { display:flex; flex-direction:column; gap:16px; min-height:0; }
+.rx-panel { border:1px solid var(--line); border-radius:14px; background:rgba(0,9,5,0.55);
+  display:flex; flex-direction:column; min-height:0; overflow:hidden; }
+.rx-panel.log { flex:0 0 42%; }
+.rx-panel.find { flex:1 1 auto; }
+.rx-phead { padding:11px 16px; border-bottom:1px solid var(--line); font-size:0.7rem; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--neon2); display:flex; align-items:center; gap:8px; flex:0 0 auto;
+  background:linear-gradient(180deg, rgba(34,255,136,0.05), transparent); }
+.rx-pbody { overflow-y:auto; flex:1 1 auto; min-height:0; }
 
-.sc-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 10px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
+.rx-log-row { display:flex; align-items:center; gap:9px; padding:9px 16px; cursor:pointer;
+  border-bottom:1px solid rgba(34,255,136,0.06); font-size:0.74rem; transition:background .12s; }
+.rx-log-row:hover { background:rgba(34,255,136,0.06); }
+.rx-log-row.on { background:rgba(34,255,136,0.11); border-left:2px solid var(--neon); }
+.rx-id { color:#5c8a73; min-width:34px; }
+.rx-path { flex:1; color:#cfeede; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.rx-hits { color:#7fb89c; font-size:0.68rem; }
+.rx-tag { font-size:0.6rem; padding:2px 7px; border-radius:5px; letter-spacing:.04em; white-space:nowrap; }
+.rx-tag.auto { background:rgba(94,234,212,0.14); color:#5eead4; }
+.rx-tag.manual { background:rgba(148,163,184,0.12); color:#94a3b8; }
+.rx-tag.pass { background:rgba(34,255,136,0.14); color:var(--neon); }
+.rx-tag.fail { background:rgba(255,59,59,0.16); color:#ff8080; }
+.rx-dot { width:7px;height:7px;border-radius:50%; flex:0 0 auto; box-shadow:0 0 6px currentColor; }
 
-/* ── Run row ── */
-.sc-run {
-  background: rgba(15, 23, 42, 0.42);
-  border: 1px solid rgba(148, 163, 184, 0.08);
-  border-radius: 9px;
-  padding: 10px 12px;
-  cursor: pointer;
-  transition: background 0.12s, border-color 0.12s;
-  font-size: 0.82rem;
-}
-.sc-run:hover {
-  background: rgba(15, 23, 42, 0.62);
-  border-color: rgba(139, 92, 246, 0.22);
-}
-.sc-run.active {
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.20), rgba(124, 58, 237, 0.08));
-  border-color: rgba(139, 92, 246, 0.38);
-  box-shadow: inset 3px 0 0 #8b5cf6;
-}
-.sc-run-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-  flex-wrap: wrap;
-}
-.sc-run-path {
-  font-family: ui-monospace, monospace;
-  font-size: 0.78rem;
-  color: #93c5fd;
-  margin-bottom: 4px;
-  word-break: break-all;
-}
-.sc-run-meta {
-  display: flex;
-  gap: 8px;
-  font-size: 0.7rem;
-  color: #64748b;
-  font-family: ui-monospace, monospace;
-  flex-wrap: wrap;
-}
-.sc-sev-counts {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-  margin-top: 4px;
-}
-.sc-sev-badge {
-  font-size: 0.64rem;
-  text-transform: uppercase;
-  font-family: ui-monospace, monospace;
-  padding: 2px 6px;
-  border-radius: 4px;
-  letter-spacing: 0.04em;
-  font-weight: 600;
-}
-.sc-sev-critical { background: rgba(220, 38, 38, 0.30);  color: #fca5a5; border: 1px solid rgba(220, 38, 38, 0.50); }
-.sc-sev-high     { background: rgba(239, 68, 68, 0.22);  color: #fca5a5; }
-.sc-sev-medium   { background: rgba(245, 158, 11, 0.22); color: #fcd34d; }
-.sc-sev-low      { background: rgba(59, 130, 246, 0.22); color: #93c5fd; }
-.sc-sev-info     { background: rgba(148, 163, 184, 0.18); color: #cbd5e1; }
-
-.sc-tag {
-  font-size: 0.64rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 2px 8px;
-  border-radius: 4px;
-  background: rgba(139, 92, 246, 0.16);
-  color: #c4b5fd;
-  font-family: ui-monospace, monospace;
-  font-weight: 600;
-}
-.sc-tag.ok   { background: rgba(16, 185, 129, 0.18); color: #6ee7b7; }
-.sc-tag.warn { background: rgba(245, 158, 11, 0.20); color: #fcd34d; }
-.sc-tag.err  { background: rgba(239, 68, 68, 0.22);  color: #fca5a5; }
-
-/* ── Finding card ── */
-.sc-finding {
-  background: rgba(15, 23, 42, 0.42);
-  border: 1px solid rgba(148, 163, 184, 0.10);
-  border-radius: 9px;
-  padding: 12px 14px;
-}
-.sc-finding-head {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-bottom: 8px;
-  flex-wrap: wrap;
-}
-.sc-finding-msg {
-  color: #e2e8f0;
-  font-size: 0.92rem;
-  font-weight: 600;
-  margin-bottom: 6px;
-  line-height: 1.4;
-}
-.sc-finding-file {
-  font-family: ui-monospace, monospace;
-  font-size: 0.78rem;
-  color: #93c5fd;
-  margin-bottom: 8px;
-  word-break: break-all;
-}
-.sc-finding-file .sc-line {
-  background: rgba(59, 130, 246, 0.16);
-  color: #93c5fd;
-  padding: 1px 6px;
-  border-radius: 4px;
-  margin-left: 4px;
-}
-.sc-snippet {
-  background: rgba(2, 6, 23, 0.72);
-  border: 1px solid rgba(148, 163, 184, 0.10);
-  border-radius: 6px;
-  padding: 10px 12px;
-  font-family: ui-monospace, monospace;
-  font-size: 0.78rem;
-  color: #fca5a5;
-  margin-bottom: 8px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  line-height: 1.5;
-}
-.sc-remediation {
-  display: flex;
-  gap: 8px;
-  padding: 9px 12px;
-  background: rgba(16, 185, 129, 0.10);
-  border: 1px solid rgba(16, 185, 129, 0.25);
-  border-radius: 6px;
-  font-size: 0.82rem;
-  color: #6ee7b7;
-  line-height: 1.5;
-}
-.sc-remediation::before { content: '🔧'; flex-shrink: 0; }
-
-/* ── States ── */
-.sc-empty, .sc-loading, .sc-err {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  padding: 40px 20px;
-  color: #94a3b8;
-  font-size: 0.84rem;
-  text-align: center;
-}
-.sc-empty-icon { font-size: 2rem; margin-bottom: 10px; opacity: 0.5; }
-.sc-loading::before {
-  content: '';
-  width: 13px; height: 13px;
-  border: 2px solid rgba(139, 92, 246, 0.32);
-  border-top-color: #c4b5fd;
-  border-radius: 50%;
-  margin-right: 10px;
-  animation: sc-spin 0.9s linear infinite;
-}
-@keyframes sc-spin { to { transform: rotate(360deg); } }
-.sc-err {
-  background: rgba(239, 68, 68, 0.08);
-  border: 1px solid rgba(239, 68, 68, 0.26);
-  color: #fca5a5;
-  border-radius: 9px;
-  padding: 14px 18px;
-  margin: 14px;
-  flex-direction: row;
-}
-
-@media (max-width: 880px) {
-  .sc-layout { grid-template-columns: 1fr; grid-template-rows: minmax(180px, 30vh) 1fr; }
-}
+.rx-find { padding:13px 16px; border-bottom:1px solid rgba(34,255,136,0.06); }
+.rx-find-h { display:flex; gap:8px; align-items:center; margin-bottom:6px; flex-wrap:wrap; }
+.rx-sev { font-size:0.6rem; padding:2px 8px; border-radius:5px; font-weight:700; letter-spacing:.04em; }
+.rx-find-msg { font-size:0.86rem; color:#e6fff2; line-height:1.45; }
+.rx-find-file { font-size:0.7rem; color:#7fb89c; margin-top:5px; }
+.rx-find-file .ln { color:var(--neon); margin-left:6px; }
+.rx-snip { margin-top:8px; padding:8px 11px; background:rgba(0,0,0,0.5); border-left:2px solid rgba(255,59,59,0.4);
+  font-size:0.72rem; color:#ffb3b3; white-space:pre-wrap; word-break:break-all; border-radius:0 6px 6px 0; }
+.rx-rem { margin-top:6px; font-size:0.72rem; color:#9fe6c4; } .rx-rem b{ color:var(--neon); }
+.rx-empty { padding:26px; text-align:center; color:#5c8a73; font-size:0.82rem; }
+.rx-empty.ok { color:var(--neon); }
 `;
 
-function fmtTime(s) {
-  if (!s) return '—';
-  try { return new Date(s).toLocaleString('id-ID', { hour12: false, dateStyle: 'short', timeStyle: 'short' }); }
-  catch { return s; }
-}
-
-function statusClass(s) {
-  const v = (s || '').toLowerCase();
-  if (v === 'pass' || v === 'success') return 'ok';
-  if (v === 'fail' || v === 'error')    return 'err';
-  if (v === 'partial' || v === 'pending') return 'warn';
-  return '';
-}
-
-function renderRun(run, activeRunId) {
-  const isActive = run.id === activeRunId;
-  const sev = aggregateSeverity(run);
-  const finished = run.finished_at ? fmtTime(run.finished_at) : '(in progress)';
-  return `
-    <div class="sc-run${isActive ? ' active' : ''}" data-run-id="${run.id}">
-      <div class="sc-run-head">
-        <span class="sc-tag ${statusClass(run.status)}">#${run.id} · ${esc(run.status || 'pending')}</span>
-        <span class="sc-tag" style="background:rgba(148,163,184,0.14);color:#94a3b8">${esc(run.scan_type || 'manual')}</span>
-      </div>
-      <div class="sc-run-path">${esc(run.target_path || '—')}</div>
-      <div class="sc-run-meta">
-        <span>${esc(String(run.total_findings || 0))} findings</span>
-        <span>·</span>
-        <span>${finished}</span>
-      </div>
-      <div class="sc-sev-counts">${sev}</div>
-    </div>`;
-}
-
-function aggregateSeverity(run) {
-  const parts = [];
-  if (run.critical_count) parts.push(`<span class="sc-sev-badge sc-sev-critical">${run.critical_count} crit</span>`);
-  if (run.high_count)     parts.push(`<span class="sc-sev-badge sc-sev-high">${run.high_count} high</span>`);
-  if (run.medium_count)   parts.push(`<span class="sc-sev-badge sc-sev-medium">${run.medium_count} med</span>`);
-  if (run.low_count)      parts.push(`<span class="sc-sev-badge sc-sev-low">${run.low_count} low</span>`);
-  return parts.join('');
-}
-
-function renderFinding(f) {
-  const sev = (f.severity || 'info').toLowerCase();
-  return `
-    <div class="sc-finding">
-      <div class="sc-finding-head">
-        <span class="sc-sev-badge sc-sev-${sev}">${esc(sev)}</span>
-        <span class="sc-tag" style="background:rgba(148,163,184,0.14);color:#94a3b8">${esc(f.auditor || '?')}</span>
-      </div>
-      <div class="sc-finding-msg">${esc(f.message || '—')}</div>
-      <div class="sc-finding-file">${esc(f.file_path || '?')}<span class="sc-line">L${esc(String(f.line_number || 0))}</span></div>
-      ${f.snippet ? `<div class="sc-snippet">${esc(f.snippet)}</div>` : ''}
-      ${f.remediation ? `<div class="sc-remediation">${esc(f.remediation)}</div>` : ''}
-    </div>`;
-}
-
-function sortFindingsBySeverity(items) {
-  return items.slice().sort((a, b) => {
-    const sa = SEVERITY_ORDER[(a.severity || 'info').toLowerCase()] ?? 99;
-    const sb = SEVERITY_ORDER[(b.severity || 'info').toLowerCase()] ?? 99;
-    if (sa !== sb) return sa - sb;
-    return (a.file_path || '').localeCompare(b.file_path || '');
-  });
-}
-
 export async function render(root) {
-  loadStyle('scanner', CSS);
+  loadStyle('scanner-radar', CSS);
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  selectedRun = null;
 
   root.innerHTML = `
-    <div class="sc-root">
-      <header class="sc-topbar">
-        <h2 class="sc-title"><span class="sc-icon-glow">🔍</span> Mr.Flow Scanner</h2>
-        <span class="sc-agent-tag">agent=${esc(AGENT_ID)}</span>
-      </header>
-
-      <div class="sc-action">
-        <label>Target path:</label>
-        <input class="sc-input" id="scTarget" type="text" placeholder="mr-flow/tools/bad_example.go" value="mr-flow/tools/bad_example.go">
-        <button class="sc-btn" id="scScan">▶ Run Scan</button>
-        <button class="sc-btn ghost" id="scRefresh">⟳ Refresh</button>
-        <div class="sc-auditors" id="scAuditors"></div>
+    <div class="rx">
+      <div class="rx-top">
+        <h2 class="rx-title">⌖ Threat Radar</h2>
+        <span class="rx-live"><span class="dot"></span>LIVE · BACKGROUND WATCH AKTIF</span>
+        <span class="rx-spacer"></span>
+        <span style="font-size:0.66rem;color:#5c8a73;letter-spacing:.06em">agent=${esc(AGENT_ID)}</span>
+        <button class="rx-btn" id="rxRefresh">⟳ REFRESH</button>
       </div>
-
-      <div class="sc-layout">
-        <section class="sc-runs">
-          <div class="sc-pane-head">
-            <h3>📜 Runs</h3>
-            <span class="sc-pane-sub" id="scRunCount">…</span>
+      <div class="rx-grid">
+        <div class="rx-left">
+          <div class="rx-radar" id="rxRadar">
+            <div class="rx-cross-v"></div><div class="rx-cross-h"></div>
+            <div class="rx-sweep"></div>
+            <div class="rx-core" id="rxCore"><div class="st">—</div><div class="ct">init…</div></div>
           </div>
-          <div class="sc-list" id="scRunsList"><div class="sc-loading">Loading runs…</div></div>
-        </section>
-
-        <section class="sc-findings">
-          <div class="sc-pane-head">
-            <h3 id="scFindingsTitle">🐛 Findings</h3>
-            <span class="sc-pane-sub" id="scFindingsSub">Pilih run di kiri</span>
+          <div class="rx-stats" id="rxStats"></div>
+          <div class="rx-aud" id="rxAud">auditor: …</div>
+        </div>
+        <div class="rx-right">
+          <div class="rx-panel log">
+            <div class="rx-phead">▚ SCAN LOG <span style="color:#5c8a73;letter-spacing:0">· file kode yang ke-scan otomatis</span></div>
+            <div class="rx-pbody" id="rxLog"><div class="rx-empty">loading…</div></div>
           </div>
-          <div class="sc-list" id="scFindingsList">
-            <div class="sc-empty">
-              <div class="sc-empty-icon">🛡️</div>
-              <div>Klik salah satu run untuk lihat detail findings.</div>
-            </div>
+          <div class="rx-panel find">
+            <div class="rx-phead" id="rxFindHead">⚠ FINDINGS</div>
+            <div class="rx-pbody" id="rxFindings"><div class="rx-empty">pilih entri di scan log buat lihat detail</div></div>
           </div>
-        </section>
+        </div>
       </div>
-    </div>
-  `;
+    </div>`;
 
-  let activeRunId = null;
-  let runsCache = [];
+  root.querySelector('#rxRefresh').addEventListener('click', () => loadAll(root));
+  await loadAll(root);
+  pollTimer = setInterval(() => { loadRuns(root).catch(() => {}); }, 8000);
+}
 
-  async function loadAuditors() {
-    const stripEl = root.querySelector('#scAuditors');
-    try {
-      const data = await fetchJSON(`/api/agents/scanner/auditors?id=${encodeURIComponent(AGENT_ID)}`);
-      const items = Array.isArray(data.items) ? data.items : [];
-      stripEl.innerHTML = items.length === 0
-        ? `<span style="color:#64748b;font-size:0.72rem">no auditors</span>`
-        : items.map((a) => `<span class="sc-auditor-chip">${esc(a)}</span>`).join('');
-    } catch (err) {
-      stripEl.innerHTML = `<span style="color:#fca5a5;font-size:0.72rem">auditor load err: ${esc(err.message)}</span>`;
-    }
+async function loadAll(root) {
+  await Promise.all([loadAuditors(root), loadRuns(root)]);
+}
+
+async function loadAuditors(root) {
+  try {
+    const d = await fetchJSON(`/api/agents/scanner/auditors?id=${AGENT_ID}`);
+    root.querySelector('#rxAud').textContent = `${(d.items || []).length} auditor aktif · auto-scan tiap file kode berubah`;
+  } catch { /* ignore */ }
+}
+
+async function loadRuns(root) {
+  const d = await fetchJSON(`/api/agents/scanner/runs?id=${AGENT_ID}&limit=60`);
+  const runs = d.items || [];
+  renderLog(root, runs);
+  renderStats(root, {
+    runs: runs.length,
+    findings: runs.reduce((s, r) => s + (r.total_findings || 0), 0),
+    critical: runs.reduce((s, r) => s + (r.critical_count || 0), 0),
+  });
+  if (!selectedRun && runs.length) {
+    selectRun(root, runs[0]);
+  } else if (selectedRun) {
+    const cur = runs.find(r => r.id === selectedRun.id);
+    if (cur) updateRadarFromRun(root, cur);
+  } else {
+    updateRadar(root, [], 'SECURE');
   }
+}
 
-  async function loadRuns(selectFirst = true) {
-    const listEl = root.querySelector('#scRunsList');
-    const countEl = root.querySelector('#scRunCount');
-    listEl.innerHTML = `<div class="sc-loading">Loading runs…</div>`;
-    try {
-      const data = await fetchJSON(`/api/agents/scanner/runs?id=${encodeURIComponent(AGENT_ID)}&limit=50`);
-      runsCache = Array.isArray(data.items) ? data.items : [];
-      countEl.textContent = `${runsCache.length} runs`;
-      if (runsCache.length === 0) {
-        listEl.innerHTML = `<div class="sc-empty"><div class="sc-empty-icon">📜</div><div>Belum ada scan run. Klik "Run Scan" buat trigger pertama.</div></div>`;
-        return;
-      }
-      paintRuns();
-      if (selectFirst && runsCache.length > 0) {
-        selectRun(runsCache[0].id);
-      }
-    } catch (err) {
-      countEl.textContent = 'ERR';
-      listEl.innerHTML = `<div class="sc-err">Gagal load runs: ${esc(err.message)}</div>`;
-    }
+function renderStats(root, s) {
+  root.querySelector('#rxStats').innerHTML = `
+    <div class="rx-stat"><div class="n">${s.runs}</div><div class="l">runs</div></div>
+    <div class="rx-stat"><div class="n">${s.findings}</div><div class="l">findings</div></div>
+    <div class="rx-stat"><div class="n" style="color:${s.critical ? '#ff3b3b' : '#22ff88'}">${s.critical}</div><div class="l">critical</div></div>`;
+}
+
+function renderLog(root, runs) {
+  const el = root.querySelector('#rxLog');
+  if (!runs.length) { el.innerHTML = `<div class="rx-empty">belum ada scan. edit file kode apa aja → auto-scan jalan.</div>`; return; }
+  el.innerHTML = runs.map(r => {
+    const auto = (r.scan_type || '').startsWith('auto');
+    const on = selectedRun && selectedRun.id === r.id;
+    const sev = r.critical_count ? 'critical' : r.high_count ? 'high' : r.medium_count ? 'medium' : r.low_count ? 'low' : 'info';
+    const dotColor = (r.total_findings || 0) ? SEV_COLOR[sev] : '#2f5f47';
+    return `<div class="rx-log-row${on ? ' on' : ''}" data-run="${r.id}">
+      <span class="rx-dot" style="background:${dotColor};color:${dotColor}"></span>
+      <span class="rx-id">#${r.id}</span>
+      <span class="rx-tag ${r.status === 'fail' ? 'fail' : 'pass'}">${esc(r.status || '·')}</span>
+      <span class="rx-tag ${auto ? 'auto' : 'manual'}">${esc((r.scan_type || 'manual').replace('auto:', ''))}</span>
+      <span class="rx-path" title="${esc(r.target_path || '')}">${esc(r.target_path || '—')}</span>
+      <span class="rx-hits">${esc(String(r.total_findings || 0))} hit</span>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.rx-log-row').forEach(d => d.addEventListener('click', () => {
+    const r = runs.find(x => String(x.id) === d.dataset.run);
+    if (r) selectRun(root, r);
+  }));
+}
+
+async function selectRun(root, run) {
+  selectedRun = run;
+  root.querySelectorAll('.rx-log-row').forEach(d => d.classList.toggle('on', d.dataset.run === String(run.id)));
+  updateRadarFromRun(root, run);
+  root.querySelector('#rxFindHead').innerHTML = `⚠ FINDINGS · <span style="color:#cfeede">${esc(run.target_path || '#' + run.id)}</span>`;
+  const el = root.querySelector('#rxFindings');
+  el.innerHTML = `<div class="rx-empty">memuat run #${run.id}…</div>`;
+  try {
+    const d = await fetchJSON(`/api/agents/scanner/findings?id=${AGENT_ID}&run_id=${encodeURIComponent(run.id)}`);
+    const items = (d.items || []).sort((a, b) =>
+      (SEV_ORDER[(a.severity || 'info').toLowerCase()] ?? 9) - (SEV_ORDER[(b.severity || 'info').toLowerCase()] ?? 9));
+    renderFindings(el, items);
+    updateRadar(root, items, statusFromItems(items));
+  } catch (e) {
+    el.innerHTML = `<div class="rx-empty">gagal: ${esc(String(e.message || e))}</div>`;
   }
+}
 
-  function paintRuns() {
-    const listEl = root.querySelector('#scRunsList');
-    listEl.innerHTML = runsCache.map((r) => renderRun(r, activeRunId)).join('');
-    listEl.querySelectorAll('.sc-run').forEach((el) => {
-      el.onclick = () => selectRun(Number(el.dataset.runId));
-    });
-  }
+function renderFindings(el, items) {
+  if (!items.length) { el.innerHTML = `<div class="rx-empty ok">✓ CLEAR — ga ada temuan di run ini</div>`; return; }
+  el.innerHTML = items.map(f => {
+    const sev = (f.severity || 'info').toLowerCase();
+    const c = SEV_COLOR[sev] || '#5eead4';
+    return `<div class="rx-find">
+      <div class="rx-find-h">
+        <span class="rx-sev" style="background:${c}22;color:${c}">${esc(sev)}</span>
+        <span class="rx-tag manual">${esc(f.auditor || '?')}</span>
+      </div>
+      <div class="rx-find-msg">${esc(f.message || '—')}</div>
+      <div class="rx-find-file">${esc(f.file_path || '?')}<span class="ln">L${esc(String(f.line_number || 0))}</span></div>
+      ${f.snippet ? `<div class="rx-snip">${esc(f.snippet)}</div>` : ''}
+      ${f.remediation ? `<div class="rx-rem"><b>fix:</b> ${esc(f.remediation)}</div>` : ''}
+    </div>`;
+  }).join('');
+}
 
-  async function selectRun(runId) {
-    activeRunId = runId;
-    paintRuns();
-    const titleEl = root.querySelector('#scFindingsTitle');
-    const subEl = root.querySelector('#scFindingsSub');
-    const listEl = root.querySelector('#scFindingsList');
-    titleEl.innerHTML = `🐛 Findings · run #${runId}`;
-    subEl.textContent = 'Loading…';
-    listEl.innerHTML = `<div class="sc-loading">Loading findings…</div>`;
-    try {
-      const data = await fetchJSON(`/api/agents/scanner/findings?id=${encodeURIComponent(AGENT_ID)}&run_id=${runId}&limit=200`);
-      const items = sortFindingsBySeverity(Array.isArray(data.items) ? data.items : []);
-      subEl.textContent = `${items.length} findings`;
-      if (items.length === 0) {
-        listEl.innerHTML = `<div class="sc-empty"><div class="sc-empty-icon">✅</div><div>Clean — run #${runId} ngga ada finding.</div></div>`;
-        return;
-      }
-      listEl.innerHTML = items.map(renderFinding).join('');
-    } catch (err) {
-      subEl.textContent = 'ERR';
-      listEl.innerHTML = `<div class="sc-err">Gagal load findings: ${esc(err.message)}</div>`;
-    }
-  }
+function statusFromItems(items) {
+  if (items.some(f => (f.severity || '').toLowerCase() === 'critical')) return 'THREAT';
+  if (items.some(f => (f.severity || '').toLowerCase() === 'high')) return 'WARNING';
+  if (items.length) return 'NOTED';
+  return 'SECURE';
+}
 
-  async function runScan() {
-    const targetEl = root.querySelector('#scTarget');
-    const btnEl = root.querySelector('#scScan');
-    const target = targetEl.value.trim();
-    if (!target) {
-      targetEl.focus();
-      return;
-    }
-    btnEl.disabled = true;
-    btnEl.textContent = '⏳ Scanning…';
-    try {
-      await fetchJSON(`/api/agents/scanner/scan?id=${encodeURIComponent(AGENT_ID)}`, {
-        method: 'POST',
-        body: JSON.stringify({ target_path: target, scan_type: 'manual' }),
-      });
-      await loadRuns(true);
-    } catch (err) {
-      alert(`Scan gagal: ${err.message || err}`);
-    } finally {
-      btnEl.disabled = false;
-      btnEl.textContent = '▶ Run Scan';
-    }
-  }
+function updateRadarFromRun(root, r) {
+  const pseudo = [];
+  const push = (n, sev) => { for (let i = 0; i < (n || 0); i++) pseudo.push({ severity: sev }); };
+  push(r.critical_count, 'critical'); push(r.high_count, 'high'); push(r.medium_count, 'medium'); push(r.low_count, 'low');
+  updateRadar(root, pseudo, statusFromCounts(r));
+}
+function statusFromCounts(r) {
+  if (r.critical_count) return 'THREAT';
+  if (r.high_count) return 'WARNING';
+  if ((r.total_findings || 0) > 0) return 'NOTED';
+  return 'SECURE';
+}
 
-  root.querySelector('#scScan').onclick = runScan;
-  root.querySelector('#scRefresh').onclick = () => {
-    loadAuditors();
-    loadRuns(false);
-  };
-  root.querySelector('#scTarget').onkeydown = (e) => {
-    if (e.key === 'Enter') runScan();
-  };
-
-  loadAuditors();
-  loadRuns(true);
+function updateRadar(root, items, status) {
+  const radar = root.querySelector('#rxRadar');
+  const core = root.querySelector('#rxCore');
+  if (!radar || !core) return;
+  radar.querySelectorAll('.rx-blip').forEach(b => b.remove());
+  const list = (items || []).slice(0, 56);
+  list.forEach((f, i) => {
+    const sev = (f.severity || 'info').toLowerCase();
+    const color = SEV_COLOR[sev] || '#5eead4';
+    const rr = (SEV_RADIUS[sev] ?? 0.9) * 47;
+    const ang = (i * 137.508) * Math.PI / 180;
+    const x = 50 + rr * Math.cos(ang);
+    const y = 50 + rr * Math.sin(ang);
+    const b = document.createElement('div');
+    b.className = 'rx-blip';
+    b.style.cssText = `left:${x}%;top:${y}%;background:${color};color:${color};animation-delay:${(i % 8) * 0.12}s`;
+    radar.appendChild(b);
+  });
+  const stColor = status === 'THREAT' ? '#ff3b3b' : status === 'WARNING' ? '#ff8c1a' : status === 'NOTED' ? '#ffd11a' : '#22ff88';
+  core.innerHTML = `<div class="st" style="color:${stColor}">${status}</div><div class="ct">${list.length} contact${list.length === 1 ? '' : 's'}</div>`;
 }

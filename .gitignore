@@ -5,6 +5,9 @@ flowork-gui
 *.pyc
 *.wasm
 bin/
+referensifile/
+roadmap.md
+CHANGELOG.md
 
 # Editor / OS
 .vscode/

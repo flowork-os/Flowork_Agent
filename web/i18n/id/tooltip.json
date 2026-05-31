@@ -1,10 +1,11 @@
 {
   "header": {
-    "navToggle":   "☰ Toggle Sidebar|Sembunyikan atau tampilkan panel navigasi kiri.||Ctrl+B",
+    "navToggle": "☰ Toggle Sidebar|Sembunyikan atau tampilkan panel navigasi kiri.||Ctrl+B",
     "statusBadge": "Status Sistem|● AKTIF = kernel berjalan normal. ● STANDBY = kernel berhenti.",
     "themeToggle": "🌓 Toggle Theme|Ganti antara mode gelap dan terang. Preferensi disimpan otomatis.||klik"
   },
   "sidebar": {
-    "agents": "🤖 AI Agent|Upload .fwagent.zip, hot-reload, atur router/prompt/tools/jadwal per agent.||Alt+1"
+    "agents": "🤖 AI Agent|Upload .fwagent.zip, hot-reload, atur router/prompt/tools/jadwal per agent.||Alt+1",
+    "settings": "⚙️ Pengaturan|Login owner, API key, wallet personal & AI. flowork.db global (warga tetap terisolasi).||Alt+0"
   }
 }

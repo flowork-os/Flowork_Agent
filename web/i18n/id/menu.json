@@ -1,6 +1,7 @@
 {
   "sidebar": {
-    "agents": "AI Agent"
+    "agents": "AI Agent",
+    "settings": "Pengaturan"
   },
   "header": {
     "brand": "Flowork",
@@ -122,6 +123,55 @@
       "save_ok": "✅ Tersimpan. Hot-reload akan re-inject env ke agent.",
       "save_err": "Gagal simpan:",
       "load_err": "Gagal load config:"
+    },
+    "settings": {
+      "title": "Pengaturan",
+      "desc": "Konfigurasi level owner — login, API key, dan wallet personal kamu. AI agent tetap terisolasi penuh.",
+      "seg_account": "Akun & Keamanan",
+      "seg_keys": "Token Crypto / API Key",
+      "seg_wallet": "Wallet Personal",
+      "seg_aiwallet": "Wallet AI",
+      "account_h": "Ganti password owner",
+      "account_sub": "Ubah password yang kamu pakai buat login.",
+      "change_pw_old_ph": "Password sekarang",
+      "change_pw_new_ph": "Password baru (min 6 karakter)",
+      "change_pw_btn": "Ganti password",
+      "change_pw_ok": "✅ Password diganti.",
+      "change_pw_err": "Gagal:",
+      "logout_h": "Sesi",
+      "logout_sub": "Keluar dari sesi browser ini.",
+      "logout_btn": "Logout",
+      "keys_h": "Token crypto / API key",
+      "keys_sub": "API key global yang dipakai Flowork (mis. ETHERSCAN_API_KEY buat saldo wallet, COINGECKO_API_KEY). Disimpan di flowork.db, di-inject sebagai env var. Nilai ditampilkan ter-mask.",
+      "keys_key_ph": "KEY (mis. ETHERSCAN_API_KEY)",
+      "keys_val_ph": "value / secret",
+      "keys_empty": "Belum ada API key.",
+      "keys_saved": "✅ Tersimpan.",
+      "wallet_h": "Alamat wallet personal",
+      "wallet_sub": "Alamat wallet crypto milik kamu (level owner, disimpan di flowork.db). Read-only — tanpa private key, cuma lihat saldo.",
+      "wallet_addr_ph": "0x… alamat wallet",
+      "wallet_label_ph": "label (opsional)",
+      "wallet_empty": "Belum ada alamat.",
+      "wallet_portfolio_h": "Portfolio",
+      "wallet_portfolio_sub": "Saldo live lintas chain yang didukung (butuh ETHERSCAN_API_KEY).",
+      "wallet_portfolio_btn": "↻ Refresh portfolio",
+      "wallet_loading": "Ambil saldo…",
+      "wallet_need_key": "Tips: set ETHERSCAN_API_KEY di Token Crypto / API Key dulu.",
+      "aiwallet_h": "Wallet AI agent",
+      "aiwallet_sub": "Tampilan read-only wallet tiap AI agent (datanya tetap terisolasi di state.db warga masing-masing).",
+      "aiwallet_empty": "Tidak ada agent.",
+      "aiwallet_none": "Agent ini belum set alamat wallet.",
+      "seg_notify": "Notifikasi",
+      "notify_h": "Notifikasi Telegram (owner)",
+      "notify_sub": "Telegram level-owner buat alert host (temuan scanner, watchdog). TERPISAH dari AI agent — agent tetep terisolasi/plug-and-play dengan channel-nya sendiri.",
+      "notify_token_ph": "Bot token (dari @BotFather)",
+      "notify_chat_ph": "Chat ID kamu (mis. 123456789)",
+      "notify_chat_hint": "Cara dapet chat ID: chat @userinfobot di Telegram. Boleh pakai bot token yang sama dengan agent, atau bot notifier terpisah.",
+      "notify_save": "Simpan",
+      "notify_test": "Kirim tes",
+      "notify_saved": "✅ Tersimpan.",
+      "notify_test_sent": "✅ Tes terkirim — cek Telegram kamu.",
+      "notify_test_fail": "Tes gagal:"
     }
   }
 }

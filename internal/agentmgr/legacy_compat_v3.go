@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -31,36 +32,66 @@ import (
 // /api/warga-caps/* (reference: warga_caps.js)
 // =============================================================================
 
+// AgentIDsFunc — di-wire dari main.go (host.AgentIDs). Daftar warga yang
+// ke-load kernel. Nil/empty → fallback ke defaultAgentID (single-warga dev).
+var AgentIDsFunc func() []string
+
 // WargaListCompatHandler — GET /api/warga-caps/warga
-// Reference shape: {warga: [{name, display_name, role}]}
-// Single-warga BY DESIGN → return 1 entry untuk mr-flow.
+// Reference shape: {warga: [{name, display_name, role, active}]}
+// Real list dari kernel (multi-warga ready); fallback mr-flow kalau kosong.
 func WargaListCompatHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
 		return
 	}
-	httpx.WriteJSON(w, map[string]any{
-		"warga": []map[string]any{
-			{
-				"name":         defaultAgentID,
-				"display_name": "Mr.Flow",
-				"role":         "owner",
-			},
-		},
-	})
+	var ids []string
+	if AgentIDsFunc != nil {
+		ids = AgentIDsFunc()
+	}
+	if len(ids) == 0 {
+		ids = []string{defaultAgentID}
+	}
+	warga := make([]map[string]any, 0, len(ids))
+	for _, id := range ids {
+		warga = append(warga, map[string]any{
+			"name":         id,
+			"display_name": id,
+			"role":         "warga",
+			"active":       true,
+		})
+	}
+	httpx.WriteJSON(w, map[string]any{"warga": warga, "count": len(warga)})
 }
 
 // WargaCapsCatalogCompatHandler — GET /api/warga-caps/catalog
-// Reference shape: {catalog: [{tool, description, category}]}
-// Sumber data: tools.ListSummaries() global registry.
+// Reference shape: {catalog: [{category, tools: [toolname...]}], roles: []}
+// Tool registry (tools.ListSummaries) di-group by category.
 func WargaCapsCatalogCompatHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
 		return
 	}
-	catalog := buildToolCatalog()
+	// Group nama tool per kategori, urut stabil.
+	byCat := map[string][]string{}
+	order := []string{}
+	for _, c := range buildToolCatalog() {
+		cat, _ := c["category"].(string)
+		name, _ := c["tool"].(string)
+		if _, seen := byCat[cat]; !seen {
+			order = append(order, cat)
+		}
+		byCat[cat] = append(byCat[cat], name)
+	}
+	sort.Strings(order)
+	catalog := make([]map[string]any, 0, len(order))
+	for _, cat := range order {
+		tools := byCat[cat]
+		sort.Strings(tools)
+		catalog = append(catalog, map[string]any{"category": cat, "tools": tools})
+	}
 	httpx.WriteJSON(w, map[string]any{
 		"catalog": catalog,
+		"roles":   []string{},
 		"count":   len(catalog),
 	})
 }

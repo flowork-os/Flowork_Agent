@@ -76,11 +76,11 @@ import (
 //
 // `stagedPath` = path folder .fwagent staged (fallback target).
 func Resolve(agentID, stagedPath string) string {
-	if cwd, err := os.Getwd(); err == nil {
-		dir := filepath.Join(cwd, "agents", agentID)
-		if stat, err := os.Stat(dir); err == nil && stat.IsDir() {
-			return filepath.Join(dir, "workspace", "state.db")
-		}
+	// Root project via ProjectRoot() (env FLOWORK_PROJECT_ROOT > cwd) — anti
+	// rapuh kalau binary dijalankan dari direktori lain (fix bug.md #2).
+	dir := filepath.Join(ProjectRoot(), "agents", agentID)
+	if stat, err := os.Stat(dir); err == nil && stat.IsDir() {
+		return filepath.Join(dir, "workspace", "state.db")
 	}
 	return filepath.Join(stagedPath, "workspace", "state.db")
 }
@@ -88,11 +88,9 @@ func Resolve(agentID, stagedPath string) string {
 // SourceWorkspace returns folder workspace agent (host path).
 // HARDCODED: `<source>/workspace/` atau `<staged>/workspace/`.
 func SourceWorkspace(agentID, stagedPath string) string {
-	if cwd, err := os.Getwd(); err == nil {
-		dir := filepath.Join(cwd, "agents", agentID)
-		if stat, err := os.Stat(dir); err == nil && stat.IsDir() {
-			return filepath.Join(dir, "workspace")
-		}
+	dir := filepath.Join(ProjectRoot(), "agents", agentID)
+	if stat, err := os.Stat(dir); err == nil && stat.IsDir() {
+		return filepath.Join(dir, "workspace")
 	}
 	return filepath.Join(stagedPath, "workspace")
 }

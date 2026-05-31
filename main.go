@@ -14,9 +14,11 @@
 // Sebelumnya GUI lama (:1987) proxy ke kernel terpisah (:1988). Sekarang
 // kernel embedded via internal/kernelhost — satu port saja: :1987.
 //
-// Konsep: GUI cuma 1 menu "AI Agent". Tiap agent punya tombol Setting
-// yang buka popup (router / prompt / tools / schedule). Tidak ada Setting
-// page global, tidak ada SQLite store.
+// Konsep: tiap agent punya tombol Setting yang buka popup (router / prompt
+// / tools / schedule) — state warga terisolasi di state.db (agentdb). DI LUAR
+// itu ada halaman Settings GLOBAL (owner-level) + DB global flowork.db
+// (floworkdb): auth single-owner, API key, wallet personal. Warga TIDAK
+// menyimpan apa pun di flowork.db.
 //
 // Packages aktif:
 //
@@ -31,9 +33,12 @@ import (
 	"context"
 	"embed"
 	"flag"
+	"fmt"
 	"io/fs"
 	"log"
 	"net/http"
+	"net/url"
+	"os"
 	"os/signal"
 	"path/filepath"
 	"strings"
@@ -42,8 +47,12 @@ import (
 
 	"flowork-gui/internal/agentdb"
 	"flowork-gui/internal/agentmgr"
+	"flowork-gui/internal/codescan"
+	"flowork-gui/internal/floworkauth"
+	"flowork-gui/internal/floworkdb"
 	"flowork-gui/internal/httpx"
 	"flowork-gui/internal/kernelhost"
+	"flowork-gui/internal/settingsapi"
 	"flowork-gui/internal/scheduler"
 	"flowork-gui/internal/walletalert"
 	"flowork-gui/internal/watchdog"
@@ -120,6 +129,7 @@ func main() {
 
 	// Wire ConfigHandler → kernel reload callback. Tanpa ini, save config
 	// dari popup ngga restart daemon → env baru ngga kebawa.
+	agentmgr.AgentIDsFunc = host.AgentIDs
 	agentmgr.Reload = host.ReloadAgent
 	agentmgr.RetentionSweep = func(agentID string) (any, error) {
 		return host.RunRetentionForAgent(agentID)
@@ -231,13 +241,89 @@ func main() {
 	// Section 8: retention cron — sweep tiap 24h, hard-delete grace 90 hari.
 	host.StartRetentionCron(ctx, 24*time.Hour)
 
+	// Doktrin edukasi — seed katalog educational_errors default ke tiap agent
+	// (idempotent INSERT OR IGNORE; edit owner via GUI ngga ke-overwrite).
+	for _, agentID := range host.AgentIDs() {
+		if store, derr := host.OpenAgentStore(agentID); derr == nil {
+			if n, serr := store.SeedEduErrors(); serr == nil && n > 0 {
+				log.Printf("edu-errors: seeded %d entry baru → %s", n, agentID)
+			}
+			store.Close()
+		}
+	}
+
+	// Background code scanner — watch source repo + kode buatan AI; auto-scan
+	// file yang berubah, deteksi bug/celah dari tiap update. Critical/high →
+	// audit log + push Telegram ke owner. (Tampil di tab Scanner sbg "auto:*".)
+	codescanRoot := strings.TrimSpace(os.Getenv("FLOWORK_CODESCAN_ROOT"))
+	if codescanRoot == "" {
+		codescanRoot = agentdb.ProjectRoot()
+	}
+	codescanEngine := codescan.New(
+		host.AgentIDs, host.OpenAgentStore, host.SharedDirForAgent,
+		func(nctx context.Context, title, body string) error {
+			return notifyOwnerTelegram(nctx, title+"\n\n"+body)
+		},
+		codescanRoot,
+	)
+	codescanEngine.Start(ctx)
+
+	// DB global Flowork (owner-level: auth, settings, API key, wallet personal).
+	// TERPISAH dari state.db per-warga (agentdb) — warga tetap terisolasi.
+	fdb, err := floworkdb.Shared()
+	if err != nil {
+		log.Fatalf("flowork.db open: %v", err)
+	}
+	// Inject API key tersimpan → env, supaya engine (wallet, dll) langsung
+	// pakai konfigurasi dari Settings tanpa hardcode/restart. Hanya key
+	// UPPER_SNAKE (env-var) yang di-set; password hash (lowercase) di-skip.
+	if secrets, serr := fdb.AllSecrets(); serr == nil {
+		for k, v := range secrets {
+			if k == strings.ToUpper(k) && strings.TrimSpace(v) != "" {
+				_ = os.Setenv(k, v)
+			}
+		}
+	}
+	authMgr := floworkauth.NewManager(fdb)
+	settingsAPI := settingsapi.New(fdb)
+	// Wire host accessor untuk AI-wallets read-only (host-level, bukan cross-warga).
+	settingsapi.AgentIDsFunc = host.AgentIDs
+	settingsapi.OpenAgentStoreFunc = host.OpenAgentStore
+
 	mux := http.NewServeMux()
 
-	// Auth / system stubs — single-user owner mode.
-	mux.HandleFunc("/api/auth/me", authMe)
-	mux.HandleFunc("/api/auth/logout", authLogout)
+	// Auth — single-owner password (floworkauth). Session cookie in-memory.
+	mux.HandleFunc("/api/auth/me", authMgr.MeHandler)
+	mux.HandleFunc("/api/auth/login", authMgr.LoginHandler)
+	mux.HandleFunc("/api/auth/register", authMgr.RegisterHandler)
+	mux.HandleFunc("/api/auth/logout", authMgr.LogoutHandler)
+	mux.HandleFunc("/api/auth/change-password", authMgr.ChangePasswordHandler)
 	mux.HandleFunc("/api/owner/auto-verify", ownerAutoVerify)
 	mux.HandleFunc("/api/system/health", systemHealth)
+
+	// Page routes — FileServer cuma map exact filename (/login.html), jadi
+	// /login & /register butuh handler eksplisit yang serve embedded HTML.
+	servePage := func(name string) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			data, rerr := fs.ReadFile(staticFS, name)
+			if rerr != nil {
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			_, _ = w.Write(data)
+		}
+	}
+	mux.HandleFunc("/login", servePage("login.html"))
+	mux.HandleFunc("/register", servePage("register.html"))
+
+	// Settings (owner-level, flowork.db global).
+	mux.HandleFunc("/api/settings/wallet/addresses", settingsAPI.WalletAddressesHandler)
+	mux.HandleFunc("/api/settings/wallet/portfolio", settingsAPI.WalletPortfolioHandler)
+	mux.HandleFunc("/api/settings/keys", settingsAPI.KeysHandler)
+	mux.HandleFunc("/api/settings/ai-wallets", settingsAPI.AIWalletsHandler)
+	mux.HandleFunc("/api/settings/notify", settingsAPI.NotifyHandler)
+	settingsapi.TestNotifyFunc = notifyOwnerTelegram
 
 	// Kernel introspection (list agent, RPC call).
 	mux.HandleFunc("/api/kernel/status", host.StatusHandler)
@@ -334,6 +420,7 @@ func main() {
 	mux.HandleFunc("/api/codemap/zombies", agentmgr.CodemapZombiesCompatHandler)
 	mux.HandleFunc("/api/codemap/reindex", agentmgr.CodemapReindexCompatHandler)
 	mux.HandleFunc("/api/codemap/roots", agentmgr.CodemapRootsCompatHandler)
+	mux.HandleFunc("/api/codemap/docs", agentmgr.CodemapDocsCompatHandler)
 	mux.HandleFunc("/api/agents/protector/approval/queue", agentmgr.ApprovalQueueHandler)
 	mux.HandleFunc("/api/agents/protector/approve_pending", agentmgr.ApproveHandler)
 	mux.HandleFunc("/api/agents/protector/reject_pending", agentmgr.RejectHandler)
@@ -357,7 +444,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              *addr,
-		Handler:           httpx.NoCache(mux),
+		Handler:           httpx.NoCache(authMgr.Middleware(mux)),
 		ReadHeaderTimeout: 15 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
@@ -375,20 +462,52 @@ func main() {
 
 // ── Auth / system stubs ────────────────────────────────────────────────────
 
-func authMe(w http.ResponseWriter, _ *http.Request) {
-	httpx.WriteJSON(w, map[string]any{
-		"name":          "Mr.Dev",
-		"role":          "owner",
-		"authenticated": true,
-	})
-}
-
-func authLogout(w http.ResponseWriter, _ *http.Request) {
-	httpx.WriteJSON(w, map[string]any{"ok": true})
-}
-
 func ownerAutoVerify(w http.ResponseWriter, _ *http.Request) {
 	httpx.WriteJSON(w, map[string]any{"verified": true})
+}
+
+// notifyOwnerTelegram — push pesan ke owner via Telegram. Baca config dari
+// SETTINGS GLOBAL (floworkdb) — BUKAN dari agent. Owner-level notif terpisah
+// dari AI agent (yang sengaja terisolasi / plug-and-play). Diam (log only)
+// kalau Telegram belum di-set di Settings.
+func notifyOwnerTelegram(ctx context.Context, text string) error {
+	fdb, err := floworkdb.Shared()
+	if err != nil {
+		return err
+	}
+	token, _ := fdb.GetSecret("NOTIFY_TG_TOKEN")
+	chatID, _ := fdb.GetKV("notify_tg_chat")
+	token = strings.TrimSpace(token)
+	chatID = strings.TrimSpace(chatID)
+	if token == "" || chatID == "" {
+		log.Printf("[codescan→notify] (telegram notif belum di-set di Settings) %s", truncStr(text, 120))
+		return nil
+	}
+	form := url.Values{"chat_id": {chatID}, "text": {text}}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		"https://api.telegram.org/bot"+token+"/sendMessage", strings.NewReader(form.Encode()))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	cl := &http.Client{Timeout: 10 * time.Second}
+	resp, err := cl.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("telegram sendMessage status %d", resp.StatusCode)
+	}
+	return nil
+}
+
+// truncStr — potong string buat log.
+func truncStr(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
 }
 
 func systemHealth(w http.ResponseWriter, _ *http.Request) {

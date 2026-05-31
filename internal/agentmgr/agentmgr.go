@@ -251,8 +251,9 @@ func ToggleHandler(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(w, map[string]any{"error": "invalid id"})
 		return
 	}
-	dir := agentFolder(id)
-	if _, err := os.Stat(dir); err != nil {
+	// Source-aware (fix bug.md #1): cek source repo dulu, baru staged.
+	dir, ok := resolveAgentDir(id)
+	if !ok {
 		httpx.WriteJSON(w, map[string]any{"error": "agent not found"})
 		return
 	}
@@ -1177,6 +1178,13 @@ func RemoveHandler(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(w, map[string]any{"error": "invalid id"})
 		return
 	}
+	// Source-agent (di repo agents/<id>/) ngga boleh dihapus via API — itu
+	// di-manage lewat repo/git. API cuma uninstall agent STAGED (hasil upload).
+	// (fix bug.md #1: gate source-aware + cegah nuke source repo.)
+	if src := agentSourceDir(id); src != "" {
+		httpx.WriteJSON(w, map[string]any{"error": "agent '" + id + "' adalah source-agent di repo (agents/" + id + "/) — hapus via repo/git, bukan API. API cuma uninstall agent staged."})
+		return
+	}
 	dir := agentFolder(id)
 	if _, err := os.Stat(dir); err != nil {
 		httpx.WriteJSON(w, map[string]any{"error": "agent not found"})
@@ -1259,8 +1267,9 @@ func ConfigHandler(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(w, map[string]any{"error": "invalid id"})
 		return
 	}
-	dir := agentFolder(id)
-	if _, err := os.Stat(dir); err != nil {
+	// Source-aware (fix bug.md #1): cek source repo dulu, baru staged.
+	dir, ok := resolveAgentDir(id)
+	if !ok {
 		httpx.WriteJSON(w, map[string]any{"error": "agent not found"})
 		return
 	}

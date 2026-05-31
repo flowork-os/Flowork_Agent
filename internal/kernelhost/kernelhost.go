@@ -64,6 +64,31 @@ type Host struct {
 
 	mu    sync.Mutex
 	lives []LiveEntry
+
+	// storeCache — *agentdb.Store per pluginID, di-reuse (fix bug.md #3: anti
+	// open/close state.db tiap pesan). WAL cross-connection visibility sudah
+	// diverifikasi: reader fresh tetap liat tulisan store cached. Di-close
+	// semua saat Host.Close().
+	storeCache sync.Map
+}
+
+// cachedStore — buka state.db sekali per agent lalu reuse. agentdb.Store
+// mutex-protected + WAL → aman concurrent + reader lain tetap liat tulisannya.
+// JANGAN Close hasilnya (lifetime = Host); di-close di Host.Close().
+func (h *Host) cachedStore(pluginID, agentPath string) (*agentdb.Store, error) {
+	if v, ok := h.storeCache.Load(pluginID); ok {
+		return v.(*agentdb.Store), nil
+	}
+	dbPath := agentdb.Resolve(pluginID, agentPath)
+	store, err := agentdb.Open(dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("open state.db: %w", err)
+	}
+	if actual, loaded := h.storeCache.LoadOrStore(pluginID, store); loaded {
+		_ = store.Close() // race: handle lain udah ke-store duluan
+		return actual.(*agentdb.Store), nil
+	}
+	return store, nil
 }
 
 // SharedSubfolders — struktur subfolder standar di shared workspace
@@ -85,10 +110,10 @@ var SharedSubfolders = []string{
 // kalau ada folder `agents/` di sana, else fallback ke `~/.flowork/workspace/`
 // (untuk binary yang di-run headless tanpa source tree).
 func sharedWorkspaceDir() string {
-	if cwd, err := os.Getwd(); err == nil {
-		if stat, err := os.Stat(filepath.Join(cwd, "agents")); err == nil && stat.IsDir() {
-			return filepath.Join(cwd, "workspace")
-		}
+	// Root via ProjectRoot() (env FLOWORK_PROJECT_ROOT > cwd) — fix bug.md #2.
+	root := agentdb.ProjectRoot()
+	if stat, err := os.Stat(filepath.Join(root, "agents")); err == nil && stat.IsDir() {
+		return filepath.Join(root, "workspace")
 	}
 	if home, err := os.UserHomeDir(); err == nil {
 		return filepath.Join(home, ".flowork", "workspace")
@@ -820,13 +845,10 @@ func (h *Host) logInteraction(pluginID, channel, direction, actor, content strin
 		return fmt.Errorf("agent not loaded: %s", pluginID)
 	}
 
-	dbPath := agentdb.Resolve(pluginID, agentPath)
-	store, err := agentdb.Open(dbPath)
+	store, err := h.cachedStore(pluginID, agentPath)
 	if err != nil {
-		return fmt.Errorf("open state.db: %w", err)
+		return err
 	}
-	defer store.Close()
-
 	_, err = store.LogInteraction(channel, direction, actor, content, metadata)
 	return err
 }
@@ -862,13 +884,10 @@ func (h *Host) logDecision(pluginID, decisionType, rationale, outcome string, in
 		return 0, fmt.Errorf("agent not loaded: %s", pluginID)
 	}
 
-	dbPath := agentdb.Resolve(pluginID, agentPath)
-	store, err := agentdb.Open(dbPath)
+	store, err := h.cachedStore(pluginID, agentPath)
 	if err != nil {
-		return 0, fmt.Errorf("open state.db: %w", err)
+		return 0, err
 	}
-	defer store.Close()
-
 	return store.LogDecision(decisionType, rationale, outcome, inputs, refInteractionID)
 }
 
@@ -896,13 +915,10 @@ func (h *Host) karmaUpdate(pluginID, op, key string, value float64) (float64, er
 		return 0, fmt.Errorf("agent not loaded: %s", pluginID)
 	}
 
-	dbPath := agentdb.Resolve(pluginID, agentPath)
-	store, err := agentdb.Open(dbPath)
+	store, err := h.cachedStore(pluginID, agentPath)
 	if err != nil {
-		return 0, fmt.Errorf("open state.db: %w", err)
+		return 0, err
 	}
-	defer store.Close()
-
 	switch op {
 	case "increment":
 		return store.IncrementKarma(key, value)
@@ -1241,5 +1257,12 @@ func (h *Host) dispatchSlash(pluginID, text, caller string) (string, string, err
 
 // Close release semua resource.
 func (h *Host) Close(ctx context.Context) error {
+	// Tutup semua cached *Store (fix bug.md #3) sebelum runtime shutdown.
+	h.storeCache.Range(func(_, v any) bool {
+		if s, ok := v.(*agentdb.Store); ok {
+			_ = s.Close()
+		}
+		return true
+	})
 	return h.Runtime.Close(ctx)
 }

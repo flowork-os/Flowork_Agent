@@ -14,18 +14,29 @@ package agentmgr
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"flowork-gui/internal/agentdb"
+	"flowork-gui/internal/codemap"
 	"flowork-gui/internal/httpx"
 	"flowork-gui/internal/protector"
 	"flowork-gui/internal/wallet"
 )
+
+// codemapRoot — direktori source yang di-index codemap. Default working dir
+// server (repo Flowork). Override via env FLOWORK_CODEMAP_ROOT (mis. untuk test).
+func codemapRoot() string {
+	if v := strings.TrimSpace(os.Getenv("FLOWORK_CODEMAP_ROOT")); v != "" {
+		return v
+	}
+	return agentdb.ProjectRoot()
+}
 
 // defaultAgentID — single-warga shim. Phase 2: read dari X-Agent-ID header.
 const defaultAgentID = "mr-flow"
@@ -79,8 +90,8 @@ func WalletCompatHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // WalletTxCompatHandler — GET /api/wallet/tx?limit=10
-// Reference shape: {tx: [{hash, direction, amount, symbol, ts}]}.
-// Kita ngga ada tx — adapter dari wallet_snapshots.
+// Reference shape: {txs: [{hash, from, to, value, symbol, decimals, timestamp}]}.
+// Tx blockchain ASLI via wallet.RecentTxAll (Etherscan native + ERC20).
 func WalletTxCompatHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
@@ -94,26 +105,22 @@ func WalletTxCompatHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	store, err := openAgentStore(defaultAgentID)
 	if err != nil {
-		httpx.WriteJSON(w, map[string]any{"tx": []any{}})
+		httpx.WriteJSON(w, map[string]any{"txs": []any{}})
 		return
 	}
 	defer store.Close()
-	snaps, err := store.ListWalletSnapshots(limit)
-	if err != nil {
-		httpx.WriteJSON(w, map[string]any{"tx": []any{}})
+	addrs, err := store.ListWalletAddresses()
+	if err != nil || len(addrs) == 0 {
+		httpx.WriteJSON(w, map[string]any{"txs": []any{}, "count": 0})
 		return
 	}
-	tx := make([]map[string]any, 0, len(snaps))
-	for _, s := range snaps {
-		tx = append(tx, map[string]any{
-			"hash":      fmt.Sprintf("snapshot-%d", s.ID),
-			"direction": "snapshot",
-			"amount":    s.TotalUSD,
-			"symbol":    "USD",
-			"ts":        s.TakenAt,
-		})
+	txs, terr := wallet.RecentTxAll(r.Context(), addrs[0].Address, limit)
+	if terr != nil {
+		// Graceful — frontend tetap render "no tx" + pesan (mis. ETHERSCAN_API_KEY).
+		httpx.WriteJSON(w, map[string]any{"txs": []any{}, "count": 0, "partial_error": terr.Error()})
+		return
 	}
-	httpx.WriteJSON(w, map[string]any{"tx": tx, "count": len(tx)})
+	httpx.WriteJSON(w, map[string]any{"txs": txs, "count": len(txs)})
 }
 
 // =============================================================================
@@ -121,7 +128,11 @@ func WalletTxCompatHandler(w http.ResponseWriter, r *http.Request) {
 // =============================================================================
 
 // FinanceSnapshotCompatHandler — GET /api/finance/snapshot
-// Reference shape: {total_usd, by_category, daily, budgets, recent_calls}
+//
+// Mode GABUNGAN: data API-cost REAL dari finance_ledger (Section 23) — total
+// 7 hari + per-kategori + budget (dengan % terpakai) + recent calls. Saldo
+// wallet personal di-fetch terpisah oleh frontend via /api/settings/wallet/portfolio.
+// Shape: {api_cost_total_usd, api_cost_by_category[], budgets[], recent_calls[], updated_at}
 func FinanceSnapshotCompatHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
@@ -133,19 +144,41 @@ func FinanceSnapshotCompatHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer store.Close()
-	// Today summary.
-	summary, _ := store.SummaryLedger(todayStart(), todayEnd())
+
+	now := time.Now().UTC()
+	from := now.AddDate(0, 0, -7).Format(time.RFC3339)
+	to := now.Format(time.RFC3339)
+
+	summary, _ := store.SummaryLedger(from, to)
 	var total float64
 	for _, s := range summary {
 		total += s.CostUSD
 	}
-	budgets, _ := store.ListBudgets()
-	recent, _ := store.ListLedger("", "", "", 10)
+	// Budget + % terpakai (berdasarkan total 7d untuk metric biaya).
+	rawBudgets, _ := store.ListBudgets()
+	budgets := make([]map[string]any, 0, len(rawBudgets))
+	for _, b := range rawBudgets {
+		pct := 0.0
+		if b.BudgetValue > 0 {
+			pct = total / b.BudgetValue * 100
+		}
+		budgets = append(budgets, map[string]any{
+			"metric_key":     b.MetricKey,
+			"budget_value":   b.BudgetValue,
+			"warning_at_pct": b.WarningAtPct,
+			"enabled":        b.Enabled,
+			"spent_usd":      total,
+			"pct":            pct,
+		})
+	}
+	recent, _ := store.ListLedger("", "", "", 15)
+
 	httpx.WriteJSON(w, map[string]any{
-		"total_usd":    total,
-		"by_category":  summary,
-		"budgets":      budgets,
-		"recent_calls": recent,
+		"api_cost_total_usd":   total,
+		"api_cost_by_category": summary,
+		"budgets":              budgets,
+		"recent_calls":         recent,
+		"updated_at":           to,
 	})
 }
 
@@ -173,14 +206,26 @@ func PromptTemplatesListCompatHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	templates := make([]map[string]any, 0, len(slots))
 	for _, s := range slots {
+		if s.Body == promptDeletedSentinel { // soft-deleted → hide
+			continue
+		}
+		preview := s.Body
+		if len(preview) > 300 {
+			preview = preview[:300]
+		}
 		templates = append(templates, map[string]any{
-			"name":        s.Slot,
-			"description": fmt.Sprintf("v%d · %d bytes · %s", s.Version, len(s.Body), s.Notes),
-			"version":     s.Version,
+			"name":         s.Slot,
+			"preview":      preview,
+			"content_size": len(s.Body),
+			"updated_at":   s.UpdatedAt,
+			"usage_count":  1, // dipakai oleh agent pemilik slot (mr-flow)
 		})
 	}
 	httpx.WriteJSON(w, map[string]any{"templates": templates, "count": len(templates)})
 }
+
+// promptDeletedSentinel — body marker untuk soft-delete slot prompt.
+const promptDeletedSentinel = "[deleted]"
 
 // PromptTemplatesDetailCompatHandler — GET /api/brain/prompt-templates/detail?name=
 // Reference shape: {name, body, description}
@@ -206,10 +251,11 @@ func PromptTemplatesDetailCompatHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	httpx.WriteJSON(w, map[string]any{
-		"name":        sp.Slot,
-		"body":        sp.Body,
-		"description": sp.Notes,
-		"version":     sp.Version,
+		"name":       sp.Slot,
+		"content":    sp.Body,
+		"used_by":    []map[string]any{{"name": defaultAgentID}},
+		"used_count": 1,
+		"updated_at": sp.UpdatedAt,
 	})
 }
 
@@ -221,16 +267,20 @@ func PromptTemplatesUpsertCompatHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	var body struct {
-		Name        string `json:"name"`
-		Body        string `json:"body"`
-		Description string `json:"description"`
+		Name    string `json:"name"`
+		Content string `json:"content"`
+		Body    string `json:"body"` // fallback (compat lama)
 	}
 	if err := json.NewDecoder(io.LimitReader(r.Body, 128*1024)).Decode(&body); err != nil {
 		httpx.WriteJSON(w, map[string]any{"error": "invalid json: " + err.Error()})
 		return
 	}
-	if body.Name == "" || body.Body == "" {
-		httpx.WriteJSON(w, map[string]any{"error": "name + body required"})
+	content := body.Content
+	if content == "" {
+		content = body.Body
+	}
+	if body.Name == "" || content == "" {
+		httpx.WriteJSON(w, map[string]any{"error": "name + content required"})
 		return
 	}
 	store, err := openAgentStore(defaultAgentID)
@@ -239,7 +289,7 @@ func PromptTemplatesUpsertCompatHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	defer store.Close()
-	id, err := store.SetSelfPrompt(body.Name, body.Body, body.Description, 0)
+	id, err := store.SetSelfPrompt(body.Name, content, "", 0)
 	if err != nil {
 		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
 		return
@@ -267,28 +317,14 @@ func PromptTemplatesDeleteCompatHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	defer store.Close()
-	// Soft-delete: store empty body sebagai sentinel.
-	_, _ = store.SetSelfPrompt(body.Name, "[deleted]", "soft-delete", 0)
+	// Soft-delete: body sentinel → di-hide oleh list handler.
+	_, _ = store.SetSelfPrompt(body.Name, promptDeletedSentinel, "soft-delete", 0)
 	httpx.WriteJSON(w, map[string]any{"ok": true})
 }
 
 // =============================================================================
 // Helpers
 // =============================================================================
-
-func todayStart() string {
-	return timeFmt(0)
-}
-func todayEnd() string {
-	return timeFmt(86400)
-}
-func timeFmt(deltaSec int64) string {
-	t := time.Now().UTC()
-	if deltaSec > 0 {
-		t = t.Add(time.Duration(deltaSec) * time.Second)
-	}
-	return t.Format("2006-01-02") + "T00:00:00Z"
-}
 
 // =============================================================================
 // /api/protector (reference: protector.js)
@@ -307,26 +343,30 @@ func ProtectorListCompatHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer store.Close()
-	custom, _ := store.ListProtectorRules()
+	custom, _ := store.ListProtectorRulesCat()
 	out := []map[string]any{}
+	// Baseline (hardcoded immutable): category = rule type (file_path/command/ip/env_var).
 	for _, b := range protector.Baseline() {
 		out = append(out, map[string]any{
-			"id":      0,
-			"path":    b.Pattern,
-			"type":    b.Type,
-			"action":  b.Action,
-			"enabled": true,
-			"source":  "hardcoded",
+			"path":     b.Pattern,
+			"category": b.Type,
+			"action":   b.Action,
+			"active":   true,
+			"source":   "hardcoded",
 		})
 	}
+	// Custom: category label dari kolom category (fallback ke rule type).
 	for _, c := range custom {
+		cat := c.Category
+		if cat == "" {
+			cat = c.RuleType
+		}
 		out = append(out, map[string]any{
-			"id":      c.ID,
-			"path":    c.Pattern,
-			"type":    c.RuleType,
-			"action":  c.Action,
-			"enabled": c.Enabled,
-			"source":  c.Source,
+			"path":     c.Pattern,
+			"category": cat,
+			"action":   c.Action,
+			"active":   c.Enabled,
+			"source":   c.Source,
 		})
 	}
 	httpx.WriteJSON(w, map[string]any{"rules": out, "count": len(out)})
@@ -339,19 +379,20 @@ func ProtectorAddCompatHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Path   string `json:"path"`
-		Type   string `json:"type"`
-		Action string `json:"action"`
+		Path     string `json:"path"`
+		Type     string `json:"type"`     // UI match-style (suffix/basename/custom) — informational
+		Category string `json:"category"` // UI label (secrets/core/doktrin/...)
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
 		return
 	}
-	if body.Type == "" {
-		body.Type = "file_path"
+	if strings.TrimSpace(body.Path) == "" {
+		httpx.WriteJSON(w, map[string]any{"error": "path required"})
+		return
 	}
-	if body.Action == "" {
-		body.Action = "block"
+	if body.Category == "" {
+		body.Category = "custom"
 	}
 	store, err := openAgentStore(defaultAgentID)
 	if err != nil {
@@ -359,10 +400,8 @@ func ProtectorAddCompatHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer store.Close()
-	id, err := store.AddProtectorRule(agentdb.ProtectorRule{
-		RuleType: body.Type, Pattern: body.Path, Action: body.Action,
-		Source: "custom", Enabled: true,
-	})
+	// rule_type "file_path" supaya interceptor file-ops enforce; category = label UI.
+	id, err := store.AddProtectorRuleCat("file_path", body.Path, "block", body.Category)
 	if err != nil {
 		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
 		return
@@ -370,14 +409,14 @@ func ProtectorAddCompatHandler(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, map[string]any{"ok": true, "id": id})
 }
 
-// ProtectorRemoveCompatHandler — POST /api/protector/remove {id}
+// ProtectorRemoveCompatHandler — POST /api/protector/remove {path}
 func ProtectorRemoveCompatHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
 		return
 	}
 	var body struct {
-		ID int64 `json:"id"`
+		Path string `json:"path"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
@@ -389,22 +428,27 @@ func ProtectorRemoveCompatHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer store.Close()
-	if err := store.DeleteProtectorRule(body.ID); err != nil {
+	id, ok := store.FindProtectorRuleIDByPattern(body.Path)
+	if !ok {
+		httpx.WriteJSON(w, map[string]any{"error": "rule not found (hardcoded baseline tidak bisa dihapus)"})
+		return
+	}
+	if err := store.DeleteProtectorRule(id); err != nil {
 		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
 		return
 	}
 	httpx.WriteJSON(w, map[string]any{"ok": true})
 }
 
-// ProtectorToggleCompatHandler — POST /api/protector/toggle {id, enabled}
+// ProtectorToggleCompatHandler — POST /api/protector/toggle {path, active}
 func ProtectorToggleCompatHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
 		return
 	}
 	var body struct {
-		ID      int64 `json:"id"`
-		Enabled bool  `json:"enabled"`
+		Path   string `json:"path"`
+		Active bool   `json:"active"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
@@ -416,7 +460,12 @@ func ProtectorToggleCompatHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer store.Close()
-	if err := store.ToggleProtectorRule(body.ID, body.Enabled); err != nil {
+	id, ok := store.FindProtectorRuleIDByPattern(body.Path)
+	if !ok {
+		httpx.WriteJSON(w, map[string]any{"error": "rule not found (hardcoded baseline selalu aktif)"})
+		return
+	}
+	if err := store.ToggleProtectorRule(id, body.Active); err != nil {
 		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
 		return
 	}
@@ -451,10 +500,11 @@ func ProtectorTestCompatHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	matched, hit := protector.CheckPattern("file_path", path, customRules)
 	httpx.WriteJSON(w, map[string]any{
-		"path":    path,
-		"matched": hit,
-		"pattern": matched.Pattern,
-		"action":  matched.Action,
+		"path":      path,
+		"protected": hit,
+		"matched":   hit,
+		"pattern":   matched.Pattern,
+		"action":    matched.Action,
 	})
 }
 
@@ -475,32 +525,22 @@ func CodemapGraphCompatHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer store.Close()
-	rows, err := store.ListCodemapNodes("", "", "", 500)
+	nodes, err := store.ListCodemapFiles()
 	if err != nil {
 		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
 		return
 	}
-	nodes := make([]map[string]any, 0, len(rows))
-	for _, n := range rows {
-		nodes = append(nodes, map[string]any{
-			"id":         n.ID,
-			"name":       n.Name,
-			"path":       n.FilePath,
-			"type":       n.NodeType,
-			"layer":      n.Layer,
-			"line_start": n.LineStart,
-			"line_end":   n.LineEnd,
-			"size_loc":   n.SizeLOC,
-		})
-	}
+	edges, _ := store.ListCodemapFileEdges()
 	httpx.WriteJSON(w, map[string]any{
-		"nodes": nodes,
-		"edges": []any{}, // phase 2: Section 27 phase 2 edges
-		"count": len(nodes),
+		"nodes":      nodes,
+		"edges":      edges,
+		"node_count": len(nodes),
+		"edge_count": len(edges),
 	})
 }
 
 // CodemapStatusCompatHandler — GET /api/codemap/status
+// Shape: {running, node_count, edge_count}
 func CodemapStatusCompatHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
@@ -512,15 +552,12 @@ func CodemapStatusCompatHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer store.Close()
-	all, _ := store.ListCodemapNodes("", "", "", 5000)
-	byType := map[string]int{}
-	for _, n := range all {
-		byType[n.NodeType]++
-	}
+	nodes, _ := store.ListCodemapFiles()
+	edges, _ := store.ListCodemapFileEdges()
 	httpx.WriteJSON(w, map[string]any{
-		"indexed":  true,
-		"total":    len(all),
-		"by_type":  byType,
+		"running":    false,
+		"node_count": len(nodes),
+		"edge_count": len(edges),
 	})
 }
 
@@ -536,38 +573,109 @@ func CodemapZombiesCompatHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer store.Close()
-	rows, err := store.ListZombieFindings(200)
+	// Zombie file-level = node yang ngga ada yang import (dependent_count=0)
+	// DAN ngga import internal siapa pun (ngga jadi `from` edge manapun).
+	// Sesuai judul tab: "tidak ada yang import, tidak import siapapun".
+	files, err := store.ListCodemapFiles()
 	if err != nil {
 		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
 		return
 	}
-	zombies := make([]map[string]any, 0, len(rows))
-	for _, z := range rows {
-		zombies = append(zombies, map[string]any{
-			"id":           z.ID,
-			"path":         z.FilePath,
-			"name":         z.SymbolName,
-			"type":         z.SymbolType,
-			"confidence":   z.Confidence,
-			"reason":       z.Reason,
-			"acknowledged": z.Acknowledged,
-		})
+	edges, _ := store.ListCodemapFileEdges()
+	hasOutgoing := map[string]bool{}
+	for _, e := range edges {
+		hasOutgoing[e.From] = true
+	}
+	zombies := []map[string]any{}
+	for _, f := range files {
+		path, _ := f["path"].(string)
+		dep, _ := f["dependent_count"].(int)
+		if dep == 0 && !hasOutgoing[path] {
+			zombies = append(zombies, map[string]any{
+				"path":      path,
+				"name":      f["name"],
+				"file_type": f["file_type"],
+				"line_count": f["line_count"],
+			})
+		}
 	}
 	httpx.WriteJSON(w, map[string]any{"zombies": zombies, "count": len(zombies)})
 }
 
-// CodemapReindexCompatHandler — POST /api/codemap/reindex (no-op stub).
-// Real reindex membutuhkan iterasi semua file workspace + parse + upsert.
-// Phase 2 implementation.
+// CodemapReindexCompatHandler — POST /api/codemap/reindex
+// Walk repo source (codemapRoot) → file node + import edge → replace tabel.
 func CodemapReindexCompatHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
 		return
 	}
+	files, edges, err := codemap.WalkRepo(codemapRoot())
+	if err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+		return
+	}
+	store, err := openAgentStore(defaultAgentID)
+	if err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+		return
+	}
+	defer store.Close()
+	// Convert codemap.FileInfo → agentdb.CodemapFile.
+	rows := make([]agentdb.CodemapFile, 0, len(files))
+	for _, f := range files {
+		rows = append(rows, agentdb.CodemapFile{
+			Path: f.Path, Name: f.Name, FileType: f.FileType, LineCount: f.LineCount,
+			Layer: f.Layer, HasTests: f.HasTests, HasDocs: f.HasDocs,
+			HealthScore: f.HealthScore, RecentlyTouched: f.RecentlyTouched, Issues: f.Issues,
+		})
+	}
+	eRows := make([]agentdb.CodemapFileEdge, 0, len(edges))
+	for _, e := range edges {
+		eRows = append(eRows, agentdb.CodemapFileEdge{From: e.From, To: e.To})
+	}
+	if err := store.ReplaceCodemapFiles(rows, eRows); err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+		return
+	}
 	httpx.WriteJSON(w, map[string]any{
-		"ok":      true,
-		"message": "reindex stub — gunakan POST /api/agents/codemap/index untuk index file specific",
+		"ok":         true,
+		"message":    "reindex selesai",
+		"node_count": len(rows),
+		"edge_count": len(eRows),
 	})
+}
+
+// CodemapDocsCompatHandler — GET /api/codemap/docs?path=<rel>
+// Return isi file source (text/plain) untuk viewer. Anti path-traversal:
+// resolve di dalam codemapRoot, reject keluar root.
+func CodemapDocsCompatHandler(w http.ResponseWriter, r *http.Request) {
+	rel := strings.TrimSpace(r.URL.Query().Get("path"))
+	if rel == "" {
+		http.Error(w, "path required", http.StatusBadRequest)
+		return
+	}
+	root := codemapRoot()
+	clean := filepath.Clean(filepath.Join(root, rel))
+	// Pastikan masih di dalam root (anti ../ escape).
+	if clean != root && !strings.HasPrefix(clean, root+string(os.PathSeparator)) {
+		http.Error(w, "path escapes root", http.StatusForbidden)
+		return
+	}
+	data, err := os.ReadFile(clean)
+	if err != nil {
+		http.Error(w, "file not found", http.StatusNotFound)
+		return
+	}
+	const maxDocBytes = 256 * 1024
+	if len(data) > maxDocBytes {
+		data = data[:maxDocBytes]
+	}
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	// Bungkus ke fenced code block biar mdToHTML render rapi sebagai code.
+	lang := strings.TrimPrefix(filepath.Ext(rel), ".")
+	_, _ = w.Write([]byte("```" + lang + "\n"))
+	_, _ = w.Write(data)
+	_, _ = w.Write([]byte("\n```\n"))
 }
 
 // CodemapRootsCompatHandler — GET /api/codemap/roots (return file_path list).

@@ -19,7 +19,7 @@ window.dispatchEvent(new Event('flowork:i18n-ready'));
 // Single source of truth = sidebar buttons di index.html.
 // Add tab baru = update ACTIVE_TABS + index.html nav button +
 // tabs/<n>.js render() + i18n/<locale>/menu.json + tooltip.json.
-const ACTIVE_TABS = new Set(['agents', 'wallet', 'finance', 'protector', 'prompt', 'codemap', 'doktrin_edukasi', 'scanner', 'warga_caps', 'commits', 'diagnostics']);
+const ACTIVE_TABS = new Set(['agents', 'wallet', 'finance', 'protector', 'prompt', 'codemap', 'doktrin_edukasi', 'scanner', 'warga_caps', 'commits', 'diagnostics', 'settings']);
 
 // Routing: URL hash wins, then localStorage, then default. Hash format is
 // `#top/sub` (e.g. `#tasking/caps`). Sub-tab is read by segmentedTab via
@@ -35,7 +35,7 @@ function pickInitialTab() {
   if (fromHash && ACTIVE_TABS.has(fromHash)) return fromHash;
   const saved = localStorage.getItem('flowork_last_tab');
   if (saved && ACTIVE_TABS.has(saved)) return saved;
-  return 'agents';
+  return 'scanner'; // halaman utama: Threat Radar (scanner) — first thing after login
 }
 let currentTab = pickInitialTab();
 // Mirror back into both storages so they're in sync from the first paint on.

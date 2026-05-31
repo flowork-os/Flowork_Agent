@@ -1,3 +1,280 @@
+## 2026-05-31 21:40 WIB — GUI header router-style + Threat Radar jadi home + README/LICENSE
+
+- **Header** (kayak Flowork Router): tombol ★ GitHub (→Flowork_Agent), ⚡ Router
+  (→flowork_Router, cross-promote "performa terbaik"), ✈ Telegram, ❤ Donate
+  (paypalme/TeetahDev). CSS gradient per tombol.
+- **Sidebar reorder**: 🛡️ Threat Radar (scanner) jadi menu PERTAMA + default tab
+  (`pickInitialTab` → 'scanner') → pas login langsung liat radar. AI Agent kedua.
+- **Auditor `unlocked_file_auditor`** (info): tandai file .go/.js/.ts yang BELUM
+  ada header `=== LOCKED FILE ===` → fokus hunting bug ke file belum-stable.
+- **README.md** (NEW): marketing + SEO (badges, feature table, Threat Radar
+  highlight, quickstart, arsitektur, keywords) + rekomendasi flowork_Router buat
+  performa terbaik. **LICENSE** (MIT, © Aola Sahidin).
+
+---
+
+## 2026-05-31 21:25 WIB — FIX bug asli dari bug.md (3 temuan valid)
+
+Setelah auditor dibuat, bug aslinya diperbaiki. Semua verified.
+
+### Fix #1 — handler path-resolution staged-only (source-agent ke-tolak)
+- `agentmgr/agent_resolve.go` (NEW LOCKED): `resolveAgentDir()` source-first
+  (ProjectRoot/agents/<id>) → fallback staged. `agentSourceDir()` helper.
+- `ConfigHandler` + `ToggleHandler` gate ganti ke `resolveAgentDir` → source-agent
+  ga ke-tolak "not found". `RemoveHandler` dikasih guard: TOLAK hapus source-agent
+  (cegah nuke repo via API; cuma uninstall staged). DownloadHandler udah bener.
+- Verified: `staged_path_gate_auditor` → **0** (bug ilang); ConfigHandler return config.
+
+### Fix #2 — reliance os.Getwd (rapuh dari cwd lain)
+- `agentdb/projectroot.go` (NEW LOCKED): `ProjectRoot()` = env FLOWORK_PROJECT_ROOT
+  > os.Getwd(). Resolve/SourceWorkspace (agentdb) + sharedWorkspaceDir (kernelhost)
+  + codemapRoot + codescanRoot semua pakai ini. Source-agent ga salah-resolve lagi
+  walau binary dijalanin dari dir lain. cwd_dependency 6→3 (sisa = fallback intentional).
+
+### Fix #3 — 3× SQLite Open per pesan (perf/lock)
+- `kernelhost`: `storeCache sync.Map` + `cachedStore(pluginID)` — buka state.db
+  SEKALI per agent, reuse di logInteraction/logDecision/karmaUpdate (dulu Open+Close
+  tiap call = 3-5 open/pesan). Di-close semua di Host.Close().
+- **WAL cross-connection visibility diverifikasi**: reader fresh (HTTP interactions
+  handler / fetchHistory) tetap liat tulisan store cached → MEMORY TETEP JALAN.
+  (Sempet salah duga cache mecahin memory — ternyata test salah port; WASM fetchHistory
+  hardcode :1987, test di :1988 nyamber prod. Test ulang valid: visibility OK.)
+- db_open_per_call: chat hot-path ke-cache; sisa 2 (handleAgentChange rare +
+  dispatchSlash per-slash) advisory low, dibiarin.
+
+### Auditor refine (akurasi)
+- `staged_path_gate_auditor`: function-scoped sawSource (skip kalau fungsi udah
+  source-aware) + skip komentar/baris regex (anti self-match) → 0 false positive.
+
+Verified: `go build`/`go vet` CLEAN; prod restart (codescan watching 37 dirs, daemon
+ready); WAL visibility test pass; config source-aware. File baru di-LOCK.
+
+---
+
+## 2026-05-31 21:00 WIB — Scanner validity fix + 4 auditor baru (dari bug.md)
+
+Cek validitas hasil scanner + tambah auditor buat temuan valid yang belum ke-cover.
+
+### FIX validitas — secret by-value
+- `auditors_secrets.go` (NEW LOCKED): `hardcoded_secret_auditor` lama cuma match
+  kalau NAMA VAR punya keyword (github_token=) → MISS secret by-value (AKIA…,
+  ghp_…, AIza…). Auditor baru `hardcoded_secret_value_auditor` match FORMAT value
+  (AWS/GitHub/Google/OpenAI/Slack/Stripe/Telegram/JWT/private-key + generic).
+  Verified: crafted secret kedetek critical; **0 false-positive di 141 file repo**.
+
+### Auditor baru dari laporan bug eksternal (bug.md) — semua diverifikasi REAL dulu
+- `auditors_cwd.go` (NEW LOCKED) `cwd_dependency_auditor` (low): flag `os.Getwd()`
+  path-resolution (rapuh kalau run dari cwd lain). 6 hit real (agentdb, kernelhost, dst).
+- `auditors_arch.go` (NEW LOCKED):
+  - `staged_path_gate_auditor` (medium): existence gate `os.Stat(agentFolder(id))`
+    staged-only (inline + 2-baris var tracking) → source-agent ke-tolak "not found".
+    6 hit real (ConfigHandler/RemoveHandler/ToggleHandler + 1 lain). DBResetHandler
+    BENAR tidak ke-flag (udah Resolve source-first → laporan bug soal DBReset ngga akurat).
+  - `db_open_per_call_auditor` (medium): DB Open di fungsi per-call (log/on/handle/
+    tick/fire). 4 hit (logInteraction+logDecision = target bug.md, perf/lock WAL).
+- Semua auditor daftar via `init()` ke scanner.Auditors — ga sentuh `auditors.go` locked.
+- Validity bug.md: 3/4 temuan REAL (handler gate, os.Getwd, 3× SQLite/pesan);
+  klaim DBResetHandler buggy = TIDAK akurat. Auditor cuma dibuat utk yang valid.
+
+> Catatan: bug aslinya (handler staged-gate latent + perf open-per-pesan) sekarang
+> KE-DETEKSI radar tiap file-nya di-scan. Fix bug-nya (handler source-aware +
+> cache *Store) belum dikerjain — nunggu approve owner (di luar scope "buatin scaner").
+
+---
+
+## 2026-05-31 20:50 WIB — Scanner radar redesign + Telegram notif pindah ke Settings
+
+### GUI — tab Scanner di-redesign (radar gede, profesional)
+- `web/tabs/scanner.js` (rewrite): radar dibesarin (400px, centerpiece kiri),
+  kanan = SCAN LOG (stream file yang ke-scan + status, clickable) atas +
+  FINDINGS detail bawah. **Buang** input target manual (`bad_example.go`) +
+  tombol manual SCAN — full background-watch (cukup REFRESH + auto-poll 8s).
+  Tema terminal neon-green, stats RUNS/FINDINGS/CRITICAL, core THREAT/WARNING/
+  NOTED/SECURE.
+
+### Arsitektur — Telegram notif owner PINDAH ke Settings (bukan agent)
+- Sebelumnya host (codescan notify) ngintip secret agent mr-flow → MELANGGAR
+  isolasi agent. Sekarang owner-level Telegram (token + chat id) disimpan di
+  flowork.db GLOBAL via Settings → **Notifikasi** (`NOTIFY_TG_TOKEN` secret +
+  `notify_tg_chat` kv). `notifyOwnerTelegram` baca dari floworkdb, BUKAN agent.
+- Agent tetep punya bot token sendiri (isolated/plug-and-play) — TERPISAH dari
+  notif owner. Sesuai prinsip "settings & AI agent misah".
+- NEW endpoint `/api/settings/notify` (GET masked / POST save / test=true kirim
+  pesan tes via TestNotifyFunc). Settings tab nambah segment "Notifikasi"
+  (token masked + chat id + Save + Test), i18n en+id.
+- Verified (isolated): GET set:false → POST save → GET masked `••••••CDEF`+chat
+  → test=true graceful (telegram 401 krn token dummy; jalur kirim kebukti).
+
+---
+
+## 2026-05-31 20:40 WIB — Background code scanner (radar) + auto-start
+
+Scanner sekarang jalan DI BELAKANG otomatis — tiap ada update kode (lo/AI ngedit),
+file yang berubah langsung di-scan buat deteksi bug/celah dari perbaikan itu.
+
+### NEW (LOCKED) — engine `internal/codescan`
+- fsnotify watch SOURCE repo (skip noise: .git/vendor/web/referensifile/bin/
+  workspace/dst) + kode buatan AI `/shared/<id>/tools/`. Debounce 1.5s, scan
+  file yang berubah (single-file, hemat), persist sbg scanner run `scan_type
+  "auto:filechange"` → muncul di tab Scanner. Critical/high → audit_log
+  (`scanner_finding`) + push Telegram ke owner.
+- `agentdb/secret_read.go` (LOCKED): GetSecretValue — host baca bot token +
+  chat owner buat notify.
+- main.go: `notifyOwnerTelegram` (POST Telegram sendMessage) + engine
+  auto-start `codescanEngine.Start(ctx)`. **One-click**: launch via start.sh/
+  restart.sh/.desktop → engine langsung jalan (verified: "watching 37 dirs").
+
+### GUI — tab Scanner jadi "Threat Radar" (hacker style)
+- `web/tabs/scanner.js` (rewrite, LOCKED): radar sweep animasi (conic-gradient
+  spin + ring + crosshair), blip per finding by severity (critical merah deket
+  pusat → low ijo luar, golden-angle spread), core status THREAT/WARNING/NOTED/
+  SECURE, badge LIVE, stats, auto-poll 8s biar auto-scan keliatan live. Tema
+  terminal neon-green monospace + scanline. Endpoint/data wiring sama (esc-safe).
+
+### Verifikasi
+- E2E (instance isolated): edit decoy `SELECT ...%s + concat` → auto-scan
+  jalan → run `auto:filechange fail crit=1 total=2` + audit `scanner_finding
+  severity=critical` + notify dipanggil (fallback log pas token kosong). Engine
+  auto-start kebukti di prod. `go build`/`go vet` CLEAN.
+
+---
+
+## 2026-05-31 20:20 WIB — FIX: Mr.Flow ga inget konteks percakapan (memory)
+
+Gejala: tiap pesan Telegram dijawab seakan fresh ("Lo mau apa?", "Hasilnya dari
+apa?") + ngarang manggil tool ("[scanning…]"). Akar masalah BERLAPIS:
+
+1. `callLLM` cuma kirim `[system, user]` — NOL history. → Fix: inject riwayat
+   percakapan. `fetchHistory(actor)` ambil dari `/api/agents/interactions`
+   (pola sama fetchSelfPrompt, persistent dari state.db), build turn kronologis
+   (max 16 msg, cap 1200 char/msg, anti over-prompt), `callLLM` susun
+   `[system, ...history]`.
+2. **Auth gating (yg gw tambah) MECAHIN self-call agent**: daemon WASM fetch
+   history/self-prompt ke API sendiri via hostNetFetch TANPA cookie → 401 →
+   history kosong (fetchSelfPrompt juga diam-diam mati sejak login ditambah).
+   → Fix: `floworkauth` middleware bypass loopback (GET-only) buat
+   `/api/agents/interactions` + `/api/agents/self-prompt/render` (pola
+   isLocalRequest referensi lama; server bind 127.0.0.1 = aman dari remote).
+3. **Manifest cap** whitelist net:fetch URL eksak — interactions belum ada →
+   cap gate nolak. → Fix: tambah `net:fetch:http://127.0.0.1:1987/api/agents/interactions`.
+4. Guard anti-halu diperkuat: NO FAKE EXECUTION (jangan pura-pura scanning/
+   fetching/"tunggu output"), + reminder "lo PUNYA konteks, jangan tanya ulang".
+5. `doHandle` (RPC) log in/out + history → jalur chat-debug mirror Telegram.
+
+Verified E2E (jalur `handle_message` = jalur Telegram, router live): turn1 "nama
+gw Aola" → turn2 "nama gw siapa?" → **"Aola."** Bypass loopback ter-scope benar
+(interactions 200, finance/summary tetep 401). Rebuild wasm + manifest restaged.
+
+---
+
+## 2026-05-31 20:05 WIB — Doktrin Edukasi: seed katalog 28 entry (anti-stuck)
+
+Tab Doktrin Edukasi cuma 2 entry. NEW `agentdb/edu_errors_seed.go` (idempotent
+INSERT OR IGNORE — edit owner via GUI ga ke-overwrite): 28 entry default error→
+remediation, dikelompokin: tool, safety, psychology, verification, resource,
+workspace, llm. Remediation NGARAHIN ke tool yang BENERAN ada (tool_search,
+edu_error_lookup, askuser, telegram_send, mistake_log, decision_log, brain_search,
+plan_write/todo, finance_summary, capabilities_list) — bukan tool hantu, biar
+agent ga tambah stuck. Di-seed ke tiap agent saat boot (main.go). Agent konsul via
+tool `edu_error_lookup <code>` pas kepentok. Verified: log "seeded 28 entry → mr-flow".
+
+---
+
+## 2026-05-31 20:10 WIB — Remediasi tab non-agent (host-level GUI)
+
+Audit semua menu GUI non-agent (agent layer udah bener). Banyak compat shim
+shape-nya ngaco / nyangkut mockAPI → "keliatan jadi padahal palsu". Diperbaiki
+urut, masing-masing di-test E2E lewat HTTP (harness terisolasi port 1988).
+
+Hasil audit: wallet PARTIAL, finance/protector/prompt/codemap/warga_caps BROKEN,
+commits/diagnostics/scanner/doktrin OK.
+
+### WALLET — `/api/wallet/tx`
+- Dulu palsu (snapshot di-fake jadi "tx"). Sekarang tx blockchain ASLI via
+  `wallet.RecentTxAll` + key `txs` (frontend baca `txs`, bukan `tx`).
+
+### FINANCE — rewrite GABUNGAN (web/tabs/finance.js + handler)
+- Dulu shape salah total → tab kosong. Sekarang: biaya API 7 hari REAL
+  (finance_ledger) per-kategori + budget (% terpakai) + recent calls + wallet
+  personal (alamat dari Settings, total saldo on-demand).
+
+### PROTECTOR — field + path-ops
+- Fix field (`category`/`active`/`source`/`path`), toggle/remove **by path**
+  (dulu minta id). Tambah persist `category` via plug-in `protector_category.go`
+  (lazy ALTER, ngga sentuh protector.go locked). Test return `protected`.
+
+### PROMPT — shape list+detail
+- list: `preview/content_size/updated_at/usage_count`; detail: `content`+
+  `used_by`+`used_count`; input baca `content`; soft-delete di-hide dari list.
+
+### CODEMAP — graph beneran (paling dalam)
+- NEW `internal/codemap/walker.go` (LOCKED): index repo Go → file node +
+  import edge. NEW `agentdb/codemap_files.go` (LOCKED): tabel file-level +
+  dependent_count. Graph kirim node lengkap (health/issues/layer/LOC/tests/docs)
+  + edges; status `{running,node_count,edge_count}`; reindex BENERAN jalan;
+  `/api/codemap/docs` viewer (anti-traversal). Verified: 139 node + 122 edge.
+- FIX crash `toUpperCase of undefined`: `/api/codemap/zombies` dulu balikin
+  shape simbol (field `type`), frontend baca `file_type`/`line_count`. Sekarang
+  zombie file-level beneran (file tanpa edge import in/out) → shape match.
+
+### WARGA_CAPS — catalog shape + warga real
+- catalog grouped `{category, tools:[...]}` (dulu flat → frontend crash di
+  `.map()`). Warga list real dari kernel (`AgentIDsFunc` wired) + `active`,
+  fallback mr-flow. seed/effective/override tetap jalan.
+
+### Cut (zombie)
+- `legacy_compat.go`: helper `todayStart/todayEnd/timeFmt` ( kepake finance lama).
+
+### Verifikasi
+- `go build ./...` + `go vet ./...` CLEAN. Tiap endpoint di-test via curl jalur
+  HTTP sama browser (login cookie) di instance isolated. Agent layer (popup
+  setting, isolasi state.db) TIDAK disentuh. Browser visual: pending Mr.Dev.
+
+---
+
+## 2026-05-31 19:20 WIB — Login + Settings page + DB global Flowork
+
+Halaman login/register beneran jalan + tab Settings owner-level. AI agent TETAP
+terisolasi (state.db per-warga ga disentuh) — yang baru cuma DB global owner.
+
+### NEW (LOCKED) — DB global owner-level
+- `internal/floworkdb/floworkdb.go` — SQLite GLOBAL di `~/.flowork/flowork.db`
+  (env `FLOWORK_DATA_DIR` override, mirror pola agentdb). Tabel: kv, secrets,
+  wallet_addresses. **Warga ga nyimpen apa pun di sini.**
+
+### NEW (LOCKED) — auth single-owner
+- `internal/floworkauth/{floworkauth,handlers}.go` — register(set password
+  pertama)/login/logout/change-password + `/api/auth/me`. bcrypt + session
+  cookie in-memory (HttpOnly, SameSite=Lax) + middleware gating semua route
+  (whitelist /login /register /js /css /i18n /vendor + auth/health). No Telegram,
+  no multi-user (sesuai keputusan owner).
+
+### NEW (LOCKED) — settings API
+- `internal/settingsapi/settingsapi.go` — `/api/settings/{wallet/addresses,
+  wallet/portfolio,keys,ai-wallets}`. API key masked (4 char) + di-inject ke env
+  (live, no restart) → reuse engine `wallet.Snapshot` tanpa refactor. AI-wallets
+  READ-ONLY host-level (isolasi warga utuh).
+
+### Frontend
+- `web/tabs/settings.js` (NEW) — 4 section: Akun & Keamanan / Token Crypto-API
+  Keys / Wallet Personal / Wallet AI. Semua label via dictionary i18n.
+- `web/index.html` sidebar `⚙️ Settings` · `web/js/app.js` ACTIVE_TABS +settings
+- `web/i18n/{en,id}/{menu,tooltip,common}.json` — key Settings (en+id).
+
+### main.go (edit, approved)
+- Init floworkdb.Shared() + inject secret UPPER_SNAKE → env saat boot.
+- Ganti stub authMe/authLogout → floworkauth real. Tambah route /login /register
+  (FileServer ga map /login → login.html), settings, auth. Middleware:
+  `httpx.NoCache(authMgr.Middleware(mux))`.
+
+### Verifikasi (E2E via HTTP, jalur sama browser)
+14/14 cek PASS: setup_required → register 201 → register2 409 → login salah 401
+→ login benar 200+cookie → me authenticated → key masked → wallet add/list →
+ai-wallets read-only → change-password+login-baru → logout → **no hash leak**.
+`go build`/`go vet` CLEAN. (Browser visual click-through: pending Mr.Dev.)
+
+---
+
 ## 2026-05-30 12:46 WIB — Port batch 13 FINAL: 8 tool (106/112 = 95% tools)
 
 ### v14_extras.go (NEW LOCKED) — 8 tool final

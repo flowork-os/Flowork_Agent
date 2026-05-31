@@ -267,7 +267,10 @@ func runDaemon() {
 			// TinyGo wasi target's time.Since() returns wrong precision —
 			// pakai host capability host_time_now_ms (wall-clock ms reliable).
 			t0Ms := hostTimeNowMs()
-			reply := callLLM(cfg, u.Message.Text)
+			// Ambil konteks percakapan (sudah termasuk pesan ini yang barusan
+			// di-log di atas) supaya Mr.Flow inget obrolan sebelumnya.
+			hist := fetchHistory(strconv.FormatInt(chatID, 10))
+			reply := callLLM(cfg, u.Message.Text, hist)
 			elapsedMs := float64(hostTimeNowMs() - t0Ms)
 			// Detect LLM failure via exact known error prefixes from callLLM
 			// (sumber: callLLM returns: "router error:", "decode:", "llm:",
@@ -421,7 +424,67 @@ func nowISO() string {
 	return time.Unix(int64(ms/1000), 0).UTC().Format("2006-01-02 15:04 UTC")
 }
 
-func callLLM(cfg agentConfig, userText string) string {
+// chatTurn — satu giliran percakapan untuk konteks LLM.
+type chatTurn struct {
+	Role    string // "user" | "assistant"
+	Content string
+}
+
+const (
+	maxHistoryMsgs        = 16   // max giliran percakapan di-inject (≈8 tukar-balik)
+	maxHistoryCharsPerMsg = 1200 // cap per pesan history (anti over-prompt)
+)
+
+// fetchHistory — ambil riwayat percakapan chat ini dari API interactions
+// agent sendiri (pola sama fetchSelfPrompt). Persistent (baca dari state.db),
+// jadi memory survive restart. Return turn KRONOLOGIS (lama→baru), SUDAH
+// termasuk pesan terakhir user (yang barusan di-log sebelum callLLM).
+// Empty kalau API unreachable → caller fallback ke single user message.
+func fetchHistory(actor string) []chatTurn {
+	if actor == "" {
+		return nil
+	}
+	url := "http://127.0.0.1:1987/api/agents/interactions?id=mr-flow&limit=40"
+	resp, err := fetch("GET", url, nil, nil, 2500)
+	if err != nil || resp == nil || resp.Status >= 400 {
+		return nil
+	}
+	var out struct {
+		Items []struct {
+			Direction string `json:"direction"`
+			Actor     string `json:"actor"`
+			Content   string `json:"content"`
+		} `json:"items"`
+	}
+	if json.Unmarshal(resp.Body, &out) != nil {
+		return nil
+	}
+	// items newest-first → kumpulin yang match actor ini, stop di cap, reverse.
+	picked := make([]chatTurn, 0, maxHistoryMsgs)
+	for _, it := range out.Items {
+		if it.Actor != actor || it.Content == "" {
+			continue
+		}
+		role := "user"
+		if it.Direction == "out" {
+			role = "assistant"
+		}
+		c := it.Content
+		if len(c) > maxHistoryCharsPerMsg {
+			c = c[:maxHistoryCharsPerMsg] + "…"
+		}
+		picked = append(picked, chatTurn{Role: role, Content: c})
+		if len(picked) >= maxHistoryMsgs {
+			break
+		}
+	}
+	for i, j := 0, len(picked)-1; i < j; i, j = i+1, j-1 {
+		picked[i], picked[j] = picked[j], picked[i]
+	}
+	return picked
+}
+
+func callLLM(cfg agentConfig, userText string, history []chatTurn) string {
 	// Anti-halu identity + time guard. Prepend ke persona setiap call —
 	// LLM (claude-haiku-4-5 via flow_router) kalo gak di-reminded suka
 	// claim "training cutoff May 2024" dan halu tanggal hari ini. Mr.Flow
@@ -448,7 +511,15 @@ func callLLM(cfg agentConfig, userText string) string {
 			"capability lo (net:fetch:telegram, net:fetch:router, state:read/"+
 			"write, time:read, fs:read/write, exec:git, rpc:router:skill). "+
 			"Jangan invent nama tool kayak 'web_search' atau 'brain_search' "+
-			"kalo gak ada di list itu.]\n\n",
+			"kalo gak ada di list itu.]\n"+
+			"[NO FAKE EXECUTION: Dari chat ini lo CUMA bisa balas teks — lo "+
+			"GAK bisa jalanin tool async / fetch live / scan real-time terus "+
+			"kasih hasilnya di pesan terpisah. JANGAN pura-pura lagi "+
+			"'scanning…', 'querying…', 'fetching…', atau janji 'tunggu output "+
+			"gw'. Itu HALU dan bikin Mr.Dev kesel. Kalo ga bisa real-time, "+
+			"bilang jujur + kasih cara/sumber manual. Lo PUNYA konteks "+
+			"percakapan sebelumnya di messages ini — pakai, jangan tanya ulang "+
+			"hal yang udah dibahas.]\n\n",
 		nowISO(),
 	)
 	persona := guard + cfg.Prompt
@@ -482,12 +553,20 @@ func callLLM(cfg agentConfig, userText string) string {
 		persona = persona[:maxPersonaTotalChars] + "\n…[truncated to respect prompt budget]"
 	}
 
+	// Bangun messages: system + history percakapan + (fallback user kalau
+	// history kosong). history SUDAH termasuk pesan user terakhir, jadi kalau
+	// ada history kita ngga append userText lagi (anti dobel).
+	msgs := []map[string]string{{"role": "system", "content": persona}}
+	if len(history) > 0 {
+		for _, t := range history {
+			msgs = append(msgs, map[string]string{"role": t.Role, "content": t.Content})
+		}
+	} else {
+		msgs = append(msgs, map[string]string{"role": "user", "content": userText})
+	}
 	body, _ := json.Marshal(map[string]any{
-		"model": cfg.Router.Model,
-		"messages": []map[string]string{
-			{"role": "system", "content": persona},
-			{"role": "user", "content": userText},
-		},
+		"model":    cfg.Router.Model,
+		"messages": msgs,
 	})
 
 	resp, err := fetch("POST", cfg.Router.URL,
@@ -550,7 +629,18 @@ func doHandle(argsRaw string) {
 		// Slash unknown atau dispatch error → fallback LLM agar user dapet
 		// respons (better UX dari error mentah).
 	}
-	emit(map[string]any{"reply": callLLM(loadConfig(), in.Text)})
+	// Jalur RPC mirror Telegram: log in → fetch history → callLLM → log out.
+	// Bikin chat-debug (flowork-cli) punya memory percakapan yang sama dengan
+	// Telegram, dan bisa di-test (doktrin: test lewat jalur yang sama).
+	actor := strings.TrimSpace(in.User)
+	if actor == "" {
+		actor = "rpc"
+	}
+	logInteraction("rpc", "in", actor, in.Text, map[string]any{})
+	hist := fetchHistory(actor)
+	reply := callLLM(loadConfig(), in.Text, hist)
+	logInteraction("rpc", "out", actor, reply, map[string]any{"model": loadConfig().Router.Model})
+	emit(map[string]any{"reply": reply})
 }
 
 func doSendAdmin(argsRaw string) {
