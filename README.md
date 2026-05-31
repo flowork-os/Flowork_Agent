@@ -63,6 +63,28 @@ Every fix gets re-scanned automatically — so a patch that opens a new hole get
 
 ---
 
+## 📦 106 Built-in Tools + 12 Slash Commands
+
+Every agent ships with a deep toolbox — **106 registered tools** across 10+ domains:
+
+| Domain | Tools | Examples |
+|---|---|---|
+| 🧠 Memory & state | 13 | `memory_get/set`, `kv_*`, `fact_recall`, `self_prompt_*`, `brain_search` |
+| 📂 File & code | 8 | `file_read/write`, `edit`, `glob`, `grep`, `git`, `bash` |
+| 🤖 Agent ops | 6 | `plan_*`, `todo`, `goal_done`, `askuser` |
+| 📋 Audit & journaling | 12 | `decision_*`, `mistake_*`, `audit_*`, `interaction_*` |
+| 🛡️ Security | 12 | `scanner_*`, `codemap_*`, `protector_*`, `zombie_findings` |
+| 👛 Wallet & finance | 11 | `wallet_*`, `finance_*`, `ledger_list` |
+| ⏰ Scheduler | 5 | `scheduler_*`, `schedule_runs_query` |
+| 🧩 Tools / slash / skills | 12 | `tool_search`, `skill_*`, `slash_*` |
+| ⚙️ System & misc | ~27 | `edu_error_*`, `karma_*`, `workspace_*`, `telegram_send`, `webfetch`, … |
+
+Plus **12 slash commands** — 9 built-in (`/help` `/stats` `/tools` `/tool_search` `/version` `/now` `/ping` `/echo` `/interactions`) and hot-reloadable **custom `.md` commands** per agent.
+
+> **Anti-overprompt by design:** only **5 core tools** auto-inject into the prompt — the rest are discovered on demand via `tool_search`. 106 tools in the shed, never dumped on the LLM at once. Smaller prompts, fewer hallucinations, lower cost.
+
+---
+
 ## 🚀 Quick Start
 
 ```bash
