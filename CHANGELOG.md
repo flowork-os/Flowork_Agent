@@ -1,3 +1,20 @@
+## 2026-05-31 22:10 WIB — Scanner accuracy: 8 critical false-positive dibasmi
+
+Radar nunjukin 7-8 "critical" — SEMUA false positive (diverifikasi). Fix akurasi:
+- **runner.go**: (1) skip file definisi auditor (`internal/scanner/auditors*.go`) —
+  file ini nyimpen semua pola jahat sbg regex string → pasti self-match (jwt_none
+  dll). (2) honor marker `// scanner:ignore` / `nosec` (suppression standar industri).
+- **sql_injection_auditor**: diperketat — wajib struktur statement asli (DELETE FROM/
+  INSERT INTO/UPDATE..SET/SELECT..FROM/WHERE), bukan kata "delete"/"insert" di prosa.
+  Bunuh FP `"soft-delete missing: "+err` & `"snapshot insert: "+err`.
+- **scanner:ignore** di 5 baris aman (agentdb/floworkdb kv/secrets): interpolasi nama
+  tabel = literal hardcoded, value parameterized (?) — bukan injection (udah didok di
+  header agentdb). 
+- Verified: repo critical 0; decoy injection ASLI (`Sprintf("SELECT..WHERE id=%s",id)`)
+  TETEP kedetek critical (ga over-suppress). Riwayat scan lama (noise akumulasi) di-reset.
+
+---
+
 ## 2026-05-31 21:55 WIB — v1.0.0: Tools/Tool Caps de-dup + cover + release
 
 - **Unify Tools vs Tool Caps**: tab "Tool Caps" (warga_caps) DIBUANG dari sidebar —

@@ -111,6 +111,12 @@ func Run(opts RunOptions) (RunResult, error) {
 }
 
 func runOnFile(path string, res *RunResult, auditors map[string]AuditFunc, maxBytes int64) {
+	// Skip file DEFINISI auditor (internal/scanner/auditors*.go) — file ini
+	// nyimpen SEMUA pola jahat sebagai regex string, jadi pasti self-match
+	// (false positive). Pattern-dictionary, bukan kode beneran.
+	if strings.Contains(filepath.ToSlash(path), "internal/scanner/auditors") {
+		return
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return
@@ -121,9 +127,29 @@ func runOnFile(path string, res *RunResult, auditors map[string]AuditFunc, maxBy
 	content := string(data)
 	res.FilesScanned++
 	res.BytesScanned += int64(len(data))
+	lines := strings.Split(content, "\n")
 	for _, f := range auditors {
-		res.Findings = append(res.Findings, f(path, content)...)
+		for _, fd := range f(path, content) {
+			// Suppression: skip temuan di baris ber-marker `// scanner:ignore`
+			// (atau `nosec`) di baris itu sendiri atau baris tepat di atasnya.
+			if suppressedAt(lines, fd.LineNumber) {
+				continue
+			}
+			res.Findings = append(res.Findings, fd)
+		}
 	}
+}
+
+// suppressedAt — true kalau baris ln (1-indexed) atau baris di atasnya punya
+// marker suppression. Standar industri (mirip gosec #nosec / nolint).
+func suppressedAt(lines []string, ln int) bool {
+	has := func(i int) bool {
+		if i < 1 || i > len(lines) {
+			return false
+		}
+		return strings.Contains(lines[i-1], "scanner:ignore") || strings.Contains(lines[i-1], "nosec")
+	}
+	return has(ln) || has(ln-1)
 }
 
 // Names — return registered auditor names sorted.

@@ -120,10 +120,16 @@ func AuditCommandInjection(filePath, content string) []Finding {
 // 3. sql_injection_auditor
 // =============================================================================
 
+// sqlStmt — fragmen yang nandain string BENERAN SQL statement (bukan prosa yang
+// kebetulan ada kata "delete"/"insert"). Wajib struktur: DELETE FROM / INSERT
+// INTO / UPDATE..SET / SELECT..FROM / WHERE. Anti false-positive prosa kayak
+// `"soft-delete missing: "+err` atau `"snapshot insert: "+err`.
+const sqlStmt = `(SELECT\b[^"]*\bFROM\b|INSERT\s+INTO\b|UPDATE\s+\S+\s+SET\b|DELETE\s+FROM\b|\bWHERE\s)`
+
 var sqlInjectionPatterns = []*regexp.Regexp{
-	regexp.MustCompile(`(?i)fmt\.Sprintf\s*\(\s*"[^"]*(SELECT|INSERT|UPDATE|DELETE|WHERE)[^"]*%s`),
-	regexp.MustCompile(`(?i)"[^"]*(SELECT|INSERT|UPDATE|DELETE|WHERE).*"\s*\+\s*\w+`),
-	regexp.MustCompile(`(?i)db\.(Query|Exec)\s*\([^,]*\+`),
+	regexp.MustCompile(`(?i)fmt\.Sprintf\s*\(\s*"[^"]*` + sqlStmt + `[^"]*%s`),
+	regexp.MustCompile(`(?i)"[^"]*` + sqlStmt + `[^"]*"\s*\+\s*\w+`),
+	regexp.MustCompile(`(?i)db\.(Query|Exec)\s*\(\s*"[^"]*` + sqlStmt + `[^"]*"\s*\+`),
 }
 
 func AuditSQLInjection(filePath, content string) []Finding {
