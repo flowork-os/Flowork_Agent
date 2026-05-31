@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="img/cover.png" alt="Flowork Agent — self-hosted AI agents with a live Threat Radar" width="100%">
+
 # ⚡ Flowork Agent
 
 ### Self-hosted AI agents that actually live in your machine — isolated, plug-and-play, and watched over by a real-time security radar.

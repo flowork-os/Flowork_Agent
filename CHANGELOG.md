@@ -1,3 +1,16 @@
+## 2026-05-31 21:55 WIB — v1.0.0: Tools/Tool Caps de-dup + cover + release
+
+- **Unify Tools vs Tool Caps**: tab "Tool Caps" (warga_caps) DIBUANG dari sidebar —
+  redundan. Popup agent udah jadi satu-satunya tempat (capability toggle +
+  tool catalog subscribe via agents_tool_catalog.js, udah nampilin capability tiap
+  tool). Config agent nempel di agent (isolated/plug-and-play). Hapus zombie
+  `web/tabs/warga_caps.js` + entry ACTIVE_TABS. (Keamanan tetep: runtime sandbox
+  cap-gate yang enforce, bukan UI.)
+- **README**: cover `img/cover.png` di paling atas.
+- **version** const → `1.0.0` (rilis publik perdana).
+
+---
+
 ## 2026-05-31 21:40 WIB — GUI header router-style + Threat Radar jadi home + README/LICENSE
 
 - **Header** (kayak Flowork Router): tombol ★ GitHub (→Flowork_Agent), ⚡ Router
