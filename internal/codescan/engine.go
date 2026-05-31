@@ -103,6 +103,67 @@ func (e *Engine) Start(ctx context.Context) {
 	}
 	log.Printf("[codescan] engine started — watching %d dirs (source=%s + shared tools)", added, e.sourceRoot)
 	go e.loop(ctx)
+	// Baseline scan repo sekali pas boot → radar langsung keisi (state terkini),
+	// ga nunggu file berubah dulu. Goroutine biar ga nge-block boot.
+	go e.scanRepoBaseline(ctx)
+}
+
+// scanRepoBaseline — SATU run konsolidasi atas seluruh sourceRoot (bukan per-file)
+// biar radar punya data awal tanpa nge-flood scan log. Ga notify Telegram (biar
+// ga spam tiap restart) — cukup persist + audit kalau ada critical/high.
+func (e *Engine) scanRepoBaseline(ctx context.Context) {
+	if e.sourceRoot == "" {
+		return
+	}
+	store, err := e.opener(primaryAgent)
+	if err != nil {
+		log.Printf("[codescan] baseline open store: %v", err)
+		return
+	}
+	defer store.Close()
+	runID, ierr := store.InsertScannerRun("auto:startup", "repo (baseline)")
+	if ierr != nil {
+		return
+	}
+	res, rerr := scanner.Run(scanner.RunOptions{Target: e.sourceRoot})
+	if rerr != nil {
+		_ = store.FinishScannerRun(runID, 0, 0, "fail")
+		return
+	}
+	dbF := make([]agentdb.ScannerFinding, 0, len(res.Findings))
+	crit, high := 0, 0
+	for _, f := range res.Findings {
+		fp := f.FilePath
+		if r, rerr := filepath.Rel(e.sourceRoot, fp); rerr == nil {
+			fp = r
+		}
+		dbF = append(dbF, agentdb.ScannerFinding{
+			RunID: runID, Auditor: f.Auditor, Severity: f.Severity,
+			FilePath: fp, LineNumber: f.LineNumber, Message: f.Message,
+			Snippet: f.Snippet, Remediation: f.Remediation,
+		})
+		switch f.Severity {
+		case scanner.SevCritical:
+			crit++
+		case scanner.SevHigh:
+			high++
+		}
+	}
+	_ = store.InsertScannerFindings(runID, dbF)
+	status := "pass"
+	if crit > 0 {
+		status = "fail"
+	}
+	_ = store.FinishScannerRun(runID, len(dbF), crit, status)
+	if crit+high > 0 {
+		sev := "warning"
+		if crit > 0 {
+			sev = "critical"
+		}
+		detail, _ := json.Marshal(map[string]any{"scope": "repo-baseline", "critical": crit, "high": high, "total": len(dbF), "run_id": runID})
+		_, _ = store.AppendAudit(agentdb.AuditEntry{EventType: "scanner_finding", Severity: sev, Actor: "codescan", DetailJSON: string(detail)})
+	}
+	log.Printf("[codescan] baseline scan done — %d findings (crit=%d high=%d) di %d file", len(dbF), crit, high, res.FilesScanned)
 }
 
 // watchDirs — kumpulin semua dir yang di-watch: source repo (skip noise) +
