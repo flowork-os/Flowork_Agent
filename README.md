@@ -13,9 +13,9 @@
 [![Single Binary](https://img.shields.io/badge/deploy-single%20binary-success)]()
 [![Platform](https://img.shields.io/badge/os-Linux%20%7C%20macOS%20%7C%20Windows-blue)]()
 
-**AI agent framework · autonomous Telegram agent · live code security scanner · LLM gateway · 100% self-hosted**
+**AI agent framework · multi-agent orchestration · autonomous Telegram agent · live code security scanner · LLM gateway · 100% self-hosted**
 
-[Quick Start](#-quick-start) • [Features](#-features) • [Threat Radar](#-threat-radar) • [Architecture](#-architecture) • [Router (recommended)](#-pair-with-flowork-router-recommended)
+[Quick Start](#-quick-start) • [Features](#-features) • [Orchestration](#-multi-agent-orchestration) • [Threat Radar](#-threat-radar) • [Architecture](#-architecture) • [Router (recommended)](#-pair-with-flowork-router-recommended)
 
 </div>
 
@@ -36,6 +36,12 @@ It's **single-binary, self-hosted, and offline-friendly.** No SaaS, no telemetry
 | | Feature | What it does |
 |---|---|---|
 | 🤖 | **Plug-and-play agents** | Each agent = a portable folder (WASM + manifest + isolated `state.db`). Install/remove by dropping a folder. True sandbox isolation via WASI. |
+| 🧠 | **Mr.Flow orchestrator** | A built-in router agent: chat it in plain language ("analyze stock GOTO") and it **auto-dispatches a multi-agent task** and delivers the verdict back to you. No manual wiring. ([details ↓](#-multi-agent-orchestration)) |
+| 🤝 | **Category Tasks (multi-agent crew)** | Define a crew once — researchers fan out in parallel, a synthesizer fuses their findings into one grounded decision. Real teamwork, not one model pretending. |
+| ⏰ | **Recurring scheduler** | Cron-style automation: *"every day at 9 AM, analyze stock A and send the decision to Telegram."* Set it, forget it — the task loops on its own. |
+| 🔌 | **MCP server** | Expose your agents to **external AI** — Claude Desktop, Claude Code, Cursor. They list, trigger, and read back your Category Tasks over standard MCP. |
+| 🖥️ | **Terminal TUI** | A console cockpit to `list` / `run` / `review` tasks with a live step timeline — same pipeline as the GUI, zero browser. |
+| ♻️ | **Self-curating skills** | Agents grow skills from successful tool patterns; a curator grades, consolidates duplicates, and archives stale ones — so the prompt never rots. |
 | 🛡️ | **Threat Radar** | A **live background security scanner** with a hacker-style radar UI. Auto-scans your code the moment it changes. ([details ↓](#-threat-radar)) |
 | 💬 | **Telegram-native** | Ship an agent as a Telegram bot in minutes — long-poll updates, persona, multi-turn **conversation memory**, slash commands. |
 | 👛 | **Crypto wallet** | Live multi-chain portfolio (Etherscan + CoinGecko) — ETH/Polygon/Arbitrum, ERC-20 tracking, balance alerts. |
@@ -60,6 +66,37 @@ It's **single-binary, self-hosted, and offline-friendly.** No SaaS, no telemetry
 - **Lock-aware:** ships with a "what's not locked yet" auditor so you always know which files still need a security pass.
 
 Every fix gets re-scanned automatically — so a patch that opens a new hole gets caught before it ships.
+
+---
+
+## 🧠 Multi-Agent Orchestration
+
+> One message in. A whole crew gets to work. One grounded answer out.
+
+Most "AI agents" are a single model in a loop. Flowork runs a **team**. Talk to **Mr.Flow** — the built-in orchestrator — and it decides whether to answer directly or **assemble a crew**:
+
+```
+You (Telegram / GUI / MCP / TUI)
+        │  "analyze stock GOTO"
+        ▼
+   🧠 Mr.Flow  ── routes ──►  📋 Category Task
+                                   │
+              ┌────────────────────┼────────────────────┐
+              ▼                    ▼                     ▼
+        🔎 Fundamentals      📈 Technicals        📰 Sentiment      (crew fans out)
+              └────────────────────┼────────────────────┘
+                                   ▼
+                          🧩 Synthesizer  ──►  ✅ Decision  ──►  📲 back to you
+```
+
+- **🧭 Smart routing:** plain chat → Mr.Flow auto-triggers the right task. The LLM never sees your `chat_id`; the engine threads delivery for you.
+- **🤝 Real crews:** each member is an isolated agent with its own tools and persona. They research independently, then a synthesizer fuses everything into a single sourced decision — not a hallucinated guess.
+- **🏗️ Build crews from the GUI:** a visual Task Builder defines categories + crews (stocks, crypto, anything). Every run has a **live step-by-step timeline** and full history.
+- **⏰ Put it on a schedule:** any Category Task can loop — daily at a set time or every N minutes — and push the result straight to Telegram.
+- **🔌 Open the door:** drive the exact same pipeline from **Telegram, the GUI, an MCP client (Claude/Cursor), or the terminal TUI**. One funnel, four front doors.
+- **📲 No ghosting:** when a task completes, the result is *delivered* — logged at every hop so a verdict never silently disappears.
+
+> **Grounded by design:** crew agents use real research tools (web search, archive, PDF) and cite their sources, so the final decision is auditable — not vibes.
 
 ---
 
@@ -142,7 +179,7 @@ The Agent works standalone, but with the Router it gets a collective brain and a
 
 ## 🏷️ Keywords
 
-self-hosted AI agent · autonomous agent framework · AI agent platform · Telegram AI bot · WASM microkernel · Go agent runtime · LLM gateway · code security scanner · secret scanner · SAST · crypto wallet agent · plug-and-play AI · offline AI agent · sandboxed agents
+self-hosted AI agent · multi-agent orchestration · agent crew · AI orchestrator · autonomous agent framework · AI agent platform · Telegram AI bot · MCP server · recurring agent scheduler · WASM microkernel · Go agent runtime · LLM gateway · code security scanner · secret scanner · SAST · crypto wallet agent · plug-and-play AI · offline AI agent · sandboxed agents
 
 ---
 
