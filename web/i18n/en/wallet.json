@@ -1,0 +1,10 @@
+{
+  "sub": "Operational crypto wallet balance monitoring via Etherscan V2 + CoinGecko. Real data, zero mock.",
+  "holdings": "Holdings & Balance",
+  "scanning": "Scanning blockchain…",
+  "loading_tx": "Loading TX history…",
+  "no_holdings": "No holdings detected.",
+  "no_tx": "No transactions on any chain.",
+  "slow_net": "⏳ Slow network — still waiting for TX history…",
+  "slow_net2": "⏳ Slow network — still waiting for Etherscan response…"
+}

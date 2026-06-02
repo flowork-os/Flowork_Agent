@@ -6,6 +6,8 @@
 // Reason: Doktrin Edukasi tab (reference 310 LOC). Audit pass — esc() on error_code+title+message_template+evolution_hint..
 
 import { esc, fetchJSON, loadStyle } from '../js/utils.js';
+import { t } from '/js/i18n.js';
+const L = new Proxy({}, { get: (_, k) => t('doktrin_edukasi.' + String(k).replace(/[A-Z]/g, (c) => '_' + c.toLowerCase())) });
 
 // Doktrin Edukasi (Educational Errors) — list & edit pesan error edukatif
 // yang AI terima saat melanggar batasan. Per Ayah 2026-04-25: cuma R + U.
@@ -179,17 +181,17 @@ export async function render(mainEl) {
   loadStyle('doktrin_edukasi', CSS);
 
   mainEl.innerHTML = `
-    <h2>📚 Doktrin Edukasi (Educational Errors)</h2>
-    <div class="sub">Pesan error edukatif yang AI terima saat melanggar batasan. Edit untuk tune tone &amp; doktrin tanpa restart daemon. Tambah/hapus kode = perubahan di kode (<code>brain/db/educational_errors_seed.go</code>).</div>
+    <h2>${esc(L.title)}</h2>
+    <div class="sub">${esc(L.sub)} (<code>brain/db/educational_errors_seed.go</code>).</div>
     <div class="de-shell">
       <div class="de-bar">
-        <input type="text" id="deSearch" placeholder="Cari kode/title (mis: TOOL, PROTECTED)…" autocomplete="off" title="Cari Doktrin Edukasi — Filter daftar pesan error edukatif berdasarkan kode (ERR_*) atau title. Berguna saat warga AI report error spesifik dan lo mau audit/edit pesan yang dia terima. Contoh: ketik 'TOOL' untuk semua kode terkait pemakaian tool (ERR_TOOL_NOT_ALLOWED, dll); ketik 'PROTECTED' untuk pesan terkait Protected Core. Logic: client-side filter array entries cached dari /api/settings/educational-errors → setiap keystroke iterate row + match substring case-insensitive di error_code/title fields → toggle hidden class. No backend round-trip.">
+        <input type="text" id="deSearch" placeholder="${esc(L.searchPh)}" autocomplete="off" title="${esc(L.searchTip)}">
         <div class="stat">
-          <span><b id="deCount">0</b> kode error</span>
+          <span><b id="deCount">0</b> ${esc(L.countLabel)}</span>
         </div>
       </div>
       <div class="de-panel" id="dePanel">
-        <div class="de-empty">Memuat doktrin edukasi…</div>
+        <div class="de-empty">${esc(L.loading)}</div>
       </div>
     </div>
   `;
@@ -199,7 +201,7 @@ export async function render(mainEl) {
     const resp = await fetchJSON('/api/settings/educational-errors');
     entries = Array.isArray(resp.data) ? resp.data : [];
   } catch (e) {
-    document.getElementById('dePanel').innerHTML = `<div class="de-err">Error: ${esc(e.message)}</div>`;
+    document.getElementById('dePanel').innerHTML = `<div class="de-err">${esc(L.panelErr)}${esc(e.message)}</div>`;
     return;
   }
 
@@ -207,7 +209,7 @@ export async function render(mainEl) {
 
   const panel = document.getElementById('dePanel');
   if (!entries.length) {
-    panel.innerHTML = '<div class="de-empty">Belum ada entry. Cek seed di <code>brain/db/educational_errors_seed.go</code>.</div>';
+    panel.innerHTML = '<div class="de-empty">${esc(L.empty)} <code>brain/db/educational_errors_seed.go</code>.</div>';
     return;
   }
 
@@ -225,7 +227,7 @@ export async function render(mainEl) {
             ${esc(e.message_template || '')}
             <span class="pre-hint">${esc(e.evolution_hint || '')}</span>
           </div>
-          <button class="de-edit-btn" data-idx="${i}" title="Edit Doktrin Edukasi — Buka modal untuk tune teks message_template + evolution_hint dari kode error ini. error_code + title LOCKED (cuma bisa di-edit di educational_errors_seed.go source code). Contoh: kalau warga selalu salah pasif saat dapat ERR_TOOL_NOT_ALLOWED, ubah message_template ke yang lebih actionable + tambah hint 'baca capability matrix di Tasking → Hak & Tools dulu sebelum tool call'. Logic: PUT /api/settings/educational-errors {error_code, message_template, evolution_hint} → handler UPDATE educational_errors di flowork-settings.sqlite. Hot-reload, warga AI dapat pesan baru di error berikutnya tanpa daemon restart.">Edit ✏️</button>
+          <button class="de-edit-btn" data-idx="${i}" title="${esc(L.editBtnTip)}">${esc(L.editBtn)}</button>
         </div>
       `;
     }).join('');
@@ -244,27 +246,27 @@ export async function render(mainEl) {
     modal.className = 'de-modal';
     modal.innerHTML = `
       <div class="de-modal-card">
-        <h3>Edit ${esc(entry.error_code)}</h3>
-        <div class="de-modal-hint">Title &amp; error_code fixed di kode (read-only). Lo cuma bisa tune teks pesan + hint evolusi yang dilihat AI.</div>
+        <h3>${esc(L.editPrefix)} ${esc(entry.error_code)}</h3>
+        <div class="de-modal-hint">${esc(L.modalHint)}</div>
         <div>
-          <label>Error Code</label>
-          <input type="text" value="${esc(entry.error_code)}" readonly title="Kode Error — Identifier unik error ini (tidak bisa diubah). Kode ini dipakai di source code untuk mapping ke pesan edukatif. Perubahan harus dilakukan di educational_errors_seed.go.">
+          <label>${esc(L.errorCodeLabel)}</label>
+          <input type="text" value="${esc(entry.error_code)}" readonly title="${esc(L.errorCodeTip)}">
         </div>
         <div>
-          <label>Title (skenario)</label>
-          <input type="text" value="${esc(entry.title || '')}" readonly title="Judul Skenario — Deskripsi singkat situasi yang memicu error ini (tidak bisa diubah di GUI). Diubah di source code educational_errors_seed.go.">
+          <label>${esc(L.titleLabel)}</label>
+          <input type="text" value="${esc(entry.title || '')}" readonly title="${esc(L.titleTip)}">
         </div>
         <div>
-          <label>Message Template (pesan utama, support <code>%s</code> placeholder)</label>
-          <textarea id="deMsg" title="Pesan Error — Teks pesan yang diterima warga AI saat melanggar aturan ini. Tulis dengan bahasa edukatif dan jelas. Gunakan %s sebagai placeholder untuk nilai dinamis (contoh: nama file, nama tool).">${esc(entry.message_template || '')}</textarea>
+          <label>${esc(L.msgLabel)} <code>%s</code> ${esc(L.msgLabel2)}</label>
+          <textarea id="deMsg" title="${esc(L.msgTip)}">${esc(entry.message_template || '')}</textarea>
         </div>
         <div>
-          <label>Evolution Hint (arahan langkah keluar dari kesalahan)</label>
-          <textarea id="deHint" title="Evolution Hint — Panduan langkah konkret yang diberikan ke warga AI untuk keluar dari kesalahan ini dan berkembang. Tulis secara actionable: apa yang harus dilakukan berbeda di langkah berikutnya.">${esc(entry.evolution_hint || '')}</textarea>
+          <label>${esc(L.hintLabel)}</label>
+          <textarea id="deHint" title="${esc(L.hintTip)}">${esc(entry.evolution_hint || '')}</textarea>
         </div>
         <div class="de-modal-actions">
-          <button class="de-btn-cancel" id="deCancel" title="Batal — Tutup form tanpa menyimpan perubahan. Teks pesan error tidak berubah.">Batal</button>
-          <button class="de-btn-save" id="deSave" title="Simpan — Simpan perubahan pesan error dan evolution hint ke database. Perubahan langsung aktif: warga AI akan menerima teks baru ini saat melanggar aturan yang sama.">Simpan</button>
+          <button class="de-btn-cancel" id="deCancel" title="${esc(L.cancelTip)}">${esc(L.cancel)}</button>
+          <button class="de-btn-save" id="deSave" title="${esc(L.saveTip)}">${esc(L.save)}</button>
         </div>
       </div>
     `;
@@ -277,7 +279,7 @@ export async function render(mainEl) {
       const msg = modal.querySelector('#deMsg').value.trim();
       const hint = modal.querySelector('#deHint').value.trim();
       if (!msg || !hint) {
-        alert('Message dan hint tidak boleh kosong.');
+        alert(L.msgRequired);
         return;
       }
       try {
@@ -295,7 +297,7 @@ export async function render(mainEl) {
           const txt = await r.text().catch(() => r.statusText);
           let errMsg = txt;
           try { errMsg = JSON.parse(txt).error || txt; } catch (_) {}
-          alert('Error: ' + errMsg);
+          alert(L.panelErr + errMsg);
           return;
         }
         const j = await r.json();
@@ -304,7 +306,7 @@ export async function render(mainEl) {
         close();
         renderRows(document.getElementById('deSearch').value);
       } catch (e) {
-        alert('Error: ' + e.message);
+        alert(L.panelErr + e.message);
       }
     });
   }

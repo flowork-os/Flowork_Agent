@@ -1,0 +1,22 @@
+{
+  "sub": "Canonical prompt templates — shared across agents via dropdown. Edit once, propagate to every agent that uses it.",
+  "new_btn": "+ New Template",
+  "loading": "Loading templates…",
+  "empty": "No templates yet. Click \"+ New Template\" to start.",
+  "load_detail_fail": "Failed to load detail: ",
+  "load_fail": "Failed to load: ",
+  "restart_note": "Daemon restart required to apply to running agents.",
+  "usage_suffix": "agents use it",
+  "tip_edit": "Open the editor to modify this template's content. The name is locked; only content is editable.",
+  "tip_delete": "Delete this template. If still in use, a confirmation appears; force clears the FK on affected agents.",
+  "not_used": "(not used by any agent)",
+  "used_by_label": "Used by",
+  "name_ph": "e.g. merpati-casual, bughunter-verbose",
+  "name_tip": "Unique name (lowercase, dash/underscore, 2–64 chars). Cannot be changed after creation.",
+  "content_ph": "You are …",
+  "content_tip": "Full system prompt used by AI agents. Read as the system prompt at the start of every session.",
+  "del_warn_a": "⚠️  Template",
+  "del_warn_b": "is still used by",
+  "del_warn_c": "agents. Deleting with force=true clears the reference from their agents.",
+  "validate_fail": "Name required + content min 10 chars"
+}

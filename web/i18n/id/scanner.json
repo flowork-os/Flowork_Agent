@@ -1,0 +1,6 @@
+{
+  "log_sub": "· file kode yang ke-scan otomatis",
+  "pick_entry": "pilih entri di scan log buat lihat detail",
+  "no_scan": "belum ada scan. edit file kode apa aja → auto-scan jalan.",
+  "clear": "✓ CLEAR — ga ada temuan di run ini"
+}

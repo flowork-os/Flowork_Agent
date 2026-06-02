@@ -1,0 +1,10 @@
+{
+  "sub": "Pemantauan saldo dompet crypto operasional via Etherscan V2 + CoinGecko. Data riil, zero mock.",
+  "holdings": "Holdings & Saldo",
+  "scanning": "Scanning blockchain…",
+  "loading_tx": "Memuat histori TX…",
+  "no_holdings": "Tidak ada holding terdeteksi.",
+  "no_tx": "Belum ada transaksi di chain manapun.",
+  "slow_net": "⏳ Network lambat — masih nunggu histori TX…",
+  "slow_net2": "⏳ Network lambat — masih nunggu Etherscan response…"
+}

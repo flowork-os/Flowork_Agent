@@ -13,6 +13,9 @@
  * Interaksi: klik → highlight deps, double-click → blast mode, zoom/pan, drag node
  */
 
+import { t } from '/js/i18n.js';
+const L = new Proxy({}, { get: (_, k) => t('codemap.' + String(k).replace(/[A-Z]/g, (c) => '_' + c.toLowerCase())) });
+
 export async function render(container) {
   container.innerHTML = skeleton();
   applyStyles();
@@ -95,7 +98,7 @@ export async function render(container) {
       initSimulation();
       setDetail(emptyDetail());
     } catch (e) {
-      setDetail(`<div class="cm-err">❌ ${e.message}<br><small>Klik Reindex dulu.</small></div>`);
+      setDetail(`<div class="cm-err">❌ ${e.message}<br><small>${L.clickReindex}</small></div>`);
     }
   }
 
@@ -446,12 +449,12 @@ export async function render(container) {
 
       <div class="cm-d-sec">
         <div class="cm-d-lbl">💥 Blast radius</div>
-        <div style="font-size:0.8rem">${blastCount > 0 ? `<span style="color:#f87171">${blastCount} file terdampak</span> — <button class="cm-sm-btn" id="blast-trigger" title="Visualisasi Blast Radius — Aktifkan mode warna blast untuk melihat semua file yang terpengaruh jika file ini diubah. Warna merah=langsung terdampak, oranye=2 langkah, kuning=3 langkah.">visualisasi</button>` : '<em>—</em>'}</div>
+        <div style="font-size:0.8rem">${blastCount > 0 ? `<span style="color:#f87171">${blastCount} file terdampak</span> — <button class="cm-sm-btn" id="blast-trigger" title="${L.tipBlast}">visualisasi</button>` : '<em>—</em>'}</div>
       </div>
 
       <div class="cm-d-sec" style="margin-top:8px">
-        <button class="cm-action-btn" id="cm-open-docs" title="Auto-Docs — Buka atau tutup dokumentasi otomatis yang digenerate untuk file ini. Dokumentasi mencakup ringkasan fungsi, parameter, dan dependensi. Klik sekali lagi untuk menutup.">📄 Auto-Docs</button>
-        <button class="cm-action-btn" id="cm-center-node" title="Pusatkan Node — Geser dan zoom tampilan graf agar node yang dipilih berada di tengah layar. Berguna jika node sudah terlalu jauh dari pandangan setelah navigasi.">🎯 Center</button>
+        <button class="cm-action-btn" id="cm-open-docs" title="${L.tipAutodocs}">📄 Auto-Docs</button>
+        <button class="cm-action-btn" id="cm-center-node" title="${L.tipCenter}">🎯 Center</button>
       </div>
 
       <div id="cm-docs-content" style="display:none;margin-top:12px"></div>
@@ -503,7 +506,7 @@ export async function render(container) {
   function emptyDetail() {
     return `<div class="cm-empty-d">
       <div style="font-size:2.5rem;margin-bottom:8px">🗺️</div>
-      <div>Klik node untuk detail</div>
+      <div>${L.clickNode}</div>
       <div style="margin-top:4px;font-size:0.7rem;opacity:0.5">Double-click → blast radius mode</div>
     </div>`;
   }
@@ -544,11 +547,11 @@ export async function render(container) {
       if (!r.ok) throw new Error(`${r.status}: ${await r.text().catch(() => r.statusText)}`);
       const d = await r.json();
       if (!d.count) {
-        zombieEl.innerHTML = '<div class="cm-z-ok">🎉 Tidak ada zombie file!</div>';
+        zombieEl.innerHTML = '<div class="cm-z-ok">${L.noZombie}</div>';
         return;
       }
       zombieEl.innerHTML = `
-        <div class="cm-z-title">🧟 ${d.count} Zombie Files — tidak ada yang import, tidak import siapapun</div>
+        <div class="cm-z-title">🧟 ${d.count} ${L.zombiePanel}</div>
         <table class="cm-z-table">
           <thead><tr><th>File</th><th>Type</th><th>Lines</th><th></th></tr></thead>
           <tbody>${(d.zombies||[]).map(z => `
@@ -556,7 +559,7 @@ export async function render(container) {
               <td title="${z.path}">${z.name}<br><span style="color:#475569;font-size:0.65rem">${z.path}</span></td>
               <td>${z.file_type.toUpperCase()}</td>
               <td>${z.line_count}</td>
-              <td><button class="cm-z-go" data-path="${z.path}" title="Navigasi ke File — Tutup panel zombie dan langsung pindah tampilan graf ke node file ini agar bisa dilihat detail dan koneksinya. Klik untuk melompat ke posisi file di peta kode.">→</button></td>
+              <td><button class="cm-z-go" data-path="${z.path}" title="${L.tipNav}">→</button></td>
             </tr>`).join('')}
           </tbody>
         </table>`;
@@ -730,7 +733,7 @@ async function renderFallbackList(container) {
     const data = r.ok ? await r.json() : { roots: [] };
     const list = (data.roots || data.data || []).slice(0, 50);
     if (list.length === 0) {
-      document.getElementById('cm-fb-roots').innerHTML = '<div class="cm-fb-empty">Tidak ada root file (run Reindex dulu)</div>';
+      document.getElementById('cm-fb-roots').innerHTML = '<div class="cm-fb-empty">${L.noRoot}</div>';
     } else {
       document.getElementById('cm-fb-roots').innerHTML =
         '<ul class="cm-fb-list">' + list.map(n =>
@@ -746,7 +749,7 @@ async function renderFallbackList(container) {
     const data = r.ok ? await r.json() : { zombies: [] };
     const list = (data.zombies || data.data || []).slice(0, 50);
     if (list.length === 0) {
-      document.getElementById('cm-fb-zombies').innerHTML = '<div class="cm-fb-empty">Tidak ada zombie file (codebase clean)</div>';
+      document.getElementById('cm-fb-zombies').innerHTML = '<div class="cm-fb-empty">${L.noZombie2}</div>';
     } else {
       document.getElementById('cm-fb-zombies').innerHTML =
         '<ul class="cm-fb-list">' + list.map(n => {
@@ -852,17 +855,17 @@ function skeleton() {
   return `
   <div class="cmf-root">
     <div class="cmf-toolbar">
-      <input id="cm-search" class="cmf-search" type="search" placeholder="🔍 Cari file..." title="Cari File — Ketik nama file atau folder untuk menyaring tampilan graf. Node yang tidak cocok akan memudar. Kosongkan untuk lihat semua node kembali. Contoh: ketik 'agent' untuk filter file yang mengandung kata agent (mis. agent.go, agentregistry.go, aiwarga.go). Logic: setiap keystroke trigger applyColors() — node.path di-substring match (lowercase). Match → opacity penuh, miss → opacity 0.15 (faded). Tidak ada round-trip ke server, semua local filter." />
-      <button id="cm-reindex" class="cmf-btn" title="Reindex Codebase — Pindai ulang semua file kode dan bangun ulang peta ketergantungan antar file. Klik setelah menambah/hapus banyak file atau pindah besar struktur folder. Contoh: setelah menambah 5 file baru di internal/, klik Reindex agar tampil di graf. Logic: trigger /api/codemap/reindex POST → indexer goroutine walk semua *.go + *.js + parse import statement → DELETE old codemap_nodes/edges → INSERT row baru ke flowork-brain.sqlite. Status di-poll tiap 1.5s sampai running:false. Durasi 30s-2min tergantung jumlah file.">🔄 Reindex</button>
-      <button id="cm-fit" class="cmf-btn" title="Fit ke Layar — Sesuaikan zoom dan posisi graf agar semua node terlihat sekaligus. Contoh: setelah zoom in detail satu node sampai jauh, klik Fit untuk balik ke tampilan menyeluruh.">⊞ Fit</button>
+      <input id="cm-search" class="cmf-search" type="search" placeholder="${L.searchPh}" title="${L.tipSearch}" />
+      <button id="cm-reindex" class="cmf-btn" title="${L.tipReindex}">🔄 Reindex</button>
+      <button id="cm-fit" class="cmf-btn" title="${L.tipFit}">⊞ Fit</button>
       <div class="cmf-color-grp">
-        <button class="cm-color-btn active" data-mode="health" title="Mode Warna Health — Warnai node berdasarkan skor kesehatan kode (hijau=bagus, merah=bermasalah). Contoh: pakai mode ini untuk audit triase — file merah prioritas refactor lebih dulu.">❤️ Health</button>
-        <button class="cm-color-btn" data-mode="folder" title="Mode Warna Folder — Warnai node berdasarkan folder/direktori asalnya. Contoh: pakai mode ini untuk lihat batas modul — file di internal/core/ punya warna sama, beda dari file di internal/tools/.">📁 Folder</button>
-        <button class="cm-color-btn" data-mode="layer" title="Mode Warna Layer (Adopted Understand-Anything) — Warnai node berdasarkan layer arsitektur: UI cyan, API violet, Data emerald, Service amber, Util slate, Test gray, Core fuchsia. Auto-classified dari path heuristik di backend internal/codeindex/layerclassify.go.">🏛️ Layer</button>
-        <button class="cm-color-btn" data-mode="blast" title="Mode Blast Radius — Warnai node berdasarkan jangkauan dampak perubahan dari file yang dipilih. Contoh: klik node 'agent.go' lalu Blast — node yang ikut highlight = file yang harus di-test ulang kalau agent.go diubah.">💥 Blast</button>
+        <button class="cm-color-btn active" data-mode="health" title="${L.tipHealth}">❤️ Health</button>
+        <button class="cm-color-btn" data-mode="folder" title="${L.tipFolder}">📁 Folder</button>
+        <button class="cm-color-btn" data-mode="layer" title="${L.tipLayer}">🏛️ Layer</button>
+        <button class="cm-color-btn" data-mode="blast" title="${L.tipBlast2}">💥 Blast</button>
       </div>
-      <button id="cm-tour-btn" class="cmf-btn" title="Guided Tour Onboarding — Klik untuk dapat ordered list 15 file yang harus dibaca dulu untuk pahami codebase. Auto-pilih: entry point cmd/main.go → top file per layer (API/Service/Data/Core). Output di-fetch dari /api/codemap/tour, render di side panel.">🎓 Tour</button>
-      <button id="cm-zombie-btn" class="cmf-btn" title="Tampilkan Zombie Files — Buka panel daftar file yang tidak diimpor siapapun dan tidak import file lain (kandidat dead code). Contoh: setelah refactor besar, cek panel ini untuk file yang lupa dihapus — high-confidence zombie = aman dihapus, low-confidence = verify manual dulu. Logic: GET /api/codemap/zombies → backend scan codemap_edges, file yang in_degree=0 AND out_degree=0 = zombie. high_confidence kalau bukan _test.go + bukan main.go + di internal source. Sample baseline: 779 zombie total, 132 high-confidence, mayoritas false positive di state/instagram/chrome_profile/* (browser bundle bukan source).">🧟 Zombie</button>
+      <button id="cm-tour-btn" class="cmf-btn" title="${L.tipTour}">🎓 Tour</button>
+      <button id="cm-zombie-btn" class="cmf-btn" title="${L.tipZombie}">🧟 Zombie</button>
       <div id="cm-legend" class="cmf-legend"></div>
       <span id="cm-status" class="cmf-status"></span>
     </div>

@@ -6,14 +6,16 @@
 // Reason: Audit Log tab (reference copy 36 LOC). Audit pass — esc() on all rendered fields, table format only..
 
 import { esc, ago, fetchJSON } from '../js/utils.js';
+import { t } from '/js/i18n.js';
+const L = new Proxy({}, { get: (_, k) => t('commits.' + String(k).replace(/[A-Z]/g, (c) => '_' + c.toLowerCase())) });
 
 export async function render(mainEl) {
   mainEl.innerHTML = `
-    <h2>📋 Progress Kode</h2>
-    <div class="sub">Git log untuk melacak perubahan langsung yang dilakukan oleh AI atau Ayah.</div>
+    <h2>${esc(L.title)}</h2>
+    <div class="sub">${esc(L.sub)}</div>
     <div class="card">
       <div class="ch">100 Commit Terakhir</div>
-      <div class="cb" id="commits"><div class="empty">Running git log...</div></div>
+      <div class="cb" id="commits"><div class="empty">${esc(L.running)}</div></div>
     </div>
   `;
 
@@ -22,7 +24,7 @@ export async function render(mainEl) {
     const el = document.getElementById('commits');
     
     if(!data.commits || !data.commits.length) {
-      el.innerHTML = '<div class="empty">Tidak ada progress terdeteksi.</div>';
+      el.innerHTML = '<div class="empty">${esc(L.none)}</div>';
       return;
     }
     

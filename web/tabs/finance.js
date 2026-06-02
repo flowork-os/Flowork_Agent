@@ -19,6 +19,8 @@
 // /api/settings/wallet/{addresses,portfolio} (wallet personal owner).
 
 import { esc, fetchJSON, loadStyle } from '../js/utils.js';
+import { t } from '/js/i18n.js';
+const L = new Proxy({}, { get: (_, k) => t('finance.' + String(k).replace(/[A-Z]/g, (c) => '_' + c.toLowerCase())) });
 
 const CSS = `
 .fn-wrap { max-width: 920px; }
@@ -55,8 +57,8 @@ export async function render(mainEl) {
   mainEl.innerHTML = `
     <div class="fn-wrap">
       <div class="fn-head">
-        <h2>💰 Finance</h2>
-        <div class="sub">Biaya API 7 hari (real, finance_ledger) + budget + wallet personal. <span id="fnUpd"></span></div>
+        <h2>${esc(L.title)}</h2>
+        <div class="sub">${esc(L.sub)} <span id="fnUpd"></span></div>
       </div>
       <div class="fn-kpis" id="fnKpis"></div>
       <div class="fn-card" id="fnWallet"></div>
@@ -72,9 +74,9 @@ export async function render(mainEl) {
     renderBudgets(mainEl.querySelector('#fnBudget'), d.budgets || []);
     renderRecent(mainEl.querySelector('#fnRecent'), d.recent_calls || []);
     const upd = mainEl.querySelector('#fnUpd');
-    if (upd && d.updated_at) upd.textContent = '· diperbarui ' + new Date(d.updated_at).toLocaleString('id-ID');
+    if (upd && d.updated_at) upd.textContent = esc(L.updated) + new Date(d.updated_at).toLocaleString('id-ID');
   } catch (e) {
-    mainEl.querySelector('#fnCat').innerHTML = `<div class="fn-empty">Gagal load finance: ${esc(String(e.message || e))}</div>`;
+    mainEl.querySelector('#fnCat').innerHTML = `<div class="fn-empty">${esc(L.loadFail)}${esc(String(e.message || e))}</div>`;
   }
   renderWallet(mainEl.querySelector('#fnWallet'));
 }
@@ -84,15 +86,15 @@ function renderKpis(root, d) {
   const cats = (d.api_cost_by_category || []).length;
   const calls = (d.api_cost_by_category || []).reduce((s, c) => s + (c.call_count || 0), 0);
   root.querySelector('#fnKpis').innerHTML = `
-    <div class="fn-kpi"><div class="lbl">Biaya API 7 hari</div><div class="val green">${usd(total)}</div></div>
-    <div class="fn-kpi"><div class="lbl">Total panggilan</div><div class="val">${calls.toLocaleString('id-ID')}</div></div>
-    <div class="fn-kpi"><div class="lbl">Kategori</div><div class="val">${cats}</div></div>
+    <div class="fn-kpi"><div class="lbl">${esc(L.cost7d)}</div><div class="val green">${usd(total)}</div></div>
+    <div class="fn-kpi"><div class="lbl">${esc(L.totalCalls)}</div><div class="val">${calls.toLocaleString('id-ID')}</div></div>
+    <div class="fn-kpi"><div class="lbl">${esc(L.category)}</div><div class="val">${cats}</div></div>
   `;
 }
 
 function renderCategories(el, cats) {
-  el.innerHTML = `<h3>Biaya per kategori</h3><div class="hint">Agregat 7 hari dari finance_ledger.</div>`;
-  if (!cats.length) { el.innerHTML += `<div class="fn-empty">Belum ada entri biaya dalam 7 hari terakhir.</div>`; return; }
+  el.innerHTML = `<h3>${esc(L.costByCat)}</h3><div class="hint">${esc(L.costByCatSub)}</div>`;
+  if (!cats.length) { el.innerHTML += `<div class="fn-empty">${esc(L.noCost)}</div>`; return; }
   el.innerHTML += cats.map(c => `
     <div class="fn-row">
       <span>${esc(c.category || '—')} <span class="fn-tag">${(c.call_count || 0)} call · ${(c.input_tokens || 0)}→${(c.output_tokens || 0)} tok</span></span>
@@ -101,8 +103,8 @@ function renderCategories(el, cats) {
 }
 
 function renderBudgets(el, budgets) {
-  el.innerHTML = `<h3>Budget</h3><div class="hint">Set via tool finance_budget_set / endpoint /api/agents/finance/budget.</div>`;
-  if (!budgets.length) { el.innerHTML += `<div class="fn-empty">Belum ada budget di-set.</div>`; return; }
+  el.innerHTML = `<h3>${esc(L.budget)}</h3><div class="hint">${esc(L.budgetHint)}</div>`;
+  if (!budgets.length) { el.innerHTML += `<div class="fn-empty">${esc(L.noBudget)}</div>`; return; }
   el.innerHTML += budgets.map(b => {
     const pct = Math.max(0, Math.min(100, b.pct || 0));
     const cls = pct >= 100 ? 'over' : (pct >= (b.warning_at_pct || 80) ? 'warn' : '');
@@ -118,9 +120,9 @@ function renderBudgets(el, budgets) {
 }
 
 function renderRecent(el, rows) {
-  el.innerHTML = `<h3>Panggilan terbaru</h3>`;
-  if (!rows.length) { el.innerHTML += `<div class="fn-empty">Belum ada panggilan ter-log.</div>`; return; }
-  el.innerHTML += `<table class="fn-table"><thead><tr><th>Waktu</th><th>Kategori</th><th>Model</th><th>Token</th><th>Biaya</th></tr></thead><tbody>${
+  el.innerHTML = `<h3>${esc(L.recentCalls)}</h3>`;
+  if (!rows.length) { el.innerHTML += `<div class="fn-empty">${esc(L.noCalls)}</div>`; return; }
+  el.innerHTML += `<table class="fn-table"><thead><tr><th>${esc(L.time)}</th><th>${esc(L.category)}</th><th>${esc(L.model)}</th><th>${esc(L.token)}</th><th>${esc(L.cost)}</th></tr></thead><tbody>${
     rows.map(r => `<tr>
       <td class="fn-tag">${r.occurred_at ? new Date(r.occurred_at).toLocaleString('id-ID', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '—'}</td>
       <td>${esc(r.category || '—')}</td>
@@ -132,28 +134,28 @@ function renderRecent(el, rows) {
 }
 
 async function renderWallet(el) {
-  el.innerHTML = `<h3>Wallet personal</h3><div class="hint">Alamat dari Settings → Wallet Personal.</div><div id="fnWList" class="fn-empty">Memuat…</div>`;
+  el.innerHTML = `<h3>${esc(L.wallet)}</h3><div class="hint">${esc(L.walletSub)}</div><div id="fnWList" class="fn-empty">${esc(L.loading)}</div>`;
   const list = el.querySelector('#fnWList');
   try {
     const d = await fetchJSON('/api/settings/wallet/addresses');
     const items = d.items || [];
-    if (!items.length) { list.outerHTML = `<div class="fn-empty">Belum ada wallet personal. Tambah di Settings → Wallet Personal.</div>`; return; }
+    if (!items.length) { list.outerHTML = `<div class="fn-empty">${esc(L.noWallet)}</div>`; return; }
     list.outerHTML = `
       <div class="fn-row" style="border:none;"><span>${items.length} alamat tersimpan</span>
-        <button class="fn-btn" id="fnWTotal">Hitung total saldo</button></div>
+        <button class="fn-btn" id="fnWTotal">${esc(L.calcBalance)}</button></div>
       <div id="fnWTotalOut"></div>`;
     el.querySelector('#fnWTotal').addEventListener('click', async (ev) => {
       const out = el.querySelector('#fnWTotalOut');
-      ev.target.disabled = true; out.innerHTML = `<div class="fn-empty">Ambil saldo…</div>`;
+      ev.target.disabled = true; out.innerHTML = `<div class="fn-empty">${esc(L.fetching)}</div>`;
       try {
         const p = await fetchJSON('/api/settings/wallet/portfolio');
-        out.innerHTML = `<div class="fn-row"><span>Total portfolio</span><span class="val green fn-mono">${usd(p.total_usd)}</span></div>${p.partial_error ? `<div class="fn-empty">${esc(p.partial_error)}</div>` : ''}`;
+        out.innerHTML = `<div class="fn-row"><span>${esc(L.totalPortfolio)}</span><span class="val green fn-mono">${usd(p.total_usd)}</span></div>${p.partial_error ? `<div class="fn-empty">${esc(p.partial_error)}</div>` : ''}`;
       } catch (e) {
-        out.innerHTML = `<div class="fn-empty">Gagal: ${esc(String(e.message || e))} — set ETHERSCAN_API_KEY di Settings.</div>`;
+        out.innerHTML = `<div class="fn-empty">${esc(L.walletErr)}${esc(String(e.message || e))}${esc(L.walletErrHint)}</div>`;
         ev.target.disabled = false;
       }
     });
   } catch (e) {
-    list.outerHTML = `<div class="fn-empty">Gagal load wallet: ${esc(String(e.message || e))}</div>`;
+    list.outerHTML = `<div class="fn-empty">${esc(L.walletLoadFail)}${esc(String(e.message || e))}</div>`;
   }
 }

@@ -8,6 +8,8 @@
 // Prompt Library tab — CRUD canonical prompt templates. Agent assign template
 // via dropdown di Warga tab (no retype prompt per agent). Plug-and-play.
 import { esc, fetchJSON, loadStyle } from '../js/utils.js';
+import { t } from '/js/i18n.js';
+const L = new Proxy({}, { get: (_, k) => t('prompt.' + String(k).replace(/[A-Z]/g, (c) => '_' + c.toLowerCase())) });
 
 const CSS = `
 .pl-shell { padding:16px; display:flex; flex-direction:column; gap:14px; min-height:70vh; }
@@ -94,10 +96,10 @@ export async function render(root) {
       <div class="pl-head">
         <div>
           <h2>📝 Prompt Library</h2>
-          <div class="pl-sub">Canonical prompt templates — shared across warga via dropdown. Edit sekali, propagate ke semua agen yang pake.</div>
+          <div class="pl-sub">${esc(L.sub)}</div>
         </div>
         <div class="pl-actions">
-          <button class="pl-btn-new" id="plNew" title="Buat Template Baru — Buka editor untuk bikin prompt template baru yang bisa di-share ke banyak warga via dropdown di tab Warga. Edit sekali, semua warga yang pakai auto-update di sesi berikutnya. Contoh: bikin 'merpati-casual' dengan content 'Lo merpati, bahasa santai, fokus Telegram bridge' → assign ke warga merpati + warga ombak yang juga handle social. Logic: POST /api/brain/prompt-templates {name, content} → handler validate regex name (^[a-z0-9][a-z0-9_-]{1,63}$) + min 10 chars content → INSERT INTO prompt_templates (PK: name) di flowork-brain.sqlite. Daemon warga restart dibutuhkan untuk reload template ke memory cache (system prompt cached saat boot).">+ Template Baru</button>
+          <button class="pl-btn-new" id="plNew" title="Buat Template Baru — Buka editor untuk bikin prompt template baru yang bisa di-share ke banyak warga via dropdown di tab Warga. Edit sekali, semua warga yang pakai auto-update di sesi berikutnya. Contoh: bikin 'merpati-casual' dengan content 'Lo merpati, bahasa santai, fokus Telegram bridge' → assign ke warga merpati + warga ombak yang juga handle social. Logic: POST /api/brain/prompt-templates {name, content} → handler validate regex name (^[a-z0-9][a-z0-9_-]{1,63}$) + min 10 chars content → INSERT INTO prompt_templates (PK: name) di flowork-brain.sqlite. Daemon warga restart dibutuhkan untuk reload template ke memory cache (system prompt cached saat boot).">${esc(L.newBtn)}</button>
         </div>
       </div>
       <div id="plGrid" class="pl-grid"></div>
@@ -109,12 +111,12 @@ export async function render(root) {
 
 async function loadList() {
   const grid = document.getElementById('plGrid');
-  grid.innerHTML = '<div class="pl-empty">Memuat templates...</div>';
+  grid.innerHTML = '<div class="pl-empty">${esc(L.loading)}</div>';
   try {
     const d = await fetchJSON('/api/brain/prompt-templates');
     const templates = d.templates || [];
     if (templates.length === 0) {
-      grid.innerHTML = '<div class="pl-empty">Belum ada template. Klik "+ Template Baru" untuk mulai.</div>';
+      grid.innerHTML = '<div class="pl-empty">${esc(L.empty)}</div>';
       return;
     }
     grid.innerHTML = templates.map(t => cardHTML(t)).join('');
@@ -128,7 +130,7 @@ async function loadList() {
 
 function cardHTML(t) {
   const usage = t.usage_count > 0
-    ? `<span class="pl-card-usage">${t.usage_count} warga pake</span>`
+    ? `<span class="pl-card-usage">${t.usage_count} ${esc(L.usageSuffix)}</span>`
     : `<span class="pl-card-usage" style="background:rgba(100,116,139,0.12);color:#94a3b8">unused</span>`;
   const updated = t.updated_at ? t.updated_at.split('T')[0] : '—';
   return `
@@ -144,8 +146,8 @@ function cardHTML(t) {
       </div>
       <div class="pl-card-actions">
         <button class="pl-card-btn pl-btn-view"   data-action="view"   data-name="${esc(t.name)}" title="Lihat Template — Tampilkan isi lengkap prompt template ${esc(t.name)} + daftar warga yang reference dia (used_by). Read-only, modal akan muncul. Contoh: sebelum lo edit template, klik View dulu untuk audit konten + lihat siapa yang affected (kalau used_by 5 warga, semua mereka akan dapat update). Logic: GET /api/brain/prompt-templates/detail?name=${esc(t.name)} → JOIN dengan agents.prompt_template untuk used_by list. Modal show full content (no truncation) + size info.">👁️ View</button>
-        <button class="pl-card-btn pl-btn-edit"   data-action="edit"   data-name="${esc(t.name)}" title="Edit Template — Buka editor untuk modifikasi prompt template ${esc(t.name)}. Nama LOCKED (cegah breakage FK ke agents.prompt_template), cuma content editable. Contoh: tweak tone template 'aksara-coder' dari formal ke casual lo/gw → semua warga yang pakai template ini auto-adopt setelah daemon restart. Logic: POST /api/brain/prompt-templates/update {name, content} → handler UPDATE prompt_templates SET content=?, updated_at=now WHERE name=?. Cache invalidation di sisi daemon (warga reload prompt saat next boot).">✏️ Edit</button>
-        <button class="pl-card-btn pl-btn-delete" data-action="delete" data-name="${esc(t.name)}" data-used="${t.usage_count}" title="Hapus Template — Hapus prompt template ${esc(t.name)} dari database. Kalau masih dipakai (usage_count>0), confirmation muncul + force=true bakal clear FK reference di agents.prompt_template (warga affected fall back ke default prompt). Contoh: hapus template lama 'merpati-v1' yang sudah deprecated, replace dengan 'merpati-v2'. Logic: POST /api/brain/prompt-templates/delete {name, force?} → handler kalau usage>0 + force=false return 409, kalau force=true UPDATE agents SET prompt_template=NULL WHERE prompt_template=name + DELETE FROM prompt_templates.">🗑️</button>
+        <button class="pl-card-btn pl-btn-edit"   data-action="edit"   data-name="${esc(t.name)}" title="${esc(L.tipEdit)}">✏️ Edit</button>
+        <button class="pl-card-btn pl-btn-delete" data-action="delete" data-name="${esc(t.name)}" data-used="${t.usage_count}" title="${esc(L.tipDelete)}">🗑️</button>
       </div>
     </div>`;
 }
@@ -153,19 +155,19 @@ function cardHTML(t) {
 async function openViewer(name) {
   try {
     const d = await fetchJSON('/api/brain/prompt-templates/detail?name=' + encodeURIComponent(name));
-    const usedList = (d.used_by || []).map(u => `@${u.name}`).join(', ') || '(tidak dipake warga manapun)';
+    const usedList = (d.used_by || []).map(u => `@${u.name}`).join(', ') || esc(L.notUsed);
     showModal(`👁️ ${d.name}`, `
       <div class="pl-field">
         <label>Content (${d.content.length} chars)</label>
         <textarea readonly>${esc(d.content)}</textarea>
       </div>
       <div class="pl-field">
-        <label>Dipakai oleh (${d.used_count} warga)</label>
+        <label>${esc(L.usedByLabel)} (${d.used_count})</label>
         <div style="padding:8px;background:#1e293b;border-radius:4px;font-size:0.82rem;">${esc(usedList)}</div>
       </div>
     `, []);
   } catch (e) {
-    alert('Gagal load detail: ' + e.message);
+    alert(L.loadDetailFail + e.message);
   }
 }
 
@@ -176,25 +178,25 @@ async function openEditor(name) {
       const d = await fetchJSON('/api/brain/prompt-templates/detail?name=' + encodeURIComponent(name));
       existing = { name: d.name, content: d.content };
     } catch (e) {
-      alert('Gagal load: ' + e.message); return;
+      alert(L.loadFail + e.message); return;
     }
   }
   const isNew = !name;
-  showModal(isNew ? '+ Template Baru' : `✏️ Edit ${existing.name}`, `
+  showModal(isNew ? L.newBtn : `✏️ Edit ${existing.name}`, `
     <div class="pl-field">
       <label>Nama (lowercase, dash/underscore OK, 2-64 chars)${isNew ? '' : ' — LOCKED'}</label>
-      <input type="text" id="plName" value="${esc(existing.name)}" ${isNew ? '' : 'readonly'} placeholder="contoh: merpati-casual, bughunter-verbose" title="Nama Template — Nama unik untuk template ini (lowercase, bisa pakai dash/underscore, 2-64 karakter). Contoh: merpati-casual, bughunter-verbose. Nama tidak bisa diubah setelah dibuat.">
+      <input type="text" id="plName" value="${esc(existing.name)}" ${isNew ? '' : 'readonly'} placeholder="${esc(L.namePh)}" title="${esc(L.nameTip)}">
     </div>
     <div class="pl-field">
       <label>Content (markdown)</label>
-      <textarea id="plContent" placeholder="Lo adalah ..." title="Konten Prompt — Teks lengkap prompt sistem yang akan digunakan warga AI. Tulis dalam bahasa Indonesia informal (lo/gw) sesuai doktrin Flowork. Template ini dibaca sebagai system prompt di awal setiap sesi.">${esc(existing.content)}</textarea>
+      <textarea id="plContent" placeholder="${esc(L.contentPh)}" title="${esc(L.contentTip)}">${esc(existing.content)}</textarea>
     </div>
   `, [
     { label: 'Batal', class: 'pl-btn-cancel', action: 'close' },
     { label: isNew ? 'Create' : 'Update', class: 'pl-btn-save', action: async (close) => {
       const nm = document.getElementById('plName').value.trim().toLowerCase();
       const ct = document.getElementById('plContent').value.trim();
-      if (!nm || ct.length < 10) { alert('Nama wajib + content min 10 chars'); return; }
+      if (!nm || ct.length < 10) { alert(L.validateFail); return; }
       try {
         if (isNew) {
           await fetchJSON('/api/brain/prompt-templates', {
@@ -214,7 +216,7 @@ async function openEditor(name) {
 
 async function handleDelete(name, usedCount) {
   const warn = usedCount > 0
-    ? `⚠️  Template "${name}" masih dipake ${usedCount} warga. Delete dengan force=true akan clear reference dari agent mereka.`
+    ? `${L.delWarnA} "${name}" ${L.delWarnB} ${usedCount} ${L.delWarnC}`
     : `Yakin hapus template "${name}"?`;
   if (!confirm(warn)) return;
   const force = usedCount > 0;
@@ -238,7 +240,7 @@ function showModal(title, bodyHTML, buttons) {
       </div>
       ${bodyHTML}
       <div class="pl-modal-footer">
-        <div class="pl-hint">Daemon restart diperlukan untuk apply ke agent yang running.</div>
+        <div class="pl-hint">${esc(L.restartNote)}</div>
         <div style="display:flex;gap:8px;" id="plButtons"></div>
       </div>
     </div>`;

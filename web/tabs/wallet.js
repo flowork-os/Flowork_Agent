@@ -6,6 +6,8 @@
 // Reason: Wallet tab (reference 414 LOC). Audit pass — esc() on address+amount+holdings, fetchJSON via util..
 
 import { esc, fetchJSON, loadStyle, validateShape } from '../js/utils.js';
+import { t } from '/js/i18n.js';
+const L = new Proxy({}, { get: (_, k) => t('wallet.' + String(k).replace(/[A-Z]/g, (c) => '_' + c.toLowerCase())) });
 
 const CSS = `
 .wl-shell {
@@ -257,18 +259,18 @@ export async function render(mainEl) {
 
   mainEl.innerHTML = `
     <h2>💰 Keuangan AI</h2>
-    <div class="sub">Pemantauan saldo dompet crypto operasional via Etherscan V2 + CoinGecko. Data riil, zero mock.</div>
+    <div class="sub">${esc(L.sub)}</div>
     <div class="wl-shell">
       <div class="wl-card">
         <div class="wl-head">
-          <span>Holdings & Saldo</span>
+          <span>${esc(L.holdings)}</span>
           <span class="addr" id="wlAddr">—</span>
         </div>
-        <div class="wl-body" id="wlBal"><div class="wl-empty">Scanning blockchain…</div></div>
+        <div class="wl-body" id="wlBal"><div class="wl-empty">${esc(L.scanning)}</div></div>
       </div>
       <div class="wl-card">
         <div class="wl-head"><span>Transaksi Terakhir</span></div>
-        <div class="wl-body" id="wlTx"><div class="wl-empty">Memuat histori TX…</div></div>
+        <div class="wl-body" id="wlTx"><div class="wl-empty">${esc(L.loadingTx)}</div></div>
       </div>
     </div>
   `;
@@ -308,7 +310,7 @@ async function loadBalance() {
   if (!el) return;
   const cancelWatchdog = startWatchdog(
     'wlBal',
-    '⏳ Network lambat — masih nunggu Etherscan response…',
+    L.slowNet2,
     '⚠️ Timeout fetch wallet — cek <code>ETHERSCAN_API_KEY</code> di Setting + status API Etherscan.'
   );
   try {
@@ -342,7 +344,7 @@ async function loadBalance() {
 
     html += '<div class="wl-holdings">';
     if (!holdings.length) {
-      html += '<div class="wl-empty">Tidak ada holding terdeteksi.</div>';
+      html += '<div class="wl-empty">${esc(L.noHoldings)}</div>';
     } else {
       html += holdings.map(h => {
         const theme = chainTheme(h.chain_name);
@@ -378,7 +380,7 @@ async function loadTx() {
   if (!el) return;
   const cancelWatchdog = startWatchdog(
     'wlTx',
-    '⏳ Network lambat — masih nunggu histori TX…',
+    L.slowNet,
     '⚠️ Timeout fetch TX — cek <code>ETHERSCAN_API_KEY</code> + connection.'
   );
   try {
@@ -391,7 +393,7 @@ async function loadTx() {
     }
     const txs = Array.isArray(tx.txs) ? tx.txs : [];
     if (!txs.length) {
-      el.innerHTML = '<div class="wl-empty">Belum ada transaksi di chain manapun.</div>';
+      el.innerHTML = '<div class="wl-empty">${esc(L.noTx)}</div>';
       return;
     }
     el.innerHTML = txs.slice(0, 15).map(t => {

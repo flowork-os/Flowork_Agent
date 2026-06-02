@@ -1,0 +1,22 @@
+{
+  "sub": "Canonical prompt templates — shared across warga via dropdown. Edit sekali, propagate ke semua agen yang pake.",
+  "new_btn": "+ Template Baru",
+  "loading": "Memuat templates…",
+  "empty": "Belum ada template. Klik \"+ Template Baru\" untuk mulai.",
+  "load_detail_fail": "Gagal load detail: ",
+  "load_fail": "Gagal load: ",
+  "restart_note": "Daemon restart diperlukan untuk apply ke agent yang running.",
+  "usage_suffix": "warga pake",
+  "tip_edit": "Buka editor buat modif konten template ini. Nama locked; cuma content editable.",
+  "tip_delete": "Hapus template ini. Kalau masih dipakai, confirmation muncul; force clear FK di agent terdampak.",
+  "not_used": "(tidak dipake warga manapun)",
+  "used_by_label": "Dipakai oleh",
+  "name_ph": "contoh: merpati-casual, bughunter-verbose",
+  "name_tip": "Nama unik (lowercase, dash/underscore, 2–64 karakter). Ga bisa diubah setelah dibuat.",
+  "content_ph": "Lo adalah …",
+  "content_tip": "System prompt lengkap yang dipakai AI agent. Dibaca sebagai system prompt di awal tiap sesi.",
+  "del_warn_a": "⚠️  Template",
+  "del_warn_b": "masih dipake",
+  "del_warn_c": "warga. Delete dengan force=true bakal clear reference dari agent mereka.",
+  "validate_fail": "Nama wajib + content min 10 chars"
+}

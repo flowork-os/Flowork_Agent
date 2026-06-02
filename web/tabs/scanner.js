@@ -11,6 +11,8 @@
 // stream & findings detail (kanan). Background codescan engine isi log otomatis.
 
 import { esc, fetchJSON, loadStyle } from '../js/utils.js';
+import { t } from '/js/i18n.js';
+const L = new Proxy({}, { get: (_, k) => t('scanner.' + String(k).replace(/[A-Z]/g, (c) => '_' + c.toLowerCase())) });
 
 const AGENT_ID = 'mr-flow';
 const SEV_ORDER = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
@@ -137,12 +139,12 @@ export async function render(root) {
         </div>
         <div class="rx-right">
           <div class="rx-panel log">
-            <div class="rx-phead">▚ SCAN LOG <span style="color:#5c8a73;letter-spacing:0">· file kode yang ke-scan otomatis</span></div>
+            <div class="rx-phead">▚ SCAN LOG <span style="color:#5c8a73;letter-spacing:0">${esc(L.logSub)}</span></div>
             <div class="rx-pbody" id="rxLog"><div class="rx-empty">loading…</div></div>
           </div>
           <div class="rx-panel find">
             <div class="rx-phead" id="rxFindHead">⚠ FINDINGS</div>
-            <div class="rx-pbody" id="rxFindings"><div class="rx-empty">pilih entri di scan log buat lihat detail</div></div>
+            <div class="rx-pbody" id="rxFindings"><div class="rx-empty">${esc(L.pickEntry)}</div></div>
           </div>
         </div>
       </div>
@@ -192,7 +194,7 @@ function renderStats(root, s) {
 
 function renderLog(root, runs) {
   const el = root.querySelector('#rxLog');
-  if (!runs.length) { el.innerHTML = `<div class="rx-empty">belum ada scan. edit file kode apa aja → auto-scan jalan.</div>`; return; }
+  if (!runs.length) { el.innerHTML = `<div class="rx-empty">${esc(L.noScan)}</div>`; return; }
   el.innerHTML = runs.map(r => {
     const auto = (r.scan_type || '').startsWith('auto');
     const on = selectedRun && selectedRun.id === r.id;
@@ -232,7 +234,7 @@ async function selectRun(root, run) {
 }
 
 function renderFindings(el, items) {
-  if (!items.length) { el.innerHTML = `<div class="rx-empty ok">✓ CLEAR — ga ada temuan di run ini</div>`; return; }
+  if (!items.length) { el.innerHTML = `<div class="rx-empty ok">${esc(L.clear)}</div>`; return; }
   el.innerHTML = items.map(f => {
     const sev = (f.severity || 'info').toLowerCase();
     const c = SEV_COLOR[sev] || '#5eead4';
