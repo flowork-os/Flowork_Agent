@@ -1,3 +1,36 @@
+## 2026-06-02 14:15 WIB — FASE 0: Mr.Flow real tool-calling loop (Hermes-class fondasi)
+
+Mr.Flow dulu cuma 1-shot completion → 106 tools nganggur + suka ngaku-ngaku pake
+tool (halu). Sekarang punya **tool-calling loop beneran**.
+
+### NEW (LOCKED) — `internal/agentmgr/tool_specs.go`
+- `GET /api/agents/tools/specs?id=` → tools yang di-EXPOSE ke LLM dalam OpenAI
+  function-schema. **ANTI OVER-PROMPT:** cuma core ~13 (+ subs manual, cap 25),
+  BUKAN 106. Sisanya via `tool_search` on-demand. Host yang bangun schema.
+
+### Agent (`agents/mr-flow/main.go`) — tool-calling loop
+- `callLLM` jadi loop ReAct: kirim `messages`+`tools` ke router → kalau LLM minta
+  `tool_calls` → eksekusi via `runTool` (`POST /api/agents/tools/run`) → feed hasil
+  (role:tool) → ulang (cap `maxToolIters=8`) → sampai LLM jawab teks.
+- `fetchToolSpecs()` + `runTool()` (hostNetFetch, pola sama fetchHistory).
+- Guard di-update: dari "lo CUMA bisa teks / no fake execution" → "lo PUNYA tools
+  nyata, PAKAI beneran, jangan ngarang; tool nolak (cap) = jujur bilang ga ada izin".
+- manifest: +net:fetch caps `tools/specs` + `tools/run`.
+
+### Keamanan
+- `tools/run`+`tools/specs` loopback-only (server bind 127.0.0.1). Eksekusi tool
+  tetep lewat **SandboxRunV3** (capability + rate + approval). Tool result di-cap 8KB.
+  Loop di-cap 8 iter.
+
+### Verified (E2E, jalur real handle_message, router live)
+- Prompt "tulis PIZZA42 ke catatan.txt lalu baca" → Mr.Flow BENERAN panggil
+  `file_write`+`file_read` (2 tool_call di log) → **file kebikin di disk** → reply
+  akurat "Isinya: PIZZA42 ✅". Ga halu. `go build`/`vet` CLEAN.
+- Router (:2402) di-start (sempet mati). Roadmap `/home/mrflow/Documents/roadmap.md`
+  Fase 0 ✅.
+
+---
+
 ## 2026-05-31 22:10 WIB — Scanner accuracy: 8 critical false-positive dibasmi
 
 Radar nunjukin 7-8 "critical" — SEMUA false positive (diverifikasi). Fix akurasi:

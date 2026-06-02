@@ -99,6 +99,7 @@ const (
 // On-demand fetch via tool call lebih baik daripada always-inject.
 const (
 	maxActiveSkills      = 3    // max skill auto-inject ke persona (sisanya via skill_search)
+	maxToolIters         = 8    // max iterasi tool-calling loop per turn (anti loop tak hingga)
 	maxSkillCharsPerItem = 300  // truncate instruction skill kalau terlalu panjang
 	maxPersonaTotalChars = 4000 // hard cap persona total (~1000 token approx)
 )
@@ -507,19 +508,16 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn) string {
 			"lo cek sendiri di X'. Contoh BAIK: 'BTC sekitar $X di knowledge "+
 			"terakhir gw (stale). Live cek CoinGecko/Binance. Mau gw bantu "+
 			"breakdown trend atau historical context?']\n"+
-			"[ANTI-INVENT TOOL: Kalo mau suggest tool, sebut yg real ada di "+
-			"capability lo (net:fetch:telegram, net:fetch:router, state:read/"+
-			"write, time:read, fs:read/write, exec:git, rpc:router:skill). "+
-			"Jangan invent nama tool kayak 'web_search' atau 'brain_search' "+
-			"kalo gak ada di list itu.]\n"+
-			"[NO FAKE EXECUTION: Dari chat ini lo CUMA bisa balas teks — lo "+
-			"GAK bisa jalanin tool async / fetch live / scan real-time terus "+
-			"kasih hasilnya di pesan terpisah. JANGAN pura-pura lagi "+
-			"'scanning…', 'querying…', 'fetching…', atau janji 'tunggu output "+
-			"gw'. Itu HALU dan bikin Mr.Dev kesel. Kalo ga bisa real-time, "+
-			"bilang jujur + kasih cara/sumber manual. Lo PUNYA konteks "+
-			"percakapan sebelumnya di messages ini — pakai, jangan tanya ulang "+
-			"hal yang udah dibahas.]\n\n",
+			"[TOOLS NYATA: Lo SEKARANG punya tools beneran (di list `tools` "+
+			"request ini) — file_read/write, bash, webfetch, brain_search, "+
+			"memory, dll. PAKAI tools itu buat ngerjain — JANGAN ngarang hasil, "+
+			"JANGAN pura-pura 'scanning…/fetching…/tunggu output gw'. Kalau perlu "+
+			"data/aksi, PANGGIL tool-nya beneran. Kalau tool yang lo butuh ga ada "+
+			"di list, cari pake `tool_search` dulu; kalau tetep ga ada, bilang "+
+			"jujur + kasih cara manual. Kalau tool nolak (capability), jujur "+
+			"bilang ga ada izin, jangan ngarang.]\n"+
+			"[KONTEKS: Lo PUNYA history percakapan di messages ini — pakai, "+
+			"jangan tanya ulang hal yang udah dibahas.]\n\n",
 		nowISO(),
 	)
 	persona := guard + cfg.Prompt
@@ -553,49 +551,131 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn) string {
 		persona = persona[:maxPersonaTotalChars] + "\n…[truncated to respect prompt budget]"
 	}
 
-	// Bangun messages: system + history percakapan + (fallback user kalau
-	// history kosong). history SUDAH termasuk pesan user terakhir, jadi kalau
-	// ada history kita ngga append userText lagi (anti dobel).
-	msgs := []map[string]string{{"role": "system", "content": persona}}
+	// Bangun messages: system + history (history SUDAH termasuk pesan user
+	// terakhir; kalau kosong fallback ke userText). msgs pakai any biar muat
+	// tool_calls + tool result.
+	msgs := []any{map[string]any{"role": "system", "content": persona}}
 	if len(history) > 0 {
 		for _, t := range history {
-			msgs = append(msgs, map[string]string{"role": t.Role, "content": t.Content})
+			msgs = append(msgs, map[string]any{"role": t.Role, "content": t.Content})
 		}
 	} else {
-		msgs = append(msgs, map[string]string{"role": "user", "content": userText})
+		msgs = append(msgs, map[string]any{"role": "user", "content": userText})
 	}
-	body, _ := json.Marshal(map[string]any{
-		"model":    cfg.Router.Model,
-		"messages": msgs,
-	})
 
-	resp, err := fetch("POST", cfg.Router.URL,
-		map[string]string{"Content-Type": "application/json"}, body, 90_000)
-	if err != nil {
-		return "router error: " + err.Error()
+	// Fase 0: tool-calling loop. Expose hanya tools yang di-subscribe agent
+	// (core set, BUKAN 106 — anti over-prompt). LLM minta tool → kita eksekusi
+	// via /api/agents/tools/run → feed hasil → ulang sampai LLM jawab teks.
+	toolSpecs := fetchToolSpecs()
+	for iter := 0; iter < maxToolIters; iter++ {
+		reqMap := map[string]any{"model": cfg.Router.Model, "messages": msgs}
+		if len(toolSpecs) > 0 {
+			reqMap["tools"] = toolSpecs
+		}
+		body, _ := json.Marshal(reqMap)
+		resp, err := fetch("POST", cfg.Router.URL,
+			map[string]string{"Content-Type": "application/json"}, body, 90_000)
+		if err != nil {
+			return "router error: " + err.Error()
+		}
+		if resp.Status >= 400 {
+			return fmt.Sprintf("router %d: %s", resp.Status, truncStr(string(resp.Body), 200))
+		}
+		var oResp struct {
+			Choices []struct {
+				Message struct {
+					Content   string `json:"content"`
+					ToolCalls []struct {
+						ID       string `json:"id"`
+						Function struct {
+							Name      string `json:"name"`
+							Arguments string `json:"arguments"`
+						} `json:"function"`
+					} `json:"tool_calls"`
+				} `json:"message"`
+			} `json:"choices"`
+			Error any `json:"error"`
+		}
+		if err := json.Unmarshal(resp.Body, &oResp); err != nil {
+			return "decode: " + err.Error()
+		}
+		if oResp.Error != nil {
+			errBytes, _ := json.Marshal(oResp.Error)
+			return "llm: " + string(errBytes)
+		}
+		if len(oResp.Choices) == 0 {
+			return "(no choices)"
+		}
+		m := oResp.Choices[0].Message
+		if len(m.ToolCalls) == 0 {
+			return m.Content // jawaban final (teks)
+		}
+		// Append assistant message (dgn tool_calls) — wajib sebelum tool results.
+		tcArr := make([]any, 0, len(m.ToolCalls))
+		for _, tc := range m.ToolCalls {
+			tcArr = append(tcArr, map[string]any{
+				"id": tc.ID, "type": "function",
+				"function": map[string]any{"name": tc.Function.Name, "arguments": tc.Function.Arguments},
+			})
+		}
+		asst := map[string]any{"role": "assistant", "tool_calls": tcArr}
+		if m.Content != "" {
+			asst["content"] = m.Content
+		}
+		msgs = append(msgs, asst)
+		// Eksekusi tiap tool → append hasil sebagai role:tool.
+		for _, tc := range m.ToolCalls {
+			var args map[string]any
+			if tc.Function.Arguments != "" {
+				_ = json.Unmarshal([]byte(tc.Function.Arguments), &args)
+			}
+			fmt.Fprintf(os.Stderr, "[mr-flow] tool_call: %s args=%s\n", tc.Function.Name, truncStr(tc.Function.Arguments, 120))
+			result := runTool(tc.Function.Name, args)
+			msgs = append(msgs, map[string]any{
+				"role": "tool", "tool_call_id": tc.ID, "content": result,
+			})
+		}
+	}
+	return "(tool loop limit reached — coba lagi atau perjelas permintaan)"
+}
+
+// fetchToolSpecs — ambil tools yang di-expose ke LLM (OpenAI function-schema)
+// dari API sendiri. Host yang nyaring (core set, bukan 106). Empty kalau gagal.
+func fetchToolSpecs() []json.RawMessage {
+	resp, err := fetch("GET", "http://127.0.0.1:1987/api/agents/tools/specs?id=mr-flow", nil, nil, 2500)
+	if err != nil || resp == nil || resp.Status >= 400 {
+		return nil
+	}
+	var out struct {
+		Tools []json.RawMessage `json:"tools"`
+	}
+	if json.Unmarshal(resp.Body, &out) != nil {
+		return nil
+	}
+	return out.Tools
+}
+
+// runTool — eksekusi 1 tool via /api/agents/tools/run (SandboxRunV3 enforce
+// capability + rate + approval). Balikin hasil JSON sebagai string buat di-feed
+// balik ke LLM (di-cap biar ga blow context).
+func runTool(name string, args map[string]any) string {
+	reqBody, _ := json.Marshal(map[string]any{
+		"tool_name": name, "args": args, "caller": "mr-flow-loop",
+	})
+	resp, err := fetch("POST", "http://127.0.0.1:1987/api/agents/tools/run?id=mr-flow",
+		map[string]string{"Content-Type": "application/json"}, reqBody, 30_000)
+	if err != nil || resp == nil {
+		return `{"error":"tool dispatch gagal"}`
 	}
 	if resp.Status >= 400 {
-		return fmt.Sprintf("router %d: %s", resp.Status, truncStr(string(resp.Body), 200))
+		return fmt.Sprintf(`{"error":"tool http %d"}`, resp.Status)
 	}
-	var openaiResp struct {
-		Choices []struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-		} `json:"choices"`
-		Error any `json:"error"`
+	const maxToolResult = 8 * 1024
+	out := string(resp.Body)
+	if len(out) > maxToolResult {
+		out = out[:maxToolResult] + " …[truncated]"
 	}
-	if err := json.Unmarshal(resp.Body, &openaiResp); err != nil {
-		return "decode: " + err.Error()
-	}
-	if openaiResp.Error != nil {
-		errBytes, _ := json.Marshal(openaiResp.Error)
-		return "llm: " + string(errBytes)
-	}
-	if len(openaiResp.Choices) == 0 {
-		return "(no choices)"
-	}
-	return openaiResp.Choices[0].Message.Content
+	return out
 }
 
 // ── Direct RPC handlers ────────────────────────────────────────────────────

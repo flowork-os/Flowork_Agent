@@ -350,6 +350,7 @@ func main() {
 	mux.HandleFunc("/api/agents/tools/registry", agentmgr.ToolRegistryHandler)
 	mux.HandleFunc("/api/agents/tool-invocations", agentmgr.ToolInvocationsHandler)
 	mux.HandleFunc("/api/agents/tools/run", agentmgr.ToolRunHandler)
+	mux.HandleFunc("/api/agents/tools/specs", agentmgr.ToolSpecsHandler)
 	mux.HandleFunc("/api/agents/slash/run", agentmgr.SlashRunHandler)
 	mux.HandleFunc("/api/agents/slash/registry", agentmgr.SlashRegistryHandler)
 	mux.HandleFunc("/api/agents/slash-invocations", agentmgr.SlashInvocationsHandler)

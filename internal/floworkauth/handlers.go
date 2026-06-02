@@ -193,12 +193,17 @@ func isPublicPath(r *http.Request) bool {
 			return true
 		}
 	}
-	// Agent self-call (READ-ONLY, loopback only): daemon WASM fetch konteks
-	// percakapan + self-prompt buat di-inject ke LLM. Tanpa ini, agent ga bisa
-	// inget history (kena 401) — pola bypass sama dengan referensi lama.
+	// Agent self-call (loopback only): daemon WASM fetch konteks/self-prompt/
+	// tool-specs buat di-inject ke LLM + EXEC tool via tools/run. Tanpa ini,
+	// agent ga bisa inget history / pake tools (kena 401). Server bind 127.0.0.1
+	// jadi loopback-only aman dari remote.
 	switch path {
-	case "/api/agents/interactions", "/api/agents/self-prompt/render":
+	case "/api/agents/interactions", "/api/agents/self-prompt/render", "/api/agents/tools/specs":
 		return r.Method == http.MethodGet && isLocalRequest(r)
+	case "/api/agents/tools/run":
+		// POST — eksekusi tool. Tetep aman: SandboxRunV3 enforce capability +
+		// rate + approval di dalam handler-nya.
+		return r.Method == http.MethodPost && isLocalRequest(r)
 	}
 	return false
 }
