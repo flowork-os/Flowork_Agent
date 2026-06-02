@@ -99,13 +99,15 @@ if [ "$NEED_BUILD" = "1" ]; then
 fi
 
 # ── POWER ARM ────────────────────────────────────────────────────────────
-# system_power tool (agent operator-komputer) cuma EKSEKUSI aksi daya beneran
-# (shutdown/reboot/suspend/lock/logout) kalau FLOWORK_POWER_ARMED=1. Tanpa itu
-# = DRY-RUN aman. DEFAULT = 0 (aman buat semua orang yg clone repo ini).
-# Buat ngaktifin di mesin SENDIRI: bikin file `flowork.local.env` (gitignored)
-# berisi: FLOWORK_POWER_ARMED=1   ← di-source di sini, ga pernah ke-push.
+# system_power tool EKSEKUSI aksi daya beneran (shutdown/reboot/suspend/lock/
+# logout) kalau FLOWORK_POWER_ARMED=1 (DEFAULT). Aman walau default armed:
+# satu-satunya yg punya cap `exec:power` itu agent `operator-komputer`, dan
+# agent itu GA di-ship (gitignored, dibikin manual via scripts/setup-operator.sh).
+# Clone repo = ga ada operator = ga ada yg bisa matiin. Mau matiin kemampuan ini?
+# Disable agent operator-komputer di GUI, ATAU set FLOWORK_POWER_ARMED=0
+# (mis. lewat file gitignored flowork.local.env).
 [ -f "$ROOT/flowork.local.env" ] && set -a && . "$ROOT/flowork.local.env" && set +a
-export FLOWORK_POWER_ARMED="${FLOWORK_POWER_ARMED:-0}"
+export FLOWORK_POWER_ARMED="${FLOWORK_POWER_ARMED:-1}"
 
 # Jalanin di background
 c_info "Start flowork-gui di http://$ADDR... (power armed=$FLOWORK_POWER_ARMED)"
