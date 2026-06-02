@@ -273,6 +273,14 @@ func main() {
 			if n, serr := store.SeedEduErrors(); serr == nil && n > 0 {
 				log.Printf("edu-errors: seeded %d entry baru → %s", n, agentID)
 			}
+			// Roadmap 2 B1: seed konstitusi sacred + sync ke self_prompt slot
+			// (always-inject 5W1H/identity/anti-halu). Idempotent.
+			if n, serr := store.SeedSacredConstitution(); serr == nil && n > 0 {
+				log.Printf("constitution: seeded %d sacred rule → %s", n, agentID)
+			}
+			if updated, serr := store.SyncConstitutionSlot(); serr == nil && updated {
+				log.Printf("constitution: synced always-inject slot → %s", agentID)
+			}
 			store.Close()
 		}
 	}
