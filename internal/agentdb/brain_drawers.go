@@ -39,11 +39,11 @@ import (
 type BrainDrawer struct {
 	ID          string  `json:"id"`
 	Content     string  `json:"content"`
-	Wing        string  `json:"wing"`        // kategori besar (general/experience/eureka/constitution/…)
-	Room        string  `json:"room"`        // sub-kategori opsional
-	MemType     string  `json:"mem_type"`    // experience|eureka|fact|user|constitution|…
-	Importance  float64 `json:"importance"`  // 0..10 (ranking hint)
-	Amplitude   int     `json:"amplitude"`   // sacred always-inject (Fase B1); 999999 = sacred
+	Wing        string  `json:"wing"`       // kategori besar (general/experience/eureka/constitution/…)
+	Room        string  `json:"room"`       // sub-kategori opsional
+	MemType     string  `json:"mem_type"`   // experience|eureka|fact|user|constitution|…
+	Importance  float64 `json:"importance"` // 0..10 (ranking hint)
+	Amplitude   int     `json:"amplitude"`  // sacred always-inject (Fase B1); 999999 = sacred
 	ContentHash string  `json:"content_hash"`
 	Source      string  `json:"source"`      // siapa nyetor (agent/dream/user/…)
 	Quarantined bool    `json:"quarantined"` // Fase B5 immune — ga dipake sampe verified
