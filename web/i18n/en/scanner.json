@@ -2,5 +2,6 @@
   "log_sub": "· code files auto-scanned",
   "pick_entry": "pick an entry in the scan log to see details",
   "no_scan": "no scans yet. edit any code file → auto-scan runs.",
-  "clear": "✓ CLEAR — no findings in this run"
+  "clear": "✓ CLEAR — no findings in this run",
+  "watch_active": "LIVE · BACKGROUND WATCH ACTIVE"
 }

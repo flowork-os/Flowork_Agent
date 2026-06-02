@@ -269,7 +269,7 @@ export async function render(mainEl) {
         <div class="wl-body" id="wlBal"><div class="wl-empty">${esc(L.scanning)}</div></div>
       </div>
       <div class="wl-card">
-        <div class="wl-head"><span>Transaksi Terakhir</span></div>
+        <div class="wl-head"><span>${esc(L.recentTx)}</span></div>
         <div class="wl-body" id="wlTx"><div class="wl-empty">${esc(L.loadingTx)}</div></div>
       </div>
     </div>
@@ -318,7 +318,7 @@ async function loadBalance() {
     cancelWatchdog();
     const bal = validateShape(balData, ['configured'], 'WalletConfig');
     if (!bal.configured) {
-      el.innerHTML = `<div class="wl-err">DOMPET BELUM DIKONFIGURASI. Set env <code>TRUST_WALLET_ADDRESS</code> + <code>ETHERSCAN_API_KEY</code>.</div>`;
+      el.innerHTML = `<div class="wl-err">${esc(L.notConfigured)}<code>TRUST_WALLET_ADDRESS</code> + <code>ETHERSCAN_API_KEY</code>.</div>`;
       return;
     }
     if (addrEl && bal.wallet) addrEl.textContent = shortHash(bal.wallet);

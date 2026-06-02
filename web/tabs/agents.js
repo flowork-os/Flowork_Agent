@@ -105,7 +105,7 @@ export async function render(root) {
           <p class="ag-hero-sub">${esc(t('menu.tab.agents.desc'))}</p>
         </div>
         <div class="ag-hero-stats">
-          <div><span id="ag-stat-total">·</span><label>Warga</label></div>
+          <div><span id="ag-stat-total">·</span><label>${t('agents.warga')}</label></div>
           <div><span id="ag-stat-ready">·</span><label>Hidup</label></div>
         </div>
       </header>

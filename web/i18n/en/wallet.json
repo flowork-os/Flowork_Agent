@@ -6,5 +6,7 @@
   "no_holdings": "No holdings detected.",
   "no_tx": "No transactions on any chain.",
   "slow_net": "⏳ Slow network — still waiting for TX history…",
-  "slow_net2": "⏳ Slow network — still waiting for Etherscan response…"
+  "slow_net2": "⏳ Slow network — still waiting for Etherscan response…",
+  "recent_tx": "Recent Transactions",
+  "not_configured": "WALLET NOT CONFIGURED. Set env "
 }

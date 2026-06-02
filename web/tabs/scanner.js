@@ -122,7 +122,7 @@ export async function render(root) {
     <div class="rx">
       <div class="rx-top">
         <h2 class="rx-title">⌖ Threat Radar</h2>
-        <span class="rx-live"><span class="dot"></span>LIVE · BACKGROUND WATCH AKTIF</span>
+        <span class="rx-live"><span class="dot"></span>${esc(L.watchActive)}</span>
         <span class="rx-spacer"></span>
         <span style="font-size:0.66rem;color:#5c8a73;letter-spacing:.06em">agent=${esc(AGENT_ID)}</span>
         <button class="rx-btn" id="rxRefresh">⟳ REFRESH</button>

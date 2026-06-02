@@ -6,5 +6,7 @@
   "no_holdings": "Tidak ada holding terdeteksi.",
   "no_tx": "Belum ada transaksi di chain manapun.",
   "slow_net": "⏳ Network lambat — masih nunggu histori TX…",
-  "slow_net2": "⏳ Network lambat — masih nunggu Etherscan response…"
+  "slow_net2": "⏳ Network lambat — masih nunggu Etherscan response…",
+  "recent_tx": "Transaksi Terakhir",
+  "not_configured": "DOMPET BELUM DIKONFIGURASI. Set env "
 }
