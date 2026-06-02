@@ -38,7 +38,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"os"
 	"os/exec"
 	"path"
 	"runtime"
@@ -135,7 +137,21 @@ func (r *Runtime) registerFloworkHost(ctx context.Context, caps CapsChecker, res
 		decision:    decision,
 		karma:       karma,
 		slash:       slash,
-		http:        &http.Client{Timeout: 120 * time.Second},
+		http: &http.Client{
+			Timeout: 120 * time.Second,
+			// SSRF guard on the WASM net:fetch host-func: block cloud-metadata /
+			// link-local at dial time (initial + any redirect). Loopback stays
+			// allowed — agents MUST reach the self-API (:1987) and router (:2402).
+			Transport: &http.Transport{
+				Proxy:                 http.ProxyFromEnvironment,
+				DialContext:           hostFetchDial,
+				ForceAttemptHTTP2:     true,
+				MaxIdleConns:          100,
+				IdleConnTimeout:       90 * time.Second,
+				TLSHandshakeTimeout:   10 * time.Second,
+				ExpectContinueTimeout: 1 * time.Second,
+			},
+		},
 	}
 
 	_, err := r.rt.NewHostModuleBuilder("flowork").
@@ -520,6 +536,86 @@ type netFetchResp struct {
 // netFetch — implementasi `host_net_fetch`. Plugin kirim request JSON,
 // host check capability `net:fetch:<url>` (atau pattern), eksekusi HTTP,
 // kembali respons (status + headers + body base64) di buffer plugin.
+// hostFetchDial blocks dials to cloud-metadata / link-local addresses (the
+// classic SSRF pivot to steal cloud IAM creds) while allowing loopback (the
+// self-API + router that agents legitimately need). Runs on every dial, so it
+// also catches redirects. Public + private-LAN destinations are allowed (a
+// self-hosted agent may reach the owner's own services); only the always-hostile
+// link-local/metadata range is denied.
+func hostFetchDial(ctx context.Context, network, addr string) (net.Conn, error) {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		host = addr
+	}
+	d := &net.Dialer{Timeout: 15 * time.Second, KeepAlive: 30 * time.Second}
+	deny := func(ip net.IP) error {
+		if isHostileFetchIP(ip) {
+			return fmt.Errorf("blocked: link-local/cloud-metadata address %s", ip)
+		}
+		return nil
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		if derr := deny(ip); derr != nil {
+			return nil, derr
+		}
+		return d.DialContext(ctx, network, addr)
+	}
+	ips, lerr := net.DefaultResolver.LookupIPAddr(ctx, host)
+	if lerr != nil {
+		return nil, lerr
+	}
+	for _, a := range ips {
+		if derr := deny(a.IP); derr != nil {
+			return nil, derr
+		}
+	}
+	return d.DialContext(ctx, network, addr)
+}
+
+// isHostileFetchIP reports whether ip is a link-local / known cloud-metadata
+// address that an agent must never reach.
+func isHostileFetchIP(ip net.IP) bool {
+	if ip == nil {
+		return false
+	}
+	if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		return true // 169.254.0.0/16 (incl. 169.254.169.254), fe80::/10
+	}
+	switch ip.String() {
+	case "100.100.100.200", // Alibaba metadata
+		"192.0.0.192": // legacy Oracle/others
+		return true
+	}
+	return false
+}
+
+// isLoopbackURL reports whether raw points at the local machine (used to decide
+// when to attach the loopback caller-binding headers — never sent off-box).
+func isLoopbackURL(raw string) bool {
+	s := raw
+	if i := strings.Index(s, "://"); i >= 0 {
+		s = s[i+3:]
+	}
+	if i := strings.IndexAny(s, "/?#"); i >= 0 {
+		s = s[:i]
+	}
+	if i := strings.LastIndex(s, "@"); i >= 0 {
+		s = s[i+1:]
+	}
+	host := s
+	if h, _, err := net.SplitHostPort(s); err == nil {
+		host = h
+	}
+	host = strings.ToLower(strings.Trim(host, "[]"))
+	if host == "localhost" {
+		return true
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback()
+	}
+	return false
+}
+
 func (st *hostState) netFetch(ctx context.Context, m api.Module, reqPtr, reqLen, outPtr, outMax uint32) uint32 {
 	pluginID := guestPluginID(ctx)
 
@@ -573,6 +669,16 @@ func (st *hostState) netFetch(ctx context.Context, m api.Module, reqPtr, reqLen,
 	}
 	for k, v := range req.Headers {
 		httpReq.Header.Set(k, v)
+	}
+	// A2 isolation: for loopback self-API calls, override the caller identity with
+	// the VERIFIED guest pluginID + attach the loopback secret. Set LAST so a
+	// guest can't pre-set these — the tools/run handler then binds execution to
+	// the real caller instead of trusting a guest-supplied ?id=.
+	if pluginID != "" && isLoopbackURL(req.URL) {
+		if secret := os.Getenv("FLOWORK_LOOPBACK_SECRET"); secret != "" {
+			httpReq.Header.Set("X-Flowork-Caller", pluginID)
+			httpReq.Header.Set("X-Flowork-Secret", secret)
+		}
 	}
 
 	resp, ferr := st.http.Do(httpReq)
@@ -654,6 +760,18 @@ func (st *hostState) execRun(ctx context.Context, m api.Module, reqPtr, reqLen, 
 		}
 	}
 
+	// Denylist on the RAW exec primitive. This host-func sits beside the builtin
+	// `bash` tool but bypassed its denylist/env-scrub — so a self-asserted
+	// `exec:<bin>` cap could run `rm -rf /`, `sudo`, `shutdown`, etc. Apply the
+	// same conservative substring denylist here (defence-in-depth; the broker cap
+	// + owner allowlist gate WHO may reach this at all).
+	joined := strings.ToLower(req.Binary + " " + strings.Join(req.Args, " "))
+	for _, p := range hostExecDeny {
+		if strings.Contains(joined, p) {
+			return writeJSONOrCrop(m, outPtr, outMax, errorJSON("exec blocked: dangerous pattern "+p))
+		}
+	}
+
 	// Cross-OS shell resolution: kalau plugin ngirim "bash" / "sh", host
 	// pilih sendiri shell yang tepat. Lainnya treat as binary name di PATH.
 	bin, args := resolveBinary(req.Binary, req.Args)
@@ -669,6 +787,8 @@ func (st *hostState) execRun(ctx context.Context, m api.Module, reqPtr, reqLen, 
 	if req.Cwd != "" {
 		cmd.Dir = req.Cwd
 	}
+	// Scrub env: never forward owner tokens/secrets into a guest-driven exec.
+	cmd.Env = scrubHostExecEnv()
 	var stdout, stderr strings.Builder
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -689,6 +809,32 @@ func (st *hostState) execRun(ctx context.Context, m api.Module, reqPtr, reqLen, 
 	}
 	body, _ := json.Marshal(resp)
 	return writeJSONOrCrop(m, outPtr, outMax, body)
+}
+
+// hostExecDeny — conservative substring denylist for the raw exec host-func
+// (mirrors the builtin bash tool). Lower-cased compare.
+var hostExecDeny = []string{
+	"rm -rf /", "rm -rf /*", "rm -rf ~", "rm --no-preserve-root",
+	":(){:|:&};:", "sudo ", "su -", "chmod 777", "chown -r", "mkfs",
+	"dd if=/dev/zero", "dd if=/dev/random", "> /dev/sda", "> /dev/nvme",
+	"shutdown", "reboot", "halt", "poweroff", "init 0", "init 6",
+	"|sh", "| sh", "|bash", "| bash", "curl -s http", "wget -o -",
+	"eval $", "eval `", "/etc/passwd", "/etc/shadow", "/etc/sudoers", ".ssh/id_rsa",
+}
+
+// scrubHostExecEnv — minimal env whitelist for guest-driven exec (no tokens).
+func scrubHostExecEnv() []string {
+	want := []string{"PATH", "HOME", "LANG", "LC_ALL", "TERM"}
+	if runtime.GOOS == "windows" {
+		want = []string{"SystemRoot", "Path", "TEMP", "TMP", "USERPROFILE"}
+	}
+	out := make([]string, 0, len(want))
+	for _, k := range want {
+		if v := os.Getenv(k); v != "" {
+			out = append(out, k+"="+v)
+		}
+	}
+	return out
 }
 
 // resolveBinary — `bash`/`sh` di-route ke /bin/sh (POSIX) atau cmd.exe

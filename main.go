@@ -31,7 +31,9 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"embed"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -52,15 +54,15 @@ import (
 	"flowork-gui/internal/floworkdb"
 	"flowork-gui/internal/httpx"
 	"flowork-gui/internal/kernelhost"
-	"flowork-gui/internal/settingsapi"
 	"flowork-gui/internal/scheduler"
-	"flowork-gui/internal/walletalert"
-	"flowork-gui/internal/watchdog"
+	"flowork-gui/internal/settingsapi"
 	"flowork-gui/internal/slashcmd"
 	slashbuiltins "flowork-gui/internal/slashcmd/builtins"
 	slashcustom "flowork-gui/internal/slashcmd/custom"
 	"flowork-gui/internal/tools"
 	"flowork-gui/internal/tools/builtins"
+	"flowork-gui/internal/walletalert"
+	"flowork-gui/internal/watchdog"
 )
 
 //go:embed web
@@ -86,6 +88,15 @@ func main() {
 	// Both Init panic on duplicate name — early bug catch.
 	builtins.Init()
 	slashbuiltins.Init()
+	// A2 isolation: per-process loopback secret. The kernel injects this + the
+	// calling agent's VERIFIED id into self-API requests, so the tools/run
+	// handler can bind execution to the real caller — one agent can no longer run
+	// tools under another agent's id via ?id=. Set before any agent boots.
+	if sb := make([]byte, 24); true {
+		if _, rerr := rand.Read(sb); rerr == nil {
+			_ = os.Setenv("FLOWORK_LOOPBACK_SECRET", hex.EncodeToString(sb))
+		}
+	}
 	// Section 12 phase 2: register 3 built-in interceptor (workspace-path,
 	// sensitive-file, persona-inject). SandboxRunV2 di agentmgr panggil chain
 	// sebelum 3-gate sandbox.
@@ -551,11 +562,11 @@ func main() {
 	// → agents/edu-errors agent-scoped (lihat legacy_compat_v2.go).
 	mux.HandleFunc("/api/settings/educational-errors", agentmgr.EduErrorsCompatHandler)
 	// Tool Registry reference GUI tab (warga_caps.js) — single-warga shim.
-	mux.HandleFunc("/api/warga-caps/warga",     agentmgr.WargaListCompatHandler)
-	mux.HandleFunc("/api/warga-caps/catalog",   agentmgr.WargaCapsCatalogCompatHandler)
+	mux.HandleFunc("/api/warga-caps/warga", agentmgr.WargaListCompatHandler)
+	mux.HandleFunc("/api/warga-caps/catalog", agentmgr.WargaCapsCatalogCompatHandler)
 	mux.HandleFunc("/api/warga-caps/effective", agentmgr.WargaCapsEffectiveCompatHandler)
-	mux.HandleFunc("/api/warga-caps/override",  agentmgr.WargaCapsOverrideCompatHandler)
-	mux.HandleFunc("/api/warga-caps/seed",      agentmgr.WargaCapsSeedCompatHandler)
+	mux.HandleFunc("/api/warga-caps/override", agentmgr.WargaCapsOverrideCompatHandler)
+	mux.HandleFunc("/api/warga-caps/seed", agentmgr.WargaCapsSeedCompatHandler)
 	// Audit Log reference GUI tab (commits.js) — adapt audit → git-style.
 	mux.HandleFunc("/api/commits", agentmgr.CommitsCompatHandler)
 

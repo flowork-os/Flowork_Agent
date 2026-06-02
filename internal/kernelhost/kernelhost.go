@@ -19,7 +19,7 @@
 // Package kernelhost — embedded kernel runtime. Single-binary embedded kernel — wazero runtime + capability broker
 // + scanner running in-process. Sebelum: kernel terpisah di :1988.
 // Sekarang: satu binary, satu port (:1987).
-// 
+//
 //
 // Host = singleton state untuk wazero runtime + broker + loader scan.
 // HTTP handlers di-attach ke mux GUI lama via methods di Host.
@@ -176,6 +176,61 @@ func hasSharedCap(m *loader.Manifest) bool {
 	return false
 }
 
+// dangerousCapPrefixes — capabilities that grant host-level power. A side-loaded
+// agent must not self-grant these merely by listing them in its own manifest.
+var dangerousCapPrefixes = []string{"exec:", "rpc:agent-invoke", "fs:shared"}
+
+func isDangerousCap(c string) bool {
+	for _, p := range dangerousCapPrefixes {
+		if strings.HasPrefix(c, p) {
+			return true
+		}
+	}
+	return false
+}
+
+var privilegedWarnOnce sync.Once
+
+// filterPrivilegedCaps gates dangerous capabilities behind an owner allowlist.
+// FLOWORK_PRIVILEGED_AGENTS (comma-separated agent IDs) lists which agents may
+// hold exec/power/agent-invoke/shared-fs caps. If SET, dangerous caps are
+// stripped from any agent not on the list. If UNSET, behaviour is unchanged
+// (dev-trust) but a one-time warning is logged — set the allowlist before
+// loading untrusted agents.
+func filterPrivilegedCaps(agentID string, caps []string) []string {
+	allow := strings.TrimSpace(os.Getenv("FLOWORK_PRIVILEGED_AGENTS"))
+	if allow == "" {
+		for _, c := range caps {
+			if isDangerousCap(c) {
+				privilegedWarnOnce.Do(func() {
+					log.Printf("SECURITY: agent %q auto-granted dangerous capability %q from its own manifest (dev-trust). Set FLOWORK_PRIVILEGED_AGENTS=<ids> to restrict before loading untrusted agents.", agentID, c)
+				})
+				break
+			}
+		}
+		return caps
+	}
+	listed := false
+	for _, id := range strings.Split(allow, ",") {
+		if strings.TrimSpace(id) == agentID {
+			listed = true
+			break
+		}
+	}
+	if listed {
+		return caps
+	}
+	out := make([]string, 0, len(caps))
+	for _, c := range caps {
+		if isDangerousCap(c) {
+			log.Printf("SECURITY: stripped dangerous capability %q from non-privileged agent %q (not in FLOWORK_PRIVILEGED_AGENTS)", c, agentID)
+			continue
+		}
+		out = append(out, c)
+	}
+	return out
+}
+
 // Boot init wazero + scan + load semua agent. Caller nyalain hot-reload
 // + auto-boot daemon di goroutine sendiri (lihat Host.StartWatcher /
 // Host.AutoBootDaemons).
@@ -226,7 +281,7 @@ func Boot(ctx context.Context) (*Host, error) {
 			continue
 		}
 
-		br.Approve(d.Manifest.ID, d.Manifest.CapabilitiesRequired)
+		br.Approve(d.Manifest.ID, filterPrivilegedCaps(d.Manifest.ID, d.Manifest.CapabilitiesRequired))
 
 		inst, ierr := rt.LoadInstance(ctx, d.Manifest.ID, wasm, d.Manifest.MemoryMaxMB)
 		if ierr != nil {
@@ -521,7 +576,7 @@ func (h *Host) handleAgentChange(ctx context.Context, ch loader.Change) {
 			return
 		}
 		_ = h.Runtime.Unload(ctx, m.ID)
-		h.Broker.Approve(m.ID, m.CapabilitiesRequired)
+		h.Broker.Approve(m.ID, filterPrivilegedCaps(m.ID, m.CapabilitiesRequired))
 		inst, err := h.Runtime.LoadInstance(ctx, m.ID, wasm, m.MemoryMaxMB)
 		if err != nil {
 			log.Printf("kernel: hot-reload load %s failed: %v", m.ID, err)

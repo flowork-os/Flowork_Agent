@@ -705,6 +705,20 @@ func ToolRunHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := strings.TrimSpace(r.URL.Query().Get("id"))
+	// A2 isolation: a request carrying the host-injected loopback secret is a
+	// guest-agent call; its X-Flowork-Caller (set by the kernel from the VERIFIED
+	// pluginID, un-forgeable by the guest) is the authoritative identity. This
+	// stops one agent running tools under another agent's id via ?id=. External
+	// callers (GUI/scripts, no secret) keep using ?id (loopback-gated as before).
+	if secret := strings.TrimSpace(os.Getenv("FLOWORK_LOOPBACK_SECRET")); secret != "" && r.Header.Get("X-Flowork-Secret") == secret {
+		if caller := strings.TrimSpace(r.Header.Get("X-Flowork-Caller")); caller != "" {
+			if id != "" && id != caller {
+				httpx.WriteJSON(w, map[string]any{"error": "agent identity mismatch (caller-bound execution)"})
+				return
+			}
+			id = caller
+		}
+	}
 	if !reID.MatchString(id) {
 		httpx.WriteJSON(w, map[string]any{"error": "invalid id"})
 		return
