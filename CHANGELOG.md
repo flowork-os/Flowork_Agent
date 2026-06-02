@@ -1,3 +1,40 @@
+## 2026-06-02 15:45 WIB — FASE 3: tools riset (anti ngarang sumber)
+
+Agent worker butuh tools buat cari + baca sumber REAL (ga ngarang URL/fakta).
+3 tool baru di registry, stdlib-only (no external dep, jaga portable):
+[internal/tools/builtins/web_research.go](internal/tools/builtins/web_research.go).
+
+### web_search (Mojeek, no API key)
+- Awalnya target DuckDuckGo (pilihan owner). **Ketauan DDG diblok Kominfo di
+  Indonesia** (koneksi TLS di-reset, curl + Go dua-duanya 000). Pivot ke **Mojeek**
+  — search engine independen, no key, markup stabil, ga keblokir, href = URL asli
+  langsung. Balikin {title,url,snippet}, cap 8 hasil (anti over-prompt).
+
+### web_archive (Wayback Machine)
+- API availability archive.org → snapshot terdekat dari URL (verifikasi konten
+  lama / sumber hilang). JSON, stabil.
+
+### html_extract
+- Fetch URL → buang script/style/tag → teks readable buat di-feed ke LLM. Reuse
+  SSRF guard (validateURL dari web.go) + cap 12k char.
+
+### Bukti (jalur real, .scratch program via tools.Lookup().Run())
+- web_search "golang sqlite tutorial" → 3 hasil nyata (linuxhint, sqlitetutorial,
+  earthly). web_archive google.com → snapshot 20260602. html_extract example.com
+  → teks bersih. Build/vet clean, prod restart no panic/duplicate.
+
+### Capability + footprint
+- Ketiga tool butuh cap `net:fetch:*` → cuma worker agent yang subscribe + punya
+  cap. Mr.Flow (net:fetch terbatas) ga bisa = isolasi kejaga. TIDAK masuk
+  coreExposedTools → prompt Mr.Flow tetep kecil; ditemu via tool_search/subscribe.
+
+### Deferred
+- `pdf_read` — butuh dep PDF parser (PDF = binary kompleks, ga praktis pure-stdlib).
+  Di-defer; nunggu keputusan owner soal nambah lib (mis. rsc.io/pdf / ledongthuc/pdf).
+- `regulator_fetch` (IDX/OJK/SEC) — opsional, nanti. Darkweb SKIP (per roadmap).
+
+---
+
 ## 2026-06-02 15:20 WIB — FASE 2: Mr.Flow jadi TEMPLATE (copas-able)
 
 Doktrin roadmap Fase 2: Mr.Flow = engine template. Agent baru = COPAS folder →

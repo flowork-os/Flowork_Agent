@@ -56,6 +56,10 @@ func Init() {
 	tools.Register(&telegramSendTool{})
 	// phase 1d: web (web.go)
 	tools.Register(&webFetchTool{})
+	// FASE 3: tools riset (web_research.go) — anti ngarang sumber
+	tools.Register(&webSearchTool{})
+	tools.Register(&webArchiveTool{})
+	tools.Register(&htmlExtractTool{})
 	// phase 1c: shell (shell.go) — bash exec dengan denylist + timeout
 	tools.Register(&bashTool{})
 	// P1 file ops (file_advanced.go) — edit + glob + grep
