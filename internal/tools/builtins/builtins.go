@@ -60,6 +60,7 @@ func Init() {
 	tools.Register(&webSearchTool{})
 	tools.Register(&webArchiveTool{})
 	tools.Register(&htmlExtractTool{})
+	tools.Register(&pdfReadTool{})
 	// phase 1c: shell (shell.go) — bash exec dengan denylist + timeout
 	tools.Register(&bashTool{})
 	// P1 file ops (file_advanced.go) — edit + glob + grep

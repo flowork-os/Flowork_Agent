@@ -23,6 +23,7 @@
 package builtins
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -34,6 +35,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ledongthuc/pdf"
+
 	"flowork-gui/internal/tools"
 )
 
@@ -42,6 +45,8 @@ const (
 	researchMaxBytes   = 2 * 1024 * 1024 // 2MB cap fetch HTML
 	webSearchMaxResult = 8               // anti over-prompt: cap hasil
 	htmlExtractMaxText = 12000           // cap teks hasil extract (char)
+	pdfMaxBytes        = 15 * 1024 * 1024 // 15MB cap download PDF
+	pdfMaxText         = 20000            // cap teks hasil ekstrak PDF (char)
 	// Browser-like UA — sebagian mesin search nolak UA non-browser.
 	browserUA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 " +
 		"(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
@@ -335,6 +340,105 @@ func (htmlExtractTool) Run(ctx context.Context, args map[string]any) (tools.Resu
 		"truncated": truncated,
 		"chars":     len(text),
 	}}, nil
+}
+
+// =============================================================================
+// pdf_read — fetch PDF → ekstrak teks
+// =============================================================================
+//
+// Buat baca sumber PDF (filing/laporan/regulasi) tanpa ngarang. Pure-Go
+// (ledongthuc/pdf, no cgo). PDF parser bisa panic di file rusak/aneh → di-wrap
+// recover supaya host ngga ikut crash.
+
+type pdfReadTool struct{}
+
+func (pdfReadTool) Name() string       { return "pdf_read" }
+func (pdfReadTool) Capability() string { return "net:fetch:*" }
+func (pdfReadTool) Schema() tools.Schema {
+	return tools.Schema{
+		Description: "Fetch PDF dari URL terus ekstrak teksnya. Buat baca filing/laporan/dokumen PDF (ga ngarang). SSRF guard, download cap 15MB, teks cap " + fmt.Sprint(pdfMaxText) + " char.",
+		Params: []tools.Param{
+			{Name: "url", Type: tools.ParamString, Description: "absolute http(s) URL ke file PDF", Required: true},
+		},
+		Returns: "{url, pages, text, truncated: bool, chars}",
+	}
+}
+
+// extractPDFText — ekstrak teks dari bytes PDF. Recover dari panic parser
+// (ledongthuc/pdf bisa panic di PDF malformed/terenkripsi).
+func extractPDFText(data []byte) (text string, pages int, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("pdf parse panic (file rusak/terenkripsi/format ga didukung): %v", r)
+		}
+	}()
+	r, oerr := pdf.NewReader(bytes.NewReader(data), int64(len(data)))
+	if oerr != nil {
+		return "", 0, fmt.Errorf("buka pdf: %w", oerr)
+	}
+	pages = r.NumPage()
+	tr, terr := r.GetPlainText()
+	if terr != nil {
+		return "", pages, fmt.Errorf("ekstrak teks: %w", terr)
+	}
+	b, _ := io.ReadAll(tr)
+	return string(b), pages, nil
+}
+
+func (pdfReadTool) Run(ctx context.Context, args map[string]any) (tools.Result, error) {
+	raw, _ := args["url"].(string)
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return tools.Result{}, fmt.Errorf("url required")
+	}
+	u, verr := validateURL(raw) // SSRF guard (reuse dari web.go)
+	if verr != nil {
+		return tools.Result{}, verr
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return tools.Result{}, fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("User-Agent", browserUA)
+	req.Header.Set("Accept", "application/pdf,*/*")
+
+	resp, derr := researchClient.Do(req)
+	if derr != nil {
+		return tools.Result{}, fmt.Errorf("fetch pdf: %w", derr)
+	}
+	defer resp.Body.Close()
+	data, _ := io.ReadAll(io.LimitReader(resp.Body, pdfMaxBytes))
+	if len(data) == 0 {
+		return tools.Result{}, fmt.Errorf("pdf kosong / ga ke-download")
+	}
+
+	text, pages, eerr := extractPDFText(data)
+	if eerr != nil {
+		return tools.Result{}, eerr
+	}
+	// rapihin whitespace, cap.
+	text = wsRe.ReplaceAllString(text, " ")
+	text = strings.TrimSpace(text)
+	truncated := false
+	if len(text) > pdfMaxText {
+		text = text[:pdfMaxText]
+		truncated = true
+	}
+	note := ""
+	if strings.TrimSpace(text) == "" {
+		note = "PDF ke-baca tapi teksnya kosong — kemungkinan PDF hasil scan (gambar, butuh OCR), bukan teks."
+	}
+	return tools.Result{
+		Output: map[string]any{
+			"url":       u.String(),
+			"pages":     pages,
+			"text":      text,
+			"truncated": truncated,
+			"chars":     len(text),
+		},
+		Note: note,
+	}, nil
 }
 
 // toInt — best-effort konversi arg numerik (JSON unmarshal → float64) ke int.

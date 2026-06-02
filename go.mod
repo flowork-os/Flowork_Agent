@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	github.com/fsnotify/fsnotify v1.10.1
+	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
 	github.com/tetratelabs/wazero v1.11.0
 	golang.org/x/crypto v0.52.0
 	modernc.org/sqlite v1.51.0

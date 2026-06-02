@@ -18,20 +18,26 @@ Agent worker butuh tools buat cari + baca sumber REAL (ga ngarang URL/fakta).
 - Fetch URL → buang script/style/tag → teks readable buat di-feed ke LLM. Reuse
   SSRF guard (validateURL dari web.go) + cap 12k char.
 
+### pdf_read
+- Fetch PDF dari URL → ekstrak teks. Pure-Go `github.com/ledongthuc/pdf` (no cgo,
+  jaga portable). SSRF guard, download cap 15MB, teks cap 20k char. Parser di-wrap
+  `recover()` — PDF rusak/terenkripsi panic → ke-tangkep jadi error rapi, host ga
+  crash. Deteksi PDF scan (teks kosong → note "butuh OCR").
+
 ### Bukti (jalur real, .scratch program via tools.Lookup().Run())
 - web_search "golang sqlite tutorial" → 3 hasil nyata (linuxhint, sqlitetutorial,
   earthly). web_archive google.com → snapshot 20260602. html_extract example.com
-  → teks bersih. Build/vet clean, prod restart no panic/duplicate.
+  → teks bersih. pdf_read sample.pdf → 2879 char teks (pages=1); PDF malformed →
+  error rapi (ga crash). Build/vet clean, prod restart no panic/duplicate.
 
 ### Capability + footprint
 - Ketiga tool butuh cap `net:fetch:*` → cuma worker agent yang subscribe + punya
   cap. Mr.Flow (net:fetch terbatas) ga bisa = isolasi kejaga. TIDAK masuk
   coreExposedTools → prompt Mr.Flow tetep kecil; ditemu via tool_search/subscribe.
 
-### Deferred
-- `pdf_read` — butuh dep PDF parser (PDF = binary kompleks, ga praktis pure-stdlib).
-  Di-defer; nunggu keputusan owner soal nambah lib (mis. rsc.io/pdf / ledongthuc/pdf).
-- `regulator_fetch` (IDX/OJK/SEC) — opsional, nanti. Darkweb SKIP (per roadmap).
+### Sisa (opsional — Fase 3 inti TUTUP)
+- `regulator_fetch` (IDX/OJK/SEC) — opsional, nanti (bukan blocker). Darkweb SKIP
+  (per roadmap). web_search/archive/extract/pdf_read = 4 tool inti SELESAI + tested.
 
 ---
 
