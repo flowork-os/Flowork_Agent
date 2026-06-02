@@ -25,6 +25,7 @@
     "fs:write",
     "exec:git",
     "rpc:router:skill",
+    "rpc:router:brain",
     "rpc:taskflow",
     "rpc:agent-invoke"
   ],
