@@ -1,3 +1,41 @@
+## 2026-06-02 17:35 WIB — FASE 4: Category Task (multi-agent) — GATE SAHAM LULUS
+
+Multi-agent orchestration: MR.FLOW-class engine, banyak warga fokus, fan-out →
+synthesize. Dibuktiin di SAHAM dulu (GATE) sebelum generalize. **LULUS** (owner).
+
+### Orchestrator — internal/taskflow/taskflow.go (LOCKED)
+- `RunCategoryTask`: fan-out crew (sequential) → tiap analis `InvokeAgentMessage`
+  → tulis file_write → **host COPY output ke dir job synthesizer** (shared dir
+  PER-AGENT, bukan global) → fan-in synthesizer baca file_read → 1 keputusan.
+- `RunSolo`: baseline A/B (1 agent ngerjain semua). Crew dipakai via `Invoker`
+  interface (anti import-cycle ke kernelhost).
+- Trigger: `POST /api/taskflow/run?category=saham&subject=BBCA` ([taskflow_handler.go],
+  loopback-only auth bypass). `?solo=1` = baseline.
+
+### Crew SAHAM (spawn dari template Fase 2) — reproducible
+- `scripts/setup-saham-crew.sh` + `cmd/agent-config` (set persona+subs ke state.db
+  langsung, no auth): saham-fundamental/keuangan/teknikal (analis, net:fetch:* +
+  tools riset) + saham-sinteser (synthesizer, baca file doang). Crew gitignored
+  (generated); script = source of truth.
+
+### Fix bug engine — parallel tool calls (nguntungin mr-flow juga)
+- Model sering manggil tool PARALEL (>1/message). Router subscription path SALAH
+  translate parallel tool_results → anthropic 400 "multiple tool_result blocks
+  with id X". `parallel_tool_calls:false` ga dihormati router.
+- Fix: **serialize** — proses CUMA tool_call pertama/iterasi (sisa di-request
+  ulang). Selalu 1 tool_result/message → router aman. `maxToolIters` 8→12.
+- `InvokeAgentMessage` timeout 90s→180s (worker riset multi-step).
+
+### Bukti GATE (A/B, jalur real BBCA)
+- CREW: 4 agent → keputusan **BUY** lengkap, grounded + bersumber (Bareksa/Simply
+  Wall St/Liputan6, URL asli), analis keuangan JUJUR ngaku data ROE/DER ga ketemu
+  (anti-halu), synth atribusi per-analis + risiko + confidence.
+- SOLO (engine sama): "tool loop limit reached" — 1 agent juggling 3 dimensi jebol
+  budget tool. → multi-agent MENANG (deliver vs ga). Tesis "footprint kecil
+  per-agent" kebukti.
+
+---
+
 ## 2026-06-02 16:05 WIB — FASE 1 phase-2: Mr.Flow engine (3-tier + memory + compression)
 
 Nutup Fase 1 jadi 100% (doktrin ONE ROADMAP AT A TIME — phase-2 tadi ke-defer).

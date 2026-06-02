@@ -204,6 +204,12 @@ func isPublicPath(r *http.Request) bool {
 		// POST — eksekusi tool. Tetep aman: SandboxRunV3 enforce capability +
 		// rate + approval di dalam handler-nya.
 		return r.Method == http.MethodPost && isLocalRequest(r)
+	case "/api/taskflow/run":
+		// POST — FASE 4 Category Task trigger. Loopback-only (dipanggil Mr.Flow/
+		// scheduler/owner-local). Server bind 127.0.0.1 → aman dari remote.
+		return r.Method == http.MethodPost && isLocalRequest(r)
+	case "/api/taskflow/categories":
+		return r.Method == http.MethodGet && isLocalRequest(r)
 	}
 	return false
 }

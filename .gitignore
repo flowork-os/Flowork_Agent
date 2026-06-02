@@ -49,3 +49,9 @@ secret.key
 *-credentials.json
 secret.yaml
 .scratch/
+
+# FASE 4: crew SAHAM generated (reproduce via scripts/setup-saham-crew.sh)
+agents/saham-fundamental/
+agents/saham-keuangan/
+agents/saham-teknikal/
+agents/saham-sinteser/

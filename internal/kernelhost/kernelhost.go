@@ -975,7 +975,9 @@ func (h *Host) InvokeAgentMessage(ctx context.Context, agentID, text, caller str
 		"user": caller,
 	}
 	bodyJSON, _ := json.Marshal(args)
-	callCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
+	// 180s: worker taskflow (riset multi-tool serialized) butuh lebih dari 90s.
+	// Scheduler juga lewat sini — timeout gede aman (cap, bukan wait tetap).
+	callCtx, cancel := context.WithTimeout(ctx, 180*time.Second)
 	defer cancel()
 	respBytes, err := inst.Call(callCtx, "handle_message", bodyJSON)
 	if err != nil {

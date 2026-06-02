@@ -99,7 +99,7 @@ const (
 // On-demand fetch via tool call lebih baik daripada always-inject.
 const (
 	maxActiveSkills      = 3    // max skill auto-inject ke persona (sisanya via skill_search)
-	maxToolIters         = 8    // max iterasi tool-calling loop per turn (anti loop tak hingga)
+	maxToolIters         = 12   // max iterasi tool-loop per turn (serialized 1 tool/iter → butuh lebih)
 	maxMsgContentChars   = 6000 // cap per-message content sebelum kirim ke LLM
 	keepToolResultsFull  = 4    // hasil tool terbaru yang TIDAK di-prune (sisanya diringkas)
 	maxSkillCharsPerItem = 300  // truncate instruction skill kalau terlalu panjang
@@ -545,6 +545,11 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn) string {
 		reqMap := map[string]any{"model": cfg.Router.Model, "messages": prepMessages(msgs)}
 		if len(toolSpecs) > 0 {
 			reqMap["tools"] = toolSpecs
+			// parallel_tool_calls:false — PAKSA model manggil tool 1-1 (sequential).
+			// Router subscription path salah translate parallel tool_results
+			// (>1 result/message) → anthropic 400 "multiple tool_result blocks".
+			// Sequential = aman + tetep jalan (cuma butuh iterasi lebih banyak).
+			reqMap["parallel_tool_calls"] = false
 		}
 		body, _ := json.Marshal(reqMap)
 		// Retry transient: 5xx (mis. router 502 "all providers failed" /
@@ -595,36 +600,38 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn) string {
 		if len(m.ToolCalls) == 0 {
 			return m.Content // jawaban final (teks)
 		}
-		// Append assistant message (dgn tool_calls) — wajib sebelum tool results.
-		tcArr := make([]any, 0, len(m.ToolCalls))
-		for _, tc := range m.ToolCalls {
-			tcArr = append(tcArr, map[string]any{
-				"id": tc.ID, "type": "function",
-				"function": map[string]any{"name": tc.Function.Name, "arguments": tc.Function.Arguments},
-			})
-		}
-		// Content WAJIB ada + non-kosong: sebagian provider (Claude via router)
-		// nolak assistant-with-tool_calls kalau content kosong (error
-		// "messages.N.content"). Placeholder kalau model ga kasih teks.
+		// SERIALIZE tool calls: proses CUMA tool_call PERTAMA per iterasi, walau
+		// model minta paralel (>1). Sebabnya: router subscription path SALAH
+		// translate parallel tool_results (>1/message) → anthropic 400 "multiple
+		// tool_result blocks with id X", dan `parallel_tool_calls:false` ga
+		// dihormati. Dgn 1 tool/message, SELALU 1 tool_result/message → router
+		// aman. Sisa tool_call yang model minta tinggal di-request ulang iterasi
+		// berikut (model lihat hasil call-1 dulu). Trade-off: iterasi lebih
+		// banyak (makanya maxToolIters digedein), tapi BENER + ga 400.
+		tc := m.ToolCalls[0]
+		id := fmt.Sprintf("call_%d", iter)
+		// Content WAJIB non-kosong: sebagian provider (Claude via router) nolak
+		// assistant-with-tool_calls kalau content kosong (error "messages.N.content").
 		content := m.Content
 		if strings.TrimSpace(content) == "" {
 			content = "(memanggil tool)"
 		}
 		msgs = append(msgs, map[string]any{
-			"role": "assistant", "content": content, "tool_calls": tcArr,
+			"role": "assistant", "content": content,
+			"tool_calls": []any{map[string]any{
+				"id": id, "type": "function",
+				"function": map[string]any{"name": tc.Function.Name, "arguments": tc.Function.Arguments},
+			}},
 		})
-		// Eksekusi tiap tool → append hasil sebagai role:tool.
-		for _, tc := range m.ToolCalls {
-			var args map[string]any
-			if tc.Function.Arguments != "" {
-				_ = json.Unmarshal([]byte(tc.Function.Arguments), &args)
-			}
-			fmt.Fprintf(os.Stderr, "[mr-flow] tool_call: %s args=%s\n", tc.Function.Name, truncStr(tc.Function.Arguments, 120))
-			result := runTool(tc.Function.Name, args)
-			msgs = append(msgs, map[string]any{
-				"role": "tool", "tool_call_id": tc.ID, "content": result,
-			})
+		var args map[string]any
+		if tc.Function.Arguments != "" {
+			_ = json.Unmarshal([]byte(tc.Function.Arguments), &args)
 		}
+		fmt.Fprintf(os.Stderr, "[%s] tool_call: %s args=%s\n", selfID(), tc.Function.Name, truncStr(tc.Function.Arguments, 120))
+		result := runTool(tc.Function.Name, args)
+		msgs = append(msgs, map[string]any{
+			"role": "tool", "tool_call_id": id, "content": result,
+		})
 	}
 	return "(tool loop limit reached — coba lagi atau perjelas permintaan)"
 }

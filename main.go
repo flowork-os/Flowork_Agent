@@ -362,6 +362,9 @@ func main() {
 	mux.HandleFunc("/api/agents/tools/subscribe", agentmgr.ToolSubscribeHandler)
 	mux.HandleFunc("/api/agents/tools/unsubscribe", agentmgr.ToolUnsubscribeHandler)
 	mux.HandleFunc("/api/agents/tools/suggest", agentmgr.ToolSuggestHandler)
+	// FASE 4: Category Task orchestrator trigger (loopback-only, lihat isPublicPath).
+	mux.HandleFunc("/api/taskflow/run", taskflowRunHandler(host))
+	mux.HandleFunc("/api/taskflow/categories", taskflowCategoriesHandler)
 	mux.HandleFunc("/api/agents/scheduler/runs", agentmgr.SchedulerRunsHandler)
 	mux.HandleFunc("/api/agents/scheduler/trigger", agentmgr.SchedulerTriggerHandler)
 	mux.HandleFunc("/api/agents/sneakernet/export", agentmgr.SneakernetExportHandler)
