@@ -158,7 +158,7 @@
       "wallet_loading": "Ambil saldo…",
       "wallet_need_key": "Tips: set ETHERSCAN_API_KEY di Token Crypto / API Key dulu.",
       "aiwallet_h": "Wallet AI agent",
-      "aiwallet_sub": "Tampilan read-only wallet tiap AI agent (datanya tetap terisolasi di state.db warga masing-masing).",
+      "aiwallet_sub": "Kelola alamat wallet yang dipantau tiap agent (Etherscan/CoinGecko). Edit owner-level.",
       "aiwallet_empty": "Tidak ada agent.",
       "aiwallet_none": "Agent ini belum set alamat wallet.",
       "seg_notify": "Notifikasi",
@@ -171,7 +171,13 @@
       "notify_test": "Kirim tes",
       "notify_saved": "✅ Tersimpan.",
       "notify_test_sent": "✅ Tes terkirim — cek Telegram kamu.",
-      "notify_test_fail": "Tes gagal:"
+      "notify_test_fail": "Tes gagal:",
+      "keys_edit_hint": "Edit — masukin nilai baru, lalu Simpan.",
+      "keys_del_confirm": "Hapus key",
+      "aiwallet_addr_ph": "0x… alamat wallet",
+      "aiwallet_label_ph": "label (opsional)",
+      "aiwallet_add_h": "Set wallet buat agent",
+      "aiwallet_del_confirm": "Hapus alamat"
     }
   }
 }

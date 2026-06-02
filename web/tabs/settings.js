@@ -171,8 +171,27 @@ async function renderKeys(panel) {
     const items = d.items || [];
     if (!items.length) { list.innerHTML = `<div class="set-empty">${esc(tk('keys_empty'))}</div>`; return; }
     list.innerHTML = items.map(it => `
-      <li><span class="mono">${esc(it.key)}</span><span class="set-tag mono">${esc(it.masked || '—')}</span></li>
+      <li>
+        <span><span class="mono">${esc(it.key)}</span> <span class="set-tag mono">${esc(it.masked || '—')}</span></span>
+        <span>
+          <button class="ed" data-key="${escAttr(it.key)}">${esc(t('common.btn.edit'))}</button>
+          <button class="rm" data-key="${escAttr(it.key)}">${esc(t('common.btn.delete'))}</button>
+        </span>
+      </li>
     `).join('');
+    list.querySelectorAll('.ed').forEach(b => b.addEventListener('click', () => {
+      panel.querySelector('#kKey').value = b.getAttribute('data-key');
+      const v = panel.querySelector('#kVal'); v.value = ''; v.focus();
+      msg.className = 'set-msg'; msg.textContent = tk('keys_edit_hint');
+    }));
+    list.querySelectorAll('.rm').forEach(b => b.addEventListener('click', async () => {
+      const key = b.getAttribute('data-key');
+      if (!confirm(tk('keys_del_confirm') + ' "' + key + '"?')) return;
+      try {
+        await fetchJSON('/api/settings/keys?key=' + encodeURIComponent(key), { method: 'DELETE' });
+        await reload();
+      } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
+    }));
   }
   panel.querySelector('#kAdd').addEventListener('click', async () => {
     const key = panel.querySelector('#kKey').value.trim();
@@ -280,16 +299,50 @@ async function renderAIWallet(panel) {
     </div>
   `;
   const box = panel.querySelector('#aiList');
-  const d = await fetchJSON('/api/settings/ai-wallets');
-  const items = d.items || [];
-  if (!items.length) { box.innerHTML = `<div class="set-empty">${esc(tk('aiwallet_empty'))}</div>`; return; }
-  box.innerHTML = items.map(a => {
-    const addrs = a.addresses || [];
-    const inner = addrs.length
-      ? `<ul class="set-list">${addrs.map(w => `<li><span><span class="set-tag">${esc(chainName(w.chain_id))}</span> <span class="mono">${esc(w.address)}</span>${w.label ? ' · ' + esc(w.label) : ''}</span></li>`).join('')}</ul>`
-      : `<div class="set-empty">${esc(tk('aiwallet_none'))}</div>`;
-    return `<div style="margin-bottom:14px;"><div style="font-weight:600;font-size:0.88rem;margin-bottom:4px;">🤖 ${esc(a.agent_id)}</div>${inner}</div>`;
-  }).join('');
+  async function reload() {
+    const d = await fetchJSON('/api/settings/ai-wallets');
+    const items = d.items || [];
+    if (!items.length) { box.innerHTML = `<div class="set-empty">${esc(tk('aiwallet_empty'))}</div>`; return; }
+    box.innerHTML = items.map(a => {
+      const addrs = a.addresses || [];
+      const inner = addrs.length
+        ? `<ul class="set-list">${addrs.map(w => `<li>
+            <span><span class="set-tag">${esc(chainName(w.chain_id))}</span> <span class="mono">${esc(w.address)}</span>${w.label ? ' · ' + esc(w.label) : ''}</span>
+            <button class="ai-rm" data-agent="${escAttr(a.agent_id)}" data-chain="${w.chain_id}" data-addr="${escAttr(w.address)}">${esc(t('common.btn.delete'))}</button>
+          </li>`).join('')}</ul>`
+        : `<div class="set-empty">${esc(tk('aiwallet_none'))}</div>`;
+      return `<div class="ai-agent" style="margin-bottom:16px;">
+        <div style="font-weight:600;font-size:0.88rem;margin-bottom:4px;">🤖 ${esc(a.agent_id)}</div>
+        ${inner}
+        <div class="set-row" style="margin-top:6px;">
+          <select class="ai-chain">${CHAINS.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select>
+          <input type="text" class="ai-addr" placeholder="${escAttr(tk('aiwallet_addr_ph'))}">
+          <input type="text" class="ai-label" placeholder="${escAttr(tk('aiwallet_label_ph'))}">
+          <button class="set-btn-primary ai-add" data-agent="${escAttr(a.agent_id)}">${esc(t('common.btn.save'))}</button>
+        </div>
+      </div>`;
+    }).join('');
+    box.querySelectorAll('.ai-rm').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm(tk('aiwallet_del_confirm') + '?')) return;
+      const q = `agent_id=${encodeURIComponent(b.dataset.agent)}&chain_id=${encodeURIComponent(b.dataset.chain)}&address=${encodeURIComponent(b.dataset.addr)}`;
+      try { await fetchJSON('/api/settings/ai-wallets?' + q, { method: 'DELETE' }); await reload(); } catch (e) { alert(cleanErr(e)); }
+    }));
+    box.querySelectorAll('.ai-add').forEach(b => b.addEventListener('click', async () => {
+      const wrap = b.closest('.ai-agent');
+      const body = {
+        agent_id: b.dataset.agent,
+        chain_id: parseInt(wrap.querySelector('.ai-chain').value, 10),
+        address: wrap.querySelector('.ai-addr').value.trim(),
+        label: wrap.querySelector('.ai-label').value.trim(),
+      };
+      if (!body.address) return;
+      try {
+        await fetchJSON('/api/settings/ai-wallets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        await reload();
+      } catch (e) { alert(cleanErr(e)); }
+    }));
+  }
+  await reload();
 }
 
 // cleanErr — buang prefix "NNN:" dari fetchJSON Error biar pesan rapi.

@@ -158,7 +158,7 @@
       "wallet_loading": "Fetching balances…",
       "wallet_need_key": "Tip: set ETHERSCAN_API_KEY under Crypto Tokens / API Keys first.",
       "aiwallet_h": "AI agent wallets",
-      "aiwallet_sub": "Read-only view of each AI agent's wallet (data stays isolated in the agent's own state.db).",
+      "aiwallet_sub": "Manage the wallet addresses each agent monitors (Etherscan/CoinGecko). Owner-level edit.",
       "aiwallet_empty": "No agents found.",
       "aiwallet_none": "No wallet address set for this agent.",
       "seg_notify": "Notifications",
@@ -171,7 +171,13 @@
       "notify_test": "Send test",
       "notify_saved": "✅ Saved.",
       "notify_test_sent": "✅ Test sent — check your Telegram.",
-      "notify_test_fail": "Test failed:"
+      "notify_test_fail": "Test failed:",
+      "keys_edit_hint": "Editing — enter a new value, then Save.",
+      "keys_del_confirm": "Delete key",
+      "aiwallet_addr_ph": "0x… wallet address",
+      "aiwallet_label_ph": "label (optional)",
+      "aiwallet_add_h": "Set wallet for an agent",
+      "aiwallet_del_confirm": "Remove address"
     }
   }
 }

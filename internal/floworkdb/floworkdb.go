@@ -147,6 +147,14 @@ func (s *Store) SetSecret(k, v string) error {
 	return s.upsert("secrets", k, v)
 }
 
+// DeleteSecret hapus 1 secret key.
+func (s *Store) DeleteSecret(k string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, err := s.db.Exec(`DELETE FROM secrets WHERE k=?`, k)
+	return err
+}
+
 // ListSecretKeys returns all secret keys (NOT values — caller masks).
 func (s *Store) ListSecretKeys() ([]string, error) {
 	s.mu.Lock()

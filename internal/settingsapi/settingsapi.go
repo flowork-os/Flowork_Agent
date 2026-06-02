@@ -249,6 +249,18 @@ func (a *API) KeysHandler(w http.ResponseWriter, r *http.Request) {
 		// Live-inject ke env supaya engine (wallet, dll) langsung pakai tanpa restart.
 		_ = os.Setenv(key, body.Value)
 		httpx.WriteJSON(w, map[string]any{"ok": true})
+	case http.MethodDelete:
+		key := strings.TrimSpace(r.URL.Query().Get("key"))
+		if !envKeyRe.MatchString(key) {
+			httpx.WriteJSON(w, map[string]any{"error": "key invalid"})
+			return
+		}
+		if err := a.store.DeleteSecret(key); err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+			return
+		}
+		_ = os.Unsetenv(key)
+		httpx.WriteJSON(w, map[string]any{"ok": true})
 	default:
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
 	}
@@ -258,33 +270,83 @@ func (a *API) KeysHandler(w http.ResponseWriter, r *http.Request) {
 // Read-only: daftar wallet address tiap warga (host-level read dari state.db
 // masing-masing). Bukan cross-warga — proses host yang baca buat display.
 func (a *API) AIWalletsHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
-		return
-	}
 	if AgentIDsFunc == nil || OpenAgentStoreFunc == nil {
 		httpx.WriteJSON(w, map[string]any{"error": "agent host not wired"})
 		return
 	}
-	agents := []map[string]any{}
-	for _, id := range AgentIDsFunc() {
-		entry := map[string]any{"agent_id": id, "addresses": []agentdb.WalletAddress{}}
+	switch r.Method {
+	case http.MethodGet:
+		agents := []map[string]any{}
+		for _, id := range AgentIDsFunc() {
+			entry := map[string]any{"agent_id": id, "addresses": []agentdb.WalletAddress{}}
+			store, err := OpenAgentStoreFunc(id)
+			if err != nil {
+				entry["error"] = err.Error()
+				agents = append(agents, entry)
+				continue
+			}
+			rows, lerr := store.ListWalletAddresses()
+			store.Close()
+			if lerr != nil {
+				entry["error"] = lerr.Error()
+			} else {
+				entry["addresses"] = rows
+			}
+			agents = append(agents, entry)
+		}
+		httpx.WriteJSON(w, map[string]any{"items": agents, "count": len(agents)})
+
+	case http.MethodPost:
+		// Owner set/edit wallet 1 warga (host nulis ke state.db warga itu).
+		var body struct {
+			AgentID string `json:"agent_id"`
+			ChainID int    `json:"chain_id"`
+			Address string `json:"address"`
+			Label   string `json:"label"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&body); err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": "invalid json"})
+			return
+		}
+		if strings.TrimSpace(body.AgentID) == "" || strings.TrimSpace(body.Address) == "" {
+			httpx.WriteJSON(w, map[string]any{"error": "agent_id + address wajib"})
+			return
+		}
+		store, err := OpenAgentStoreFunc(body.AgentID)
+		if err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+			return
+		}
+		defer store.Close()
+		if err := store.AddWalletAddress(body.ChainID, strings.TrimSpace(body.Address), strings.TrimSpace(body.Label)); err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+			return
+		}
+		httpx.WriteJSON(w, map[string]any{"ok": true})
+
+	case http.MethodDelete:
+		id := strings.TrimSpace(r.URL.Query().Get("agent_id"))
+		addr := strings.TrimSpace(r.URL.Query().Get("address"))
+		chain, _ := strconv.Atoi(r.URL.Query().Get("chain_id"))
+		if id == "" || addr == "" {
+			httpx.WriteJSON(w, map[string]any{"error": "agent_id + address wajib"})
+			return
+		}
 		store, err := OpenAgentStoreFunc(id)
 		if err != nil {
-			entry["error"] = err.Error()
-			agents = append(agents, entry)
-			continue
+			httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+			return
 		}
-		rows, lerr := store.ListWalletAddresses()
-		store.Close()
-		if lerr != nil {
-			entry["error"] = lerr.Error()
-		} else {
-			entry["addresses"] = rows
+		defer store.Close()
+		if err := store.DeleteWalletAddress(chain, addr); err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+			return
 		}
-		agents = append(agents, entry)
+		httpx.WriteJSON(w, map[string]any{"ok": true})
+
+	default:
+		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
 	}
-	httpx.WriteJSON(w, map[string]any{"items": agents, "count": len(agents)})
 }
 
 // mask — tampilkan 4 char terakhir, sisanya bullet.
