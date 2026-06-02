@@ -62,6 +62,9 @@ func Init() {
 	tools.Register(&mistakeRecallTool{})
 	// Roadmap 2 B4: suggest skill dari pola tool sukses (skill_suggest.go).
 	tools.Register(&skillSuggestTool{})
+	// Roadmap 2 B5: immune brain (brain_immune.go) — scan/quarantine + verify.
+	tools.Register(&brainImmuneScanTool{})
+	tools.Register(&brainVerifyTool{})
 	// phase 1f: comms (telegram.go)
 	tools.Register(&telegramSendTool{})
 	// phase 1d: web (web.go)

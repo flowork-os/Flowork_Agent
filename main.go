@@ -290,6 +290,10 @@ func main() {
 								log.Printf("dream: %d eureka baru → %s", res.EurekasFormed, agentID)
 								formed += res.EurekasFormed
 							}
+							// Roadmap 2 B5: immune sweep — quarantine drawer injection/halu.
+							if q, derr := store.ScanAndQuarantine(); derr == nil && q > 0 {
+								log.Printf("immune: %d drawer dikarantina → %s", q, agentID)
+							}
 							store.Close()
 						}
 					}
@@ -315,6 +319,10 @@ func main() {
 			}
 			if updated, serr := store.SyncConstitutionSlot(); serr == nil && updated {
 				log.Printf("constitution: synced always-inject slot → %s", agentID)
+			}
+			// Roadmap 2 B5: seed antibody immune (signature injection/jailbreak).
+			if n, serr := store.SeedAntibodies(); serr == nil && n > 0 {
+				log.Printf("immune: seeded %d antibody → %s", n, agentID)
 			}
 			store.Close()
 		}
