@@ -1,3 +1,29 @@
+## 2026-06-02 22:55 WIB — FASE 8: Curator skill (skill lifecycle) — ROADMAP 1 TUTUP
+
+Skill numpuk → curated biar prompt ga keracunan skill basi/dup. Per-agent
+(isolated, state.db). Skill auto-create/subagent-parallel = YAGNI (nanti).
+
+### Curator — internal/agentdb/skills_curate.go (LOCKED)
+- Schema lifecycle (idempotent ALTER): `created_at`, `last_used`, `usage_count`,
+  `archived`. `AddSkill`/`BumpSkillUsage`/`ListSkillsGraded`.
+- `CurateSkills(now, idleDays=90, ageDays=30)`:
+  - **GRADE**: skor usage×10 + bonus recency → ranking.
+  - **CONSOLIDATE**: skill instruksi IDENTIK → simpen usage tertinggi (tie: tertua),
+    arsip sisanya.
+  - **STALE→ARSIP**: idle > 90d, atau umur > 30d & usage 0 → archived=1 (SOFT,
+    recoverable; ga di-inject ke prompt).
+
+### Endpoint + cron
+- `GET /api/agents/skills?id=[&archived=1]` (list+grade) · `POST /api/agents/skills/
+  curate?id=` (jalanin). Cron harian curate semua agent. Loopback-only.
+
+### Bukti (jalur real)
+- Seed mr-flow: dup-a(usage5)+dup-b(usage1, dup)+stale-old(60d,usage0)+good(usage10)
+  → curate → consolidated=[dup-b], stale=[stale-old], top=[good,dup-a], aktif=2.
+  dup-b+stale-old ke-arsip (recoverable), good rank teratas. Build/vet clean.
+
+---
+
 ## 2026-06-02 22:30 WIB — FASE 7: MCP server + TUI/QC entry
 
 Entry baru selain Telegram/CLI: **AI eksternal** (via MCP) + **TUI** terminal.

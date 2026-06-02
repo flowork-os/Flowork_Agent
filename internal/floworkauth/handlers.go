@@ -212,6 +212,9 @@ func isPublicPath(r *http.Request) bool {
 		return r.Method == http.MethodGet && isLocalRequest(r)
 	case "/api/mcp/config":
 		return r.Method == http.MethodGet && isLocalRequest(r)
+	case "/api/agents/skills", "/api/agents/skills/curate":
+		// FASE 8 Curator — list/grade/curate skill per-agent (owner-local).
+		return isLocalRequest(r)
 	}
 	return false
 }

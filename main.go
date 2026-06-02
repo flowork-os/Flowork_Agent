@@ -240,6 +240,21 @@ func main() {
 	}
 	// Section 8: retention cron — sweep tiap 24h, hard-delete grace 90 hari.
 	host.StartRetentionCron(ctx, 24*time.Hour)
+	// FASE 8: Curator skill harian — consolidate dup + arsip stale semua agent.
+	go func() {
+		t := time.NewTicker(24 * time.Hour)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				if rep := agentmgr.CurateAllAgentsSkills(host.AgentIDs()); len(rep) > 0 {
+					log.Printf("skill-curator: %d agent dirapihin", len(rep))
+				}
+			}
+		}
+	}()
 
 	// Doktrin edukasi — seed katalog educational_errors default ke tiap agent
 	// (idempotent INSERT OR IGNORE; edit owner via GUI ngga ke-overwrite).
@@ -377,6 +392,9 @@ func main() {
 	mux.HandleFunc("/api/taskflow/run-detail", taskflowRunDetailHandler(fdb))
 	// FASE 7: config MCP buat GUI copy-paste ke AI eksternal.
 	mux.HandleFunc("/api/mcp/config", mcpConfigHandler)
+	// FASE 8: Curator skill (per-agent) — list+grade + jalanin curator.
+	mux.HandleFunc("/api/agents/skills", agentmgr.SkillsListHandler)
+	mux.HandleFunc("/api/agents/skills/curate", agentmgr.SkillsCurateHandler)
 	mux.HandleFunc("/api/agents/scheduler/runs", agentmgr.SchedulerRunsHandler)
 	mux.HandleFunc("/api/agents/scheduler/trigger", agentmgr.SchedulerTriggerHandler)
 	mux.HandleFunc("/api/agents/sneakernet/export", agentmgr.SneakernetExportHandler)
