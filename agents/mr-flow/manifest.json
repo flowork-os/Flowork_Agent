@@ -4,17 +4,13 @@
   "kind": "agent",
   "display_name": "Mr.Flow",
   "description": "Owner-class warga. All-in-one Telegram agent: long-poll bot updates, persona Mr.Flow, dispatch ke flow_router /v1/chat/completions, reply natural Bahasa Indonesia.",
-
   "min_kernel_version": "0.1.0",
   "abi_version": 1,
-
   "author": "@flowork-os",
   "license": "MIT",
-
   "entry": "agent.wasm",
   "memory_max_mb": 16,
   "timeout_call_ms": 300000,
-
   "capabilities_required": [
     "net:fetch:https://api.telegram.org",
     "net:fetch:http://127.0.0.1:2402/v1/chat/completions",
@@ -28,14 +24,17 @@
     "fs:read",
     "fs:write",
     "exec:git",
-    "rpc:router:skill"
+    "rpc:router:skill",
+    "rpc:taskflow"
   ],
-
   "exposes_rpc": [
     {
       "name": "boot",
       "description": "Daemon: long-poll Telegram getUpdates dan dispatch reply via LLM. Kernel auto-call ini saat plugin kind=agent di-load.",
-      "input_schema": { "type": "object", "properties": {} }
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
     },
     {
       "name": "handle_message",
@@ -43,14 +42,20 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "text": { "type": "string" }
+          "text": {
+            "type": "string"
+          }
         },
-        "required": ["text"]
+        "required": [
+          "text"
+        ]
       },
       "output_schema": {
         "type": "object",
         "properties": {
-          "reply": { "type": "string" }
+          "reply": {
+            "type": "string"
+          }
         }
       }
     },
@@ -60,18 +65,26 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "chat_id": { "type": "integer" },
-          "text":    { "type": "string" }
+          "chat_id": {
+            "type": "integer"
+          },
+          "text": {
+            "type": "string"
+          }
         },
-        "required": ["chat_id", "text"]
+        "required": [
+          "chat_id",
+          "text"
+        ]
       }
     }
   ],
-
   "i18n_keys": {
-    "mr_flow.label": { "en": "Mr.Flow", "id": "Mr.Flow" }
+    "mr_flow.label": {
+      "en": "Mr.Flow",
+      "id": "Mr.Flow"
+    }
   },
-
   "ui_schema": {
     "sections": [
       {

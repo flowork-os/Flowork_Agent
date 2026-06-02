@@ -61,6 +61,9 @@ func Init() {
 	tools.Register(&webArchiveTool{})
 	tools.Register(&htmlExtractTool{})
 	tools.Register(&pdfReadTool{})
+	// FASE 6: Mr.Flow jadi router — list + trigger Category Task dari chat.
+	tools.Register(&taskListTool{})
+	tools.Register(&taskRunTool{})
 	// phase 1c: shell (shell.go) — bash exec dengan denylist + timeout
 	tools.Register(&bashTool{})
 	// P1 file ops (file_advanced.go) — edit + glob + grep

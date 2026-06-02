@@ -1,3 +1,36 @@
+## 2026-06-02 22:10 WIB — FASE 6: Mr.Flow jadi ROUTER + generalize
+
+Mr.Flow = orchestrator/router: pesan biasa → jawab simpel ATAU **trigger Category
+Task** otomatis. + result delivery + generalize ke kategori lain.
+
+### Tools router — internal/tools/builtins/taskflow_tools.go (LOCKED)
+- `task_list` (daftar Category Task) + `task_run` (trigger async → run_id). Cap
+  `rpc:taskflow` (cuma agent yang di-grant — Mr.Flow — boleh picu; worker ENGGAK).
+  Tool call endpoint taskflow lokal (loopback). Mr.Flow subscribe + guidance Tier-1
+  [TASK ROUTER] (engine).
+
+### Result delivery (Fase 6c) — Telegram notify
+- Engine thread `chatID` → `callLLM(...,notifyChatID)` → inject `notify_chat_id` ke
+  args task_run otomatis (LLM ga tau chat_id; engine yang isi). Handler: pas task
+  kelar, kirim hasil balik ke chat via `notifyTelegram` (baca bot token Mr.Flow dari
+  state.db-nya). Scheduler→task: OTOMATIS lewat router (scheduler invoke Mr.Flow dgn
+  teks task → Mr.Flow route ke task_run).
+
+### Generalize (Fase 6d) — crew CRYPTO
+- `scripts/setup-crypto-crew.sh`: spawn crew crypto (fundamental/on-chain/sentimen +
+  sinteser) + register kategori via API (jalur GUI POST /category). taskflow prompt
+  genericized (cat.Name, ga hardcode "SAHAM"). Crew gitignored (generated).
+
+### Bukti (jalur real)
+- **Router E2E (scratch host):** invoke Mr.Flow "analisain saham GOTO" → LLM manggil
+  `task_list` lalu `task_run(saham,GOTO)` → reply "lagi diproses" → run kebikin. Chat→task
+  OTOMATIS ✓.
+- **Generalize:** register kategori crypto via GUI-path → task_list nampilin 2 kategori
+  (saham+crypto) → trigger crypto SOL → crypto-fundamental running (non-saham jalan) ✓.
+- task_list/task_run via tools/run OK (cap rpc:taskflow). Build/vet clean.
+
+---
+
 ## 2026-06-02 21:40 WIB — FASE 5: GUI Task Builder + run timeline
 
 Category Task (Fase 4) yang tadi HARDCODED → sekarang **diatur owner dari GUI**

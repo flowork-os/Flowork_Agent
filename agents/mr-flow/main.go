@@ -291,7 +291,9 @@ func runDaemon() {
 			// Ambil konteks percakapan (sudah termasuk pesan ini yang barusan
 			// di-log di atas) supaya Mr.Flow inget obrolan sebelumnya.
 			hist := fetchHistory(strconv.FormatInt(chatID, 10))
-			reply := callLLM(cfg, u.Message.Text, hist)
+			// chatID di-thread → kalau LLM trigger task_run, hasil task dikirim
+			// balik ke chat ini pas kelar (Fase 6c notify).
+			reply := callLLM(cfg, u.Message.Text, hist, strconv.FormatInt(chatID, 10))
 			elapsedMs := float64(hostTimeNowMs() - t0Ms)
 			// Detect LLM failure via exact known error prefixes from callLLM
 			// (sumber: callLLM returns: "router error:", "decode:", "llm:",
@@ -511,7 +513,9 @@ func fetchHistory(actor string) []chatTurn {
 	return picked
 }
 
-func callLLM(cfg agentConfig, userText string, history []chatTurn) string {
+// notifyChatID — kalau non-kosong + LLM trigger task_run, di-inject ke args
+// (notify_chat_id) biar hasil task dikirim balik ke chat ini pas kelar (Fase 6c).
+func callLLM(cfg agentConfig, userText string, history []chatTurn, notifyChatID string) string {
 	// Fase 1 phase-2: 3-tier system prompt formal (Tier-1 stable / Tier-2 konteks
 	// / Tier-3 volatile). Volatile (waktu + memory snapshot) di BAWAH = paling
 	// salient buat LLM. Budget di-handle di dalam buildSystemPrompt.
@@ -627,6 +631,14 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn) string {
 		if tc.Function.Arguments != "" {
 			_ = json.Unmarshal([]byte(tc.Function.Arguments), &args)
 		}
+		// Fase 6c: inject notify_chat_id ke task_run (LLM ga tau chat_id; engine
+		// yang isi) → hasil task dikirim balik ke chat ini pas kelar.
+		if tc.Function.Name == "task_run" && notifyChatID != "" {
+			if args == nil {
+				args = map[string]any{}
+			}
+			args["notify_chat_id"] = notifyChatID
+		}
 		fmt.Fprintf(os.Stderr, "[%s] tool_call: %s args=%s\n", selfID(), tc.Function.Name, truncStr(tc.Function.Arguments, 120))
 		result := runTool(tc.Function.Name, args)
 		msgs = append(msgs, map[string]any{
@@ -716,6 +728,11 @@ func buildSystemPrompt(cfg agentConfig) string {
 	b.WriteString("[MEMORY: nemu fakta penting jangka-panjang tentang Mr.Dev → simpan via " +
 		"memory_set('USER.md', <isi>); fakta/keputusan proyek → memory_set('MEMORY.md', <isi>). " +
 		"Biar ke-inget lintas sesi (snapshot-nya muncul di Tier-3).]\n")
+	b.WriteString("[TASK ROUTER: lo orchestrator. Kalau user minta ANALISA MENDALAM yang cocok sama " +
+		"Category Task yang ada (cek `task_list` dulu — mis. 'analisa saham BBCA'), JANGAN jawab " +
+		"setengah-setengah sendiri — TRIGGER `task_run(category,subject)` biar crew analis fokus yang " +
+		"ngerjain, terus bilang ke user lagi diproses + run_id. Pertanyaan ringan/ngobrol biasa → jawab " +
+		"langsung, ga usah task.]\n")
 
 	// ===== TIER 2 — KONTEKS =====
 	var tier2 strings.Builder
@@ -1014,7 +1031,8 @@ func doHandle(argsRaw string) {
 	}
 	logInteraction("rpc", "in", actor, in.Text, map[string]any{})
 	hist := fetchHistory(actor)
-	reply := callLLM(loadConfig(), in.Text, hist)
+	// RPC path (CLI/debug) ga punya Telegram chat → ga ada notify target.
+	reply := callLLM(loadConfig(), in.Text, hist, "")
 	logInteraction("rpc", "out", actor, reply, map[string]any{"model": loadConfig().Router.Model})
 	emit(map[string]any{"reply": reply})
 }

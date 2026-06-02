@@ -42,9 +42,12 @@ func main() {
 	}
 	defer s.Close()
 
-	if err := s.Save(map[string]any{"prompt": persona}); err != nil {
-		fmt.Fprintln(os.Stderr, "save persona:", err)
-		os.Exit(1)
+	// persona "-" = jangan ubah persona (subscribe-only mode).
+	if persona != "-" {
+		if err := s.Save(map[string]any{"prompt": persona}); err != nil {
+			fmt.Fprintln(os.Stderr, "save persona:", err)
+			os.Exit(1)
+		}
 	}
 	subbed := 0
 	for _, t := range strings.Split(tools, ",") {

@@ -18,7 +18,10 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -27,6 +30,41 @@ import (
 	"flowork-gui/internal/kernelhost"
 	"flowork-gui/internal/taskflow"
 )
+
+// notifyTelegram — kirim teks ke chat Telegram pakai bot token Mr.Flow (dibaca
+// dari secrets state.db-nya). Best-effort: gagal = silent (cuma log). Dipakai
+// Fase 6c buat ngirim hasil task balik ke chat yang men-trigger.
+func notifyTelegram(host *kernelhost.Host, chatID, text string) {
+	store, err := host.OpenAgentStore("mr-flow")
+	if err != nil {
+		return
+	}
+	defer store.Close()
+	secrets, err := store.Secrets()
+	if err != nil {
+		return
+	}
+	token := strings.TrimSpace(secrets["TELEGRAM_BOT_TOKEN"])
+	if token == "" || chatID == "" {
+		return
+	}
+	if len(text) > 4000 {
+		text = text[:4000] + "\n…(dipotong)"
+	}
+	form := url.Values{}
+	form.Set("chat_id", chatID)
+	form.Set("text", text)
+	req, _ := http.NewRequest(http.MethodPost,
+		"https://api.telegram.org/bot"+token+"/sendMessage",
+		strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, derr := (&http.Client{Timeout: 15 * time.Second}).Do(req)
+	if derr != nil {
+		return
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+}
 
 // dbRecorder — implement taskflow.Recorder, persist step ke flowork.db (timeline).
 type dbRecorder struct {
@@ -100,12 +138,14 @@ func taskflowRunHandler(host *kernelhost.Host, store *floworkdb.Store) http.Hand
 			tfWriteJSON(w, http.StatusBadRequest, map[string]any{"error": "crew kosong — tambah analis dulu"})
 			return
 		}
+		notify := strings.TrimSpace(r.URL.Query().Get("notify")) // chat_id Telegram (opsional)
 		runID, err := store.CreateRun(category, subject, "owner")
 		if err != nil {
 			tfWriteJSON(w, http.StatusInternalServerError, map[string]any{"error": "create run: " + err.Error()})
 			return
 		}
 		tfCat := toTaskflowCategory(cat)
+		catName := cat.Name
 		// Run ASYNC: trigger balik cepet, step di-persist live → GUI poll timeline.
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
@@ -121,6 +161,15 @@ func taskflowRunHandler(host *kernelhost.Host, store *floworkdb.Store) http.Hand
 				}
 			}
 			_ = store.FinishRun(runID, status, summary)
+			// Fase 6c: kalau di-trigger dari chat (notify chat_id ada), kirim
+			// hasil balik ke Telegram pas kelar.
+			if notify != "" {
+				head := fmt.Sprintf("✅ Hasil %s — %s (run #%d):\n\n", catName, subject, runID)
+				if status == "error" {
+					head = fmt.Sprintf("⚠️ %s — %s (run #%d) gagal:\n\n", catName, subject, runID)
+				}
+				notifyTelegram(host, notify, head+summary)
+			}
 		}()
 		tfWriteJSON(w, 0, map[string]any{
 			"run_id": runID, "status": "running",

@@ -56,3 +56,7 @@ agents/saham-keuangan/
 agents/saham-teknikal/
 agents/saham-sinteser/
 /agent-config
+agents/crypto-fundamental/
+agents/crypto-onchain/
+agents/crypto-sentimen/
+agents/crypto-sinteser/
