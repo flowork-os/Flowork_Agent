@@ -65,6 +65,8 @@ func Init() {
 	// Roadmap 2 B5: immune brain (brain_immune.go) — scan/quarantine + verify.
 	tools.Register(&brainImmuneScanTool{})
 	tools.Register(&brainVerifyTool{})
+	// Roadmap 2 B6: federation (brain_federation.go) — promote lokal → shared.
+	tools.Register(&brainPromoteSharedTool{})
 	// phase 1f: comms (telegram.go)
 	tools.Register(&telegramSendTool{})
 	// phase 1d: web (web.go)
