@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -34,18 +35,28 @@ import (
 // notifyTelegram — kirim teks ke chat Telegram pakai bot token Mr.Flow (dibaca
 // dari secrets state.db-nya). Best-effort: gagal = silent (cuma log). Dipakai
 // Fase 6c buat ngirim hasil task balik ke chat yang men-trigger.
+// notifyTelegram — kirim hasil task ke chat Telegram (token Mr.Flow). LOGGED di
+// tiap titik gagal — anti GHOSTING silent (kalau ga nyampe, ketauan di log,
+// bukan diem-diem ilang).
 func notifyTelegram(host *kernelhost.Host, chatID, text string) {
+	if strings.TrimSpace(chatID) == "" {
+		log.Printf("[notify] SKIP — chat_id kosong (task ga di-trigger dari Telegram?)")
+		return
+	}
 	store, err := host.OpenAgentStore("mr-flow")
 	if err != nil {
+		log.Printf("[notify] GAGAL buka store mr-flow: %v", err)
 		return
 	}
 	defer store.Close()
 	secrets, err := store.Secrets()
 	if err != nil {
+		log.Printf("[notify] GAGAL baca secrets: %v", err)
 		return
 	}
 	token := strings.TrimSpace(secrets["TELEGRAM_BOT_TOKEN"])
-	if token == "" || chatID == "" {
+	if token == "" {
+		log.Printf("[notify] GAGAL — TELEGRAM_BOT_TOKEN kosong di mr-flow")
 		return
 	}
 	if len(text) > 4000 {
@@ -60,10 +71,16 @@ func notifyTelegram(host *kernelhost.Host, chatID, text string) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, derr := (&http.Client{Timeout: 15 * time.Second}).Do(req)
 	if derr != nil {
+		log.Printf("[notify] GAGAL kirim ke Telegram (chat=%s): %v", chatID, derr)
 		return
 	}
 	defer resp.Body.Close()
-	_, _ = io.Copy(io.Discard, resp.Body)
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+	if resp.StatusCode == 200 {
+		log.Printf("[notify] ✓ TERKIRIM ke chat %s (telegram ok)", chatID)
+	} else {
+		log.Printf("[notify] DITOLAK telegram (chat=%s, http=%d): %s", chatID, resp.StatusCode, string(body))
+	}
 }
 
 // dbRecorder — implement taskflow.Recorder, persist step ke flowork.db (timeline).
@@ -172,6 +189,11 @@ func startTaskflowRun(host *kernelhost.Host, store *floworkdb.Store, category, s
 			}
 		}
 		_ = store.FinishRun(runID, status, summary)
+		notifTo := notify
+		if notifTo == "" {
+			notifTo = "NONE"
+		}
+		log.Printf("[taskflow] run #%d %s — notify=%s", runID, status, notifTo)
 		if notify != "" {
 			head := fmt.Sprintf("✅ Hasil %s — %s (run #%d):\n\n", catName, subject, runID)
 			if status == "error" {

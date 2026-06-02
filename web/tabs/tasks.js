@@ -8,14 +8,13 @@
 // nanti. (Migrasi ke dictionary t() = follow-up.)
 
 import { esc, escAttr, fetchJSON, loadStyle, openModal } from '../js/utils.js';
+import { t } from '/js/i18n.js';
 
-const L = {
-  title: 'Tasks', sub: 'Category Task — crew agent fokus → 1 keputusan',
-  newCat: '+ Kategori', crew: 'Crew (analis)', synth: 'Synthesizer', run: '▶ Run',
-  save: '💾 Simpan', del: 'Hapus', addAnalyst: '+ Analis', history: 'Riwayat Run',
-  subject: 'Subjek (mis. BBCA)', running: 'jalan…', noCat: 'Belum ada kategori.',
-  result: 'Keputusan', emptyCrew: 'Crew kosong — tambah analis.',
-};
+// Label UI lewat dictionary i18n (en base + id) — no hardcode. L.camelKey →
+// t('tasks.snake_key'), di-resolve lazy (pas akses = render time = i18n loaded).
+const L = new Proxy({}, {
+  get: (_, k) => t('tasks.' + String(k).replace(/[A-Z]/g, (c) => '_' + c.toLowerCase())),
+});
 const ST = { pending: '⚪', running: '🔵', done: '✅', error: '❌' };
 
 let pollTimer = null;
@@ -27,8 +26,8 @@ export async function render(mainEl) {
       <div class="tf-head">
         <div><h2>📋 ${esc(L.title)}</h2><p class="tf-sub">${esc(L.sub)}</p></div>
         <div class="tf-hbtns">
-          <button class="tf-btn ghost" id="tf-sched">⏰ Jadwal</button>
-          <button class="tf-btn ghost" id="tf-mcp">🔌 MCP</button>
+          <button class="tf-btn ghost" id="tf-sched">${esc(L.schedBtn)}</button>
+          <button class="tf-btn ghost" id="tf-mcp">${esc(L.mcpBtn)}</button>
           <button class="tf-btn" id="tf-new">${esc(L.newCat)}</button>
         </div>
       </div>
@@ -52,21 +51,21 @@ async function showSchedules() {
   const node = document.createElement('div');
   node.className = 'tf-sched';
   node.innerHTML = `
-    <p>Jadwalin Category Task biar jalan otomatis berulang — hasilnya dikirim ke Telegram.</p>
+    <p>${esc(L.schedIntro)}</p>
     <div class="tf-schform">
       <select class="tf-in" id="ts-cat">${opts}</select>
-      <input class="tf-in" id="ts-subj" placeholder="subjek (mis. BBCA)"/>
+      <input class="tf-in" id="ts-subj" placeholder="${escAttr(L.subject)}"/>
       <select class="tf-in" id="ts-kind">
-        <option value="daily">tiap hari jam</option>
-        <option value="every">tiap N menit</option>
+        <option value="daily">${esc(L.schedDaily)}</option>
+        <option value="every">${esc(L.schedEvery)}</option>
       </select>
       <input class="tf-in tf-tw" id="ts-time" value="09:00" placeholder="HH:MM"/>
       <input class="tf-in tf-tw" id="ts-min" type="number" value="60" style="display:none"/>
-      <input class="tf-in" id="ts-chat" placeholder="chat_id Telegram (opsional, buat kirim hasil)"/>
-      <button class="tf-btn" id="ts-add">+ Jadwal</button>
+      <input class="tf-in" id="ts-chat" placeholder="${escAttr(L.schedChatPh)}"/>
+      <button class="tf-btn" id="ts-add">${esc(L.schedAdd)}</button>
     </div>
     <div id="ts-list" class="tf-schlist"></div>`;
-  openModal({ title: '⏰ Jadwal Task (looping)', body: node });
+  openModal({ title: L.schedTitle, body: node });
 
   const kind = node.querySelector('#ts-kind');
   const tw = node.querySelector('#ts-time'), mw = node.querySelector('#ts-min');
@@ -79,12 +78,12 @@ async function showSchedules() {
     let list = [];
     try { list = (await fetchJSON('/api/taskflow/schedules')).schedules || []; } catch (e) {}
     const el = node.querySelector('#ts-list');
-    if (!list.length) { el.innerHTML = '<div class="tf-empty sm">belum ada jadwal.</div>'; return; }
+    if (!list.length) { el.innerHTML = `<div class="tf-empty sm">${esc(L.schedNone)}</div>`; return; }
     el.innerHTML = list.map(s => {
-      const when = s.kind === 'daily' ? `tiap hari ${esc(s.at_time)}` : `tiap ${s.every_min} menit`;
+      const when = s.kind === 'daily' ? `${esc(L.schedDailyAt)} ${esc(s.at_time)}` : `${esc(s.every_min)} ${esc(L.schedEveryMin)}`;
       return `<div class="tf-schrow">
         <span>⏰ <b>${esc(s.category)}</b> ${esc(s.subject)} — ${when}${s.notify_chat ? ' → 📨' : ''}</span>
-        <small>next ${esc((s.next_run || '').slice(11, 16))}</small>
+        <small>${esc(L.schedNext)} ${esc((s.next_run || '').slice(11, 16))}</small>
         <button class="tf-x" data-id="${s.id}">✕</button></div>`;
     }).join('');
     el.querySelectorAll('.tf-x').forEach(b => b.onclick = async () => {
@@ -101,12 +100,12 @@ async function showSchedules() {
       every_min: parseInt(mw.value) || 60,
       notify_chat: node.querySelector('#ts-chat').value.trim(),
     };
-    if (!body.subject) return alert('isi subjek dulu');
+    if (!body.subject) return alert(L.fillSubject);
     try {
       await fetchJSON('/api/taskflow/schedule', { method: 'POST', body: JSON.stringify(body) });
       node.querySelector('#ts-subj').value = '';
       reload();
-    } catch (e) { alert('gagal: ' + e.message); }
+    } catch (e) { alert(L.schedFail + e.message); }
   };
   reload();
 }
@@ -114,27 +113,27 @@ async function showSchedules() {
 // showMCP — panel config MCP siap-copas buat AI eksternal (VS Code/Cursor/Claude).
 async function showMCP() {
   let d;
-  try { d = await fetchJSON('/api/mcp/config'); } catch (e) { alert('Gagal ambil config: ' + e.message); return; }
+  try { d = await fetchJSON('/api/mcp/config'); } catch (e) { alert(L.mcpFetchFail + e.message); return; }
   const node = document.createElement('div');
   node.className = 'tf-mcp';
   node.innerHTML = `
-    <p>Copas config ini ke <b>MCP settings</b> AI eksternal lo — abis itu AI bisa picu Category Task Flowork (task_list / task_run / task_result).</p>
-    ${d.binary_exists ? '' : `<div class="tf-warn">⚠ Binary <code>flowork-mcp</code> belum di-build. Jalanin dulu:<br><code>${esc(d.build_cmd)}</code></div>`}
+    <p>${esc(L.mcpIntro)}</p>
+    ${d.binary_exists ? '' : `<div class="tf-warn">${esc(L.mcpNobin)}<br><code>${esc(d.build_cmd)}</code></div>`}
     <pre class="tf-mcpcfg">${esc(d.config)}</pre>
-    <button class="tf-btn" id="tf-mcpcopy">📋 Copy config</button>
+    <button class="tf-btn" id="tf-mcpcopy">${esc(L.mcpCopy)}</button>
     <div class="tf-mcphelp">
-      <b>Taruh di mana:</b><br>
-      • <b>Claude Desktop/Code</b> → <code>claude_desktop_config.json</code> (atau <code>.mcp.json</code> project)<br>
-      • <b>VS Code</b> (Cline / Continue / Roo) → MCP settings extension<br>
-      • <b>Cursor</b> → Settings → MCP → Add server<br>
-      <small>Server Flowork (${esc(d.self_url)}) harus jalan pas dipakai.</small>
+      <b>${esc(L.mcpWhere)}</b><br>
+      • ${esc(L.mcpHelpClaude)}<br>
+      • ${esc(L.mcpHelpVscode)}<br>
+      • ${esc(L.mcpHelpCursor)}<br>
+      <small>${esc(L.mcpHelpNote)} (${esc(d.self_url)})</small>
     </div>`;
-  openModal({ title: '🔌 MCP — Integrasi AI Eksternal', body: node });
+  openModal({ title: L.mcpTitle, body: node });
   node.querySelector('#tf-mcpcopy').onclick = (e) => {
     navigator.clipboard.writeText(d.config).then(() => {
-      e.target.textContent = '✅ Tersalin!';
-      setTimeout(() => { e.target.textContent = '📋 Copy config'; }, 1500);
-    }).catch(() => alert('Copy gagal — select manual aja.'));
+      e.target.textContent = L.mcpCopied;
+      setTimeout(() => { e.target.textContent = L.mcpCopy; }, 1500);
+    }).catch(() => alert(L.mcpCopyfail));
   };
 }
 
@@ -156,8 +155,8 @@ async function loadList(selectID) {
 }
 
 function newCategory() {
-  const id = (prompt('ID kategori (lowercase, mis. crypto):') || '').trim().toLowerCase();
-  if (!id || !/^[a-z][a-z0-9-]*$/.test(id)) { if (id) alert('ID invalid (lowercase, [a-z0-9-]).'); return; }
+  const id = (prompt(L.newCatPrompt) || '').trim().toLowerCase();
+  if (!id || !/^[a-z][a-z0-9-]*$/.test(id)) { if (id) alert(L.idInvalid); return; }
   renderDetail({ id, name: id, icon: '📋', synthesizer: '', enabled: true, crew: [] }, true);
 }
 
@@ -176,9 +175,9 @@ function renderDetail(cat, isNew) {
   d.innerHTML = `
     <div class="tf-dwrap">
       <div class="tf-drow">
-        <input class="tf-in" id="tf-name" value="${escAttr(cat.name || '')}" placeholder="Nama kategori"/>
+        <input class="tf-in" id="tf-name" value="${escAttr(cat.name || '')}" placeholder="${escAttr(L.catNamePh)}"/>
         <input class="tf-in tf-ic-in" id="tf-icon" value="${escAttr(cat.icon || '📋')}" maxlength="2"/>
-        <label class="tf-en"><input type="checkbox" id="tf-enabled" ${cat.enabled ? 'checked' : ''}/> aktif</label>
+        <label class="tf-en"><input type="checkbox" id="tf-enabled" ${cat.enabled ? 'checked' : ''}/> ${esc(L.active)}</label>
         ${isNew ? '' : `<button class="tf-btn ghost danger" id="tf-del">${esc(L.del)}</button>`}
       </div>
       <input type="hidden" id="tf-id" value="${escAttr(cat.id)}"/>
@@ -189,7 +188,7 @@ function renderDetail(cat, isNew) {
 
       <div class="tf-drow tf-synth">
         <label>${esc(L.synth)}:</label>
-        <input class="tf-in" id="tf-synth" value="${escAttr(cat.synthesizer || '')}" placeholder="agent id synthesizer"/>
+        <input class="tf-in" id="tf-synth" value="${escAttr(cat.synthesizer || '')}" placeholder="${escAttr(L.synthPh)}"/>
         <button class="tf-btn" id="tf-save">${esc(L.save)}</button>
       </div>
 
@@ -220,9 +219,9 @@ function renderDetail(cat, isNew) {
 
 function crewRowHTML(a, i) {
   return `<div class="tf-crow" data-i="${i}">
-    <input class="tf-in agent" value="${escAttr(a.agent_id || '')}" placeholder="agent id (mis. saham-fundamental)"/>
-    <input class="tf-in role" value="${escAttr(a.role_label || '')}" placeholder="peran (mis. analis fundamental)"/>
-    <button class="tf-x" title="hapus">✕</button>
+    <input class="tf-in agent" value="${escAttr(a.agent_id || '')}" placeholder="${escAttr(L.agentPh)}"/>
+    <input class="tf-in role" value="${escAttr(a.role_label || '')}" placeholder="${escAttr(L.rolePh)}"/>
+    <button class="tf-x" title="${escAttr(L.del)}">✕</button>
   </div>`;
 }
 function bindCrewRemoval(d) {
@@ -245,32 +244,32 @@ async function saveCategory(d) {
     enabled: d.querySelector('#tf-enabled').checked,
     crew: collectCrew(d),
   };
-  if (!body.id) return alert('id kosong');
+  if (!body.id) return alert(L.idEmpty);
   try {
     await fetchJSON('/api/taskflow/category', { method: 'POST', body: JSON.stringify(body) });
     await loadList(body.id);
-  } catch (e) { alert('Gagal simpan: ' + e.message); }
+  } catch (e) { alert(L.saveFail + e.message); }
 }
 
 async function delCategory(id) {
-  if (!confirm('Hapus kategori "' + id + '"?')) return;
+  if (!confirm(L.delConfirm + ' "' + id + '"?')) return;
   try {
     await fetchJSON('/api/taskflow/category/delete?id=' + encodeURIComponent(id), { method: 'POST' });
     document.getElementById('tf-detail').innerHTML = `<div class="tf-empty">${esc(L.noCat)}</div>`;
     await loadList();
-  } catch (e) { alert('Gagal hapus: ' + e.message); }
+  } catch (e) { alert(L.delFail + e.message); }
 }
 
 async function startRun(d) {
   const id = d.querySelector('#tf-id').value.trim();
   const subject = d.querySelector('#tf-subject').value.trim();
-  if (!subject) return alert('isi subjek dulu');
+  if (!subject) return alert(L.fillSubject);
   const tl = d.querySelector('#tf-timeline');
-  tl.innerHTML = `<div class="tf-run-box">▶ start ${esc(subject)}…</div>`;
+  tl.innerHTML = `<div class="tf-run-box">${esc(L.start)} ${esc(subject)}…</div>`;
   let resp;
   try {
     resp = await fetchJSON(`/api/taskflow/run?category=${encodeURIComponent(id)}&subject=${encodeURIComponent(subject)}`, { method: 'POST' });
-  } catch (e) { tl.innerHTML = `<div class="tf-run-box err">Gagal: ${esc(e.message)}</div>`; return; }
+  } catch (e) { tl.innerHTML = `<div class="tf-run-box err">${esc(L.failed)}${esc(e.message)}</div>`; return; }
   if (resp.error) { tl.innerHTML = `<div class="tf-run-box err">${esc(resp.error)}</div>`; return; }
   pollRun(resp.run_id, tl, id);
 }

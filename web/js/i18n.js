@@ -19,7 +19,7 @@
 // Files live under /i18n/<locale>/<domain>.json. Add a domain by dropping
 // a new .json there and adding its name to DOMAINS — no other changes.
 
-const DOMAINS = ['menu', 'tooltip', 'error', 'status', 'common'];
+const DOMAINS = ['menu', 'tooltip', 'error', 'status', 'common', 'tasks'];
 const DEFAULT_LOCALE = 'en';
 
 const dict = {};
