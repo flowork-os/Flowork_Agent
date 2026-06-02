@@ -60,6 +60,8 @@ func Init() {
 	tools.Register(&brainGetTool{})
 	// Roadmap 2 B2: recall mistakes pas konteks mirip (mistakes_recall.go).
 	tools.Register(&mistakeRecallTool{})
+	// Roadmap 2 B4: suggest skill dari pola tool sukses (skill_suggest.go).
+	tools.Register(&skillSuggestTool{})
 	// phase 1f: comms (telegram.go)
 	tools.Register(&telegramSendTool{})
 	// phase 1d: web (web.go)
