@@ -189,6 +189,15 @@ func isDangerousCap(c string) bool {
 	return false
 }
 
+func capsContains(caps []string, want string) bool {
+	for _, c := range caps {
+		if c == want {
+			return true
+		}
+	}
+	return false
+}
+
 var privilegedWarnOnce sync.Once
 
 // filterPrivilegedCaps gates dangerous capabilities behind an owner allowlist.
@@ -281,7 +290,8 @@ func Boot(ctx context.Context) (*Host, error) {
 			continue
 		}
 
-		br.Approve(d.Manifest.ID, filterPrivilegedCaps(d.Manifest.ID, d.Manifest.CapabilitiesRequired))
+		effCaps := filterPrivilegedCaps(d.Manifest.ID, d.Manifest.CapabilitiesRequired)
+		br.Approve(d.Manifest.ID, effCaps)
 
 		inst, ierr := rt.LoadInstance(ctx, d.Manifest.ID, wasm, d.Manifest.MemoryMaxMB)
 		if ierr != nil {
@@ -303,13 +313,17 @@ func Boot(ctx context.Context) (*Host, error) {
 			h.lives = append(h.lives, LiveEntry{Discovery: d})
 			continue
 		}
-		// Shared workspace — HARDCODED root (no cap gate). Tiap agent
-		// dapet folder dia sendiri + 6 subfolder standar. Mount full root
-		// `/shared` ke guest biar agent bisa baca tools agent lain.
-		if err := ensureAgentSharedSpace(h.SharedDir, d.Manifest.ID); err != nil {
-			log.Printf("kernel: warn shared subdirs %s: %v", d.Manifest.ID, err)
+		// Shared workspace — mount /shared into the guest ONLY when the agent
+		// EFFECTIVELY holds fs:shared (after the privileged-cap filter). Otherwise
+		// a non-privileged / non-allowlisted agent would get cross-agent filesystem
+		// access via WASI even though the fs:shared cap token was stripped.
+		shared := ""
+		if capsContains(effCaps, "fs:shared") {
+			if err := ensureAgentSharedSpace(h.SharedDir, d.Manifest.ID); err != nil {
+				log.Printf("kernel: warn shared subdirs %s: %v", d.Manifest.ID, err)
+			}
+			shared = h.SharedDir
 		}
-		shared := h.SharedDir
 		inst.SetWorkspaces(ws, shared)
 
 		// SQLite per-agent — HARDCODED di `<workspace>/state.db`.
@@ -576,7 +590,8 @@ func (h *Host) handleAgentChange(ctx context.Context, ch loader.Change) {
 			return
 		}
 		_ = h.Runtime.Unload(ctx, m.ID)
-		h.Broker.Approve(m.ID, filterPrivilegedCaps(m.ID, m.CapabilitiesRequired))
+		effCaps := filterPrivilegedCaps(m.ID, m.CapabilitiesRequired)
+		h.Broker.Approve(m.ID, effCaps)
 		inst, err := h.Runtime.LoadInstance(ctx, m.ID, wasm, m.MemoryMaxMB)
 		if err != nil {
 			log.Printf("kernel: hot-reload load %s failed: %v", m.ID, err)
@@ -589,10 +604,13 @@ func (h *Host) handleAgentChange(ctx context.Context, ch loader.Change) {
 			log.Printf("kernel: hot-reload workspace %s: %v", m.ID, werr)
 			return
 		}
-		if err := ensureAgentSharedSpace(h.SharedDir, m.ID); err != nil {
-			log.Printf("kernel: warn shared subdirs %s (hot-reload): %v", m.ID, err)
+		shared := ""
+		if capsContains(effCaps, "fs:shared") {
+			if err := ensureAgentSharedSpace(h.SharedDir, m.ID); err != nil {
+				log.Printf("kernel: warn shared subdirs %s (hot-reload): %v", m.ID, err)
+			}
+			shared = h.SharedDir
 		}
-		shared := h.SharedDir
 		inst.SetWorkspaces(ws, shared)
 
 		// SQLite per-agent (HARDCODED di workspace/state.db).
