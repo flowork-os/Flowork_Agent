@@ -266,6 +266,41 @@ func main() {
 		}
 	}()
 
+	// Roadmap 2 B3: Dream cron (shared-worker) — tiap 12 jam, konsolidasi pola
+	// berulang tiap agent jadi eureka brain drawer. Compute 1× per tick, tulis
+	// ke state.db lokal masing-masing (anti-boros). Per-tick recover (ticker selamat).
+	go func() {
+		t := time.NewTicker(12 * time.Hour)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case now := <-t.C:
+				func() {
+					defer func() {
+						if r := recover(); r != nil {
+							log.Printf("dream PANIC (ticker selamat): %v", r)
+						}
+					}()
+					formed := 0
+					for _, agentID := range host.AgentIDs() {
+						if store, derr := host.OpenAgentStore(agentID); derr == nil {
+							if res, derr := store.RunDream(now); derr == nil && res.EurekasFormed > 0 {
+								log.Printf("dream: %d eureka baru → %s", res.EurekasFormed, agentID)
+								formed += res.EurekasFormed
+							}
+							store.Close()
+						}
+					}
+					if formed > 0 {
+						log.Printf("dream: total %d eureka baru lintas agent", formed)
+					}
+				}()
+			}
+		}
+	}()
+
 	// Doktrin edukasi — seed katalog educational_errors default ke tiap agent
 	// (idempotent INSERT OR IGNORE; edit owner via GUI ngga ke-overwrite).
 	for _, agentID := range host.AgentIDs() {
