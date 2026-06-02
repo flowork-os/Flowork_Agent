@@ -1261,6 +1261,18 @@ func RemoveHandler(w http.ResponseWriter, r *http.Request) {
 //   FLOWORK_AGENT_DB       = /workspace/state.db
 //   FLOWORK_SHARED_WORKSPACE = /shared (kalau cap fs:shared)
 //   <KEY>=<value>          — tiap secrets.* di-expand jadi env (telegram/google/dll)
+
+// maskSecretValue redacts a secret to its last 4 chars for safe display.
+func maskSecretValue(v string) string {
+	if v == "" {
+		return ""
+	}
+	if len(v) <= 4 {
+		return "••••"
+	}
+	return "••••" + v[len(v)-4:]
+}
+
 func ConfigHandler(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimSpace(r.URL.Query().Get("id"))
 	if !reID.MatchString(id) {
@@ -1290,6 +1302,18 @@ func ConfigHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			httpx.WriteJSON(w, map[string]any{"error": "load: " + err.Error()})
 			return
+		}
+		// SECURITY: never return secret VALUES (bot tokens, API keys) in cleartext
+		// over HTTP — a stolen session cookie or GUI XSS would exfil every agent's
+		// credentials. Mask to last-4 (writes still accept cleartext via POST; the
+		// kernel reads secrets straight from state.db at boot, so the GUI never
+		// needs the plaintext back).
+		if secs, ok := cfg["secrets"].(map[string]any); ok {
+			masked := make(map[string]any, len(secs))
+			for k, v := range secs {
+				masked[k] = maskSecretValue(fmt.Sprint(v))
+			}
+			cfg["secrets"] = masked
 		}
 		httpx.WriteJSON(w, map[string]any{"config": cfg, "exists": true, "db": dbPath})
 

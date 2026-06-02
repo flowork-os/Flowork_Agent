@@ -4,8 +4,9 @@
 // Repo: https://github.com/flowork-os/flowork-ai-agent
 // Locked at: 2026-05-31
 // Reason: Auth single-owner. Audit pass — bcrypt DefaultCost, session token
-//   crypto/rand 256-bit, cookie HttpOnly+SameSite=Lax, no secret logging,
-//   expired-session auto-purge. E2E verified (register/login/logout/change).
+//
+//	crypto/rand 256-bit, cookie HttpOnly+SameSite=Lax, no secret logging,
+//	expired-session auto-purge. E2E verified (register/login/logout/change).
 //
 // Package floworkauth — single-owner password auth untuk flowork-gui.
 //
@@ -28,7 +29,9 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -50,7 +53,9 @@ const (
 	// RoleOwner — satu-satunya role di model single-owner.
 	RoleOwner = "owner"
 	// minPasswordLen — minimal panjang password.
-	minPasswordLen = 6
+	minPasswordLen = 10
+	// loginMaxFails / loginLockBase — brute-force lockout (single-owner global).
+	loginMaxFails = 5
 )
 
 // ErrNoOwner — belum ada owner ter-register (butuh setup).
@@ -64,9 +69,11 @@ type session struct {
 
 // Manager — auth state. Di-back oleh floworkdb.Store untuk password hash.
 type Manager struct {
-	store    *floworkdb.Store
-	mu       sync.Mutex
-	sessions map[string]session
+	store     *floworkdb.Store
+	mu        sync.Mutex
+	sessions  map[string]session
+	failCount int       // consecutive failed logins (brute-force lockout)
+	lockUntil time.Time // login locked until this time
 }
 
 // NewManager bikin Manager.
@@ -104,7 +111,7 @@ func (m *Manager) Register(name, password string) error {
 		return errors.New("owner sudah terdaftar — pakai login")
 	}
 	if len(password) < minPasswordLen {
-		return errors.New("password minimal 6 karakter")
+		return fmt.Errorf("password minimal %d karakter", minPasswordLen)
 	}
 	name = strings.TrimSpace(name)
 	if name == "" {
@@ -133,17 +140,38 @@ func (m *Manager) ChangePassword(oldPw, newPw string) error {
 		return errors.New("password lama salah")
 	}
 	if len(newPw) < minPasswordLen {
-		return errors.New("password baru minimal 6 karakter")
+		return fmt.Errorf("password baru minimal %d karakter", minPasswordLen)
 	}
 	newHash, err := HashPassword(newPw)
 	if err != nil {
 		return err
 	}
-	return m.store.SetSecret(keyPasswordHash, newHash)
+	if err := m.store.SetSecret(keyPasswordHash, newHash); err != nil {
+		return err
+	}
+	// Invalidate ALL existing sessions on password change — a leaked/stolen
+	// session must not survive a credential rotation.
+	m.mu.Lock()
+	m.sessions = map[string]session{}
+	m.failCount = 0
+	m.lockUntil = time.Time{}
+	m.mu.Unlock()
+	return nil
 }
 
 // Login — verifikasi password, bikin sesi, return (token, ownerName, error).
 func (m *Manager) Login(password string) (string, string, error) {
+	// Brute-force lockout (single-owner → global counter). After loginMaxFails
+	// consecutive wrong passwords, lock with progressive backoff. bcrypt is slow
+	// already; this stops sustained online guessing, especially over a tunnel.
+	m.mu.Lock()
+	if !m.lockUntil.IsZero() && time.Now().Before(m.lockUntil) {
+		rem := int(time.Until(m.lockUntil).Seconds()) + 1
+		m.mu.Unlock()
+		return "", "", fmt.Errorf("terlalu banyak percobaan gagal — coba lagi dalam %d detik", rem)
+	}
+	m.mu.Unlock()
+
 	hash, err := m.store.GetSecret(keyPasswordHash)
 	if err != nil {
 		return "", "", err
@@ -152,6 +180,17 @@ func (m *Manager) Login(password string) (string, string, error) {
 		return "", "", ErrNoOwner
 	}
 	if bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) != nil {
+		m.mu.Lock()
+		m.failCount++
+		if m.failCount >= loginMaxFails {
+			// Progressive: 30s, 60s, 90s, … capped at 15 min.
+			d := time.Duration(m.failCount-loginMaxFails+1) * 30 * time.Second
+			if d > 15*time.Minute {
+				d = 15 * time.Minute
+			}
+			m.lockUntil = time.Now().Add(d)
+		}
+		m.mu.Unlock()
 		return "", "", errors.New("password salah")
 	}
 	token, err := newToken()
@@ -160,6 +199,8 @@ func (m *Manager) Login(password string) (string, string, error) {
 	}
 	name := m.OwnerName()
 	m.mu.Lock()
+	m.failCount = 0
+	m.lockUntil = time.Time{}
 	m.sessions[token] = session{name: name, expires: time.Now().Add(sessionTTL)}
 	m.mu.Unlock()
 	return token, name, nil
@@ -202,6 +243,19 @@ func (m *Manager) SessionFromRequest(r *http.Request) (string, bool) {
 	return m.Validate(c.Value)
 }
 
+// cookieSecure reports whether the session cookie should be Secure. On plain
+// http://localhost Secure would stop the browser from sending it, so it's
+// enabled only when the owner signals an https-fronted deployment.
+func cookieSecure() bool {
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(os.Getenv("FLOWORK_PUBLIC_URL"))), "https") {
+		return true
+	}
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("FLOWORK_SCHEME")), "https") {
+		return true
+	}
+	return os.Getenv("FLOWORK_TRUST_PROXY") == "1"
+}
+
 // SetCookie — pasang cookie sesi.
 func (m *Manager) SetCookie(w http.ResponseWriter, token string) {
 	http.SetCookie(w, &http.Cookie{
@@ -210,6 +264,7 @@ func (m *Manager) SetCookie(w http.ResponseWriter, token string) {
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
+		Secure:   cookieSecure(),
 		Expires:  time.Now().Add(sessionTTL),
 		MaxAge:   int(sessionTTL.Seconds()),
 	})
@@ -223,6 +278,7 @@ func (m *Manager) ClearCookie(w http.ResponseWriter) {
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
+		Secure:   cookieSecure(),
 		MaxAge:   -1,
 	})
 }

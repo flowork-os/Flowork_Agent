@@ -23,18 +23,82 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"flowork-gui/internal/agentdb"
+	"flowork-gui/internal/protector"
 )
 
 // SensitiveSubstrings — substring di args.path / args.command yg perlu
 // approve session. Mirror referensifile section 12 doctrine: state.db
 // direct write + sudo + chmod 777.
 var sensitiveSubstrings = []string{
-	"state.db",       // agent DB direct write
-	"/etc/sudoers",   // sudoers modification
-	"/etc/passwd",    // passwd write (read is blocked by workspace interceptor)
+	"state.db",     // agent DB direct write
+	"/etc/sudoers", // sudoers modification
+	"/etc/passwd",  // passwd write (read is blocked by workspace interceptor)
+}
+
+// sensitiveTools — tools that ALWAYS require explicit owner approval, regardless
+// of args. An AI agent must not power off / reboot / lock the host without an
+// out-of-band owner confirmation (the in-chat "yakin?" can be socially engineered;
+// the approval queue cannot). Pairs with the system_power ARM switch.
+var sensitiveTools = map[string]bool{
+	"system_power": true,
+}
+
+func isSensitiveTool(name string) bool {
+	if !sensitiveTools[name] {
+		return false
+	}
+	// Power control is destructive; the owner can require an out-of-band approval
+	// (GUI approval queue) for every real action by setting this env. Default off
+	// preserves the one-step chat→action flow (the exec:power cap + ARM switch +
+	// caller-binding already gate who may invoke it).
+	if name == "system_power" {
+		return os.Getenv("FLOWORK_POWER_REQUIRE_APPROVAL") == "1"
+	}
+	return true
+}
+
+// protectorBlockHit applies the IMMUTABLE Host Protection Gate baseline
+// (protector.Baseline) on the actual tool-execution path — not just the UI test
+// endpoint. To avoid false-positives on content tools (a drawer whose TEXT
+// mentions /etc/passwd must not be blocked), it only inspects args that are
+// genuinely commands / paths / hosts (by key name). Returns the blocking rule.
+func protectorBlockHit(args map[string]any) (bool, string) {
+	hit := func(ruleType, val string) (bool, string) {
+		if strings.TrimSpace(val) == "" {
+			return false, ""
+		}
+		if rule, ok := protector.CheckPattern(ruleType, val, nil); ok && rule.Action == protector.ActionBlock {
+			return true, rule.Type + ":" + rule.Pattern
+		}
+		return false, ""
+	}
+	for k, v := range args {
+		s, ok := v.(string)
+		if !ok {
+			continue
+		}
+		lk := strings.ToLower(k)
+		switch {
+		case lk == "command" || lk == "cmd" || lk == "script":
+			if b, r := hit(protector.TypeCommand, s); b {
+				return true, r
+			}
+		case lk == "url" || lk == "host" || lk == "ip" || lk == "address":
+			if b, r := hit(protector.TypeIP, s); b {
+				return true, r
+			}
+		case lk == "path" || lk == "file" || lk == "dir" || lk == "working_dir" ||
+			lk == "name" || lk == "target" || lk == "target_path" || strings.HasSuffix(lk, "_path"):
+			if b, r := hit(protector.TypeFilePath, s); b {
+				return true, r
+			}
+		}
+	}
+	return false, ""
 }
 
 // ErrPendingApprove — sentinel buat caller (handler) branch ke approval
@@ -45,18 +109,18 @@ var ErrPendingApprove = errors.New("sandbox: pending owner approval")
 //
 // Flow:
 //
-//   1. Hash args → sha256 hex.
-//   2. Cek pattern sensitif di string args. Kalau hit:
-//      a. Cek approval queue: udah ada approved (status='approved',
-//         decided_at < 1h ago, same args_hash + tool_name) → pass-through.
-//      b. Belum ada approved → enqueue 'pending' row + AppendToolAudit
-//         decision='pending_approve' → return ErrPendingApprove dengan
-//         queue ID di error message.
-//   3. Tidak sensitif → delegate ke SandboxRunV2.
-//   4. Setelah V2 return:
-//      a. Sukses → AppendToolAudit decision='allowed'.
-//      b. Error sandbox → AppendToolAudit decision sesuai sentinel
-//         (denied_cap / denied_disabled / denied_rate / denied_interceptor).
+//  1. Hash args → sha256 hex.
+//  2. Cek pattern sensitif di string args. Kalau hit:
+//     a. Cek approval queue: udah ada approved (status='approved',
+//     decided_at < 1h ago, same args_hash + tool_name) → pass-through.
+//     b. Belum ada approved → enqueue 'pending' row + AppendToolAudit
+//     decision='pending_approve' → return ErrPendingApprove dengan
+//     queue ID di error message.
+//  3. Tidak sensitif → delegate ke SandboxRunV2.
+//  4. Setelah V2 return:
+//     a. Sukses → AppendToolAudit decision='allowed'.
+//     b. Error sandbox → AppendToolAudit decision sesuai sentinel
+//     (denied_cap / denied_disabled / denied_rate / denied_interceptor).
 //
 // Note: store wajib ada di ctx (via WithStore di dispatcher).
 func SandboxRunV3(ctx context.Context, t Tool, args map[string]any, opts SandboxOpts) (Result, error) {
@@ -70,8 +134,22 @@ func SandboxRunV3(ctx context.Context, t Tool, args map[string]any, opts Sandbox
 		return SandboxRunV2(ctx, t, args, opts)
 	}
 
-	// Sensitive pattern check.
-	if isSensitiveArgs(args) {
+	// Host Protection Gate (immutable baseline) — hard-deny destructive ops
+	// (rm -rf /, /etc/shadow, sudo, cloud-metadata IP, …) on the real execution
+	// path, before approval/delegate. The baseline is owner-immutable.
+	if blocked, rule := protectorBlockHit(args); blocked {
+		_, _ = store.AppendToolAudit(agentdb.ToolAudit{
+			ToolName: toolName,
+			Decision: "denied_protector",
+			Reason:   "host protection gate: " + rule,
+			ArgsHash: argsHash,
+			Caller:   caller,
+		})
+		return Result{}, fmt.Errorf("sandbox: blocked by host protection gate (%s)", rule)
+	}
+
+	// Sensitive pattern check (sensitive tool name OR sensitive args).
+	if isSensitiveTool(toolName) || isSensitiveArgs(args) {
 		// Check approval queue.
 		approved, err := store.CheckApprovalByHash(toolName, argsHash)
 		if err == nil && approved {
@@ -90,7 +168,7 @@ func SandboxRunV3(ctx context.Context, t Tool, args map[string]any, opts Sandbox
 				ToolName: toolName,
 				ArgsJSON: string(argsJSON),
 				ArgsHash: argsHash,
-				Reason:   sensitiveReason(args),
+				Reason:   sensitiveReason(toolName, args),
 				Status:   "pending",
 				Caller:   caller,
 			})
@@ -185,7 +263,10 @@ func isSensitiveArgs(args map[string]any) bool {
 	return false
 }
 
-func sensitiveReason(args map[string]any) string {
+func sensitiveReason(toolName string, args map[string]any) string {
+	if isSensitiveTool(toolName) {
+		return "sensitive tool requires owner approval: " + toolName
+	}
 	for _, v := range args {
 		if s, ok := v.(string); ok {
 			ls := strings.ToLower(s)
