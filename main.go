@@ -305,6 +305,22 @@ func main() {
 		log.Printf("taskflow seed: %v", serr)
 	}
 	_ = fdb.MarkRunningInterrupted() // boot hygiene: run zombie dari proses lama
+	// SCHEDULER LOOPING: tiap menit cek jadwal task → fire Category Task otomatis +
+	// notify Telegram (mis. tiap jam 9 pagi: analisa saham A → keputusan ke chat).
+	go func() {
+		t := time.NewTicker(1 * time.Minute)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				if n := RunDueSchedules(host, fdb); n > 0 {
+					log.Printf("task-scheduler: %d jadwal di-fire", n)
+				}
+			}
+		}
+	}()
 	authMgr := floworkauth.NewManager(fdb)
 	settingsAPI := settingsapi.New(fdb)
 	// Wire host accessor untuk AI-wallets read-only (host-level, bukan cross-warga).
@@ -390,6 +406,10 @@ func main() {
 	mux.HandleFunc("/api/taskflow/category/delete", taskflowCategoryDeleteHandler(fdb))
 	mux.HandleFunc("/api/taskflow/runs", taskflowRunsHandler(fdb))
 	mux.HandleFunc("/api/taskflow/run-detail", taskflowRunDetailHandler(fdb))
+	// Scheduler looping: CRUD jadwal recurring task.
+	mux.HandleFunc("/api/taskflow/schedules", taskflowSchedulesHandler(fdb))
+	mux.HandleFunc("/api/taskflow/schedule", taskflowScheduleAddHandler(fdb))
+	mux.HandleFunc("/api/taskflow/schedule/delete", taskflowScheduleDeleteHandler(fdb))
 	// FASE 7: config MCP buat GUI copy-paste ke AI eksternal.
 	mux.HandleFunc("/api/mcp/config", mcpConfigHandler)
 	// FASE 8: Curator skill (per-agent) — list+grade + jalanin curator.

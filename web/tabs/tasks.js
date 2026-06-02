@@ -27,6 +27,7 @@ export async function render(mainEl) {
       <div class="tf-head">
         <div><h2>📋 ${esc(L.title)}</h2><p class="tf-sub">${esc(L.sub)}</p></div>
         <div class="tf-hbtns">
+          <button class="tf-btn ghost" id="tf-sched">⏰ Jadwal</button>
           <button class="tf-btn ghost" id="tf-mcp">🔌 MCP</button>
           <button class="tf-btn" id="tf-new">${esc(L.newCat)}</button>
         </div>
@@ -38,7 +39,76 @@ export async function render(mainEl) {
     </div>`;
   mainEl.querySelector('#tf-new').onclick = () => newCategory();
   mainEl.querySelector('#tf-mcp').onclick = () => showMCP();
+  mainEl.querySelector('#tf-sched').onclick = () => showSchedules();
   await loadList();
+}
+
+// showSchedules — kelola jadwal LOOPING task (tiap hari jam X / tiap N menit →
+// auto-jalanin task → kirim hasil ke Telegram).
+async function showSchedules() {
+  let cats = [];
+  try { cats = (await fetchJSON('/api/taskflow/categories')).categories || []; } catch (e) {}
+  const opts = cats.map(c => `<option value="${escAttr(c.id)}">${esc(c.name || c.id)}</option>`).join('');
+  const node = document.createElement('div');
+  node.className = 'tf-sched';
+  node.innerHTML = `
+    <p>Jadwalin Category Task biar jalan otomatis berulang — hasilnya dikirim ke Telegram.</p>
+    <div class="tf-schform">
+      <select class="tf-in" id="ts-cat">${opts}</select>
+      <input class="tf-in" id="ts-subj" placeholder="subjek (mis. BBCA)"/>
+      <select class="tf-in" id="ts-kind">
+        <option value="daily">tiap hari jam</option>
+        <option value="every">tiap N menit</option>
+      </select>
+      <input class="tf-in tf-tw" id="ts-time" value="09:00" placeholder="HH:MM"/>
+      <input class="tf-in tf-tw" id="ts-min" type="number" value="60" style="display:none"/>
+      <input class="tf-in" id="ts-chat" placeholder="chat_id Telegram (opsional, buat kirim hasil)"/>
+      <button class="tf-btn" id="ts-add">+ Jadwal</button>
+    </div>
+    <div id="ts-list" class="tf-schlist"></div>`;
+  openModal({ title: '⏰ Jadwal Task (looping)', body: node });
+
+  const kind = node.querySelector('#ts-kind');
+  const tw = node.querySelector('#ts-time'), mw = node.querySelector('#ts-min');
+  kind.onchange = () => {
+    const daily = kind.value === 'daily';
+    tw.style.display = daily ? '' : 'none';
+    mw.style.display = daily ? 'none' : '';
+  };
+  const reload = async () => {
+    let list = [];
+    try { list = (await fetchJSON('/api/taskflow/schedules')).schedules || []; } catch (e) {}
+    const el = node.querySelector('#ts-list');
+    if (!list.length) { el.innerHTML = '<div class="tf-empty sm">belum ada jadwal.</div>'; return; }
+    el.innerHTML = list.map(s => {
+      const when = s.kind === 'daily' ? `tiap hari ${esc(s.at_time)}` : `tiap ${s.every_min} menit`;
+      return `<div class="tf-schrow">
+        <span>⏰ <b>${esc(s.category)}</b> ${esc(s.subject)} — ${when}${s.notify_chat ? ' → 📨' : ''}</span>
+        <small>next ${esc((s.next_run || '').slice(11, 16))}</small>
+        <button class="tf-x" data-id="${s.id}">✕</button></div>`;
+    }).join('');
+    el.querySelectorAll('.tf-x').forEach(b => b.onclick = async () => {
+      await fetchJSON('/api/taskflow/schedule/delete?id=' + b.dataset.id, { method: 'POST' });
+      reload();
+    });
+  };
+  node.querySelector('#ts-add').onclick = async () => {
+    const body = {
+      category: node.querySelector('#ts-cat').value,
+      subject: node.querySelector('#ts-subj').value.trim(),
+      kind: kind.value,
+      at_time: tw.value.trim() || '09:00',
+      every_min: parseInt(mw.value) || 60,
+      notify_chat: node.querySelector('#ts-chat').value.trim(),
+    };
+    if (!body.subject) return alert('isi subjek dulu');
+    try {
+      await fetchJSON('/api/taskflow/schedule', { method: 'POST', body: JSON.stringify(body) });
+      node.querySelector('#ts-subj').value = '';
+      reload();
+    } catch (e) { alert('gagal: ' + e.message); }
+  };
+  reload();
 }
 
 // showMCP — panel config MCP siap-copas buat AI eksternal (VS Code/Cursor/Claude).
@@ -292,4 +362,10 @@ const STYLE = `
 .tf-warn{background:#2a2410;border:1px solid #6a5;border-radius:7px;padding:9px;font-size:12px;margin-bottom:10px;color:#fc9}
 .tf-warn code,.tf-mcp code{background:#000;padding:1px 5px;border-radius:4px;font-size:11px}
 .tf-mcphelp{margin-top:12px;font-size:12px;line-height:1.7;opacity:.85;border-top:1px solid #2a2a33;padding-top:10px}
+.tf-sched p{font-size:13px;margin:0 0 10px;opacity:.85}
+.tf-schform{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px}
+.tf-schform .tf-in{flex:1;min-width:120px}.tf-tw{flex:0 0 80px!important;min-width:0!important}
+.tf-schlist{border-top:1px solid #2a2a33;padding-top:8px}
+.tf-schrow{display:flex;gap:8px;align-items:center;padding:7px 4px;font-size:12px;border-bottom:1px solid #1e1e26}
+.tf-schrow small{margin-left:auto;opacity:.5}
 `;

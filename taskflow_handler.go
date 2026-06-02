@@ -125,57 +125,137 @@ func taskflowRunHandler(host *kernelhost.Host, store *floworkdb.Store) http.Hand
 			return
 		}
 
-		cat, err := store.GetCategory(category)
-		if err != nil {
-			tfWriteJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
-			return
-		}
-		if cat == nil {
-			tfWriteJSON(w, http.StatusNotFound, map[string]any{"error": "kategori ga ada: " + category})
-			return
-		}
-		if len(cat.Crew) == 0 {
-			tfWriteJSON(w, http.StatusBadRequest, map[string]any{"error": "crew kosong — tambah analis dulu"})
-			return
-		}
 		notify := strings.TrimSpace(r.URL.Query().Get("notify")) // chat_id Telegram (opsional)
-		runID, err := store.CreateRun(category, subject, "owner")
+		runID, err := startTaskflowRun(host, store, category, subject, notify)
 		if err != nil {
-			tfWriteJSON(w, http.StatusInternalServerError, map[string]any{"error": "create run: " + err.Error()})
+			tfWriteJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 			return
 		}
-		tfCat := toTaskflowCategory(cat)
-		catName := cat.Name
-		// Run ASYNC: trigger balik cepet, step di-persist live → GUI poll timeline.
-		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
-			defer cancel()
-			rec := &dbRecorder{store: store, runID: runID}
-			res := taskflow.RunCategoryTask(ctx, host, host.SharedDir, tfCat, subject, strconv.FormatInt(runID, 10), rec)
-			status := "done"
-			summary := res.Recommendation
-			if res.Err != "" {
-				status = "error"
-				if summary == "" {
-					summary = res.Err
-				}
-			}
-			_ = store.FinishRun(runID, status, summary)
-			// Fase 6c: kalau di-trigger dari chat (notify chat_id ada), kirim
-			// hasil balik ke Telegram pas kelar.
-			if notify != "" {
-				head := fmt.Sprintf("✅ Hasil %s — %s (run #%d):\n\n", catName, subject, runID)
-				if status == "error" {
-					head = fmt.Sprintf("⚠️ %s — %s (run #%d) gagal:\n\n", catName, subject, runID)
-				}
-				notifyTelegram(host, notify, head+summary)
-			}
-		}()
 		tfWriteJSON(w, 0, map[string]any{
 			"run_id": runID, "status": "running",
 			"poll": "/api/taskflow/run-detail?id=" + strconv.FormatInt(runID, 10),
 		})
 	}
+}
+
+// startTaskflowRun — bikin run + jalanin Category Task ASYNC (goroutine) +
+// notify Telegram pas kelar. Reusable: dipake HTTP handler + scheduler ticker.
+// Balik run_id cepet (run jalan di belakang). Error = validasi gagal.
+func startTaskflowRun(host *kernelhost.Host, store *floworkdb.Store, category, subject, notify string) (int64, error) {
+	cat, err := store.GetCategory(category)
+	if err != nil {
+		return 0, err
+	}
+	if cat == nil {
+		return 0, fmt.Errorf("kategori ga ada: %s", category)
+	}
+	if len(cat.Crew) == 0 {
+		return 0, fmt.Errorf("crew kosong — tambah analis dulu")
+	}
+	runID, err := store.CreateRun(category, subject, "owner")
+	if err != nil {
+		return 0, fmt.Errorf("create run: %w", err)
+	}
+	tfCat := toTaskflowCategory(cat)
+	catName := cat.Name
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+		defer cancel()
+		rec := &dbRecorder{store: store, runID: runID}
+		res := taskflow.RunCategoryTask(ctx, host, host.SharedDir, tfCat, subject, strconv.FormatInt(runID, 10), rec)
+		status := "done"
+		summary := res.Recommendation
+		if res.Err != "" {
+			status = "error"
+			if summary == "" {
+				summary = res.Err
+			}
+		}
+		_ = store.FinishRun(runID, status, summary)
+		if notify != "" {
+			head := fmt.Sprintf("✅ Hasil %s — %s (run #%d):\n\n", catName, subject, runID)
+			if status == "error" {
+				head = fmt.Sprintf("⚠️ %s — %s (run #%d) gagal:\n\n", catName, subject, runID)
+			}
+			notifyTelegram(host, notify, head+summary)
+		}
+	}()
+	return runID, nil
+}
+
+// ── Scheduler (looping recurring task) ───────────────────────────────────────
+
+// taskflowSchedulesHandler — GET list jadwal.
+func taskflowSchedulesHandler(store *floworkdb.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		list, err := store.ListSchedules()
+		if err != nil {
+			tfWriteJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+			return
+		}
+		tfWriteJSON(w, 0, map[string]any{"schedules": list})
+	}
+}
+
+// taskflowScheduleAddHandler — POST bikin jadwal (JSON body).
+func taskflowScheduleAddHandler(store *floworkdb.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			tfWriteJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "POST only"})
+			return
+		}
+		var sc floworkdb.TaskSchedule
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&sc); err != nil {
+			tfWriteJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid body"})
+			return
+		}
+		sc.Category = strings.TrimSpace(sc.Category)
+		sc.Subject = strings.TrimSpace(sc.Subject)
+		if sc.Category == "" || sc.Subject == "" {
+			tfWriteJSON(w, http.StatusBadRequest, map[string]any{"error": "category + subject required"})
+			return
+		}
+		id, err := store.AddSchedule(sc)
+		if err != nil {
+			tfWriteJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+			return
+		}
+		tfWriteJSON(w, 0, map[string]any{"ok": true, "id": id})
+	}
+}
+
+// taskflowScheduleDeleteHandler — POST hapus jadwal.
+func taskflowScheduleDeleteHandler(store *floworkdb.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, _ := strconv.ParseInt(r.URL.Query().Get("id"), 10, 64)
+		if id <= 0 {
+			tfWriteJSON(w, http.StatusBadRequest, map[string]any{"error": "id required"})
+			return
+		}
+		if r.URL.Query().Get("enabled") != "" {
+			_ = store.ToggleSchedule(id, r.URL.Query().Get("enabled") == "1")
+		} else {
+			_ = store.DeleteSchedule(id)
+		}
+		tfWriteJSON(w, 0, map[string]any{"ok": true})
+	}
+}
+
+// RunDueSchedules — dipanggil ticker tiap menit: fire jadwal yang udah waktunya.
+func RunDueSchedules(host *kernelhost.Host, store *floworkdb.Store) int {
+	now := time.Now()
+	due, err := store.DueSchedules(now)
+	if err != nil {
+		return 0
+	}
+	fired := 0
+	for _, sc := range due {
+		if _, err := startTaskflowRun(host, store, sc.Category, sc.Subject, sc.NotifyChat); err == nil {
+			fired++
+		}
+		_ = store.MarkScheduleFired(sc, now) // tetep advance next_run walau gagal (anti spam)
+	}
+	return fired
 }
 
 // taskflowCategoriesHandler — GET list kategori.

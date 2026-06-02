@@ -1,3 +1,31 @@
+## 2026-06-02 23:20 WIB — SCHEDULER LOOPING (recurring task → Telegram)
+
+Nutup gap Fase 6 (scheduler→task yang tadi cuma "teori"). Sekarang owner bisa
+JADWALIN Category Task berulang otomatis — mis. tiap jam 9 pagi: analisa saham A
+→ keputusan dikirim ke Telegram. Tanpa pencet manual.
+
+### Data model — internal/floworkdb/schedules.go (LOCKED)
+- `task_schedules` (flowork.db owner-level): category, subject, kind('daily' HH:MM /
+  'every' N menit), notify_chat (Telegram), enabled, last_run, next_run. Helpers
+  Add/List/Delete/Toggle/DueSchedules/MarkScheduleFired + computeNextRun.
+
+### Ticker + reusable run
+- Goroutine ticker tiap 1 menit → `DueSchedules(now)` → tiap jadwal due:
+  `startTaskflowRun` (di-extract dari handler, reusable) → fire Category Task async +
+  notify Telegram pas kelar → `MarkScheduleFired` (advance next_run = LOOP).
+
+### API + GUI
+- CRUD: `/api/taskflow/schedules` (list) · `/schedule` (POST add) · `/schedule/delete`
+  (delete/toggle). GUI: tombol **⏰ Jadwal** di tab Tasks → form (kategori/subjek/
+  harian-jam | tiap-N-menit/chat_id) + list jadwal + hapus.
+
+### Bukti (jalur real)
+- Jadwal 'every 1m' saham SCHEDTEST → ticker AUTO-FIRE di ~120s (run kebikin + log
+  "1 jadwal di-fire"), next_run advance 22:21→22:22 (RECURRING). Jadwal dihapus abis
+  test (anti spam). notify pakai jalur notifyTelegram (Fase 6, verified).
+
+---
+
 ## 2026-06-02 22:55 WIB — FASE 8: Curator skill (skill lifecycle) — ROADMAP 1 TUTUP
 
 Skill numpuk → curated biar prompt ga keracunan skill basi/dup. Per-agent

@@ -208,8 +208,11 @@ func isPublicPath(r *http.Request) bool {
 		// POST/GET — FASE 4/5 Category Task trigger + CRUD. Loopback-only
 		// (Mr.Flow/scheduler/owner-local). Server bind 127.0.0.1 → aman remote.
 		return isLocalRequest(r)
-	case "/api/taskflow/categories", "/api/taskflow/runs", "/api/taskflow/run-detail":
+	case "/api/taskflow/categories", "/api/taskflow/runs", "/api/taskflow/run-detail",
+		"/api/taskflow/schedules":
 		return r.Method == http.MethodGet && isLocalRequest(r)
+	case "/api/taskflow/schedule", "/api/taskflow/schedule/delete":
+		return isLocalRequest(r)
 	case "/api/mcp/config":
 		return r.Method == http.MethodGet && isLocalRequest(r)
 	case "/api/agents/skills", "/api/agents/skills/curate":
