@@ -1,3 +1,36 @@
+## 2026-06-02 21:40 WIB — FASE 5: GUI Task Builder + run timeline
+
+Category Task (Fase 4) yang tadi HARDCODED → sekarang **diatur owner dari GUI**
+(definisi di flowork.db) + run history + timeline live per-step.
+
+### Data model (owner-level, flowork.db) — internal/floworkdb/tasks.go
+- `task_categories` (id,name,icon,trigger_hint,synthesizer,enabled) · `task_agents`
+  (crew: agent_id,role,order,mode,optional) · `task_runs` · `task_run_steps`. CRUD
+  + `SeedSahamIfEmpty` (mirror crew Fase 4). Tabel via `EnsureTaskSchema` (ga sentuh
+  floworkdb.go yang locked). Worker tetep isolated di state.db — ini cuma DEFINISI+AUDIT.
+
+### Refactor taskflow (DB-driven + persist)
+- `RunCategoryTask` ga hardcode `categories` map lagi — terima `Category` (di-load
+  caller dari DB) + `Recorder` interface (persist step live → timeline). Prompt
+  di-genericin (pakai cat.Name, ga hardcode "SAHAM").
+
+### API + async run
+- `/api/taskflow/run` (POST) jalan **ASYNC** (goroutine) → balik `run_id` cepet, step
+  di-persist live → GUI poll. CRUD: `/category` (GET/POST), `/category/delete`,
+  `/categories`, `/runs`, `/run-detail` (timeline). Loopback-only auth bypass.
+
+### GUI tab "Tasks" — web/tabs/tasks.js
+- List kategori (cards) · editor crew (add/remove analis + synthesizer) · Run (input
+  subjek → timeline live: status per-agent + durasi + keputusan) · riwayat run.
+
+### Bukti (jalur real)
+- Seed → GET categories/category dari DB ✓. Run async balik 0s + run_id ✓. Poll
+  run-detail: timeline live (saham-fundamental done 120s → keuangan running →
+  sequential) ✓. Step status/err/ms persist. Router :2402 sempet mati → ke-detect
+  jelas di summary (bukan silent).
+
+---
+
 ## 2026-06-02 17:35 WIB — FASE 4: Category Task (multi-agent) — GATE SAHAM LULUS
 
 Multi-agent orchestration: MR.FLOW-class engine, banyak warga fokus, fan-out →

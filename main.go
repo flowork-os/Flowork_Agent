@@ -284,6 +284,12 @@ func main() {
 			}
 		}
 	}
+	// FASE 5: pastiin tabel task ada + seed kategori SAHAM (Fase 4 crew) kalau
+	// kosong, biar Category Task bisa diatur dari GUI tanpa hardcode.
+	if serr := fdb.SeedSahamIfEmpty(); serr != nil {
+		log.Printf("taskflow seed: %v", serr)
+	}
+	_ = fdb.MarkRunningInterrupted() // boot hygiene: run zombie dari proses lama
 	authMgr := floworkauth.NewManager(fdb)
 	settingsAPI := settingsapi.New(fdb)
 	// Wire host accessor untuk AI-wallets read-only (host-level, bukan cross-warga).
@@ -362,9 +368,13 @@ func main() {
 	mux.HandleFunc("/api/agents/tools/subscribe", agentmgr.ToolSubscribeHandler)
 	mux.HandleFunc("/api/agents/tools/unsubscribe", agentmgr.ToolUnsubscribeHandler)
 	mux.HandleFunc("/api/agents/tools/suggest", agentmgr.ToolSuggestHandler)
-	// FASE 4: Category Task orchestrator trigger (loopback-only, lihat isPublicPath).
-	mux.HandleFunc("/api/taskflow/run", taskflowRunHandler(host))
-	mux.HandleFunc("/api/taskflow/categories", taskflowCategoriesHandler)
+	// FASE 4/5: Category Task — trigger + CRUD kategori/crew + run timeline.
+	mux.HandleFunc("/api/taskflow/run", taskflowRunHandler(host, fdb))
+	mux.HandleFunc("/api/taskflow/categories", taskflowCategoriesHandler(fdb))
+	mux.HandleFunc("/api/taskflow/category", taskflowCategoryHandler(fdb))
+	mux.HandleFunc("/api/taskflow/category/delete", taskflowCategoryDeleteHandler(fdb))
+	mux.HandleFunc("/api/taskflow/runs", taskflowRunsHandler(fdb))
+	mux.HandleFunc("/api/taskflow/run-detail", taskflowRunDetailHandler(fdb))
 	mux.HandleFunc("/api/agents/scheduler/runs", agentmgr.SchedulerRunsHandler)
 	mux.HandleFunc("/api/agents/scheduler/trigger", agentmgr.SchedulerTriggerHandler)
 	mux.HandleFunc("/api/agents/sneakernet/export", agentmgr.SneakernetExportHandler)
