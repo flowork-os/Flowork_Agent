@@ -83,6 +83,8 @@ func Init() {
 	// Section 28: codemap warga query tools (codemap_tools.go)
 	tools.Register(&codemapSearchTool{})
 	tools.Register(&codemapStatsTool{})
+	// Operator: host power control (system_power.go) — cap exec:power, ARM-gated.
+	tools.Register(&systemPowerTool{})
 }
 
 // =============================================================================

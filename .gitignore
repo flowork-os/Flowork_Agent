@@ -60,3 +60,6 @@ agents/crypto-fundamental/
 agents/crypto-onchain/
 agents/crypto-sentimen/
 agents/crypto-sinteser/
+
+# Operator agent generated (reproduce via scripts/setup-operator.sh)
+agents/operator-komputer/
