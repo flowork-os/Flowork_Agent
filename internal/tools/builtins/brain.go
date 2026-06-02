@@ -46,11 +46,11 @@ const (
 
 type brainSearchTool struct{}
 
-func (brainSearchTool) Name() string       { return "brain_search" }
+func (brainSearchTool) Name() string       { return "brain_search_shared" }
 func (brainSearchTool) Capability() string { return "rpc:router:brain" }
 func (brainSearchTool) Schema() tools.Schema {
 	return tools.Schema{
-		Description: "Search Router brain drawers via BM25/FTS rank. Return top-K hits dengan content + score + drawer_id.",
+		Description: "Cari di korpus pengetahuan SHARED di Router (5jt drawers: security/training/dll) via BM25/FTS. Buat pengetahuan LUAS yang bukan pengalaman pribadi lo. Remote (butuh router up). Buat brain PRIBADI lo, pakai brain_search (lokal).",
 		Params: []tools.Param{
 			{Name: "query", Type: tools.ParamString, Description: "search query (natural language atau keyword)", Required: true},
 			{Name: "k", Type: tools.ParamInt, Description: "max hits (default 5, max 10)", Required: false, Default: defaultBrainSearchK},

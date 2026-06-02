@@ -50,8 +50,14 @@ func Init() {
 	tools.Register(&fileReadTool{})
 	tools.Register(&fileWriteTool{})
 	tools.Register(&fileListTool{})
-	// phase 1e: brain (brain.go) — Router RPC
+	// phase 1e: brain (brain.go) — Router RPC. Renamed → brain_search_shared
+	// (Roadmap 2 B0): korpus shared 5jt remote. Local brain = brain_search di bawah.
 	tools.Register(&brainSearchTool{})
+	// Roadmap 2 B0: brain LOKAL per-agent (brain_local.go) — FTS5 di state.db.
+	// brain_search = LOKAL (pengalaman sendiri, murah). Local-first.
+	tools.Register(&brainAddTool{})
+	tools.Register(&brainSearchLocalTool{})
+	tools.Register(&brainGetTool{})
 	// phase 1f: comms (telegram.go)
 	tools.Register(&telegramSendTool{})
 	// phase 1d: web (web.go)
