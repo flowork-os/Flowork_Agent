@@ -1,3 +1,34 @@
+## 2026-06-02 14:40 WIB — FASE 1 (phase 1): engine robustness Mr.Flow
+
+Robustness engine: anti bocor secret + anti over-prompt di tool loop + tahan
+provider transient.
+
+### Sanitize secret (anti bocor ke provider LLM)
+- `sanitizeSecrets()` — redact token prefix kredensial (sk-/ghp_/gho_/AKIA/AIza/
+  xox*/github_pat_) yang ≥12 char → `[REDACTED-SECRET]`. Scanner manual (TinyGo-safe,
+  no regexp). Unit-verified: redact sk-/ghp_/AKIA/AIza; "task-force" AMAN (no FP).
+
+### Prune + cap context (anti over-prompt di tool loop)
+- `prepMessages()` (dipakai tiap LLM call): (1) redact secret semua content, (2) prune
+  hasil tool LAMA jadi placeholder (sisain 4 terbaru), (3) cap per-message 6000 char.
+  TIDAK drop message (jaga pairing tool_call↔tool). Balikin COPY (msgs asli utuh).
+
+### Robustness tool loop (fix intermittent)
+- Assistant-with-tool_calls WAJIB content non-kosong (sebagian provider/Claude nolak
+  content kosong → error "messages.N.content"). Placeholder "(memanggil tool)" kalau model
+  ga kasih teks.
+- **Retry transient**: 5xx (router 502 "all providers failed" / anthropic 529 overload)
+  di-retry max 3×. 4xx ngga (salah request kita).
+
+### Verified (E2E jalur real, router live)
+- Tool loop 4/4 sukses (tulis+baca file, isi akurat) — dari sebelumnya intermittent
+  2-3/4 karena provider overload. `go build`/`vet` CLEAN. Prod restart.
+- Roadmap Fase 1 phase 1 ✅. **Deferred phase 2:** 3-tier prompt formal + context
+  compression LLM-summarization + MEMORY.md/USER.md distillation (existing history-inject
+  + self_prompt + memory tools udah cover dasarnya).
+
+---
+
 ## 2026-06-02 14:15 WIB — FASE 0: Mr.Flow real tool-calling loop (Hermes-class fondasi)
 
 Mr.Flow dulu cuma 1-shot completion → 106 tools nganggur + suka ngaku-ngaku pake

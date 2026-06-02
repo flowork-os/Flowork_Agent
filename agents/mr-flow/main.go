@@ -100,6 +100,8 @@ const (
 const (
 	maxActiveSkills      = 3    // max skill auto-inject ke persona (sisanya via skill_search)
 	maxToolIters         = 8    // max iterasi tool-calling loop per turn (anti loop tak hingga)
+	maxMsgContentChars   = 6000 // cap per-message content sebelum kirim ke LLM
+	keepToolResultsFull  = 4    // hasil tool terbaru yang TIDAK di-prune (sisanya diringkas)
 	maxSkillCharsPerItem = 300  // truncate instruction skill kalau terlalu panjang
 	maxPersonaTotalChars = 4000 // hard cap persona total (~1000 token approx)
 )
@@ -568,15 +570,26 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn) string {
 	// via /api/agents/tools/run → feed hasil → ulang sampai LLM jawab teks.
 	toolSpecs := fetchToolSpecs()
 	for iter := 0; iter < maxToolIters; iter++ {
-		reqMap := map[string]any{"model": cfg.Router.Model, "messages": msgs}
+		reqMap := map[string]any{"model": cfg.Router.Model, "messages": prepMessages(msgs)}
 		if len(toolSpecs) > 0 {
 			reqMap["tools"] = toolSpecs
 		}
 		body, _ := json.Marshal(reqMap)
+		// Retry transient: 5xx (mis. router 502 "all providers failed" /
+		// anthropic 529 overload) sering lolos pas dicoba lagi. 4xx ngga di-retry
+		// (itu salah request kita). Max 3 attempt.
 		resp, err := fetch("POST", cfg.Router.URL,
 			map[string]string{"Content-Type": "application/json"}, body, 90_000)
+		for attempt := 1; attempt < 3 && (err != nil || (resp != nil && resp.Status >= 500)); attempt++ {
+			fmt.Fprintf(os.Stderr, "[mr-flow] router transient (attempt %d), retry…\n", attempt)
+			resp, err = fetch("POST", cfg.Router.URL,
+				map[string]string{"Content-Type": "application/json"}, body, 90_000)
+		}
 		if err != nil {
 			return "router error: " + err.Error()
+		}
+		if resp == nil {
+			return "router error: nil response"
 		}
 		if resp.Status >= 400 {
 			return fmt.Sprintf("router %d: %s", resp.Status, truncStr(string(resp.Body), 200))
@@ -618,11 +631,16 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn) string {
 				"function": map[string]any{"name": tc.Function.Name, "arguments": tc.Function.Arguments},
 			})
 		}
-		asst := map[string]any{"role": "assistant", "tool_calls": tcArr}
-		if m.Content != "" {
-			asst["content"] = m.Content
+		// Content WAJIB ada + non-kosong: sebagian provider (Claude via router)
+		// nolak assistant-with-tool_calls kalau content kosong (error
+		// "messages.N.content"). Placeholder kalau model ga kasih teks.
+		content := m.Content
+		if strings.TrimSpace(content) == "" {
+			content = "(memanggil tool)"
 		}
-		msgs = append(msgs, asst)
+		msgs = append(msgs, map[string]any{
+			"role": "assistant", "content": content, "tool_calls": tcArr,
+		})
 		// Eksekusi tiap tool → append hasil sebagai role:tool.
 		for _, tc := range m.ToolCalls {
 			var args map[string]any
@@ -653,6 +671,87 @@ func fetchToolSpecs() []json.RawMessage {
 		return nil
 	}
 	return out.Tools
+}
+
+// secretPrefixes — prefix kredensial yang di-redact sebelum dikirim ke provider
+// LLM (anti bocor). Scanner manual (TinyGo regexp berat/iffy).
+var secretPrefixes = []string{"sk-", "ghp_", "gho_", "ghs_", "ghr_", "github_pat_", "AKIA", "ASIA", "AIza", "xoxb-", "xoxp-", "xoxa-"}
+
+func isSecretByte(b byte) bool {
+	return (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z') || (b >= '0' && b <= '9') || b == '_' || b == '-'
+}
+
+// sanitizeSecrets — redact token yang mulai dengan prefix kredensial + cukup
+// panjang (≥12 char) → "[REDACTED-SECRET]". Cegah secret ke-kirim ke LLM provider.
+func sanitizeSecrets(s string) string {
+	if s == "" {
+		return s
+	}
+	var sb strings.Builder
+	i := 0
+	for i < len(s) {
+		matched := false
+		for _, p := range secretPrefixes {
+			if i+len(p) <= len(s) && s[i:i+len(p)] == p {
+				j := i + len(p)
+				for j < len(s) && isSecretByte(s[j]) {
+					j++
+				}
+				if j-(i+len(p)) >= 12 { // cukup panjang = secret beneran
+					sb.WriteString("[REDACTED-SECRET]")
+					i = j
+					matched = true
+					break
+				}
+			}
+		}
+		if !matched {
+			sb.WriteByte(s[i])
+			i++
+		}
+	}
+	return sb.String()
+}
+
+// prepMessages — sebelum kirim ke LLM: (1) redact secret, (2) prune hasil tool
+// LAMA (sisain keepToolResultsFull terbaru) jadi placeholder, (3) cap ukuran
+// per-message. TIDAK drop message (jaga pairing tool_call↔tool). Balikin COPY
+// (msgs asli tetep utuh buat logika loop).
+func prepMessages(msgs []any) []any {
+	totalTool := 0
+	for _, m := range msgs {
+		if mm, ok := m.(map[string]any); ok && mm["role"] == "tool" {
+			totalTool++
+		}
+	}
+	out := make([]any, 0, len(msgs))
+	ti := 0
+	for _, m := range msgs {
+		mm, ok := m.(map[string]any)
+		if !ok {
+			out = append(out, m)
+			continue
+		}
+		cp := map[string]any{}
+		for k, v := range mm {
+			cp[k] = v
+		}
+		if c, ok := cp["content"].(string); ok {
+			c = sanitizeSecrets(c)
+			if cp["role"] == "tool" {
+				ti++
+				if ti <= totalTool-keepToolResultsFull {
+					c = "[hasil tool lama di-prune untuk hemat context]"
+				}
+			}
+			if len(c) > maxMsgContentChars {
+				c = c[:maxMsgContentChars] + " …[truncated]"
+			}
+			cp["content"] = c
+		}
+		out = append(out, cp)
+	}
+	return out
 }
 
 // runTool — eksekusi 1 tool via /api/agents/tools/run (SandboxRunV3 enforce
