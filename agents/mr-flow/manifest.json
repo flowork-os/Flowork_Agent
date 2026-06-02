@@ -25,7 +25,8 @@
     "fs:write",
     "exec:git",
     "rpc:router:skill",
-    "rpc:taskflow"
+    "rpc:taskflow",
+    "rpc:agent-invoke"
   ],
   "exposes_rpc": [
     {

@@ -85,6 +85,8 @@ func Init() {
 	tools.Register(&codemapStatsTool{})
 	// Operator: host power control (system_power.go) — cap exec:power, ARM-gated.
 	tools.Register(&systemPowerTool{})
+	// Router delegation (agent_command.go) — cap rpc:agent-invoke, Mr.Flow only.
+	tools.Register(&agentCommandTool{})
 }
 
 // =============================================================================
