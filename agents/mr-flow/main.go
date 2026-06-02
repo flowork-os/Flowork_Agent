@@ -103,7 +103,14 @@ const (
 	maxMsgContentChars   = 6000 // cap per-message content sebelum kirim ke LLM
 	keepToolResultsFull  = 4    // hasil tool terbaru yang TIDAK di-prune (sisanya diringkas)
 	maxSkillCharsPerItem = 300  // truncate instruction skill kalau terlalu panjang
-	maxPersonaTotalChars = 4000 // hard cap persona total (~1000 token approx)
+	maxPersonaTotalChars = 9000 // hard cap system prompt total (3-tier + memory snapshot)
+	// Fase 1 phase-2: memory snapshot capped (per roadmap ~USER 500tok / MEMORY 800tok).
+	memUserCap    = 2000 // cap USER.md inject (~500 token approx)
+	memProjectCap = 3200 // cap MEMORY.md inject (~800 token approx)
+	// Fase 1 phase-2: context compression — ringkas blok tengah kalau history gede.
+	compressTriggerChars = 20000 // total content history > ini → trigger compress (~5k token)
+	compressKeepTail     = 8     // jumlah pesan terakhir yang DISISAKAN utuh (TAIL)
+	summarizeInputCap    = 16000 // cap input ke aux LLM summarizer
 )
 
 var outBuf [respBufBytes]byte
@@ -505,75 +512,18 @@ func fetchHistory(actor string) []chatTurn {
 }
 
 func callLLM(cfg agentConfig, userText string, history []chatTurn) string {
-	// Anti-halu identity + time guard. Prepend ke persona setiap call —
-	// LLM (claude-haiku-4-5 via flow_router) kalo gak di-reminded suka
-	// claim "training cutoff May 2024" dan halu tanggal hari ini. Mr.Flow
-	// itu wrapper WASM yang call router, bukan model base; identity guard
-	// disable claim training cutoff sendiri. Time guard kasih ground truth.
-	guard := fmt.Sprintf(
-		"[CURRENT_TIME_UTC: %s]\n"+
-			"[IDENTITY: Lo Mr.Flow — WASM agent di Flowork microkernel buat Mr.Dev. "+
-			"Lo BUKAN Claude/GPT/model base. Lo wrapper yang dispatch ke "+
-			"flow_router. Jangan claim \"training cutoff\" — lo ngga punya "+
-			"training history sendiri. Kalo ditanya tanggal, pakai "+
-			"CURRENT_TIME_UTC di atas.]\n"+
-			"[HELPFULNESS RULE: Mr.Dev minta info real-time (harga, berita, "+
-			"status live)? BANTU LANGSUNG — jangan defensive nyuruh dia 'cek "+
-			"sendiri'. Step-nya: (1) kasih konteks dari knowledge umum lo "+
-			"dengan caveat 'data ini stale, terakhir update knowledge umum'; "+
-			"(2) sebut 1-2 source live yang relevan singkat (CoinGecko, "+
-			"CoinMarketCap utk harga crypto; Reuters/CNBC utk news); (3) "+
-			"tawarin bantu lebih lanjut. Contoh BURUK: 'gw gak punya real-time, "+
-			"lo cek sendiri di X'. Contoh BAIK: 'BTC sekitar $X di knowledge "+
-			"terakhir gw (stale). Live cek CoinGecko/Binance. Mau gw bantu "+
-			"breakdown trend atau historical context?']\n"+
-			"[TOOLS NYATA: Lo SEKARANG punya tools beneran (di list `tools` "+
-			"request ini) — file_read/write, bash, webfetch, brain_search, "+
-			"memory, dll. PAKAI tools itu buat ngerjain — JANGAN ngarang hasil, "+
-			"JANGAN pura-pura 'scanning…/fetching…/tunggu output gw'. Kalau perlu "+
-			"data/aksi, PANGGIL tool-nya beneran. Kalau tool yang lo butuh ga ada "+
-			"di list, cari pake `tool_search` dulu; kalau tetep ga ada, bilang "+
-			"jujur + kasih cara manual. Kalau tool nolak (capability), jujur "+
-			"bilang ga ada izin, jangan ngarang.]\n"+
-			"[KONTEKS: Lo PUNYA history percakapan di messages ini — pakai, "+
-			"jangan tanya ulang hal yang udah dibahas.]\n\n",
-		nowISO(),
-	)
-	persona := guard + cfg.Prompt
-	if len(cfg.Skills) > 0 {
-		// Auto-inject hanya N skill pertama (asumsi ordered by importance).
-		active := cfg.Skills
-		if len(active) > maxActiveSkills {
-			active = active[:maxActiveSkills]
-		}
-		var lines []string
-		for _, s := range active {
-			instr := s.Instructions
-			if len(instr) > maxSkillCharsPerItem {
-				instr = instr[:maxSkillCharsPerItem] + "…"
-			}
-			lines = append(lines, fmt.Sprintf("- %s (trigger=%q): %s", s.ID, s.Trigger, instr))
-		}
-		if extra := len(cfg.Skills) - len(active); extra > 0 {
-			lines = append(lines, fmt.Sprintf("…+%d skill lain (panggil `skill_search` kalau perlu)", extra))
-		}
-		persona += "\n\nSkill aktif:\n" + strings.Join(lines, "\n")
-	}
-	// Section 35 phase 2: prepend self_prompt slots (system/persona/
-	// guideline/task) dari /api/agents/self-prompt/render. Best-effort —
-	// kalau endpoint unreachable, skip + lanjut. Aborted via short timeout.
-	if injected := fetchSelfPrompt(); injected != "" {
-		persona = injected + "\n\n" + persona
-	}
-	// Hard cap persona total — last-ditch defense.
-	if len(persona) > maxPersonaTotalChars {
-		persona = persona[:maxPersonaTotalChars] + "\n…[truncated to respect prompt budget]"
+	// Fase 1 phase-2: 3-tier system prompt formal (Tier-1 stable / Tier-2 konteks
+	// / Tier-3 volatile). Volatile (waktu + memory snapshot) di BAWAH = paling
+	// salient buat LLM. Budget di-handle di dalam buildSystemPrompt.
+	sys := buildSystemPrompt(cfg)
+	if len(sys) > maxPersonaTotalChars {
+		sys = sys[:maxPersonaTotalChars] + "\n…[truncated to respect prompt budget]"
 	}
 
 	// Bangun messages: system + history (history SUDAH termasuk pesan user
 	// terakhir; kalau kosong fallback ke userText). msgs pakai any biar muat
 	// tool_calls + tool result.
-	msgs := []any{map[string]any{"role": "system", "content": persona}}
+	msgs := []any{map[string]any{"role": "system", "content": sys}}
 	if len(history) > 0 {
 		for _, t := range history {
 			msgs = append(msgs, map[string]any{"role": t.Role, "content": t.Content})
@@ -581,6 +531,11 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn) string {
 	} else {
 		msgs = append(msgs, map[string]any{"role": "user", "content": userText})
 	}
+	// Fase 1 phase-2: context compression — kalau history kepanjangan (~50%
+	// window), ringkas blok TENGAH jadi 1 ringkasan via aux LLM, sisain HEAD +
+	// TAIL. Aman di sini: msgs masih murni system+user/assistant (belum ada tool
+	// message dari loop), jadi ga ngerusak pairing tool_call↔tool.
+	msgs = compressHistory(cfg, msgs)
 
 	// Fase 0: tool-calling loop. Expose hanya tools yang di-subscribe agent
 	// (core set, BUKAN 106 — anti over-prompt). LLM minta tool → kita eksekusi
@@ -700,6 +655,224 @@ func isSecretByte(b byte) bool {
 
 // sanitizeSecrets — redact token yang mulai dengan prefix kredensial + cukup
 // panjang (≥12 char) → "[REDACTED-SECRET]". Cegah secret ke-kirim ke LLM provider.
+// capStr — potong string ke maks n char (+ ellipsis).
+func capStr(s string, n int) string {
+	s = strings.TrimSpace(s)
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
+}
+
+// fetchMemoryValue — baca tool_memory by key via runTool(memory_get). Dipakai
+// prefetch snapshot MEMORY.md/USER.md awal turn. Balikin "" kalau ga ada/gagal.
+// Reuse jalur tools/run (caller=selfID-loop) — ga perlu host-func tambahan.
+func fetchMemoryValue(key string) string {
+	raw := runTool("memory_get", map[string]any{"key": key})
+	var r struct {
+		Result struct {
+			Output struct {
+				Value string `json:"value"`
+				Found bool   `json:"found"`
+			} `json:"output"`
+		} `json:"result"`
+	}
+	if json.Unmarshal([]byte(raw), &r) == nil && r.Result.Output.Found {
+		return r.Result.Output.Value
+	}
+	return ""
+}
+
+// buildSystemPrompt — Fase 1 phase-2: rakit system prompt 3-tier.
+//
+//	Tier-1 STABLE   — persona + identity + aturan tool (jarang berubah).
+//	Tier-2 KONTEKS  — self_prompt (doktrin/AGENTS) + skill aktif (semi-stable).
+//	Tier-3 VOLATILE — waktu + model + MEMORY snapshot + reminder history (tiap turn).
+//
+// Volatile sengaja di BAWAH (paling deket pesan = paling salient). Tiap tier
+// di-budget biar total ga blow up.
+func buildSystemPrompt(cfg agentConfig) string {
+	var b strings.Builder
+
+	// ===== TIER 1 — STABLE =====
+	b.WriteString("=== TIER 1 · SIAPA LO + ATURAN (stabil) ===\n")
+	b.WriteString(cfg.Prompt)
+	b.WriteString("\n[IDENTITY: Lo Mr.Flow — WASM agent di Flowork microkernel buat Mr.Dev. " +
+		"Lo BUKAN Claude/GPT/model base; lo wrapper yang dispatch ke flow_router. " +
+		"Jangan claim \"training cutoff\" sendiri — kalo ditanya tanggal pakai WAKTU_UTC di Tier-3.]\n")
+	b.WriteString("[TOOLS NYATA: lo punya tools beneran (di list `tools` request ini). PAKAI buat " +
+		"ngerjain — JANGAN ngarang/pura-pura 'scanning…/tunggu output gw'. Tool ga ada di list? " +
+		"cari via `tool_search`. Tool nolak (capability)? jujur bilang ga ada izin, jangan ngarang.]\n")
+	b.WriteString("[HELPFULNESS: diminta info real-time (harga/berita/status live)? bantu LANGSUNG — " +
+		"kasih konteks knowledge umum (caveat 'stale') + sebut 1-2 source live relevan, jangan " +
+		"defensive nyuruh 'cek sendiri'.]\n")
+	b.WriteString("[MEMORY: nemu fakta penting jangka-panjang tentang Mr.Dev → simpan via " +
+		"memory_set('USER.md', <isi>); fakta/keputusan proyek → memory_set('MEMORY.md', <isi>). " +
+		"Biar ke-inget lintas sesi (snapshot-nya muncul di Tier-3).]\n")
+
+	// ===== TIER 2 — KONTEKS =====
+	var tier2 strings.Builder
+	if injected := fetchSelfPrompt(); injected != "" {
+		tier2.WriteString(injected)
+		tier2.WriteString("\n")
+	}
+	if len(cfg.Skills) > 0 {
+		active := cfg.Skills
+		if len(active) > maxActiveSkills {
+			active = active[:maxActiveSkills]
+		}
+		var lines []string
+		for _, s := range active {
+			instr := s.Instructions
+			if len(instr) > maxSkillCharsPerItem {
+				instr = instr[:maxSkillCharsPerItem] + "…"
+			}
+			lines = append(lines, fmt.Sprintf("- %s (trigger=%q): %s", s.ID, s.Trigger, instr))
+		}
+		if extra := len(cfg.Skills) - len(active); extra > 0 {
+			lines = append(lines, fmt.Sprintf("…+%d skill lain (panggil `skill_search` kalau perlu)", extra))
+		}
+		tier2.WriteString("Skill aktif:\n")
+		tier2.WriteString(strings.Join(lines, "\n"))
+		tier2.WriteString("\n")
+	}
+	if tier2.Len() > 0 {
+		b.WriteString("\n=== TIER 2 · KONTEKS (doktrin + skill) ===\n")
+		b.WriteString(tier2.String())
+	}
+
+	// ===== TIER 3 — VOLATILE =====
+	b.WriteString("\n=== TIER 3 · SEKARANG (volatile) ===\n")
+	b.WriteString("[WAKTU_UTC: " + nowISO() + "]\n")
+	b.WriteString("[MODEL: " + cfg.Router.Model + "]\n")
+	usr := capStr(fetchMemoryValue("USER.md"), memUserCap)
+	proj := capStr(fetchMemoryValue("MEMORY.md"), memProjectCap)
+	if usr != "" {
+		b.WriteString("[INGATAN tentang Mr.Dev (USER.md)]:\n" + usr + "\n")
+	}
+	if proj != "" {
+		b.WriteString("[INGATAN proyek (MEMORY.md)]:\n" + proj + "\n")
+	}
+	b.WriteString("[KONTEKS: lo PUNYA history percakapan di messages ini — pakai, jangan tanya ulang " +
+		"hal yang udah dibahas.]\n")
+
+	return b.String()
+}
+
+// summarizeText — aux LLM call (no tools, single shot) buat meringkas. Dipakai
+// context compression. Balikin "" kalau gagal (caller fallback ga compress).
+func summarizeText(cfg agentConfig, instruction, content string) string {
+	if content == "" {
+		return ""
+	}
+	if len(content) > summarizeInputCap {
+		content = content[:summarizeInputCap]
+	}
+	body, _ := json.Marshal(map[string]any{
+		"model": cfg.Router.Model,
+		"messages": []any{
+			map[string]any{"role": "system", "content": instruction},
+			map[string]any{"role": "user", "content": content},
+		},
+	})
+	hdr := map[string]string{"Content-Type": "application/json"}
+	resp, err := fetch("POST", cfg.Router.URL, hdr, body, 60_000)
+	for attempt := 1; attempt < 2 && (err != nil || (resp != nil && resp.Status >= 500)); attempt++ {
+		resp, err = fetch("POST", cfg.Router.URL, hdr, body, 60_000)
+	}
+	if err != nil || resp == nil || resp.Status >= 400 {
+		return ""
+	}
+	var oResp struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if json.Unmarshal(resp.Body, &oResp) != nil || len(oResp.Choices) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(oResp.Choices[0].Message.Content)
+}
+
+// compressHistory — Fase 1 phase-2: kalau total content msgs > trigger, ringkas
+// blok TENGAH jadi 1 ringkasan (aux LLM), sisain HEAD (system + user pertama) +
+// TAIL (compressKeepTail pesan terakhir). Output di-merge biar role tetep
+// alternate (anti error "roles must alternate" dari Claude). Best-effort: gagal
+// ringkas → balikin msgs apa adanya (prepMessages tetep cap per-message).
+func compressHistory(cfg agentConfig, msgs []any) []any {
+	total := 0
+	for _, m := range msgs {
+		if mm, ok := m.(map[string]any); ok {
+			if c, ok := mm["content"].(string); ok {
+				total += len(c)
+			}
+		}
+	}
+	const head = 2 // system + user pertama = HEAD
+	if total <= compressTriggerChars || len(msgs) <= head+compressKeepTail+1 {
+		return msgs
+	}
+	tailStart := len(msgs) - compressKeepTail
+	var sb strings.Builder
+	for _, m := range msgs[head:tailStart] {
+		if mm, ok := m.(map[string]any); ok {
+			role, _ := mm["role"].(string)
+			c, _ := mm["content"].(string)
+			if c != "" {
+				sb.WriteString(role + ": " + c + "\n")
+			}
+		}
+	}
+	summary := summarizeText(cfg,
+		"Ringkas percakapan berikut jadi poin-poin penting yang MASIH relevan (fakta, keputusan, "+
+			"preferensi, konteks yang lagi dikerjain). Singkat, Bahasa Indonesia, bullet. JANGAN "+
+			"nambah info baru, JANGAN basa-basi.", sb.String())
+	if summary == "" {
+		return msgs // gagal ringkas → biarin
+	}
+	out := make([]any, 0, head+1+compressKeepTail)
+	out = append(out, msgs[:head]...)
+	out = append(out, map[string]any{
+		"role":    "user",
+		"content": "[RINGKASAN PERCAKAPAN SEBELUMNYA — biar hemat context]:\n" + summary,
+	})
+	out = append(out, msgs[tailStart:]...)
+	return mergeAdjacentRoles(out)
+}
+
+// mergeAdjacentRoles — gabung pesan berurutan dengan role sama (non-system,
+// non-tool, tanpa tool_calls) jadi satu, biar role selalu alternate. Penting
+// setelah compressHistory nyisipin ringkasan (bisa bikin 2 user beruntun).
+func mergeAdjacentRoles(msgs []any) []any {
+	out := make([]any, 0, len(msgs))
+	for _, m := range msgs {
+		mm, ok := m.(map[string]any)
+		plain := ok && mm["role"] != "system" && mm["role"] != "tool" && mm["tool_calls"] == nil
+		if !plain {
+			out = append(out, m)
+			continue
+		}
+		if len(out) > 0 {
+			if prev, ok := out[len(out)-1].(map[string]any); ok &&
+				prev["role"] == mm["role"] && prev["tool_calls"] == nil &&
+				prev["role"] != "tool" && prev["role"] != "system" {
+				pc, _ := prev["content"].(string)
+				cc, _ := mm["content"].(string)
+				prev["content"] = strings.TrimSpace(pc + "\n\n" + cc)
+				continue
+			}
+		}
+		cp := map[string]any{}
+		for k, v := range mm {
+			cp[k] = v
+		}
+		out = append(out, cp)
+	}
+	return out
+}
+
 func sanitizeSecrets(s string) string {
 	if s == "" {
 		return s

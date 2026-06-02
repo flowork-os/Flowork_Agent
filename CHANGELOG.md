@@ -1,3 +1,39 @@
+## 2026-06-02 16:05 WIB — FASE 1 phase-2: Mr.Flow engine (3-tier + memory + compression)
+
+Nutup Fase 1 jadi 100% (doktrin ONE ROADMAP AT A TIME — phase-2 tadi ke-defer).
+Semua di [agents/mr-flow/main.go](agents/mr-flow/main.go).
+
+### 3-tier system prompt formal (buildSystemPrompt)
+- Tier-1 STABLE (persona + identity + aturan tool) · Tier-2 KONTEKS (self_prompt/
+  doktrin + skill) · Tier-3 VOLATILE (waktu + model + MEMORY snapshot + reminder
+  history). Volatile di BAWAH = paling salient. Refactor dari guard-blob lama jadi
+  3 tier eksplisit, masing-masing di-budget.
+
+### MEMORY.md / USER.md snapshot capped
+- `fetchMemoryValue(key)` baca tool_memory via runTool(memory_get) — reuse jalur
+  tools/run, ga perlu host-func baru. Prefetch USER.md (cap 2000ch) + MEMORY.md
+  (cap 3200ch) tiap turn → inject Tier-3. LLM diinstruksiin persist fakta lewat
+  memory_set('USER.md'/'MEMORY.md') (on-demand, BUKAN forced LLM-distill tiap turn
+  = jaga footprint Flowork, bukan copy Hermes yang berat).
+
+### Context compression (compressHistory + mergeAdjacentRoles)
+- History > 20k char → ringkas blok TENGAH via aux LLM (summarizeText, no-tools
+  single-shot), sisain HEAD (system + user pertama) + TAIL (8 pesan terakhir).
+  `mergeAdjacentRoles` gabung pesan role-sama beruntun → role tetep alternate
+  (anti error Claude "roles must alternate"). Aman: jalan sebelum tool-loop (msgs
+  masih murni, ga ngerusak pairing tool_call↔tool). Gagal ringkas → fallback utuh.
+
+### Bukti (jalur real — scratch host boot kernelhost native → InvokeAgentMessage)
+- 3-tier + memory E2E: invoke mr-flow dgn USER.md di-seed "hijau toska" → debug
+  `sysprompt tiers=3 USER.md=98ch` + reply BENER "Warna favorit lo hijau toska"
+  (LLM pake snapshot Tier-3). Engine ga regресi.
+- Compression: standalone logic test 61 msg → 9 msg, **alternation violations=0**,
+  HEAD+TAIL+summary preserved, short-history ga trigger. Integrated summarizer pake
+  jalur router yang sama (proven). Build/vet clean, prod restart no panic. Test data
+  + scratch dihapus abis verifikasi.
+
+---
+
 ## 2026-06-02 15:45 WIB — FASE 3: tools riset (anti ngarang sumber)
 
 Agent worker butuh tools buat cari + baca sumber REAL (ga ngarang URL/fakta).
