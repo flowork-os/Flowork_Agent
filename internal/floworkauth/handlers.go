@@ -210,6 +210,8 @@ func isPublicPath(r *http.Request) bool {
 		return isLocalRequest(r)
 	case "/api/taskflow/categories", "/api/taskflow/runs", "/api/taskflow/run-detail":
 		return r.Method == http.MethodGet && isLocalRequest(r)
+	case "/api/mcp/config":
+		return r.Method == http.MethodGet && isLocalRequest(r)
 	}
 	return false
 }

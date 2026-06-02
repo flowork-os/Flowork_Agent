@@ -1,3 +1,25 @@
+## 2026-06-02 22:30 WIB — FASE 7: MCP server + TUI/QC entry
+
+Entry baru selain Telegram/CLI: **AI eksternal** (via MCP) + **TUI** terminal.
+Semua 1-pintu → endpoint taskflow lokal → JALUR SAMA (doktrin funnel).
+
+### MCP server — cmd/flowork-mcp (LOCKED)
+- stdio JSON-RPC 2.0 (MCP standard). Tools: `task_list`, `task_run`, `task_result`.
+  AI eksternal (Claude Desktop/Code, Cursor) drive Flowork: list + trigger + cek
+  hasil Category Task. Contoh wiring: [doc/mcp.json.example].
+- Verified: initialize → serverInfo, tools/list → 3 tools, tools/call task_list →
+  kategori [crypto,saham], task_run → run_id (trigger via MCP JALAN).
+
+### TUI + QC — cmd/flowork-tui (LOCKED)
+- Console interaktif: `list` · `run <kat> <subj>` (timeline live) · `runs <kat>`
+  (riwayat/review) · `result <id>` (timeline + keputusan). Sekaligus Quality-Control
+  entry (review hasil run). Verified: list/runs/result drive Flowork beneran.
+
+### Acceptance
+- AI eksternal manggil task via MCP ✓. TUI jalan ✓.
+
+---
+
 ## 2026-06-02 22:10 WIB — FASE 6: Mr.Flow jadi ROUTER + generalize
 
 Mr.Flow = orchestrator/router: pesan biasa → jawab simpel ATAU **trigger Category

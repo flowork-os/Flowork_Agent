@@ -7,7 +7,7 @@
 // NOTE: label UI dipusatkan di L{} (bukan scatter-inline) — gampang di-i18n
 // nanti. (Migrasi ke dictionary t() = follow-up.)
 
-import { esc, escAttr, fetchJSON, loadStyle } from '../js/utils.js';
+import { esc, escAttr, fetchJSON, loadStyle, openModal } from '../js/utils.js';
 
 const L = {
   title: 'Tasks', sub: 'Category Task — crew agent fokus → 1 keputusan',
@@ -26,7 +26,10 @@ export async function render(mainEl) {
     <div class="tf-wrap">
       <div class="tf-head">
         <div><h2>📋 ${esc(L.title)}</h2><p class="tf-sub">${esc(L.sub)}</p></div>
-        <button class="tf-btn" id="tf-new">${esc(L.newCat)}</button>
+        <div class="tf-hbtns">
+          <button class="tf-btn ghost" id="tf-mcp">🔌 MCP</button>
+          <button class="tf-btn" id="tf-new">${esc(L.newCat)}</button>
+        </div>
       </div>
       <div class="tf-body">
         <div class="tf-list" id="tf-list"></div>
@@ -34,7 +37,35 @@ export async function render(mainEl) {
       </div>
     </div>`;
   mainEl.querySelector('#tf-new').onclick = () => newCategory();
+  mainEl.querySelector('#tf-mcp').onclick = () => showMCP();
   await loadList();
+}
+
+// showMCP — panel config MCP siap-copas buat AI eksternal (VS Code/Cursor/Claude).
+async function showMCP() {
+  let d;
+  try { d = await fetchJSON('/api/mcp/config'); } catch (e) { alert('Gagal ambil config: ' + e.message); return; }
+  const node = document.createElement('div');
+  node.className = 'tf-mcp';
+  node.innerHTML = `
+    <p>Copas config ini ke <b>MCP settings</b> AI eksternal lo — abis itu AI bisa picu Category Task Flowork (task_list / task_run / task_result).</p>
+    ${d.binary_exists ? '' : `<div class="tf-warn">⚠ Binary <code>flowork-mcp</code> belum di-build. Jalanin dulu:<br><code>${esc(d.build_cmd)}</code></div>`}
+    <pre class="tf-mcpcfg">${esc(d.config)}</pre>
+    <button class="tf-btn" id="tf-mcpcopy">📋 Copy config</button>
+    <div class="tf-mcphelp">
+      <b>Taruh di mana:</b><br>
+      • <b>Claude Desktop/Code</b> → <code>claude_desktop_config.json</code> (atau <code>.mcp.json</code> project)<br>
+      • <b>VS Code</b> (Cline / Continue / Roo) → MCP settings extension<br>
+      • <b>Cursor</b> → Settings → MCP → Add server<br>
+      <small>Server Flowork (${esc(d.self_url)}) harus jalan pas dipakai.</small>
+    </div>`;
+  openModal({ title: '🔌 MCP — Integrasi AI Eksternal', body: node });
+  node.querySelector('#tf-mcpcopy').onclick = (e) => {
+    navigator.clipboard.writeText(d.config).then(() => {
+      e.target.textContent = '✅ Tersalin!';
+      setTimeout(() => { e.target.textContent = '📋 Copy config'; }, 1500);
+    }).catch(() => alert('Copy gagal — select manual aja.'));
+  };
 }
 
 async function loadList(selectID) {
@@ -255,4 +286,10 @@ const STYLE = `
 .tf-md{white-space:pre-wrap;font-size:12px;line-height:1.5;margin-top:5px;max-height:340px;overflow:auto}
 .tf-runrow{display:flex;gap:9px;align-items:center;padding:7px 9px;border-radius:7px;cursor:pointer;font-size:12px}
 .tf-runrow:hover{background:#1c1c24}.tf-rs.error{color:#e88}.tf-rs.done{color:#9d9}.tf-runrow small{margin-left:auto;opacity:.45}
+.tf-hbtns{display:flex;gap:8px}
+.tf-mcp p{font-size:13px;line-height:1.5;margin:0 0 10px}
+.tf-mcpcfg{background:#0a0a0e;border:1px solid #2a2a33;border-radius:8px;padding:12px;font-size:12px;font-family:monospace;white-space:pre;overflow:auto;max-height:240px;color:#9ec}
+.tf-warn{background:#2a2410;border:1px solid #6a5;border-radius:7px;padding:9px;font-size:12px;margin-bottom:10px;color:#fc9}
+.tf-warn code,.tf-mcp code{background:#000;padding:1px 5px;border-radius:4px;font-size:11px}
+.tf-mcphelp{margin-top:12px;font-size:12px;line-height:1.7;opacity:.85;border-top:1px solid #2a2a33;padding-top:10px}
 `;

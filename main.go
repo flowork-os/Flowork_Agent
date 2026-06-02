@@ -375,6 +375,8 @@ func main() {
 	mux.HandleFunc("/api/taskflow/category/delete", taskflowCategoryDeleteHandler(fdb))
 	mux.HandleFunc("/api/taskflow/runs", taskflowRunsHandler(fdb))
 	mux.HandleFunc("/api/taskflow/run-detail", taskflowRunDetailHandler(fdb))
+	// FASE 7: config MCP buat GUI copy-paste ke AI eksternal.
+	mux.HandleFunc("/api/mcp/config", mcpConfigHandler)
 	mux.HandleFunc("/api/agents/scheduler/runs", agentmgr.SchedulerRunsHandler)
 	mux.HandleFunc("/api/agents/scheduler/trigger", agentmgr.SchedulerTriggerHandler)
 	mux.HandleFunc("/api/agents/sneakernet/export", agentmgr.SneakernetExportHandler)
