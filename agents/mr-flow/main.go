@@ -108,6 +108,17 @@ const (
 
 var outBuf [respBufBytes]byte
 
+// selfID — id agent ini, di-inject host via FLOWORK_AGENT_ID (= manifest.ID).
+// Fallback "mr-flow" buat dev/standalone. KUNCI Fase 2 (template copas): agent
+// hasil spawn otomatis pake id-nya sendiri di URL self-API (interactions/
+// tools/specs/run) tanpa edit kode — cukup ganti manifest.id.
+func selfID() string {
+	if id := strings.TrimSpace(os.Getenv("FLOWORK_AGENT_ID")); id != "" {
+		return id
+	}
+	return "mr-flow"
+}
+
 // ── Config dari kernel (sumber SQLite-backed) ──────────────────────────────
 
 // Skill — entry dari config.skills[].
@@ -184,13 +195,13 @@ func main() {
 func runDaemon() {
 	token := strings.TrimSpace(os.Getenv("TELEGRAM_BOT_TOKEN"))
 	if token == "" {
-		fmt.Fprintln(os.Stderr, "[mr-flow] TELEGRAM_BOT_TOKEN belum di-set. Buka Setting → Credentials di popup, tambahin key 'TELEGRAM_BOT_TOKEN' = bot token dari @BotFather.")
+		fmt.Fprintf(os.Stderr, "[%s] TELEGRAM_BOT_TOKEN belum di-set. Buka Setting → Credentials di popup, tambahin key 'TELEGRAM_BOT_TOKEN' = bot token dari @BotFather.\n", selfID())
 		emit(map[string]string{"error": "TELEGRAM_BOT_TOKEN not set"})
 		return
 	}
 	allowedRaw := strings.TrimSpace(os.Getenv("TELEGRAM_ALLOWED_CHATS"))
 	if allowedRaw == "" {
-		fmt.Fprintln(os.Stderr, "[mr-flow] TELEGRAM_ALLOWED_CHATS belum di-set. Buka Setting → Credentials, tambahin key 'TELEGRAM_ALLOWED_CHATS' = chat_id (pisah koma kalau lebih dari satu).")
+		fmt.Fprintf(os.Stderr, "[%s] TELEGRAM_ALLOWED_CHATS belum di-set. Buka Setting → Credentials, tambahin key 'TELEGRAM_ALLOWED_CHATS' = chat_id (pisah koma kalau lebih dari satu).\n", selfID())
 		emit(map[string]string{"error": "TELEGRAM_ALLOWED_CHATS not set"})
 		return
 	}
@@ -210,8 +221,8 @@ func runDaemon() {
 	}
 
 	cfg := loadConfig()
-	fmt.Fprintf(os.Stderr, "[mr-flow] daemon ready: %d allowed chats, router=%s model=%s, skills=%d\n",
-		len(allowed), cfg.Router.URL, cfg.Router.Model, len(cfg.Skills))
+	fmt.Fprintf(os.Stderr, "[%s] daemon ready: %d allowed chats, router=%s model=%s, skills=%d\n",
+		selfID(), len(allowed), cfg.Router.URL, cfg.Router.Model, len(cfg.Skills))
 
 	var offset int64
 	for {
@@ -453,7 +464,7 @@ func fetchHistory(actor string) []chatTurn {
 	if actor == "" {
 		return nil
 	}
-	url := "http://127.0.0.1:1987/api/agents/interactions?id=mr-flow&limit=40"
+	url := "http://127.0.0.1:1987/api/agents/interactions?id=" + selfID() + "&limit=40"
 	resp, err := fetch("GET", url, nil, nil, 2500)
 	if err != nil || resp == nil || resp.Status >= 400 {
 		return nil
@@ -666,7 +677,7 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn) string {
 // fetchToolSpecs — ambil tools yang di-expose ke LLM (OpenAI function-schema)
 // dari API sendiri. Host yang nyaring (core set, bukan 106). Empty kalau gagal.
 func fetchToolSpecs() []json.RawMessage {
-	resp, err := fetch("GET", "http://127.0.0.1:1987/api/agents/tools/specs?id=mr-flow", nil, nil, 2500)
+	resp, err := fetch("GET", "http://127.0.0.1:1987/api/agents/tools/specs?id="+selfID(), nil, nil, 2500)
 	if err != nil || resp == nil || resp.Status >= 400 {
 		return nil
 	}
@@ -765,9 +776,9 @@ func prepMessages(msgs []any) []any {
 // balik ke LLM (di-cap biar ga blow context).
 func runTool(name string, args map[string]any) string {
 	reqBody, _ := json.Marshal(map[string]any{
-		"tool_name": name, "args": args, "caller": "mr-flow-loop",
+		"tool_name": name, "args": args, "caller": selfID() + "-loop",
 	})
-	resp, err := fetch("POST", "http://127.0.0.1:1987/api/agents/tools/run?id=mr-flow",
+	resp, err := fetch("POST", "http://127.0.0.1:1987/api/agents/tools/run?id="+selfID(),
 		map[string]string{"Content-Type": "application/json"}, reqBody, 30_000)
 	if err != nil || resp == nil {
 		return `{"error":"tool dispatch gagal"}`
@@ -1127,10 +1138,10 @@ func logInteraction(channel, direction, actor, content string, metadata map[stri
 }
 
 // fetchSelfPrompt — Section 35 phase 2: GET /api/agents/self-prompt/render?
-// id=mr-flow. Best-effort: short timeout, swallow errors. Inject result
+// id=<selfID>. Best-effort: short timeout, swallow errors. Inject result
 // sebagai prepended system prompt.
 func fetchSelfPrompt() string {
-	url := "http://127.0.0.1:1987/api/agents/self-prompt/render?id=mr-flow"
+	url := "http://127.0.0.1:1987/api/agents/self-prompt/render?id=" + selfID()
 	resp, err := fetch("GET", url, nil, nil, 2000)
 	if err != nil || resp == nil || resp.Status >= 400 {
 		return ""

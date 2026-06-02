@@ -1,3 +1,30 @@
+## 2026-06-02 15:20 WIB — FASE 2: Mr.Flow jadi TEMPLATE (copas-able)
+
+Doktrin roadmap Fase 2: Mr.Flow = engine template. Agent baru = COPAS folder →
+ganti id + persona + tool subscription. 1 engine, banyak warga, footprint per-copy.
+
+### De-hardcode agent id (kunci template)
+- `selfID()` di [agents/mr-flow/main.go](agents/mr-flow/main.go) — baca `FLOWORK_AGENT_ID`
+  (host inject = manifest.ID), fallback "mr-flow". Dipake di SEMUA URL self-API:
+  interactions, tools/specs, tools/run, self-prompt/render + caller (`<id>-loop`) +
+  log boot/token-gate. Dulu hardcode `id=mr-flow` → agent hasil copy nabrak data Mr.Flow.
+  Sekarang tiap warga otomatis pake id-nya sendiri TANPA edit kode.
+
+### scripts/spawn-agent.sh
+- `./scripts/spawn-agent.sh <id-baru> [--from mr-flow] [--no-build]` — copy engine
+  (main.go) + go.mod + manifest.json → set id + display_name + description generic →
+  build wasm. SKIP workspace/ + *.db (warga baru terisolasi, bikin DB sendiri saat run).
+  Persona + tool subscription diatur via popup (FLOWORK_AGENT_CONFIG), BUKAN di source.
+
+### Bukti (jalur real, isolated instance :1988)
+- spawn `test-clone` → wasm compile OK, manifest id=test-clone, go.mod module=test-clone,
+  main.go IDENTIK mr-flow (engine sama).
+- Boot di kernel terisolasi → log `[test-clone] TELEGRAM_BOT_TOKEN belum di-set` +
+  `daemon-boot test-clone exited cleanly`. `[test-clone]` (BUKAN `[mr-flow]`) = bukti
+  `selfID()` propagasi runtime, agent pake id sendiri. Throwaway dihapus abis test.
+
+---
+
 ## 2026-06-02 15:05 WIB — UX: pesan error LLM ramah (anti bocor JSON mentah)
 
 Pas LLM gagal (router 502 "all providers failed" / anthropic 529 overload / timeout),
