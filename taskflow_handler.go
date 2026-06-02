@@ -69,6 +69,7 @@ func notifyTelegram(host *kernelhost.Host, chatID, text string) {
 		"https://api.telegram.org/bot"+token+"/sendMessage",
 		strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("User-Agent", "Flowork-Agent/1.0")
 	resp, derr := (&http.Client{Timeout: 15 * time.Second}).Do(req)
 	if derr != nil {
 		log.Printf("[notify] GAGAL kirim ke Telegram (chat=%s): %v", chatID, derr)
@@ -176,6 +177,14 @@ func startTaskflowRun(host *kernelhost.Host, store *floworkdb.Store, category, s
 	tfCat := toTaskflowCategory(cat)
 	catName := cat.Name
 	go func() {
+		// recover: panic di task (worker/synth) JANGAN crash seluruh binary —
+		// tandain run error + log. (Section scanner: bare_goroutine_auditor.)
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("[taskflow] run #%d PANIC: %v", runID, r)
+				_ = store.FinishRun(runID, "error", fmt.Sprintf("panic: %v", r))
+			}
+		}()
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 		defer cancel()
 		rec := &dbRecorder{store: store, runID: runID}

@@ -249,9 +249,16 @@ func main() {
 			case <-ctx.Done():
 				return
 			case <-t.C:
-				if rep := agentmgr.CurateAllAgentsSkills(host.AgentIDs()); len(rep) > 0 {
-					log.Printf("skill-curator: %d agent dirapihin", len(rep))
-				}
+				func() {
+					defer func() {
+						if r := recover(); r != nil {
+							log.Printf("skill-curator PANIC (ticker selamat): %v", r)
+						}
+					}()
+					if rep := agentmgr.CurateAllAgentsSkills(host.AgentIDs()); len(rep) > 0 {
+						log.Printf("skill-curator: %d agent dirapihin", len(rep))
+					}
+				}()
 			}
 		}
 	}()
@@ -315,9 +322,16 @@ func main() {
 			case <-ctx.Done():
 				return
 			case <-t.C:
-				if n := RunDueSchedules(host, fdb); n > 0 {
-					log.Printf("task-scheduler: %d jadwal di-fire", n)
-				}
+				func() {
+					defer func() {
+						if r := recover(); r != nil {
+							log.Printf("task-scheduler PANIC (ticker selamat): %v", r)
+						}
+					}()
+					if n := RunDueSchedules(host, fdb); n > 0 {
+						log.Printf("task-scheduler: %d jadwal di-fire", n)
+					}
+				}()
 			}
 		}
 	}()
