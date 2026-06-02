@@ -1,3 +1,18 @@
+## 2026-06-02 15:05 WIB — UX: pesan error LLM ramah (anti bocor JSON mentah)
+
+Pas LLM gagal (router 502 "all providers failed" / anthropic 529 overload / timeout),
+dulu user keliatan error mentah `router 502: {json...}`. Sekarang diterjemahin ke
+pesan ramah Bahasa Indonesia.
+
+- `friendlyLLMError(raw)` di [agents/mr-flow/main.go](agents/mr-flow/main.go) — map error
+  mentah → pesan ramah: overload/429/503 → "Provider AI lagi sibuk, coba lagi bentar";
+  502/all-providers-failed → "router gangguan"; timeout; jawaban kosong; default.
+- Dipasang di runDaemon: kalau `llmFailed`, reply user di-override jadi pesan ramah.
+  Detail asli TETEP ke-log via `logDecision(reply_head)` buat debug (origReply dijaga).
+- Anti bocor: JSON/request_id provider ga pernah ke-tampil ke chat user.
+
+---
+
 ## 2026-06-02 14:40 WIB — FASE 1 (phase 1): engine robustness Mr.Flow
 
 Robustness engine: anti bocor secret + anti over-prompt di tool loop + tahan

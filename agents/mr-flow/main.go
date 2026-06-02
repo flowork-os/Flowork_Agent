@@ -298,6 +298,12 @@ func runDaemon() {
 			if reply == "" {
 				reply = "(LLM returned no text)"
 			}
+			// User-facing: JANGAN bocorin error mentah (router 502 / JSON provider)
+			// ke chat. Terjemahin ke pesan ramah; detail asli tetep ke-log via
+			// logDecision(reply_head) di bawah buat debug. (origReply dipertahankan.)
+			if llmFailed {
+				reply = friendlyLLMError(origReply)
+			}
 			fmt.Fprintf(os.Stderr, "[mr-flow] reply len=%d preview=%q\n", len(reply), truncStr(reply, 80))
 			if len(reply) > 3900 {
 				reply = reply[:3900] + "\n…(truncated)"
@@ -908,6 +914,29 @@ func truncStr(s string, n int) string {
 		return s
 	}
 	return s[:n] + "…"
+}
+
+// friendlyLLMError — terjemahin error mentah dari callLLM (router 502, JSON
+// provider, decode, dll) jadi pesan ramah Bahasa Indonesia buat user. Detail
+// asli TETEP ke-log via logDecision(reply_head) buat debug — yang ini cuma
+// yang ke-tampil di chat. JANGAN bocorin JSON/request_id provider ke user.
+func friendlyLLMError(raw string) string {
+	low := strings.ToLower(raw)
+	switch {
+	case strings.Contains(low, "overload") || strings.Contains(low, "529") ||
+		strings.Contains(low, "503") || strings.Contains(low, "rate") ||
+		strings.Contains(low, "429"):
+		return "⚠️ Provider AI-nya lagi overload/sibuk bro. Ini sementara — coba kirim lagi bentar ya."
+	case strings.Contains(low, "all providers failed") || strings.Contains(low, "502") ||
+		strings.HasPrefix(low, "router error"):
+		return "⚠️ Lagi ga bisa nyambung ke AI provider (router gangguan). Coba lagi sebentar, kalau masih, cek router :2402."
+	case strings.Contains(low, "timeout") || strings.Contains(low, "deadline"):
+		return "⚠️ Kelamaan nungguin AI provider (timeout). Coba lagi ya."
+	case raw == "" || raw == "(no choices)" || strings.Contains(low, "no text"):
+		return "⚠️ AI ngebalikin jawaban kosong. Coba ulangi pertanyaan lo."
+	default:
+		return "⚠️ Ada kendala pas manggil AI. Coba lagi sebentar ya — detailnya udah gw catat di log."
+	}
 }
 
 // logInteraction — append row ke tabel `interactions` di state.db agent
