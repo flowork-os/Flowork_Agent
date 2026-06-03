@@ -119,7 +119,13 @@ func AuditMutexCopy(filePath, content string) []Finding {
 // =============================================================================
 
 var nilMapWriteRE = regexp.MustCompile(`var\s+(\w+)\s+map\[`)
-var mapWriteRE = regexp.MustCompile(`(\w+)\[[^\]]+\]\s*=`)
+// mapWriteRE — WRITE ke map (`x[k] =`). `(?:[^=]|$)` di akhir nolak `==`
+// (komparasi/BACA) yang AMAN di nil map — cuma WRITE yang panic.
+var mapWriteRE = regexp.MustCompile(`(\w+)\[[^\]]+\]\s*=(?:[^=]|$)`)
+
+// Re-init: `x = make(map[...` atau `x = map[...` — setelah ini var ga lagi nil.
+// Ngenalin idiom guard `if x == nil { x = map[K]V{} }` biar ga false-positive.
+var mapReInitRE = regexp.MustCompile(`(\w+)\s*=\s*(make\(\s*map\[|map\[)`)
 
 func AuditNilMapWrite(filePath, content string) []Finding {
 	if !strings.HasSuffix(filePath, ".go") {
@@ -133,6 +139,11 @@ func AuditNilMapWrite(filePath, content string) []Finding {
 			if !strings.Contains(line, "= make(") && !strings.Contains(line, "= map[") {
 				declaredNil[m[1]] = i + 1
 			}
+		}
+		// Re-init ngeclear status nil (guard `if x == nil { x = map[...]{} }`).
+		// Var yang udah di-assign map literal/make ga mungkin panic pas write.
+		if m := mapReInitRE.FindStringSubmatch(line); m != nil {
+			delete(declaredNil, m[1])
 		}
 		// Cek write ke variable yang tracked nil.
 		if m := mapWriteRE.FindStringSubmatch(line); m != nil {

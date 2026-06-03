@@ -283,24 +283,6 @@ func runDaemon() {
 				}
 				continue
 			}
-			// Anti-halu: routing deterministik — pesan jelas minta analisa kategori
-			// yang ADA → trigger crew LANGSUNG, skip LLM (reliable lepas dari model/kuota).
-			if cat, subj, rok := deterministicRoute(u.Message.Text); rok {
-				_ = runTool("task_run", map[string]any{
-					"category": cat, "subject": subj,
-					"notify_chat_id": strconv.FormatInt(chatID, 10),
-				})
-				dr := "Oke bro, gw nyalain crew " + cat + " buat analisa \"" + subj + "\" — riset beneran lewat crew, bukan ngarang. Hasilnya nyusul ya."
-				if err := sendMessage(token, chatID, dr); err != nil {
-					fmt.Fprintf(os.Stderr, "[mr-flow] sendMessage err (route): %v\n", err)
-				} else {
-					logInteraction("telegram", "out", strconv.FormatInt(chatID, 10), dr, map[string]any{
-						"source": "deterministic_route", "category": cat, "subject": subj,
-						"reply_to_message": u.Message.MessageID,
-					})
-				}
-				continue
-			}
 			sendTyping(token, chatID)
 			// Section 5: time the LLM call for avg_response_ms moving avg.
 			// TinyGo wasi target's time.Since() returns wrong precision —
@@ -1009,48 +991,6 @@ func runTool(name string, args map[string]any) string {
 	return out
 }
 
-// deterministicRoute — anti-halu routing. Pesan jelas minta analisa kategori yang
-// ADA (saham/crypto) → balik (category, subject, true) buat trigger crew LANGSUNG,
-// SKIP LLM. Reliable lepas dari model/kuota — fix kasus LLM halu "ga bisa fetch"
-// + ga nyetir ke crew (BBCA/BBRI). Konservatif: cuma match intent+kategori jelas.
-func deterministicRoute(text string) (category, subject string, ok bool) {
-	words := strings.Fields(text)
-	stop := map[string]bool{
-		"analisa": true, "analisis": true, "analyze": true, "analisakan": true,
-		"saham": true, "crypto": true, "koin": true, "coin": true, "token": true,
-		"cek": true, "review": true, "rekomendasi": true, "cari": true, "carikan": true,
-		"ya": true, "bro": true, "dong": true, "deh": true, "tolong": true,
-		"gw": true, "lo": true, "dulu": true, "donk": true,
-	}
-	intent := false
-	cat := ""
-	var kept []string
-	for _, w := range words {
-		lw := strings.ToLower(strings.Trim(w, ".,!?:;"))
-		switch lw {
-		case "analisa", "analisis", "analyze", "analisakan", "cek", "review", "rekomendasi":
-			intent = true
-		}
-		switch lw {
-		case "saham":
-			cat = "saham"
-		case "crypto", "koin", "coin", "token":
-			cat = "crypto"
-		}
-		if !stop[lw] {
-			kept = append(kept, w)
-		}
-	}
-	if !intent || cat == "" {
-		return "", "", false
-	}
-	subject = strings.TrimSpace(strings.Join(kept, " "))
-	if subject == "" {
-		return "", "", false
-	}
-	return cat, subject, true
-}
-
 // ── Direct RPC handlers ────────────────────────────────────────────────────
 
 func doHandle(argsRaw string) {
@@ -1090,14 +1030,6 @@ func doHandle(argsRaw string) {
 		actor = "rpc"
 	}
 	logInteraction("rpc", "in", actor, in.Text, map[string]any{})
-	// Anti-halu routing deterministik (parity dgn Telegram path).
-	if cat, subj, rok := deterministicRoute(in.Text); rok {
-		_ = runTool("task_run", map[string]any{"category": cat, "subject": subj})
-		dr := "Oke, gw nyalain crew " + cat + " buat analisa \"" + subj + "\" — riset beneran lewat crew. Hasil nyusul."
-		logInteraction("rpc", "out", actor, dr, map[string]any{"source": "deterministic_route"})
-		emit(map[string]any{"reply": dr})
-		return
-	}
 	hist := fetchHistory(actor)
 	// RPC path (CLI/debug) ga punya Telegram chat → ga ada notify target.
 	reply := callLLM(loadConfig(), in.Text, hist, "")

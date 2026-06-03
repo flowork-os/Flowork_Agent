@@ -7,6 +7,9 @@
 //   file → fan-in synthesizer). E2E verified SAHAM: crew (BUY, grounded,
 //   bersumber) ngalahin single-agent (loop limit). Phase 2 (crew dari DB/GUI)
 //   → extend, jangan rombak core ini.
+//   2026-06-03 EXTEND (additif): Category.SynthDirective — kategori non-finansial
+//   (YouTube Ops) override format keputusan synth (kosong = default BUY/HOLD/
+//   AVOID, backward-compat crypto/saham). Fan-out/fan-in core TIDAK diubah.
 //
 // taskflow.go — roadmap FASE 4 / design doc Phase 1: Category Task orchestrator.
 //
@@ -59,6 +62,10 @@ type Category struct {
 	Name        string
 	Crew        []CrewMember // analis fan-out (mode sequential di Phase 1)
 	Synthesizer string       // agent id yang ambil keputusan (fan-in)
+	// SynthDirective: OPSIONAL. Instruksi format keputusan synthesizer. Kosong =
+	// default finansial (BUY/HOLD/AVOID) — jaga backward-compat crypto/saham.
+	// Diisi caller buat kategori non-finansial (mis. YouTube Ops).
+	SynthDirective string
 }
 
 // StepResult — hasil 1 worker.
@@ -190,16 +197,21 @@ func RunCategoryTask(ctx context.Context, host Invoker, sharedDir string, cat Ca
 		fileList = append(fileList, fmt.Sprintf("- category=\"%s\" name=\"%s\"  (%s)",
 			taskFileCategory, taskFileName(runID, m.AgentID), m.RoleLabel))
 	}
+	// Directive format keputusan: default finansial (BUY/HOLD/AVOID) kalau kosong —
+	// backward-compat crypto/saham. Kategori non-finansial (YouTube Ops dst) override.
+	synthDirective := strings.TrimSpace(cat.SynthDirective)
+	if synthDirective == "" {
+		synthDirective = "kasih 1 keputusan yang TEGAS:\n" +
+			"  KEPUTUSAN: BUY / HOLD / AVOID\n" +
+			"  ALASAN: 3-5 poin berbasis data dari analis (sebut dari analis mana).\n" +
+			"  RISIKO: 2-3 risiko utama."
+	}
 	synthPrompt := fmt.Sprintf(
 		"[SYNTHESIZER — AMBIL KEPUTUSAN %s] Subjek: %s.\n"+
 			"Tim analis udah nulis hasil ke file-file ini (baca pakai tool file_read, on-demand):\n%s\n"+
-			"Baca SEMUA file di atas (file_read per category+name di atas), lalu kasih 1 keputusan "+
-			"yang TEGAS:\n"+
-			"  KEPUTUSAN: BUY / HOLD / AVOID\n"+
-			"  ALASAN: 3-5 poin berbasis data dari analis (sebut dari analis mana).\n"+
-			"  RISIKO: 2-3 risiko utama.\n"+
+			"Baca SEMUA file di atas (file_read per category+name di atas), lalu %s\n"+
 			"Kalau data analis tipis/ga lengkap, bilang jujur + turunin confidence. JANGAN ngarang.",
-		taskName, input, strings.Join(fileList, "\n"))
+		taskName, input, strings.Join(fileList, "\n"), synthDirective)
 
 	recommendation, serr := host.InvokeAgentMessage(ctx, cat.Synthesizer, synthPrompt, "taskflow:"+runID)
 	res.SynthMS = time.Since(t0).Milliseconds()

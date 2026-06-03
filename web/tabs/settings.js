@@ -70,6 +70,7 @@ const SEGMENTS = [
   { key: 'wallet', label: () => t('menu.tab.settings.seg_wallet'), render: renderWalletPersonal },
   { key: 'aiwallet', label: () => t('menu.tab.settings.seg_aiwallet'), render: renderAIWallet },
   { key: 'notify', label: () => t('menu.tab.settings.seg_notify'), render: renderNotify },
+  { key: 'youtube', label: () => t('menu.tab.settings.seg_youtube'), render: renderYouTube },
 ];
 
 export async function render(mainEl) {
@@ -401,4 +402,117 @@ function cleanErr(e) {
   const j = m.indexOf('{');
   if (j >= 0) { try { return JSON.parse(m.slice(j)).error || m; } catch {} }
   return m;
+}
+
+// ── YouTube ────────────────────────────────────────────────────────────────
+async function renderYouTube(panel) {
+  const tk = (k) => t('menu.tab.settings.' + k);
+  let st;
+  try { st = await fetchJSON('/api/settings/youtube'); }
+  catch (e) { panel.innerHTML = `<div class="set-msg err">${esc(cleanErr(e))}</div>`; return; }
+  const ch = st.channel || null;
+
+  let accountHTML;
+  if (st.connected && ch) {
+    accountHTML = `
+      <div class="set-card">
+        <h3>✅ ${esc(tk('yt_connected'))} — ${esc(ch.title || '')}</h3>
+        <div class="sub">${esc(ch.handle || '')} · ${esc(ch.video_count || '0')} ${esc(tk('yt_videos'))} · ${esc(ch.sub_count || '0')} ${esc(tk('yt_subs'))}</div>
+        <div class="sub">${esc(tk('yt_long_uploads'))}: <span class="mono">${esc(ch.long_uploads_status || '?')}</span></div>
+        <div class="set-row" style="margin-top:8px;"><button class="set-btn-primary" id="ytDisc" style="background:linear-gradient(135deg,#ef4444,#b91c1c);">${esc(tk('yt_disconnect_btn'))}</button></div>
+      </div>`;
+  } else if (st.has_credentials) {
+    accountHTML = `
+      <div class="set-card">
+        <h3>${esc(tk('yt_not_connected'))}</h3>
+        <div class="sub">${esc(tk('yt_connect_hint'))}</div>
+        <div class="set-row" style="margin-top:8px;"><button class="set-btn-primary" id="ytConnect">${esc(tk('yt_connect_btn'))}</button></div>
+        <div class="set-msg" id="ytConnMsg"></div>
+      </div>`;
+  } else {
+    accountHTML = `<div class="set-card"><div class="set-empty">${esc(tk('yt_no_creds'))}</div></div>`;
+  }
+
+  panel.innerHTML = `
+    <div class="set-card">
+      <h3>🎷 ${esc(tk('yt_h'))}</h3>
+      <div class="sub">${esc(tk('yt_sub'))}</div>
+    </div>
+    <details class="set-card">
+      <summary style="cursor:pointer;font-weight:600;">${esc(tk('yt_guide_title'))}</summary>
+      <div class="sub" style="white-space:pre-line;margin-top:8px;">${esc(tk('yt_guide_body'))}</div>
+      <a href="https://console.cloud.google.com/" target="_blank" rel="noopener" class="set-tag" style="display:inline-block;margin-top:8px;">${esc(tk('yt_console_link'))}</a>
+    </details>
+    <div class="set-card">
+      <h3>OAuth Client JSON</h3>
+      <div class="set-row"><textarea id="ytJson" rows="4" placeholder="${escAttr(tk('yt_paste_ph'))}" style="width:100%;font-family:monospace;font-size:0.78rem;"></textarea></div>
+      <div class="set-row"><button class="set-btn-primary" id="ytSaveCreds">${esc(tk('yt_save_creds'))}</button> ${st.has_credentials ? `<span class="set-tag">${esc(tk('yt_creds_saved'))}</span>` : ''}</div>
+      <div class="set-msg" id="ytCredMsg"></div>
+    </div>
+    ${accountHTML}
+    <div class="set-card">
+      <h3>⚙️ ${esc(tk('yt_save_config'))}</h3>
+      <div class="set-row">
+        <label class="sub" style="min-width:170px;">${esc(tk('yt_privacy_label'))}</label>
+        <select id="ytPrivacy">
+          <option value="private"${st.privacy === 'private' ? ' selected' : ''}>private</option>
+          <option value="unlisted"${st.privacy === 'unlisted' ? ' selected' : ''}>unlisted</option>
+          <option value="public"${st.privacy === 'public' ? ' selected' : ''}>public</option>
+        </select>
+      </div>
+      <div class="set-row">
+        <label class="sub" style="min-width:170px;">${esc(tk('yt_inbox_label'))}</label>
+        <input type="text" id="ytInbox" value="${escAttr(st.inbox || '')}" style="flex:1;">
+      </div>
+      <div class="set-row">
+        <label class="sub"><input type="checkbox" id="ytWatcher"${st.watcher_enabled ? ' checked' : ''}> ${esc(tk('yt_watcher_label'))}</label>
+      </div>
+      <div class="set-row"><button class="set-btn-primary" id="ytSaveCfg">${esc(tk('yt_save_config'))}</button></div>
+      <div class="set-msg" id="ytCfgMsg"></div>
+    </div>
+  `;
+
+  panel.querySelector('#ytSaveCreds').addEventListener('click', async () => {
+    const msg = panel.querySelector('#ytCredMsg'); msg.className = 'set-msg';
+    const cj = panel.querySelector('#ytJson').value.trim();
+    if (!cj) { msg.className = 'set-msg err'; msg.textContent = 'JSON kosong'; return; }
+    try {
+      await fetchJSON('/api/settings/youtube/credentials', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_json: cj }) });
+      renderYouTube(panel);
+    } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
+  });
+
+  const connectBtn = panel.querySelector('#ytConnect');
+  if (connectBtn) connectBtn.addEventListener('click', async () => {
+    const msg = panel.querySelector('#ytConnMsg'); msg.className = 'set-msg';
+    try {
+      const d = await fetchJSON('/api/settings/youtube/connect', { method: 'POST' });
+      window.open(d.auth_url, '_blank');
+      msg.innerHTML = '⏳ ' + esc(tk('yt_connect_hint')) + ' <a href="' + escAttr(d.auth_url) + '" target="_blank" rel="noopener">' + esc(tk('yt_open_auth')) + '</a>';
+      let tries = 0;
+      const iv = setInterval(async () => {
+        tries++;
+        try { const s = await fetchJSON('/api/settings/youtube'); if (s.connected) { clearInterval(iv); renderYouTube(panel); } } catch {}
+        if (tries > 90) clearInterval(iv);
+      }, 2000);
+    } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
+  });
+
+  const discBtn = panel.querySelector('#ytDisc');
+  if (discBtn) discBtn.addEventListener('click', async () => {
+    if (!confirm(tk('yt_disconnect_btn') + '?')) return;
+    try { await fetchJSON('/api/settings/youtube/disconnect', { method: 'POST' }); renderYouTube(panel); } catch {}
+  });
+
+  panel.querySelector('#ytSaveCfg').addEventListener('click', async () => {
+    const msg = panel.querySelector('#ytCfgMsg'); msg.className = 'set-msg';
+    try {
+      await fetchJSON('/api/settings/youtube/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        privacy: panel.querySelector('#ytPrivacy').value,
+        inbox: panel.querySelector('#ytInbox').value.trim(),
+        watcher_enabled: panel.querySelector('#ytWatcher').checked,
+      }) });
+      msg.className = 'set-msg ok'; msg.textContent = '✓';
+    } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
+  });
 }

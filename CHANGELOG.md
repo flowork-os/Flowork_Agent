@@ -1,3 +1,411 @@
+## 2026-06-03 23:40 WIB — WIRING INVARIANT GUARD — enforcement anti "AI rubah jalur"
+
+Mr.Dev: *"masalahnya loe sendiri suka rubah2 jalur, biar ngak keulang gimana? atau kita
+tambahkan di scaner?"* → IYA, ditaruh di scanner. Lock-comment itu PASIF (AI amnesia bisa
+ngabaikan); ini AKTIF — scanner auto-jalan tiap file berubah + startup, jadi begitu pipa kritis
+dicabut/dirusak (siapa pun, termasuk AI pasca-compact) → CRITICAL seketika di Threat Radar.
+
+### Yang dibikin
+- **[internal/scanner/auditors_invariant.go](internal/scanner/auditors_invariant.go)** (BARU, LOCKED):
+  `wiring_invariant_auditor`. Daftar via `init()` ke `Auditors` map — **ga sentuh satu pun file
+  locked** (pola `auditors_secrets.go`). Registry deklaratif `{file, pola-wajib, alasan}` jaga pipa
+  kritis di **DUA repo** (Flowork_Agent + flowork_Router, path absolut home-relative). Pola hilang/
+  file ilang → CRITICAL "WIRING PUTUS". Debounce 2s (sekali per burst scan). Fails-open.
+- **Pipa yang dijaga sekarang**: hook `maybeInjectAntibodies` di dispatcher.go + dispatcher_stream.go
+  (anti-halu), engine `mistakeenrich.go` (`func maybeInjectAntibodies` + `rankAntibodies`), dan
+  `deterministicRoute` di mr-flow/main.go. Mr.Dev bisa NAMBAH; AI DILARANG NGURANGIN.
+
+### Filosofi
+Enforcement > imbauan. Lock header tetep ada (lapisan 1), tapi guard ini lapisan 2 yang **survive
+amnesia**: ga peduli AI inget apa engga — kalau pipa putus, kode yang teriak, bukan komentar.
+Registry = janji eksplisit "pipa ini ga boleh putus". Nambah invariant = makin ketat = makin bagus.
+
+### Verifikasi
+- `go build ./...` CLEAN, `go vet` CLEAN, unit test **4/4 PASS** (utuh→0, pola dicabut→CRITICAL,
+  file ilang→CRITICAL, registry well-formed).
+- Live: restart → baseline #354 → `wiring_invariant_auditor` jalan, **0 pelanggaran** (4 pipa utuh),
+  total critical tetap 0. Begitu ada yang nyabut pipa → bakal nongol CRITICAL otomatis.
+
+---
+
+## 2026-06-03 22:20 WIB — FIX: nil_map_write_auditor 2 FP class + radar stat current-state
+
+Threat Radar nampilin **224-225 critical** — diverifikasi **SEMUA false positive** dari
+`nil_map_write_auditor`. DUA kelas FP + cara radar ngitung stat yang bikin angka balon.
+
+### FP #1 — guard idiom ga dikenali (18 site crew agents)
+Pola `args["notify_chat_id"] = notifyChatID` di semua `agents/*/main.go`. **18/18 punya nil-guard**
+(`if args == nil { args = map[string]any{} }` persis sebelum write) → aman, tapi keflag.
+- **Akar:** auditor track `var x map[...]` nil + flag write `x[...] =`, **ga ngenalin re-init**
+  `x = map[...]{}` di antaranya.
+- **Fix:** `mapReInitRE` = `(\w+)\s*=\s*(make\(\s*map\[|map\[)` → re-init ngehapus var dari tracking nil.
+
+### FP #2 — komparasi `==` disangka write `=`
+Sisa 1 critical di [internal/settingsapi/youtube.go:77](internal/settingsapi/youtube.go#L77):
+`if inner["client_id"] == ""` — itu **BACA (komparasi), AMAN di nil map**, bukan write.
+- **Akar:** regex `\]\s*=` kena `=` PERTAMA dari `==`. Komparasi map (~91 baris di repo) berpotensi FP.
+- **Fix:** `mapWriteRE` → `(\w+)\[[^\]]+\]\s*=(?:[^=]|$)` (tolak `==`).
+
+### Radar stat — CRITICAL = state sekarang, bukan kumulatif
+[web/tabs/scanner.js](web/tabs/scanner.js): dulu critical/findings **dijumlah dari 60 run** → tiap
+scan ngulang temuan sama → balon & ga turun walau bug udah fix.
+- **CRITICAL** sekarang dari **baseline (`auto:startup`) full-repo TERAKHIR** = ancaman aktual.
+- `compactNum()`: angka gede dipadetin (`16k+`, `2M+`) + `tabular-nums` → **layout ga goyang** pas
+  temuan numpuk (req owner). Full number tetep keliat via `title` hover.
+
+### Verifikasi (file auditors LOCKED — owner-authorized "lo beresin")
+- `go build ./...` CLEAN, `go vet` CLEAN, `go test ./internal/scanner -run NilMap` **4/4 PASS**
+  (guard→0, write-beneran→tetep 1 critical [auditor ga buta], komparasi→0, make()→0).
+- Baseline live turun terukur: **#345=19 crit (semua FP) → #348=1 (fix#1) → #351=0 (fix#2).**
+- **Manfaat: radar bersih — critical beneran ga ketimbun ratusan noise palsu, bisa dipercaya lagi.**
+
+---
+
+## 2026-06-03 17:00 WIB — YouTube pipeline FOLDER-MODEL (Fase 1-3) — alur lengkap owner
+
+Watcher di-rombak ke **folder-per-channel** (modular, plug-and-play) + alur lengkap yang
+owner rancang. Semua di `.scratch/yt_watch.py` (prototype, jalan + auto-start).
+
+### Arsitektur folder-per-channel
+`media/youtube/inbox/<channel>/` = unit: `credential.json` (self-contained: client+token) +
+`readme.md` (otak channel: genre/bahasa/privacy/hashtag/title_style/tema) + video. Tambah channel
+= bikin folder. Routing upload by-folder (pakai credential folder itu). Folder tanpa credential = skip.
+
+### Fase 1 — watcher + upload + copyright (DONE, E2E verified)
+- Drop video di folder → metadata dari readme → upload PRIVATE pakai credential folder.
+- **Cek copyright** [window private]: poll `status.uploadStatus`/`rejectionReason`. Blok/reject
+  (copyright/claim/duplicate/trademark/legal) → AUTO yt_delete + arsip ke `quarantine/<channel>/` +
+  lapor. Clean → lanjut. Claim halus (Content ID non-blocking) → flag Studio (API non-partner ga liat).
+- File dihapus setelah upload sukses (ga numpuk). Verified: klip 60s → upload (uBdL0xvCofU) copyright=clean.
+
+### Fase 2 — perintah publish/delete via Mr.Flow (DONE, logic verified)
+- Watcher baca tabel `interactions` Mr.Flow (pesan masuk owner) → deteksi "publish"/"delete"/"hapus"
+  → eksekusi pada video pending pakai credential channel. `yt_publish` (privacyStatus=public) /
+  `yt_delete`. Init `LASTCMD` = max-id saat start (skip pesan lama). Pending tracking di yt_pending.json.
+- Verified non-destruktif: deteksi perintah ✓, folder_creds ✓, interactions kebaca ✓. Aksi publish/
+  delete ke channel = **owner-authorized by design** (ga di-auto-eksekusi; guardrail nahan, BENAR).
+
+### Fase 3 — rekomendasi grounded (DONE, anti-halu verified)
+- `recommend()`: tarik stats video channel (views) → kalau <5 video / views rendah → "confidence
+  RENDAH, ga ngarang pola, kumpulin data dulu". Verified: 2 video → output "data TIPIS" (anti-halu ✓).
+  Digabung ke notif upload. Makin tajam seiring data (cold-start jujur).
+
+### Catatan
+- Mr.Flow report (notif) = detail + status copyright + rekomendasi + ajakan balas "publish/delete".
+- Network + router 2402 lagi flaky pas build (LOOP_ERR) — watcher resilient (retry), YT pipeline ga
+  pakai LLM jadi ga kena. Perintah jalan walau router down (baca raw interaction, bukan LLM).
+- 2 video test masih PRIVATE di channel + masuk pending → owner bisa test perintah "delete" pas review.
+- Belum di-lock (nunggu review owner). Productionize .scratch→daemon proper = next.
+
+---
+
+## 2026-06-03 16:27 WIB — GUI Settings → YouTube (OAuth tanpa .scratch) + watcher auto-start
+
+PR terakhir owner: ritual "paste JSON ke .scratch + jalanin script" diganti GUI sederhana.
+Paste OAuth client JSON → klik Connect → token disimpen di floworkdb. Ga ada terminal lagi.
+
+### Backend (EXTEND settingsapi — file LOCKED settingsapi.go TIDAK diubah)
+- **internal/settingsapi/youtube.go** (baru): handler `YouTubeStatusHandler` / `...Credentials` /
+  `...Connect` / `...Disconnect` / `...Config`. Connect = **loopback OAuth server-side** (port 8090,
+  one-shot, 127.0.0.1, auto-cleanup 5m). Creds di floworkdb owner-secret `YT_OAUTH_CLIENT` +
+  `YT_REFRESH_TOKEN` (plaintext, owner-level — sama pola secret lain). Config KV:
+  `yt_default_privacy` / `yt_inbox_path` / `yt_watcher_enabled`.
+- **main.go**: 5 route `/api/settings/youtube*` (auth-gated, owner cookie).
+
+### Frontend
+- **web/tabs/settings.js**: segment `youtube` — 3 state (belum-creds / belum-connect / connected) +
+  panduan Google Console inline (collapsible) + textarea paste + connect-polling + config (privacy/
+  inbox/watcher toggle). i18n **23 key** (en + id).
+
+### Watcher (.scratch/yt_watch.py — prototype)
+- Baca creds dari **floworkdb** (fallback .scratch). Respek toggle ON/OFF + inbox + privacy dari GUI
+  secara **live** (baca tiap loop). Tulis **pidfile** (anti-dobel).
+- **Auto-start (start.sh)**: launch watcher pas boot kalau connected + enabled + belum jalan →
+  **survive restart** (fix pelajaran: watcher mati pas PC reboot semalem).
+
+### Verified
+- Handler test langsung (httptest, bypass auth): STATUS connected + channel "nightcapbluesmusic"
+  kebaca, CONFIG set privacy→unlisted ke-persist + kebaca balik. Migrasi creds .scratch→floworkdb OK.
+- Endpoint 401 tanpa cookie (gated + wired). `go build` + `go vet` CLEAN. Boot bersih.
+  Auto-start kebaca "sudah jalan" (anti-dobel ✓).
+- **BELUM di-lock** (nunggu review owner). Next: productionize watcher .scratch→daemon proper +
+  builtin tool yt_upload + sambung LLM metadata team (structured output).
+
+---
+
+## 2026-06-03 09:55 WIB — ROADMAP 3 (YouTube) Y0: 2 Category Task "team" + engine generalize
+
+Bikin 2 team (Category Task) buat otomasi YouTube — sesuai permintaan owner "buat 2 task:
+1 team music, 2 team promoin diri sendiri". Market = GLOBAL (English-first), merit-only
+(DILARANG jual cerita owner). Track A = musik (income), Track B = self-promo (autonomy).
+
+### Warga baru (spawn dari template mr-flow — wasm identik, persona via role_label crew)
+- **Track A — music-ops** 🎷 (**9 warga, 1 agent 1 tugas — anti-halu, per permintaan owner**):
+  `music-riset` (riset keyword/tren web), `music-judul` (CUMA judul English), `music-deskripsi`
+  (CUMA deskripsi English), `music-hashtag` (CUMA hashtag English), `music-analis` (CUMA performa
+  channel + sinyal kill 2-minggu), `music-sinteser` (synth: rakit 5 file → paket portfolio
+  keep/kill/gandain). Prompt tiap agent kecil & fokus → ga bisa ngarang di luar tugasnya.
+- **Track B — promo-ops** 📣 (**juga 6 warga atomik**): `promo-kreator` (CUMA konsep video demo,
+  narasi English), `promo-judul`, `promo-deskripsi` (+CTA clone/star), `promo-hashtag`,
+  `promo-analis` (apa yang nyangkut di komunitas dev/AI), `promo-sinteser` (synth: rencana konten).
+- Catatan: `music-metadata` + `promo-metadata` (versi awal yang bundel 3-4 tugas) DIHAPUS, masing2
+  dipecah jadi 4 agent atomik — zombie purge, no leftover.
+
+### Bugfix (ketemu pas E2E promo run 11, fixed + re-verified run 12)
+- **promo-kreator ga nulis file** (over-research → ke-cancel sebelum file_write): role_label
+  dipersempit (riset minimal + file_write WAJIB langkah terakhir). Run 12: done 95s (sebelumnya
+  error 180s).
+- **synth crew 6-agent kena deadline 180s** ("context deadline exceeded" di LLM call): deadline
+  InvokeAgentMessage 180s→300s (selaras manifest timeout_call_ms=300000) + budget run 15→30min.
+  Run 12 synth: done 157s. **File diubah**: internal/kernelhost/kernelhost.go (LOCKED, param-only
+  + note), taskflow_handler.go.
+
+### Folder video owner (Track A)
+- `<repo>/media/youtube/inbox/<channel>/` (gitignored via `/media/`) — owner drop video di sini,
+  sidecar `.txt` opsional buat konteks metadata. `done/` buat yang udah ke-upload. README di
+  media/youtube/. Default path override via env `FLOWORK_YT_INBOX`. Tool `yt_upload` baca dari sini (Y0).
+- Tiap warga: repo `agents/<id>/` (source+state) + runtime `~/.flowork/agents/<id>.fwagent/`
+  (wasm+manifest). Cap lean: web/file/brain/telegram/LLM/taskflow (no fs-host/git/exec).
+  Subscribe 7 tool: web_search, html_extract, file_read, file_write, brain_add, brain_search,
+  brain_search_shared (via agentdb.SubscribeTool).
+
+### Engine generalize (EXTEND file LOCKED — additif, backward-compat 100%)
+- **internal/floworkdb/tasks.go**: kolom `synth_directive` (migrasi idempotent `columnExists` +
+  ALTER ADD). TaskCategory.SynthDirective + UpsertCategory/GetCategory/ListCategories.
+- **internal/taskflow/taskflow.go**: `Category.SynthDirective` — override format keputusan synth.
+  Kosong = default finansial (BUY/HOLD/AVOID) → crypto/saham/operasi-komputer TIDAK berubah.
+- **taskflow_handler.go**: `toTaskflowCategory` teruskan SynthDirective DB→runner.
+- Alasan: runner Fase 4 hardcoded "KEPUTUSAN: BUY/HOLD/AVOID" (cocok finansial, NGACO buat
+  musik/promo). Sekarang per-kategori directive → output sesuai domain (paket metadata /
+  portfolio / rencana konten), bukan vonis saham.
+
+### Verified (pipeline ASLI — loopback /api/taskflow = jalur Mr.Flow, BUKAN bypass)
+- `go build ./...` + `go vet ./...` CLEAN. 6 warga ke-load (caps=15), boot exit cleanly.
+- Migrasi synth_directive jalan (kolom 7 added). Backward-compat: 3 kategori lama synth_directive=''
+  → default finansial (verified DB).
+- **E2E run music-ops v1** (run_id 9, 3-agent): metadata grounded + synth paket portfolio, anti-halu OK.
+- **E2E run music-ops v2 ATOMIK** subjek "smooth blues guitar santai sore" (run_id 10, 6 agent
+  all `done`, ~11 menit sekuensial):
+  - music-riset: 3× web_search → tabel keyword high-intent (sumber TunePocket).
+  - music-judul/deskripsi/hashtag: masing-masing CUMA outputnya (English) — JUJUR pas search nihil
+    ("0 hasil, query terlalu narrow"), pakai genre knowledge, ga ngarang.
+  - music-analis: "Data TIDAK TERSEDIA (honest report)" — brain 0 hits, ga bikin sinyal palsu.
+  - music-sinteser: rakit 5 file → paket final (judul "Smooth Blues Guitar — Relaxing Evening Vibes"
+    + deskripsi + 12 hashtag + rencana monitoring CTR 7-hari). **Bukan BUY/HOLD/AVOID.**
+- Tiap agent atomik stay di 1 tugas + jujur soal data gap → anti-halu kebukti per-agent.
+
+### Pending (Y0 lanjutan — butuh owner)
+- Tool API resmi (`yt_upload`/`yt_stats`/`yt_metadata_gen`) + OAuth Google Cloud (YouTube Data +
+  Analytics). Warga "uploader" + brain yt_signal nyata nyusul setelah OAuth ready.
+- Blueprint lengkap: `/home/mrflow/Documents/roadmap_youtube.md`.
+
+---
+
+## 2026-06-03 02:25 WIB — ROADMAP 2 FASE B6: Federation (lokal -> shared) — ROADMAP 2 TUTUP
+
+Warga bisa saling-belajar: promote knowledge brain LOKAL berharga ke korpus SHARED
+router. OPSIONAL + resilient: router mati, agent tetep jalan penuh (brain lokal).
+
+### Files (LOCKED)
+- internal/routerclient/federation.go: `PromoteDrawer` POST /api/brain/drawer.
+- internal/agentdb/federation.go: `federation_sync_log` + `SelectPromotable`
+  (quality-gate: non-quarantine, confidence>=0.7, mem_type aman experience/eureka/
+  fact — constitution/secret GA di-share) + `MarkPromoted` (anti double-promote).
+- tools/builtins/brain_federation.go: `brain_promote_shared` (rpc:router:brain) —
+  select->push->mark, resilient. Manggil = bentuk approve. Semua agent subscribe.
+
+### Bukti
+- Add drawer experience + 1 injection. SelectPromotable=1 (injection quarantined
+  ke-exclude). Promote -> router added=true; brain_search router 'eksperimen
+  federation roadmap' -> ketemu (warga lain bisa belajar). SelectPromotable lagi=0
+  (sync log). Router-mati -> err graceful (agent jalan). Build/vet clean, health 200.
+- Catatan: 1-2 test drawer (FEDTEST) nyangkut di router FTS — cleanup di-block guard
+  (shared brain), negligible (di 5jt). Owner bisa hapus manual kalau mau.
+
+## 2026-06-03 02:00 WIB — ROADMAP 2 FASE B5: Immune system (anti-halu brain)
+
+Brain ga keracunan injection/halu. Drawer meragukan di-karantina (ga dipake
+sampe verified). Tier-confidence eksplisit.
+
+### internal/agentdb/immune.go (LOCKED) + tools/builtins/brain_immune.go (LOCKED)
+- `brain_antibody` table + seed 16 signature (ignore previous instructions, DAN,
+  jailbreak, bocorkan system prompt, dll). `ScanAndQuarantine`: sapu drawer live
+  → match antibody / confidence<0.3 → quarantined=1 + reason. SearchLocalBrain udah
+  filter quarantined → otomatis ke-exclude dari recall.
+- `SetDrawerConfidence` (tier-confidence, <floor auto-quarantine), `VerifyDrawer`
+  (rilis), `ListQuarantined`. Tools brain_immune_scan + brain_verify.
+- Wire: boot seed antibody per-agent; dream cron (12h) jalanin ScanAndQuarantine
+  (shared-worker). Semua agent subscribe.
+
+### Bukti
+- Add normal + injection ('ignore previous instructions') + jailbreak ('DAN bypass
+  safety') → scan quarantine 2 (injection+jailbreak), normal aman. Search sesudah:
+  injection 0 hits (ke-filter). Verify rilis 1. Build/vet clean, health 200.
+
+## 2026-06-03 01:40 WIB — ROADMAP 2 FASE B4: Skill grow-from-patterns
+
+Curator per-agent (grade/consolidate/archive) udah dari Roadmap 1 Fase 8. B4
+nambah sisi "TUMBUH": skill dari pola tool sukses berulang.
+
+### internal/agentdb/tool_patterns.go (LOCKED) + tools/builtins/skill_suggest.go (LOCKED)
+- `SuggestSkillCandidates(minCount, limit)`: mining tool_invocations (error_text=''
+  = sukses), GROUP BY tool HAVING count>=minCount → kandidat skill (urut sering).
+  Derive on-the-fly (no tabel baru). Auto-create skill = tetap YAGNI (suggest only).
+- Tool `skill_suggest` (state:read). Semua agent subscribe.
+
+### Bukti
+- Sim: web_search sukses 4x, brain_search 3x, edit 1x, file_write GAGAL 2x →
+  kandidat: web_search(4), brain_search(3). edit(<min) & file_write(gagal) ke-exclude.
+  Build/vet clean.
+
+## 2026-06-03 01:25 WIB — ROADMAP 2 FASE B3: Dream (konsolidasi idle → eureka)
+
+Agent "mimpi": konsolidasi pola berulang dari sejarah SENDIRI jadi eureka. Rule-
+based (no LLM, hemat). Adaptasi worker/internal/dreamstate/dream.go.
+
+### internal/agentdb/dream.go (LOCKED)
+- `RunDream(now)`: scan mistakes hit_count>=2 (signal-over-noise) -> sintesis
+  EUREKA -> brain drawer mem_type='eureka' (recallable via brain_search) + dream
+  log dreams/<date>.md (portable, ikut folder agent). Dedup via brain content_hash.
+- Shared-worker: host cron 12h (main.go) loop semua agent -> RunDream -> tulis ke
+  state.db lokal. Compute 1x/tick, data isolated (anti-boros). Per-tick recover.
+
+### Bukti
+- Seed mistake 3x+2x+1x -> dream: scanned=2 (hit=1 ke-exclude), 2 eureka drawer +
+  log. brain_search 'race condition' -> ketemu [eureka]. Run ke-2 formed=0 (dedup).
+  Build/vet clean, restart health 200.
+
+## 2026-06-03 01:05 WIB — ROADMAP 2 FASE B2: Mistakes recall (belajar dari salah)
+
+mistakes_local (LOCKED) udah Add(dedup+hit_count)/List/Promote/karma. Gap B2 =
+RECALL pas konteks mirip → ditambah tanpa nyentuh file locked.
+
+### internal/agentdb/mistakes_recall.go (LOCKED) + tools/builtins/mistakes_recall.go (LOCKED)
+- `SearchMistakes(query, limit)`: keyword LIKE di title/content, urut hit_count
+  DESC (sering keulang = paling penting di-warn) lalu recent.
+- Tool `mistake_recall` (state:read): "dulu lo salah X (Nx), solusinya Y". On-demand
+  (anti over-prompt). Pasangan mistake_log (increment) + mistake_recall (warn).
+- Semua agent subscribe mistake_recall + mistake_log.
+
+### Bukti
+- Add mistake sama 2× → hit_count=2, addedNew=false (2nd ke-detect). Recall 'tool
+  calls parallel error 400' → ketemu [2x] + remediation. Recall 'shutdown konfirmasi'
+  → ketemu safety mistake. Build/vet clean.
+
+## 2026-06-03 00:50 WIB — ROADMAP 2 FASE B1: Constitution sacred + always-inject
+
+Anti-halu by design: tiap warga punya KONSTITUSI lokal yang SELALU ke-inject ke
+prompt. Sacred doktrin: 5W1H-gate, identity guard, anti-halu.
+
+### internal/agentdb/constitution.go (LOCKED)
+- Tabel `constitution` (id, rule, amplitude, sacred, always_inject, lens). Seed 3
+  sacred (amp 999999): 5W1H-gate (validasi What/Why/Who/Where/When/How sebelum
+  output penting), identity-guard, anti-halu. Idempotent.
+- Injection seam TANPA edit engine/handler locked: `SyncConstitutionSlot` render
+  always-inject rules → self_prompt slot `00_constitution` → engine fetchSelfPrompt
+  auto-inject Tier-2 tiap turn. Anti version-bloat (skip kalau body sama).
+- Prompt budget: cap body 2KB, cuma always_inject rules.
+
+### main.go boot loop
+- Per-agent: SeedSacredConstitution + SyncConstitutionSlot (idempotent).
+
+### Bukti
+- Log: 3 sacred rule + slot synced ke SEMUA agent. Render self-prompt mr-flow →
+  slots_used=['persona','00_constitution'], body ada "KONSTITUSI SACRED" (5W1H/
+  anti-halu/identity). Always-inject jalan. Build/vet clean.
+
+## 2026-06-03 00:30 WIB — ROADMAP 2 FASE B0: Brain LOKAL per-agent (layered)
+
+Fondasi brain-stack: tiap warga punya brain SENDIRI di state.db (FTS5), mutusin
+ketergantungan router buat "inget pengalaman gw". Layered: lokal=experience,
+router 5jt=shared corpus. Self-contained > centralized.
+
+### Brain lokal — internal/agentdb/brain_drawers.go (LOCKED)
+- Schema `brain_drawers` (id, content, wing, room, mem_type, importance, amplitude,
+  content_hash, source, quarantined, confidence, created_at, deleted_at) +
+  `brain_fts` (FTS5 porter unicode61). Forward-compat: amplitude→B1, quarantined/
+  confidence→B5.
+- `AddBrainDrawer` (dedup by content_hash, sync drawers+FTS), `SearchLocalBrain`
+  (BM25, AND→OR fallback, skip quarantine/deleted, cap k=10 anti over-prompt),
+  `GetBrainDrawer`, `CountBrainDrawers`. Pola di-adapt dari skills_curate.go +
+  flowork_Router/internal/brain (FTS5 proven).
+
+### Tools — internal/tools/builtins/brain_local.go (LOCKED)
+- `brain_add` (state:write) · `brain_search` (state:read, LOKAL FTS) · `brain_get`.
+- Rename `brain_search` lama → `brain_search_shared` (brain.go, router 5jt remote).
+  Local-first; shared on-demand. Semua agent: +cap rpc:router:brain +subscribe
+  brain_add/brain_search_shared (brain_search lokal otomatis ke nama lama).
+
+### Bukti (2 lapis)
+- Store: add 3 → dedup (id sama, count tetap 3) → FTS search ('router tool calls
+  bug'→hit, 'saham GOTO'→hit) → get → count=3. ✅
+- Agent E2E (pipeline): mr-flow brain_add 'FLOWZEBRA9' → brain_search → recall
+  persis + drawer_id. ✅ Build/vet clean.
+
+---
+
+## 2026-06-02 23:55 WIB — Mr.Flow ROUTE ke operator (tool agent_command)
+
+Owner pilih reachability "lewat Mr.Flow yang ada". Taskflow Category Task itu
+analisa-shaped (fan-out riset → KEPUTUSAN BUY/HOLD/AVOID) — GA cocok buat AKSI.
+Jadi bikin jalur dispatch-aksi: Mr.Flow tetep front-door, delegasiin ke operator.
+
+### Tool — internal/tools/builtins/agent_command.go (LOCKED)
+- `agent_command` (cap `rpc:agent-invoke`, router-only): kirim perintah natural
+  ke agent spesialis → balikin reply. Schema-nya kasih hint: request power/kontrol
+  komputer → delegate ke agent_id="operator-komputer". Self-invoke ditolak (anti
+  loop); rekursi dalam keblok (target ga punya cap). Host hook `InvokeAgentFunc`
+  = host.InvokeAgentMessage (wired main.go, mirror pola agentmgr.AgentIDsFunc).
+- Mr.Flow: manifest +cap `rpc:agent-invoke` (caps 14→15) + subscribe agent_command.
+
+### Bukti (jalur real, dry-run)
+- Scratch host InvokeAgentMessage mr-flow "matiin komputer (konfirmasi penuh)" →
+  Mr.Flow manggil `agent_command{operator-komputer, "shutdown..."}` → operator
+  jalanin engine → `system_power` DRY-RUN → reply nembus balik: "operator balik
+  DRY-RUN, butuh FLOWORK_POWER_ARMED=1". Rantai delegasi + relay UTUH (no ghosting).
+- Tanpa konfirmasi penuh → Mr.Flow NANYA dulu sebelum trigger (safety jalan).
+  Build/vet clean.
+
+---
+
+## 2026-06-02 23:45 WIB — OPERATOR KOMPUTER: tool system_power + agent + Category Task
+
+Agent baru yang ngendaliin DAYA komputer host, + wadah task buat operator agents
+ke depan (bukan cuma shutdown). Owner: "buat 1 agent buat operasikan komputer gw".
+
+### Tool — internal/tools/builtins/system_power.go (LOCKED)
+- `system_power` (cap `exec:power`): action shutdown/reboot/suspend/lock/logout +
+  `cancel` (batalin yang pending). Multi-OS argv (Linux systemctl/loginctl polkit,
+  macOS osascript/pmset, Windows shutdown.exe/rundll32) — NO shell (anti-injeksi).
+- **3 lapis pengaman:** (1) cap `exec:power` — broker cuma approve agent yang
+  manifest-nya minta (operator doang; chat agent biasa ga bisa). (2) **ARM switch**
+  — default DRY-RUN (resolve+audit, TANPA eksekusi); real cuma kalau host env
+  `FLOWORK_POWER_ARMED=1`. (3) audit tiap call (command + severity).
+- Jendela batal real: delay in-process (default 10s, cap 3600), `action=cancel`
+  abort yang masih nunggu. Goroutine timer pakai defer recover() (aturan scanner).
+- Register di builtins.go Init(). Bash tool TETEP nolak shutdown/reboot (denylist)
+  — system_power = satu-satunya jalur resmi.
+
+### Agent — operator-komputer (gitignored, reproduce via scripts/setup-operator.sh)
+- Spawn dari template mr-flow; manifest caps di-trim + tambah `exec:power`. Persona:
+  konfirmasi dulu sebelum shutdown/reboot, kasih delay, hormatin cancel.
+- `scripts/setup-operator.sh`: spawn+build wasm → patch manifest cap → set persona
+  → subscribe system_power → register Category Task. Idempotent.
+
+### Category Task — "Operasi Komputer" (🖥️) — WADAH operator agents
+- POST /api/taskflow/category id=operasi-komputer, synthesizer=operator-komputer,
+  crew=[operator-komputer]. Container yang bakal nambah crew (power→app→file→proses).
+  Owner: "kedepanya akan banyak agent khusus operasikan komputer."
+
+### Bukti (jalur real, dry-run/unarmed)
+- Scratch host InvokeAgentMessage operator-komputer "matiin komputer (pre-konfirmasi)"
+  → LLM manggil `system_power{action:shutdown,delay:10}` → DRY-RUN (host unarmed) →
+  reply jujur "butuh FLOWORK_POWER_ARMED=1". Cap allowed (ga ke-deny). Audit ke-tulis:
+  `warning command:"systemctl poweroff" armed:false`. Tanpa pre-konfirmasi → agent
+  NANYA dulu (safety persona jalan). Build/vet clean.
+
+---
+
 ## 2026-06-02 23:20 WIB — SCHEDULER LOOPING (recurring task → Telegram)
 
 Nutup gap Fase 6 (scheduler→task yang tadi cuma "teori"). Sekarang owner bisa

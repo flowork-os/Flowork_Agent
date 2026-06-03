@@ -177,7 +177,30 @@
       "aiwallet_addr_ph": "0x… wallet address",
       "aiwallet_label_ph": "label (optional)",
       "aiwallet_add_h": "Set wallet for an agent",
-      "aiwallet_del_confirm": "Remove address"
+      "aiwallet_del_confirm": "Remove address",
+      "seg_youtube": "YouTube",
+      "yt_h": "YouTube Account",
+      "yt_sub": "Connect a channel for automatic uploads.",
+      "yt_guide_title": "One-time setup — create an OAuth client in Google Console",
+      "yt_guide_body": "1. console.cloud.google.com → create a project.\n2. Enable: YouTube Data API v3 + YouTube Analytics API.\n3. OAuth consent screen → External → add your email as a Test user.\n4. Credentials → OAuth client ID → Desktop app → Download JSON.\nPaste the JSON contents below.",
+      "yt_console_link": "Open Google Cloud Console ↗",
+      "yt_paste_ph": "Paste OAuth client JSON (Desktop app) here...",
+      "yt_save_creds": "Save Credential",
+      "yt_creds_saved": "Credential saved ✓",
+      "yt_connect_btn": "🔗 Connect YouTube Account",
+      "yt_connect_hint": "Browser opens → log in + allow → connected automatically. No copy-paste.",
+      "yt_connected": "Connected",
+      "yt_disconnect_btn": "Disconnect",
+      "yt_not_connected": "Not connected",
+      "yt_no_creds": "No credential yet. Paste the OAuth client JSON above first.",
+      "yt_privacy_label": "Default upload privacy",
+      "yt_inbox_label": "Video inbox folder",
+      "yt_watcher_label": "Auto watcher (drop file → auto-upload)",
+      "yt_save_config": "Save Settings",
+      "yt_videos": "videos",
+      "yt_subs": "subscribers",
+      "yt_long_uploads": "Videos >15 min",
+      "yt_open_auth": "If the browser did not open, click here"
     }
   }
 }

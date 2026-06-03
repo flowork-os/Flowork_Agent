@@ -177,7 +177,30 @@
       "aiwallet_addr_ph": "0x… alamat wallet",
       "aiwallet_label_ph": "label (opsional)",
       "aiwallet_add_h": "Set wallet buat agent",
-      "aiwallet_del_confirm": "Hapus alamat"
+      "aiwallet_del_confirm": "Hapus alamat",
+      "seg_youtube": "YouTube",
+      "yt_h": "Akun YouTube",
+      "yt_sub": "Sambungkan channel buat upload otomatis.",
+      "yt_guide_title": "Setup sekali — bikin OAuth client di Google Console",
+      "yt_guide_body": "1. console.cloud.google.com → bikin project.\n2. Aktifin: YouTube Data API v3 + YouTube Analytics API.\n3. OAuth consent screen → External → tambah email lo sebagai Test user.\n4. Credentials → OAuth client ID → Desktop app → Download JSON.\nPaste isi JSON-nya di bawah ini.",
+      "yt_console_link": "Buka Google Cloud Console ↗",
+      "yt_paste_ph": "Paste isi OAuth client JSON (Desktop app) di sini...",
+      "yt_save_creds": "Simpan Credential",
+      "yt_creds_saved": "Credential tersimpan ✓",
+      "yt_connect_btn": "🔗 Sambungkan Akun YouTube",
+      "yt_connect_hint": "Browser kebuka → login + izinkan → otomatis tersambung. Ga perlu copy-paste.",
+      "yt_connected": "Tersambung",
+      "yt_disconnect_btn": "Putuskan",
+      "yt_not_connected": "Belum tersambung",
+      "yt_no_creds": "Belum ada credential. Paste OAuth client JSON dulu di atas.",
+      "yt_privacy_label": "Privacy default upload",
+      "yt_inbox_label": "Folder inbox video",
+      "yt_watcher_label": "Watcher otomatis (drop file → auto-upload)",
+      "yt_save_config": "Simpan Pengaturan",
+      "yt_videos": "video",
+      "yt_subs": "subscriber",
+      "yt_long_uploads": "Video >15 menit",
+      "yt_open_auth": "Kalau browser ga kebuka otomatis, klik di sini"
     }
   }
 }

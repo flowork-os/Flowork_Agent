@@ -440,6 +440,12 @@ func main() {
 	mux.HandleFunc("/api/settings/ai-wallets", settingsAPI.AIWalletsHandler)
 	mux.HandleFunc("/api/settings/notify", settingsAPI.NotifyHandler)
 	settingsapi.TestNotifyFunc = notifyOwnerTelegram
+	// Settings → YouTube (owner-level OAuth via GUI, no .scratch)
+	mux.HandleFunc("/api/settings/youtube", settingsAPI.YouTubeStatusHandler)
+	mux.HandleFunc("/api/settings/youtube/credentials", settingsAPI.YouTubeCredentialsHandler)
+	mux.HandleFunc("/api/settings/youtube/connect", settingsAPI.YouTubeConnectHandler)
+	mux.HandleFunc("/api/settings/youtube/disconnect", settingsAPI.YouTubeDisconnectHandler)
+	mux.HandleFunc("/api/settings/youtube/config", settingsAPI.YouTubeConfigHandler)
 
 	// Kernel introspection (list agent, RPC call).
 	mux.HandleFunc("/api/kernel/status", host.StatusHandler)

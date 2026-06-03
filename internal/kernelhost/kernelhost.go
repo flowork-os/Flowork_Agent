@@ -3,6 +3,9 @@
 // Owner: Aola Sahidin (Mr.Dev)
 // Repo: https://github.com/flowork-os/flowork-ai-agent
 // Locked at: 2026-05-30
+// 2026-06-03 TWEAK (param-only): InvokeAgentMessage deadline 180s→300s (selaras
+//   manifest timeout_call_ms=300000) — fix synth crew 6-agent kena deadline.
+//   Cap doang, ga ngubah orkestrasi/isolasi.
 // Reason: Kernel orchestrator (CRITICAL). Audit pass:
 //   - Boot: per-agent rejection isolation (one bad agent ngga kill boot)
 //   - Workspace mkdir 0o755, state.db touch
@@ -1048,9 +1051,11 @@ func (h *Host) InvokeAgentMessage(ctx context.Context, agentID, text, caller str
 		"user": caller,
 	}
 	bodyJSON, _ := json.Marshal(args)
-	// 180s: worker taskflow (riset multi-tool serialized) butuh lebih dari 90s.
-	// Scheduler juga lewat sini — timeout gede aman (cap, bukan wait tetap).
-	callCtx, cancel := context.WithTimeout(ctx, 180*time.Second)
+	// 300s: selaras manifest timeout_call_ms=300000. Worker taskflow (riset
+	// multi-tool serialized) + synthesizer (file_read 5 file + generate panjang)
+	// butuh >180s — synth crew 6-agent kena deadline di 180s (run 11 promo).
+	// Cap, BUKAN wait tetap: agent cepet tetep balik cepet. Scheduler aman.
+	callCtx, cancel := context.WithTimeout(ctx, 300*time.Second)
 	defer cancel()
 	respBytes, err := inst.Call(callCtx, "handle_message", bodyJSON)
 	if err != nil {

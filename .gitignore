@@ -32,6 +32,9 @@ agents/*/workspace/*.sqlite*
 agents/*/workspace/cache/
 agents/*/workspace/log/
 
+# YouTube media — video owner (file gede, JANGAN ke-push ke GitHub)
+/media/
+
 # Working notes shared only with Claude
 catatan.md
 catatan_untuk_ai_external/

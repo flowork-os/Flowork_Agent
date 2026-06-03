@@ -1,0 +1,49 @@
+{
+  "id": "promo-deskripsi",
+  "version": "1.0.0",
+  "kind": "agent",
+  "display_name": "Promo Deskripsi",
+  "description": "Warga Track B (self-promo), 1 TUGAS: tulis DESKRIPSI YouTube (English) + CTA (clone/star repo) doang. Engine sama Mr.Flow.",
+  "min_kernel_version": "0.1.0",
+  "abi_version": 1,
+  "author": "@flowork-os",
+  "license": "MIT",
+  "entry": "agent.wasm",
+  "memory_max_mb": 16,
+  "timeout_call_ms": 300000,
+  "capabilities_required": [
+    "net:fetch:https://api.telegram.org",
+    "net:fetch:http://127.0.0.1:2402/v1/chat/completions",
+    "net:fetch:http://127.0.0.1:1987/api/agents/self-prompt/render",
+    "net:fetch:http://127.0.0.1:1987/api/agents/interactions",
+    "net:fetch:http://127.0.0.1:1987/api/agents/tools/specs",
+    "net:fetch:http://127.0.0.1:1987/api/agents/tools/run",
+    "state:read",
+    "state:write",
+    "time:read",
+    "fs:read",
+    "fs:write",
+    "rpc:router:brain",
+    "rpc:router:skill",
+    "rpc:taskflow",
+    "net:fetch:*"
+  ],
+  "exposes_rpc": [
+    { "name": "boot", "description": "Daemon long-poll Telegram + dispatch.", "input_schema": { "type": "object", "properties": {} } },
+    { "name": "handle_message", "description": "Standalone text handler.", "input_schema": { "type": "object", "properties": { "text": { "type": "string" } }, "required": ["text"] }, "output_schema": { "type": "object", "properties": { "reply": { "type": "string" } } } },
+    { "name": "send_message", "description": "Send one-off message ke chat_id.", "input_schema": { "type": "object", "properties": { "chat_id": { "type": "integer" }, "text": { "type": "string" } }, "required": ["chat_id", "text"] } }
+  ],
+  "i18n_keys": { "mr_flow.label": { "en": "Mr.Flow", "id": "Mr.Flow" } },
+  "ui_schema": {
+    "sections": [
+      {
+        "id": "telegram", "icon": "✈️", "title": "Telegram Bot",
+        "description": "Token opsional buat warga crew (biasanya cukup lewat Mr.Flow).",
+        "fields": [
+          { "key": "TELEGRAM_BOT_TOKEN", "label": "Bot Token", "type": "password", "storage": "secrets", "required": false, "placeholder": "123456789:AAEx...", "help": "Dari @BotFather." },
+          { "key": "TELEGRAM_ALLOWED_CHATS", "label": "Allowed Chat IDs", "type": "text", "storage": "secrets", "required": false, "placeholder": "2012305087", "help": "Pisah koma." }
+        ]
+      }
+    ]
+  }
+}

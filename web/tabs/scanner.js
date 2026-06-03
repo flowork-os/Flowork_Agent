@@ -71,7 +71,7 @@ const CSS = `
 .rx-stats { display:flex; gap:12px; flex-wrap:wrap; justify-content:center; }
 .rx-stat { text-align:center; padding:10px 18px; border:1px solid var(--line); border-radius:12px;
   background:rgba(0,0,0,0.3); min-width:78px; }
-.rx-stat .n { font-size:1.7rem; font-weight:700; color:var(--neon); line-height:1; }
+.rx-stat .n { font-size:1.7rem; font-weight:700; color:var(--neon); line-height:1; font-variant-numeric:tabular-nums; }
 .rx-stat .l { font-size:0.6rem; letter-spacing:.12em; color:#7fb89c; text-transform:uppercase; margin-top:6px; }
 .rx-aud { font-size:0.66rem; color:#5c8a73; letter-spacing:.05em; text-align:center; }
 
@@ -170,10 +170,14 @@ async function loadRuns(root) {
   const d = await fetchJSON(`/api/agents/scanner/runs?id=${AGENT_ID}&limit=60`);
   const runs = d.items || [];
   renderLog(root, runs);
+  // CRITICAL = state SEKARANG (baseline full-repo terakhir), BUKAN jumlah kumulatif
+  // 60 run — tiap scan ngulang nemuin temuan sama, kalau dijumlah jadi balon &
+  // ga turun walau bug udah di-fix. runs[0] fallback kalau belum ada baseline.
+  const baseline = runs.find(r => (r.scan_type || '') === 'auto:startup') || runs[0];
   renderStats(root, {
     runs: runs.length,
     findings: runs.reduce((s, r) => s + (r.total_findings || 0), 0),
-    critical: runs.reduce((s, r) => s + (r.critical_count || 0), 0),
+    critical: baseline ? (baseline.critical_count || 0) : 0,
   });
   if (!selectedRun && runs.length) {
     selectRun(root, runs[0]);
@@ -185,11 +189,20 @@ async function loadRuns(root) {
   }
 }
 
+// compactNum — angka gede dipadetin biar lebar box tetep (layout ga goyang pas
+// temuan numpuk): <1rb apa adanya, ribuan → "16k+", jutaan → "2M+".
+function compactNum(n) {
+  n = Number(n) || 0;
+  if (n < 1000) return String(n);
+  if (n < 1000000) return Math.floor(n / 1000) + 'k+';
+  return Math.floor(n / 1000000) + 'M+';
+}
+
 function renderStats(root, s) {
   root.querySelector('#rxStats').innerHTML = `
-    <div class="rx-stat"><div class="n">${s.runs}</div><div class="l">runs</div></div>
-    <div class="rx-stat"><div class="n">${s.findings}</div><div class="l">findings</div></div>
-    <div class="rx-stat"><div class="n" style="color:${s.critical ? '#ff3b3b' : '#22ff88'}">${s.critical}</div><div class="l">critical</div></div>`;
+    <div class="rx-stat"><div class="n" title="${s.runs}">${compactNum(s.runs)}</div><div class="l">runs</div></div>
+    <div class="rx-stat"><div class="n" title="${s.findings}">${compactNum(s.findings)}</div><div class="l">findings</div></div>
+    <div class="rx-stat"><div class="n" title="${s.critical}" style="color:${s.critical ? '#ff3b3b' : '#22ff88'}">${compactNum(s.critical)}</div><div class="l">critical</div></div>`;
 }
 
 function renderLog(root, runs) {

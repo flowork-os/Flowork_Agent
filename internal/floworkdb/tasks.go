@@ -7,6 +7,10 @@
 //   seed SAHAM, run async DB-driven, timeline live persist, synth adaptif
 //   partial-failure. Extend (kategori baru/kolom) → tambah migrasi, jaga
 //   EnsureTaskSchema idempotent.
+//   2026-06-03 EXTEND (additif, backward-compat): kolom synth_directive —
+//   per-kategori override format keputusan synthesizer (kosong = default
+//   finansial BUY/HOLD/AVOID). Buat kategori non-finansial (YouTube Ops dst).
+//   Migrasi idempotent via columnExists. Core run/timeline TIDAK diubah.
 //
 // tasks.go — FASE 5: data model Category Task (owner-level, flowork.db).
 //
@@ -36,8 +40,13 @@ type TaskCategory struct {
 	Icon        string     `json:"icon"`
 	TriggerHint string     `json:"trigger_hint"`
 	Synthesizer string     `json:"synthesizer"`
-	Enabled     bool       `json:"enabled"`
-	Crew        []TaskAgent `json:"crew,omitempty"`
+	// SynthDirective: OPSIONAL. Format keputusan yang dipaksa ke synthesizer.
+	// Kosong = default finansial (BUY/HOLD/AVOID) — backward-compat crypto/saham.
+	// Diisi buat kategori non-finansial (mis. YouTube Ops → paket metadata /
+	// keputusan portfolio keep-kill, bukan BUY/HOLD/AVOID).
+	SynthDirective string     `json:"synth_directive"`
+	Enabled        bool        `json:"enabled"`
+	Crew           []TaskAgent `json:"crew,omitempty"`
 }
 
 type TaskAgent struct {
@@ -126,7 +135,32 @@ func (s *Store) EnsureTaskSchema() error {
 			return fmt.Errorf("task schema: %w", err)
 		}
 	}
+	// Migrasi additif (idempotent): kolom synth_directive ditambah belakangan.
+	// ALTER ADD COLUMN error kalau udah ada → cek dulu via pragma, add kalau belum.
+	if !s.columnExists("task_categories", "synth_directive") {
+		if _, err := s.db.Exec(
+			`ALTER TABLE task_categories ADD COLUMN synth_directive TEXT NOT NULL DEFAULT ''`); err != nil {
+			return fmt.Errorf("task schema migrate synth_directive: %w", err)
+		}
+	}
 	return nil
+}
+
+// columnExists cek apakah kolom ada di tabel (buat migrasi idempotent).
+// Dipanggil dari EnsureTaskSchema yang udah pegang s.mu — JANGAN lock lagi.
+func (s *Store) columnExists(table, col string) bool {
+	rows, err := s.db.Query(`SELECT name FROM pragma_table_info(?)`, table)
+	if err != nil {
+		return false
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var name string
+		if rows.Scan(&name) == nil && name == col {
+			return true
+		}
+	}
+	return false
 }
 
 // ── Category CRUD ────────────────────────────────────────────────────────────
@@ -140,11 +174,12 @@ func (s *Store) UpsertCategory(c TaskCategory) error {
 		en = 1
 	}
 	_, err := s.db.Exec(
-		`INSERT INTO task_categories(id,name,icon,trigger_hint,synthesizer,enabled)
-		 VALUES(?,?,?,?,?,?)
+		`INSERT INTO task_categories(id,name,icon,trigger_hint,synthesizer,synth_directive,enabled)
+		 VALUES(?,?,?,?,?,?,?)
 		 ON CONFLICT(id) DO UPDATE SET name=excluded.name, icon=excluded.icon,
-		   trigger_hint=excluded.trigger_hint, synthesizer=excluded.synthesizer, enabled=excluded.enabled`,
-		c.ID, c.Name, c.Icon, c.TriggerHint, c.Synthesizer, en)
+		   trigger_hint=excluded.trigger_hint, synthesizer=excluded.synthesizer,
+		   synth_directive=excluded.synth_directive, enabled=excluded.enabled`,
+		c.ID, c.Name, c.Icon, c.TriggerHint, c.Synthesizer, c.SynthDirective, en)
 	return err
 }
 
@@ -196,8 +231,8 @@ func (s *Store) GetCategory(id string) (*TaskCategory, error) {
 	c := TaskCategory{}
 	var en int
 	err := s.db.QueryRow(
-		`SELECT id,name,icon,trigger_hint,synthesizer,enabled FROM task_categories WHERE id=?`, id,
-	).Scan(&c.ID, &c.Name, &c.Icon, &c.TriggerHint, &c.Synthesizer, &en)
+		`SELECT id,name,icon,trigger_hint,synthesizer,synth_directive,enabled FROM task_categories WHERE id=?`, id,
+	).Scan(&c.ID, &c.Name, &c.Icon, &c.TriggerHint, &c.Synthesizer, &c.SynthDirective, &en)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -239,7 +274,7 @@ func (s *Store) ListCategories() ([]TaskCategory, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	rows, err := s.db.Query(
-		`SELECT id,name,icon,trigger_hint,synthesizer,enabled FROM task_categories ORDER BY id`)
+		`SELECT id,name,icon,trigger_hint,synthesizer,synth_directive,enabled FROM task_categories ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -248,7 +283,7 @@ func (s *Store) ListCategories() ([]TaskCategory, error) {
 	for rows.Next() {
 		var c TaskCategory
 		var en int
-		if err := rows.Scan(&c.ID, &c.Name, &c.Icon, &c.TriggerHint, &c.Synthesizer, &en); err != nil {
+		if err := rows.Scan(&c.ID, &c.Name, &c.Icon, &c.TriggerHint, &c.Synthesizer, &c.SynthDirective, &en); err != nil {
 			return nil, err
 		}
 		c.Enabled = en == 1

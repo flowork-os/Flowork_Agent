@@ -108,7 +108,7 @@ func tfWriteJSON(w http.ResponseWriter, code int, body any) {
 
 // toTaskflowCategory — map floworkdb.TaskCategory → taskflow.Category.
 func toTaskflowCategory(c *floworkdb.TaskCategory) taskflow.Category {
-	tc := taskflow.Category{ID: c.ID, Name: c.Name, Synthesizer: c.Synthesizer}
+	tc := taskflow.Category{ID: c.ID, Name: c.Name, Synthesizer: c.Synthesizer, SynthDirective: c.SynthDirective}
 	for _, a := range c.Crew {
 		tc.Crew = append(tc.Crew, taskflow.CrewMember{AgentID: a.AgentID, RoleLabel: a.RoleLabel})
 	}
@@ -185,7 +185,9 @@ func startTaskflowRun(host *kernelhost.Host, store *floworkdb.Store, category, s
 				_ = store.FinishRun(runID, "error", fmt.Sprintf("panic: %v", r))
 			}
 		}()
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+		// 30 menit: crew bisa sampe 6 agent × cap 300s/agent (kernelhost). Budget
+		// total mesti muat worst-case, walau rata-rata agent ~120s. Cap, bukan wait.
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 		defer cancel()
 		rec := &dbRecorder{store: store, runID: runID}
 		res := taskflow.RunCategoryTask(ctx, host, host.SharedDir, tfCat, subject, strconv.FormatInt(runID, 10), rec)
