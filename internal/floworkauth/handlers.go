@@ -4,8 +4,9 @@
 // Repo: https://github.com/flowork-os/flowork-ai-agent
 // Locked at: 2026-05-31
 // Reason: Auth HTTP handlers + middleware. Audit pass — MaxBytesReader body
-//   cap, status code eksplisit, whitelist exact-path (anti future-handler
-//   bypass) + asset prefix, /api/* → 401 JSON, HTML → redirect. E2E verified.
+//
+//	cap, status code eksplisit, whitelist exact-path (anti future-handler
+//	bypass) + asset prefix, /api/* → 401 JSON, HTML → redirect. E2E verified.
 //
 // handlers.go — HTTP endpoint + middleware untuk floworkauth.
 //
@@ -213,10 +214,13 @@ func isPublicPath(r *http.Request) bool {
 		return r.Method == http.MethodGet && isLocalRequest(r)
 	case "/api/taskflow/schedule", "/api/taskflow/schedule/delete":
 		return isLocalRequest(r)
-	case "/api/plugins/install":
-		// Install task pack — loopback-only (owner-local / CLI). Server bind
-		// 127.0.0.1 → aman remote. Caps-consent = roadmap Phase 4.
+	case "/api/plugins/install", "/api/plugins/uninstall":
+		// Install/uninstall task pack — loopback-only (owner-local / CLI). Server
+		// bind 127.0.0.1 → aman remote. Caps-consent = roadmap Phase 4.
 		return r.Method == http.MethodPost && isLocalRequest(r)
+	case "/api/plugins/export":
+		// Export kategori jadi .fwpack (download) — loopback-only owner-local.
+		return r.Method == http.MethodGet && isLocalRequest(r)
 	case "/api/mcp/config":
 		return r.Method == http.MethodGet && isLocalRequest(r)
 	case "/api/agents/skills", "/api/agents/skills/curate":

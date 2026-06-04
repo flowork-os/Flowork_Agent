@@ -1,3 +1,23 @@
+## 2026-06-04 22:20 WIB — PLUG-AND-PLAY Phase 3: drop-folder auto-install (drag-drop .fwpack)
+
+**[plugin_watcher.go](plugin_watcher.go) BARU:** poll `~/.flowork/dropbox/` (4s + settled check
+mtime>2s, anti partial-copy) → `.fwpack` masuk → auto-install → pindah ke `dropbox/installed/` (sukses)
+atau `dropbox/failed/` (gagal). Owner naruh file sendiri = trusted → auto-approve caps, TAPI caps yang
+di-grant di-LOG (jejak awareness). Poll (bukan fsnotify) = simpel + robust buat dropbox.
+
+**Refactor:** core install di-extract jadi `installPluginPack(raw, approveCaps)` di
+[plugin_handler.go](plugin_handler.go) — HTTP endpoint + watcher drop-folder pakai jalur SAMA (no duplikasi).
+
+### Test (live)
+Drop `joke2.fwpack` ke dropbox → **8 detik** → kategori joke2 enabled=1 + pack pindah ke installed/ +
+smoke=ok ✅. Log: `[plugin-drop] joke2.fwpack → installed | category=joke2 smoke=ok`. **Drag-drop file
+→ auto-install → langsung kepake.**
+
+> Drop-folder = implicit trust (akses FS lokal = mesin udah owner). Buat install ter-gate (consent
+> eksplisit), pakai `POST /api/plugins/install` (tanpa approve_caps → 403 kalau caps bahaya).
+
+---
+
 ## 2026-06-04 22:05 WIB — PLUG-AND-PLAY Phase 4: caps-consent + smoke-test + HOT-LOAD agent baru
 
 **3 hal di [plugin_handler.go](plugin_handler.go):**

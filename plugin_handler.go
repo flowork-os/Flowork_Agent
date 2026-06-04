@@ -19,6 +19,8 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -144,6 +146,8 @@ type pluginInstallResult struct {
 // approveCaps=true → lewatin consent gate (owner-trusted, mis. drop-folder).
 func installPluginPack(host *kernelhost.Host, store *floworkdb.Store, raw []byte, approveCaps bool) pluginInstallResult {
 	bad := func(code int, b map[string]any) pluginInstallResult { return pluginInstallResult{code, b} }
+	sum := sha256.Sum256(raw) // checksum integritas pack (Phase 6.3)
+	checksum := hex.EncodeToString(sum[:])
 
 	zr, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
 	if err != nil {
@@ -277,6 +281,7 @@ func installPluginPack(host *kernelhost.Host, store *floworkdb.Store, raw []byte
 		"agents_extract": installed,
 		"caps_approved":  len(danger) > 0 && approveCaps,
 		"dangerous_caps": danger,
+		"sha256":         checksum,
 		"smoke":          smoke,
 		"next":           "kategori LIVE — mr-flow classifier auto-discover (cache <=60s).",
 	}}

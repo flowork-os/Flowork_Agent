@@ -508,6 +508,8 @@ func main() {
 	mux.HandleFunc("/api/taskflow/run-detail", taskflowRunDetailHandler(fdb))
 	// Plug-and-Play: install task pack (.fwpack) → extract agent + daftarin kategori+crew.
 	mux.HandleFunc("/api/plugins/install", pluginInstallHandler(host, fdb))
+	mux.HandleFunc("/api/plugins/uninstall", pluginUninstallHandler(fdb))
+	mux.HandleFunc("/api/plugins/export", pluginExportHandler(fdb))
 	// Scheduler looping: CRUD jadwal recurring task.
 	mux.HandleFunc("/api/taskflow/schedules", taskflowSchedulesHandler(fdb))
 	mux.HandleFunc("/api/taskflow/schedule", taskflowScheduleAddHandler(fdb))
