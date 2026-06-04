@@ -53,8 +53,13 @@ var wiringInvariants = []wiringInvariant{
 	// — Anti-halu: antibody injection (flowork_Router) —
 	{
 		relPath:  "Documents/flowork_Router/internal/router/dispatcher.go",
-		mustHave: []string{"maybeInjectAntibodies", "maybeReinforceAntibody"},
-		reason:   "Hook antibody inject + feedback (non-stream) — kalau ilang, halu kategori balik / loop self-learning putus",
+		mustHave: []string{"maybeInjectAntibodies", "maybeReinforceAntibody", "acquireDispatchSlot"},
+		reason:   "Hook antibody inject + feedback + bergantian/anti-429 — kalau ilang: halu balik / loop putus / fleet kena 429",
+	},
+	{
+		relPath:  "Documents/flowork_Router/internal/router/ratelimit.go",
+		mustHave: []string{"func backoffDuration", "claudeSem", "maxRateLimitRetries"},
+		reason:   "Engine anti-429 (bergantian + backoff) — kalau ilang, armada agent nembak Claude barengan → 429 → task gagal",
 	},
 	{
 		relPath:  "Documents/flowork_Router/internal/router/dispatcher_stream.go",

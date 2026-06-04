@@ -1034,7 +1034,12 @@ func deterministicRoute(text string) (category, subject string, ok bool) {
 		switch lw {
 		case "saham":
 			cat = "saham"
-		case "crypto", "koin", "coin", "token":
+		case "crypto", "koin", "coin", "token",
+			// nama koin umum — orang bilang "analisa bitcoin", bukan "analisa crypto bitcoin".
+			"bitcoin", "btc", "ethereum", "etherium", "eth", "solana", "sol",
+			"bnb", "binance", "xrp", "ripple", "cardano", "ada", "dogecoin", "doge",
+			"shiba", "shib", "polkadot", "polygon", "matic", "avalanche", "avax",
+			"litecoin", "ltc", "tron", "trx", "chainlink", "tether", "usdt", "ton":
 			cat = "crypto"
 		}
 		if !stop[lw] {

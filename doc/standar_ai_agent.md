@@ -25,6 +25,9 @@ warga lain ikut kebawa. Itu yang harus dicegah.
 | **Plug and play** | User taruh agent baru → kernel pickup otomatis (hot-reload). User cabut agent → bersih total, ngga ada sisa. |
 | **Multi-OS** | Code harus jalan di Windows, Linux, macOS. Path pakai `filepath.Join`, jangan hardcode `/`. Hindari shell-specific tool. |
 | **White label** | Branding bukan domain agent. Semua label/icon/copy bisa diganti tanpa nyentuh logic. |
+| **Deterministik dulu** | Logika kritis (routing, kategori, gating) di KODE, bukan LLM. "deterministik = kuat, LLM lemah = rapuh." Detail: **section 12.0**. |
+| **Belajar, jangan diapalin** | Knowledge & koreksi di brain (INGEST, updatable), bukan hardcode/over-prompt/di-train. Agent makin pinter dari mistakes+karma (sistem imun), bukan dari prompt makin gemuk. Detail: **section 12**. |
+| **Anti-halu by design** | Tiap agent yang mikir/dispatch ke-cover antibody injection di gateway (mistakes karma-ranked, MAX 3, di-inject deterministik). Detail: **section 12.4**. |
 
 ### Yang dilarang keras
 
@@ -35,6 +38,11 @@ warga lain ikut kebawa. Itu yang harus dicegah.
   kecuali lewat workspace bersama yang eksplisit.
 - **State global** yang ngga ke-track. Setiap state harus punya rumah
   (DB per-agent atau workspace per-agent).
+- **Ubah/pindah/cabut jalur kritis** (routing deterministik, antibody hook, pipa imun)
+  tanpa izin eksplisit Mr.Dev. Dijaga `wiring_invariant_auditor` → CRITICAL kalau putus.
+  Akar masalah lama: "AI suka rubah jalur" → arsitektur keputus → halu balik. Detail: **section 12.5**.
+- **Gantungin logika kritis ke LLM** (ngarep model manggil tool / inget aturan sendiri).
+  Paksa lewat kode/injeksi deterministik. Detail: **section 12.0 & 12.4**.
 
 ---
 
@@ -596,5 +604,111 @@ dari `Music/flowork/brain/db/` jadi Bagian baru di roadmap.
 
 ---
 
+## 12. Otak, Memori & Sistem Imun — Learning & Anti-Halu
+
+> Ditambahkan 2026-06-04 setelah bangun sistem imun anti-halu (antibody injection
+> + feedback + decay) di router. **Inti: agent DILARANG halu, dan harus makin pinter
+> sendiri — TANPA retraining tiap saat.** WAJIB dibaca sebelum bikin agent yang
+> mikir / dispatch tool / ngambil keputusan. Ini yang dulu kelewat → halu keulang.
+
+### 12.0 Prinsip induk (hafalin)
+
+**"deterministik = kuat, LLM lemah = rapuh."**
+
+Logika kritis — routing, pilih kategori, gating keputusan — taruh di **KODE**, bukan
+di LLM. LLM cuma buat yang beneran fuzzy (nulis, nyimpulin, ngobrol). **JANGAN PERNAH**
+gantungin alur kritis ke kemampuan model manggil tool sendiri / inget aturannya sendiri
+— model lemah (apalagi lokal 7B) bakal lupa/halu. **Paksa lewat kode atau injeksi.**
+
+Contoh nyata: routing "analisa saham" → crew. Itu `deterministicRoute()` di
+`agents/mr-flow/main.go` (kode), BUKAN ngarep LLM mutusin. Hasil: ga halu walau model lemah.
+
+### 12.1 INGEST vs TRAINING — jangan ketuker
+
+| | INGEST (RAG) | TRAINING (LoRA) |
+|---|---|---|
+| Knowledge ditaruh | Brain DB (SQLite, di luar model) | Bobot neural (di dalam model) |
+| Update | **Instan** — add row, ready | **Mahal** — retrain GPU jam-jaman |
+| Compute | CPU, cepat | GPU |
+| Buat apa | Fakta, koreksi, knowledge | Reflex + gaya (BUKAN konten) |
+
+- **DEFAULT: knowledge/fakta/koreksi → INGEST.** Murah, instan, updatable.
+- **TRAINING cuma buat bake REFLEX/gaya**, bukan konten. Konten di-train = basi + mahal di-update.
+- ⚠️ Reflex tool-dispatch lewat INGEST itu **halu-prone** (model mungkin ga nengok knowledge-nya)
+  → makanya butuh **DETERMINISTIC INJECTION** (12.4), bukan ngarep model baca sendiri.
+
+### 12.2 Karma — sinyal reward (kawin sama mistakes)
+
+- `karma_self` (per-agent, counter / moving-average) + mesh karma (bounded 0–1 + **decay**).
+- Karma = **bobot kepercayaan** sebuah pola. Pola kebukti bener → karma naik; pola salah →
+  antibody-nya di-reinforce (12.4).
+- Dipakai buat **nge-rank** apa yang di-surface ke model — yang karma tinggi diprioritasin.
+- Tools: `karma_set` / `karma_query` (agent), `AdjustKarma`/`DecayKarma` (router mesh).
+
+### 12.3 Edu-error & Mistakes journal — belajar dari salah
+
+- Agent: `mistake_log` (catat salah) + `mistake_recall` (cek "pernah salah di konteks ini?"
+  SEBELUM tindakan beresiko). `edu_error_upsert/lookup` buat error ber-kode.
+- Promote ke router brain global: `POST /api/mistakes/submit` → `mistakes_journal`
+  (tier=`global`, `hit_count` = reinforcement, kategori whitelist: logic/safety/performance/
+  security/ux/governance).
+- **ATURAN:** agent yang ngerjain hal beresiko WAJIB punya jalur recall — TAPI jangan ngarep
+  model manggil sendiri (lihat 12.4).
+
+### 12.4 Antibody Injection — sistem imun anti-halu (DETERMINISTIC, di GATEWAY)
+
+Pipa yang bikin model lemah sekalipun **ga ngulang halu**. Hidup di **router (gateway)**,
+bukan di agent — karena gateway liat SEMUA request + ga bisa di-skip model.
+
+1. **INJECT** — mistakes relevan (skor = `karma(hit_count) × relevansi(overlap) × decay(recency)`,
+   **MAX 3**) disuntik ke system prompt **SEBELUM** LLM. File: `flowork_Router/internal/router/mistakeenrich.go`.
+2. **FEEDBACK** — response masih halu (mis. `task_run` kategori non-kanonik) → auto-`SubmitMistake`
+   → karma antibody **NAIK** → next time lebih sering keinject. File: `mistakefeedback.go`. Self-learning.
+3. **DECAY** — antibody yang berhenti relevan **pudar** otomatis (half-life 30 hari, floor 0.1).
+4. **BUKTI**: kategori halu **0/3 → 3/3** bener setelah inject; feedback live (`olahraga` → karma +3).
+
+**Kenapa di gateway, bukan di agent:** model 7B flaky **ga bakal inisiatif** manggil `mistake_recall`.
+Gateway **maksa**. Prinsip: **enforcement > imbauan.**
+
+### 12.5 Wiring Invariant Guard — jaga pipa kritis dari "AI suka rubah jalur"
+
+- Pipa kritis (antibody hook, deterministic route, dll) didaftar di
+  `Flowork_Agent/internal/scanner/auditors_invariant.go`. Putus / pola hilang → **CRITICAL**
+  di Threat Radar **otomatis** (scanner auto-jalan tiap file berubah + startup).
+- **ATURAN BUAT AI MANAPUN (TERMASUK PASCA-COMPACT):** JANGAN ubah / pindah / cabut jalur
+  kritis tanpa izin **eksplisit** Mr.Dev. **Nambah invariant = boleh. Ngurangin = DILARANG.**
+- Kenapa: akar masalah lama = "AI suka rubah jalur" → arsitektur bagus keputus → halu balik.
+  Lock-comment itu pasif (bisa diabaikan); guard ini **aktif** (kode yang teriak).
+
+### 12.6 Pemilihan model per agent (learning 2026-06-04 — JANGAN keulang)
+
+Test live semua agent di Qwen-7B-abliterate lokal:
+- **mr-flow (komandan/percakapan) → ANCUR** di qwen — nyasar ke bahasa lain, halu berat (ceiling 7B Q4 + base Mandarin bocor).
+- **Crew atomik 1-tugas simpel (mis. music-riset) → lumayan** di qwen.
+
+**ATURAN:**
+- Agent **komandan / reasoning / percakapan** → model KUAT (Claude). Jangan dipaksain ke lokal.
+- Agent **atomik 1-tugas simpel** → boleh lokal (qwen — sovereign, no kuota, uncensor).
+- **Hybrid.** Set per agent via `kv.router_model`; router yang map nama→provider (model policy di ROUTER, bukan hardcode di agent).
+- Antibody injection berlaku ke SEMUA model (di gateway) — bikin lokal lebih aman, **tapi ga
+  nyembuhin ceiling 7B** buat tugas berat. Pilih model sesuai beban tugas.
+
+---
+
+## 13. Checklist anti-halu & learning (gabung ke section 8 sebelum merge)
+
+Selain checklist isolation (section 8), agent yang **mikir / dispatch / ngambil keputusan**
+WAJIB centang:
+
+- [ ] Logika kritis **deterministik di kode**, bukan ngandelin LLM manggil tool? (12.0)
+- [ ] Knowledge/koreksi baru → **INGEST ke brain**, bukan hardcode / over-prompt / di-train? (12.1)
+- [ ] Tugas beresiko punya jalur **mistake_recall** + ke-cover **antibody injection** di gateway? (12.3–12.4)
+- [ ] Halu yang ke-detect **nutup loop** (feedback → karma)? (12.4)
+- [ ] **Model dipilih sesuai beban** — komandan/reasoning = kuat, atomik simpel = boleh lokal? (12.6)
+- [ ] Ga ada **pipa kritis** yang diubah/dipindah tanpa izin? (12.5)
+- [ ] Prompt budget ≤ 30% context (section 11) — antibody MAX 3, mistakes ga growing?
+
+---
+
 *Living document. Update tiap kali konsep berubah atau ada keputusan
-arsitektur baru. Tanggal terakhir: 2026-05-29.*
+arsitektur baru. Tanggal terakhir: 2026-06-04 (tambah Section 12-13: learning/imun/anti-halu).*

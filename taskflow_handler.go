@@ -170,7 +170,7 @@ func startTaskflowRun(host *kernelhost.Host, store *floworkdb.Store, category, s
 	if len(cat.Crew) == 0 {
 		return 0, fmt.Errorf("crew kosong — tambah analis dulu")
 	}
-	runID, err := store.CreateRun(category, subject, "owner")
+	runID, err := store.CreateRun(category, subject, "owner", notify)
 	if err != nil {
 		return 0, fmt.Errorf("create run: %w", err)
 	}

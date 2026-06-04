@@ -1,3 +1,122 @@
+## 2026-06-04 13:30 WIB — FIX: "analisa <koin>" ga masuk task + mr-flow pindah haiku (sonnet throttle)
+
+**(1) Sonnet throttle:** Max plan bucket Sonnet JAUH lebih ketat (18× 429 sonnet vs 0× haiku, haiku 16
+sukses) → mr-flow tadi sonnet kena 429 beruntun → "router gangguan". **mr-flow → claude-haiku-4-5**
+(semua agent haiku sekarang, zero sonnet = zero throttle). Sonnet = hindari buat fleet (lihat [[project_hybrid_model_state]]).
+
+**(2) "analisa etherium" ga masuk task:** `deterministicRoute` (mr-flow/main.go) cuma kenal kata
+"saham/crypto/koin/coin/token" — NAMA koin ("etherium"/"bitcoin") ga ke-detect → jatuh ke LLM →
+haiku **bilang "nyalain crew" tapi ga beneran manggil task_run** (halu dispatch) → ga masuk task.
+- Fix: tambah ~30 nama koin umum (bitcoin/btc/ethereum/etherium/eth/solana/bnb/xrp/cardano/doge/dst)
+  ke deteksi kategori crypto. "analisa bitcoin" → deterministik crypto/bitcoin → task_run LANGSUNG,
+  ga gantung LLM. Verified (standalone): etherium/bitcoin/ethereum/solana→crypto, "halo apa kabar"→
+  ga false-trigger. mr-flow.wasm rebuilt + restaged.
+
+---
+
+## 2026-06-04 12:15 WIB — SELF-HEAL: synth deteksi data ngaco → engine kasih tugas ULANG (bukan nanya user)
+
+Mr.Dev: *"user ga akan pernah peduli masalahnya di mana, mereka peduli OUTPUT-nya."* Run #30: worker
+riset **BBNI** padahal diminta **BBCA** → synth (bener) nangkep mismatch, TAPI dia minta user klarifikasi
+("pilih: BBNI atau BBCA?"). Itu mindahin beban ke user. Harusnya sistem **benerin sendiri**.
+
+### Fix ([internal/taskflow/taskflow_retask.go](internal/taskflow/taskflow_retask.go) BARU + taskflow.go LOCKED)
+- Synth prompt: kalau data analis SALAH/ga sesuai subjek → **JANGAN nanya user**, output baris atas
+  `RETASK <peran>: <koreksi>` lalu berhenti.
+- Engine (`RunCategoryTask`): parse `RETASK` → cari worker by role → **invoke ULANG** dengan instruksi
+  koreksi (overwrite output) → synth ULANG. Max **2 ronde** (anti-infinite). Helper: `invokeWorker`/
+  `invokeSynth`/`parseRetask`/`findCrewByRole`.
+- Refactor: worker+synth invocation di-extract jadi helper (reusable buat fan-out + retask). Behavior
+  lama dipertahanin (engine nulis reply, inline injection, step record).
+
+### Verifikasi
+- `go build ./...` CLEAN, test **3/3 PASS**: parseRetask (toleran markdown), findCrewByRole,
+  **self-heal loop e2e** (stub: synth RETASK→worker dikoreksi→synth vonis; worker 2×, synth 2×, output
+  final = keputusan, BUKAN RETASK).
+- Efek: user kirim "cek BBCA" → kalau worker salah ambil BBNI, engine auto kasih tugas ulang → user
+  cuma terima hasil BBCA yang bener. Ga ada lagi "tolong klarifikasi."
+
+---
+
+## 2026-06-04 11:30 WIB — Keputusan model ALL-CLAUDE + fix truncate synth (data "terputus")
+
+Setelah test 2 hari (lihat [[project_hybrid_model_state]]): qwen-7B-abliterate (8GB) GA SANGGUP —
+komandan drift Mandarin, synth timeout 270s, worker riset jelek (ambil headline keamanan-siber
+bukan angka keuangan). **Mr.Dev putusin: pake Claude aja.** qwen diarsipin (model ollama + provider
+router masih ada, 0 agent pake; gguf folder router dihapus, qwen di-unload dari VRAM).
+
+### Konfigurasi final (kv `router_model` per agent)
+- mr-flow (komandan) → `claude-sonnet-4-6`
+- SEMUA agent lain (4 synth + 17 worker) → `claude-haiku-4-5`
+
+### Fix: truncate synth-injection kekecilan (data "terputus")
+- `internal/taskflow/taskflow.go` (LOCKED): cap inject analis ke synth **1500 → 8000 char**.
+  Cap 1500 di-size buat qwen (output pendek); Claude worker output kaya (fundamental 3331 char) →
+  ke-potong di tengah ("Pendapatan bunga bersih Rp110,99 triliun…") → synth liat ga lengkap →
+  minta data lagi. Claude haiku context 200K, muat gampang.
+
+### Verifikasi (run #26-28, all-Claude)
+- Worker Claude riset BAGUS: data keuangan konkret (vs qwen headline ngaco). Synth CEPET (32s vs qwen 270s).
+- Synth Claude anti-halu sempurna: nolak ngarang pas data tipis (run #26 AVOID + Tier-3 confidence).
+- Engine fix kemaren (handoff/notify/antibody/paralel) tetep valid di semua model.
+
+---
+
+## 2026-06-04 00:50 WIB — FIX: crew handoff rapuh (output halu "file ga ada") — engine-authoritative
+
+Mr.Dev: *"sekalian benerin semua dulu"*. Akar output crew halu ("file keuangan ga ada", "tool loop
+limit"): desain handoff **gantung agent lemah** — tiap worker WAJIB `file_write` ke path persis, terus
+synth WAJIB `file_read` tiap file. Qwen (atau model lemah manapun) sering ga manggil file tool dgn
+bener → file ga ke-tulis → `copyFile` gagal → "output ga ke-tulis" → synth baca file kosong → halu.
+
+### Fix (internal/taskflow/taskflow.go, LOCKED, owner-authorized)
+- **Worker**: prompt diubah → "tulis analisa LANGSUNG di BALASAN, GA USAH file_write". **ENGINE yang
+  nulis `reply` ke file** (worker dir + synth dir) — ga gantung agent manggil tool ke path tepat.
+- **Synth**: hasil analis **di-SUNTIK inline** ke prompt (engine baca file yg dia tulis) → synth ga
+  perlu `file_read`. Cap 1500 char/analis (anti over-prompt).
+- `copyFile` (dead setelah ini) dihapus (anti-zombie).
+- Berlaku ke SEMUA crew (saham/crypto/music/promo) — engine sama.
+
+### Verifikasi (live, via /api/taskflow/run, qwen)
+- Run #19 (saham/BBRI): **4 step DONE, 0 error** (ga ada "output ga ke-tulis"). Output worker ke-tulis
+  (1203 byte, data real + URL). Synth `done` → summary BENERAN ("target price Rp6.000, Big Cap 2023").
+- **Lebih cepet**: 42s/29s/38s per worker (dulu 197s) — ga buang waktu maksa file_write.
+
+### Catatan jujur
+- Engine FIXED + grounded data real. **Tapi qwen masih kasar**: output drift ke English + typo
+  ("Bank Bribit" bukan "Bank Rakyat Indonesia"). Itu **ceiling 7B**, bukan engine. Di Claude bakal
+  rapi. Pipeline-nya udah bener; tinggal kualitas model.
+- Gabung sama fix notify (00:35): task kelar → output real → ke-relay ke Telegram. Loop lengkap.
+
+---
+
+## 2026-06-04 00:35 WIB — FIX: notify task ke-interrupt (task selesai tapi ga ada laporan)
+
+Mr.Dev: *"task sudah selesai tapi ngak ada laporan ke tele"*. Akar: completion notify jalan di
+goroutine in-process + `notify_chat` **cuma in-memory** → kalau proses restart/mati pas crew jalan,
+task ke-`interrupted` + notify **ILANG DIEM-DIEM** (owner nyangka kelar tapi ga ada kabar). Diperparah
+restart-restart waktu testing model.
+
+### Fix
+- **Persist `notify_chat`** per-run di `task_runs` (migrasi additif idempotent, pola `synth_directive`).
+  `CreateRun(...)` + `startTaskflowRun` nyimpen chat_id. File: internal/floworkdb/tasks.go (LOCKED, owner-authorized).
+- **`MarkRunningInterrupted()` sekarang BALIKIN daftar** run yang di-sweep (dgn notify_chat), bukan diem.
+- **Boot sweep ngabarin**: main.go — tiap run zombie 'running' dari proses lama → tandai 'interrupted' +
+  kirim Telegram *"⚠️ Task X (run #N) ke-interrupt pas restart, kirim ulang ya"*. Ga ilang diem-diem lagi.
+
+### Verifikasi
+- `go build ./...` CLEAN, `go vet` CLEAN.
+- Logic test (.scratch temp db): create run+notify → sweep → orphan ke-detect + notify_chat ke-persist
+  + idempotent. **PASS.**
+- Deploy: migrasi `notify_chat` ke-apply, boot sweep bersih (0 orphan), mr-flow daemon ready.
+
+### Catatan jujur
+- Run #17 (BBRI) ke-interrupt karena gw restart waktu testing — itu yang ke-fix biar ga keulang.
+- Output crew saham masih halu ("file ga ada") = **masalah terpisah**: crew belum punya tool data saham
+  beneran → flailing (apalagi di qwen). Belum di-fix.
+
+---
+
 ## 2026-06-03 23:40 WIB — WIRING INVARIANT GUARD — enforcement anti "AI rubah jalur"
 
 Mr.Dev: *"masalahnya loe sendiri suka rubah2 jalur, biar ngak keulang gimana? atau kita

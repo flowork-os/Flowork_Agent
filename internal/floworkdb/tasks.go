@@ -66,6 +66,7 @@ type TaskRun struct {
 	Summary     string     `json:"summary"`
 	StartedAt   string     `json:"started_at"`
 	FinishedAt  string     `json:"finished_at"`
+	NotifyChat  string     `json:"notify_chat,omitempty"` // chat_id Telegram buat lapor hasil/interrupt
 	Steps       []TaskStep `json:"steps,omitempty"`
 }
 
@@ -141,6 +142,14 @@ func (s *Store) EnsureTaskSchema() error {
 		if _, err := s.db.Exec(
 			`ALTER TABLE task_categories ADD COLUMN synth_directive TEXT NOT NULL DEFAULT ''`); err != nil {
 			return fmt.Errorf("task schema migrate synth_directive: %w", err)
+		}
+	}
+	// notify_chat: persist chat_id Telegram per-run biar hasil/interrupt bisa
+	// dilapor walau proses restart (notify dulu cuma in-memory di goroutine → ilang).
+	if !s.columnExists("task_runs", "notify_chat") {
+		if _, err := s.db.Exec(
+			`ALTER TABLE task_runs ADD COLUMN notify_chat TEXT NOT NULL DEFAULT ''`); err != nil {
+			return fmt.Errorf("task schema migrate notify_chat: %w", err)
 		}
 	}
 	return nil
@@ -294,12 +303,12 @@ func (s *Store) ListCategories() ([]TaskCategory, error) {
 
 // ── Run persistence (timeline) ───────────────────────────────────────────────
 
-func (s *Store) CreateRun(categoryID, input, requestedBy string) (int64, error) {
+func (s *Store) CreateRun(categoryID, input, requestedBy, notifyChat string) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	res, err := s.db.Exec(
-		`INSERT INTO task_runs(category_id,input_text,status,requested_by) VALUES(?,?,'running',?)`,
-		categoryID, input, requestedBy)
+		`INSERT INTO task_runs(category_id,input_text,status,requested_by,notify_chat) VALUES(?,?,'running',?,?)`,
+		categoryID, input, requestedBy, notifyChat)
 	if err != nil {
 		return 0, err
 	}
@@ -398,14 +407,39 @@ func (s *Store) GetRun(runID int64) (*TaskRun, error) {
 
 // MarkRunningInterrupted — boot hygiene: run yang status 'running' dari proses
 // SEBELUMNYA (mati/restart) ga akan pernah kelar (goroutine-nya ilang). Tandai
-// 'interrupted' biar ga zombie "running" selamanya di timeline.
-func (s *Store) MarkRunningInterrupted() error {
+// 'interrupted' biar ga zombie "running" selamanya di timeline, DAN balikin
+// daftarnya (dgn notify_chat) biar caller bisa ngabarin owner "task ke-interrupt".
+func (s *Store) MarkRunningInterrupted() ([]TaskRun, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	_, err := s.db.Exec(
-		`UPDATE task_runs SET status='interrupted', finished_at=datetime('now')
-		 WHERE status='running'`)
-	return err
+	rows, err := s.db.Query(
+		`SELECT id, category_id, input_text, COALESCE(notify_chat,'')
+		 FROM task_runs WHERE status='running'`)
+	if err != nil {
+		return nil, err
+	}
+	var orphans []TaskRun
+	for rows.Next() {
+		var r TaskRun
+		if err := rows.Scan(&r.ID, &r.CategoryID, &r.InputText, &r.NotifyChat); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		r.Status = "interrupted"
+		orphans = append(orphans, r)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(orphans) > 0 {
+		if _, err := s.db.Exec(
+			`UPDATE task_runs SET status='interrupted', finished_at=datetime('now')
+			 WHERE status='running'`); err != nil {
+			return orphans, err
+		}
+	}
+	return orphans, nil
 }
 
 // ── Seed (crew SAHAM Fase 4 → DB, kalau kosong) ──────────────────────────────

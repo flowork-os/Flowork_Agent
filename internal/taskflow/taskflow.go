@@ -141,102 +141,38 @@ func RunCategoryTask(ctx context.Context, host Invoker, sharedDir string, cat Ca
 		taskName = strings.ToUpper(cat.ID)
 	}
 
-	// ── Fan-out: tiap analis sequential (Phase 1; parallel = nanti) ──
+	// ── Fan-out: tiap analis sequential → ENGINE tulis output (invokeWorker) ──
 	for idx, m := range cat.Crew {
-		var stepID int64
-		if rec != nil {
-			stepID = rec.StartStep(m.AgentID, m.RoleLabel, idx)
-		}
-		t0 := time.Now()
-		fname := taskFileName(runID, m.AgentID)
-		prompt := fmt.Sprintf(
-			"[TASK %s] Subjek: %s.\n"+
-				"Peran lo: %s.\n"+
-				"FOKUS tugas lo doang — jangan ngerjain peran analis lain.\n"+
-				"Cari data REAL pakai tools (web_search/html_extract) — JANGAN ngarang angka/fakta. "+
-				"EFISIEN: MAKSIMAL 2-3 pencarian, terus LANGSUNG simpulin (jangan kebanyakan search).\n"+
-				"Kalau ga nemu data, bilang 'data ga ketemu' — jangan maksa.\n"+
-				"Habis itu WAJIB tulis hasil analisa lo (ringkas, poin-poin, sebut sumber) via tool "+
-				"file_write dengan category=\"%s\" name=\"%s\". Itu langkah TERAKHIR + WAJIB.\n"+
-				"Balas singkat aja konfirmasi udah nulis.",
-			taskName, input, m.RoleLabel, taskFileCategory, fname)
-
-		reply, err := host.InvokeAgentMessage(ctx, m.AgentID, prompt, "taskflow:"+runID)
-		workerFile := filepath.Join(sharedDir, m.AgentID, taskFileCategory, fname)
-		step := StepResult{
-			AgentID:   m.AgentID,
-			RoleLabel: m.RoleLabel,
-			OutputRef: workerFile,
-			Reply:     truncate(reply, 400),
-			MS:        time.Since(t0).Milliseconds(),
-		}
-		status := "done"
-		if err != nil {
-			step.Err = err.Error()
-			status = "error"
-		} else if cerr := copyFile(workerFile, filepath.Join(synthJobDir, fname)); cerr != nil {
-			// File analis ga ada / ga ke-copy → synth ga bisa baca. Catat.
-			step.Err = "output ga ke-tulis/ke-copy: " + cerr.Error()
-			status = "error"
-		}
-		if rec != nil {
-			rec.FinishStep(stepID, status, workerFile, step.Err, step.MS)
-		}
-		res.Steps = append(res.Steps, step)
+		res.Steps = append(res.Steps, invokeWorker(ctx, host, sharedDir, synthJobDir, taskName, input, runID, m, idx, "", rec))
 	}
 
-	// ── Fan-in: synthesizer baca output crew → 1 keputusan ──
+	// ── Fan-in + SELF-HEAL: synth ambil keputusan. Kalau synth deteksi data analis
+	// SALAH/ga sesuai subjek → output "RETASK <peran>: <koreksi>" → engine kasih
+	// TUGAS ULANG ke worker itu (user ga peduli masalahnya, peduli OUTPUT) → synth
+	// ulang. Max maxRetaskRounds biar ga infinite. ──
 	synthIdx := len(cat.Crew)
-	var synthStepID int64
-	if rec != nil {
-		synthStepID = rec.StartStep(cat.Synthesizer, "synthesizer (ambil keputusan)", synthIdx)
+	recommendation, synthMS, serr := invokeSynth(ctx, host, synthJobDir, taskName, input, runID, cat, synthIdx, "synthesizer (ambil keputusan)", rec)
+	res.SynthMS = synthMS
+	for round := 0; round < maxRetaskRounds && serr == nil; round++ {
+		role, instruction, need := parseRetask(recommendation)
+		if !need {
+			break
+		}
+		target := findCrewByRole(cat.Crew, role)
+		if target == nil {
+			break // peran ga ke-kenal → stop (jangan loop)
+		}
+		// kasih TUGAS ULANG ke worker yang ngaco (dengan koreksi), overwrite output-nya.
+		res.Steps = append(res.Steps, invokeWorker(ctx, host, sharedDir, synthJobDir, taskName, input, runID, *target, synthIdx+1+round, instruction, rec))
+		// synth ulang dengan data yang udah dikoreksi.
+		recommendation, synthMS, serr = invokeSynth(ctx, host, synthJobDir, taskName, input, runID, cat, synthIdx, "synthesizer (ulang setelah tugas ulang)", rec)
+		res.SynthMS += synthMS
 	}
-	t0 := time.Now()
-	var fileList []string
-	for _, m := range cat.Crew {
-		fileList = append(fileList, fmt.Sprintf("- category=\"%s\" name=\"%s\"  (%s)",
-			taskFileCategory, taskFileName(runID, m.AgentID), m.RoleLabel))
-	}
-	// Directive format keputusan: default finansial (BUY/HOLD/AVOID) kalau kosong —
-	// backward-compat crypto/saham. Kategori non-finansial (YouTube Ops dst) override.
-	synthDirective := strings.TrimSpace(cat.SynthDirective)
-	if synthDirective == "" {
-		synthDirective = "kasih 1 keputusan yang TEGAS:\n" +
-			"  KEPUTUSAN: BUY / HOLD / AVOID\n" +
-			"  ALASAN: 3-5 poin berbasis data dari analis (sebut dari analis mana).\n" +
-			"  RISIKO: 2-3 risiko utama."
-	}
-	synthPrompt := fmt.Sprintf(
-		"[SYNTHESIZER — AMBIL KEPUTUSAN %s] Subjek: %s.\n"+
-			"Tim analis udah nulis hasil ke file-file ini (baca pakai tool file_read, on-demand):\n%s\n"+
-			"Baca SEMUA file di atas (file_read per category+name di atas), lalu %s\n"+
-			"Kalau data analis tipis/ga lengkap, bilang jujur + turunin confidence. JANGAN ngarang.",
-		taskName, input, strings.Join(fileList, "\n"), synthDirective)
-
-	recommendation, serr := host.InvokeAgentMessage(ctx, cat.Synthesizer, synthPrompt, "taskflow:"+runID)
-	res.SynthMS = time.Since(t0).Milliseconds()
-	synthStatus := "done"
-	synthErr := ""
 	if serr != nil {
-		synthErr = serr.Error()
-		synthStatus = "error"
 		res.Err = "synthesizer: " + serr.Error()
 	}
 	res.Recommendation = recommendation
-	if rec != nil {
-		rec.FinishStep(synthStepID, synthStatus, "", synthErr, res.SynthMS)
-	}
 	return res
-}
-
-// copyFile — copy src → dst (overwrite). Error kalau src ga ada (= worker ga
-// nulis output). Dipakai mindahin output analis ke dir job synthesizer.
-func copyFile(src, dst string) error {
-	data, err := os.ReadFile(src)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(dst, data, 0o644)
 }
 
 // RunSolo — BASELINE buat A/B GATE: 1 agent ngerjain SEMUA sendiri (fundamental

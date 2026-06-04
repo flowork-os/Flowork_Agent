@@ -376,7 +376,20 @@ func main() {
 	if serr := fdb.SeedSahamIfEmpty(); serr != nil {
 		log.Printf("taskflow seed: %v", serr)
 	}
-	_ = fdb.MarkRunningInterrupted() // boot hygiene: run zombie dari proses lama
+	// boot hygiene: run 'running' zombie dari proses lama (mati/restart) ditandai
+	// 'interrupted' + KABARIN owner ke Telegram (dulu ilang diem-diem → bug "task
+	// selesai tapi ga ada laporan"). notify_chat di-persist per-run.
+	if orphans, oerr := fdb.MarkRunningInterrupted(); oerr != nil {
+		log.Printf("taskflow boot sweep: %v", oerr)
+	} else {
+		for _, o := range orphans {
+			if strings.TrimSpace(o.NotifyChat) != "" {
+				notifyTelegram(host, o.NotifyChat, fmt.Sprintf(
+					"⚠️ Task %s — \"%s\" (run #%d) ke-interrupt pas Flowork restart, hasilnya ga kelar. Kirim ulang ya bro.",
+					o.CategoryID, o.InputText, o.ID))
+			}
+		}
+	}
 	// SCHEDULER LOOPING: tiap menit cek jadwal task → fire Category Task otomatis +
 	// notify Telegram (mis. tiap jam 9 pagi: analisa saham A → keputusan ke chat).
 	go func() {
