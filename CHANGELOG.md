@@ -1,3 +1,67 @@
+## 2026-06-04 18:46 WIB — FIX: synth NANYA user → ROOT-nya input synth ke-TRUNCATE 1200 char (bukan confabulation)
+
+**Gejala (kebukti live run#35–#38):** synth crew (saham/crypto/dst) sering **nanya/nunda user**
+("minta klarifikasi", "tunggu data", "analis teknikal belum") — nabrak doktrin Mr.Dev *user ga peduli
+masalahnya, peduli OUTPUT; jangan nanya user.* Awalnya disangka haiku confabulate "data terputus".
+
+**ROOT SEBENERNYA — input synth KE-POTONG:** crew agent `doHandle` (saham-sinteser dkk): log pesan
+masuk → `fetchHistory(actor)` ambil BALIK pesan itu **dipotong 1200 char** (`maxHistoryCharsPerMsg`) →
+`callLLM` pakai history (terpotong) dan **NGABAIKAN `in.Text` penuh** (logika `if len(history)>0 {pakai
+history} else {pakai userText}`). synthPrompt ~8000 char (3 blok analis) → synth cuma keliat ~1200 char
+pertama = instruksi + header + "Berdasark…" KEPOTONG → synth jujur bilang "data ga lengkap" + nanya.
+Worker aman (input ~500 char <1200); cuma **synth** (input gede) yang kena.
+
+### Fix
+- **ROOT** ([agents/{saham,crypto,music,promo}-sinteser/main.go]): crew agent SKIP history kalau caller
+  `taskflow`/`scheduler` (helper `isOneShotCaller`) → synth terima **prompt PENUH**. Crew = tugas
+  one-shot self-contained (ga punya Telegram), history emang ga relevan + malah ngerusak. 4 synth wasm
+  rebuilt.
+- **Defense-in-depth** ([internal/taskflow/taskflow_retask.go](internal/taskflow/taskflow_retask.go)):
+  (1) framing analisa EKSPLISIT "OUTPUT FINAL DARI n/n ANALIS — SEMUA SELESAI", blok nihil di-label
+  "HASIL: nihil (temuan final, BUKAN belum jalan)" — biar haiku ga salah-tafsir "data tidak ditemukan"
+  = "analis belum lapor"; (2) prompt netralin '…'/tabel ringkas = gaya nulis BUKAN truncation;
+  (3) GUARD `looksLikeAskingUser` → kalau synth tetep nanya/nunda, engine **paksa-ulang** synth max 2x
+  (`maxSynthGuardRetries`) dengan teguran keras. Self-contained di helper (taskflow.go LOCKED ga disentuh).
+
+### Test (live lewat mr-flow asli, scheduler-cron) — Tesla saham
+SEBELUM: synth nanya user (summary 473–927 char, "tunggu data/analis belum"). **SESUDAH: synth COMMIT**
+— summary 3818 char, lewat gerbang 5W1H, sintesis 3 analis → "KEPUTUSAN: HOLD + stop-loss $410", pola
+nanya/nunda NIHIL ✅. Unit test `looksLikeAskingUser` + guard-retry PASS. saham diverifikasi live;
+crypto/music/promo synth dapet fix identik.
+
+---
+
+## 2026-06-04 17:48 WIB — FORCED CLASSIFIER: dispatch fleksibel lintas-bahasa + aset global (ga lagi ngandelin keyword)
+
+**Masalah (Mr.Dev):** `deterministicRoute` (keyword) KUAT tapi KAKU — ga akan flexibel kalau harus
+kumpulin SEMUA keyword. Bukti: "etherium" sempet ga ke-detect (harus di-list manual). Belom kalau
+user pake bahasa lain (Inggris/Rusia/Arab) atau aset luar (saham US, koin yang ga di-list). Keyword =
+whack-a-mole + ke-lock Bahasa Indonesia + ke-lock aset Indonesia.
+
+**Solusi — LLM jadi KLASIFIER yang DIPAKSA, bukan tool-caller bebas:** beda halus tapi gede. Dulu
+mr-flow (haiku) `tool_choice:auto` → BOLEH ngeles ngetik "nyalain crew" tanpa manggil task_run (flaky).
+Sekarang `classifyRoute` ([agents/mr-flow/main.go](agents/mr-flow/main.go)) pake **`tool_choice` FORCE**
+(`{type:tool,name:route}`) → model WAJIB keluarin `{category,subject}` terstruktur, ga bisa ngeles.
+Dispatch tetep di **KODE** (deterministik), kategori divalidasi kanonik. LLM buat NGERTI (yang kode ga
+bisa), kode buat DISPATCH (reliable).
+
+### Cara kerja
+- Keyword fast-path (`deterministicRoute`) jalan DULU → common case Indo instan, zero LLM.
+- Keyword MISS → `classifyRoute`: 1 call ke router, tool `route` di-FORCE → `{category,subject}`.
+  Kategori non-kanonik / `chat` / subject kosong → balik false → chat normal (ga blok user).
+- Di-wire di 2 handler: Telegram daemon + doHandle (RPC), parity. Log source=`forced_classifier`.
+- Router udah support (`convertToolChoice` OpenAI→Anthropic, [internal/router/tools.go](../flowork_Router/internal/router/tools.go)) — zero perubahan router.
+
+### Test (mekanisme, lewat router persis body classifyRoute) — 7/7 BENER
+`analyze Tesla stock`→saham/Tesla · `проанализируй биткоин`(Rusia)→crypto/Bitcoin · `Pepe coin`(non-list)
+→crypto/Pepe · `حلل سهم أرامكو`(Arab)→saham/أرامكو · `matiin komputer`→operasi-komputer/matiin PC ·
+`halo apa kabar`→chat/- (GA false-trigger) · `makasih`→chat/-. Tiap input DIPAKSA tool_call (ga ada
+yang ngeles teks). mr-flow.wasm rebuilt + restaged, daemon boot bersih. **Live Telegram = test user.**
+
+⚠️ LOCKED-INTENT di `classifyRoute`: `tool_choice` WAJIB force. JANGAN balikin ke auto (itu yang dulu flaky).
+
+---
+
 ## 2026-06-04 13:30 WIB — FIX: "analisa <koin>" ga masuk task + mr-flow pindah haiku (sonnet throttle)
 
 **(1) Sonnet throttle:** Max plan bucket Sonnet JAUH lebih ketat (18× 429 sonnet vs 0× haiku, haiku 16
@@ -2632,7 +2696,7 @@ Mr.Dev sekarang bisa bikin custom slash command tanpa rebuild — drop `.md` fil
   - Missing chat_id → "chat_id required (non-zero)"
   - Missing text → "text required (non-empty)"
   - chat_id 9999999999 → "not in TELEGRAM_ALLOWED_CHATS (anti-spam guard)"
-  - Real allowed chat_id 2012305087 → **message_id 3871, 366ms send sukses**, Mr.Dev's phone received: "🎯 Section 11 phase 1f verify..."
+  - Real allowed chat_id 123456789 → **message_id 3871, 366ms send sukses**, Mr.Dev's phone received: "🎯 Section 11 phase 1f verify..."
 
 ### Section 11 progress:
 - Phase 1a (5 demo): DONE

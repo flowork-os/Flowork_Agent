@@ -1,9 +1,9 @@
 {
-  "id": "mr-flow",
+  "id": "operator-komputer",
   "version": "1.0.0",
   "kind": "agent",
-  "display_name": "Mr.Flow",
-  "description": "Owner-class warga. All-in-one Telegram agent: long-poll bot updates, persona Mr.Flow, dispatch ke flow_router /v1/chat/completions, reply natural Bahasa Indonesia.",
+  "display_name": "Operator Komputer",
+  "description": "Operator agent: controls the host computer's power state (shutdown/reboot/suspend/lock/logout) on explicit owner command. Same Mr.Flow engine; holds the exec:power capability that normal agents do not. Real power actions only fire when the host is ARMED (FLOWORK_POWER_ARMED).",
   "min_kernel_version": "0.1.0",
   "abi_version": 1,
   "author": "@flowork-os",
@@ -21,13 +21,8 @@
     "state:read",
     "state:write",
     "time:read",
-    "fs:read",
-    "fs:write",
-    "exec:git",
-    "rpc:router:skill",
-    "rpc:router:brain",
-    "rpc:taskflow",
-    "rpc:agent-invoke"
+    "exec:power",
+    "rpc:router:brain"
   ],
   "exposes_rpc": [
     {

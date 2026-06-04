@@ -77,9 +77,9 @@ func hostSlashDispatch(reqPtr, reqLen, outPtr, outMax uint32) uint32
 
 // === Path konstanta (HARDCODED standar Flowork) ===
 const (
-	WorkspacePrivate = "/workspace"            // mount per-agent (eksklusif)
-	WorkspaceDB      = "/workspace/state.db"   // SQLite per-agent
-	WorkspaceShared  = "/shared"               // mount shared workspace (root project)
+	WorkspacePrivate = "/workspace"          // mount per-agent (eksklusif)
+	WorkspaceDB      = "/workspace/state.db" // SQLite per-agent
+	WorkspaceShared  = "/shared"             // mount shared workspace (root project)
 )
 
 const (
@@ -463,6 +463,14 @@ const (
 	maxHistoryMsgs        = 16   // max giliran percakapan di-inject (≈8 tukar-balik)
 	maxHistoryCharsPerMsg = 1200 // cap per pesan history (anti over-prompt)
 )
+
+// isOneShotCaller — true kalau invocation dari taskflow/scheduler (tugas one-shot
+// self-contained, prompt udah lengkap). Crew agent SELALU dipanggil gini. Dipakai
+// buat SKIP history: fetchHistory truncate 1200 char/pesan → motong input gede
+// (synth blok analis ~8000) → halu "data terputus".
+func isOneShotCaller(actor string) bool {
+	return strings.HasPrefix(actor, "taskflow") || strings.HasPrefix(actor, "scheduler")
+}
 
 // fetchHistory — ambil riwayat percakapan chat ini dari API interactions
 // agent sendiri (pola sama fetchSelfPrompt). Persistent (baca dari state.db),
@@ -1030,7 +1038,14 @@ func doHandle(argsRaw string) {
 		actor = "rpc"
 	}
 	logInteraction("rpc", "in", actor, in.Text, map[string]any{})
-	hist := fetchHistory(actor)
+	// Crew = tugas one-shot self-contained (synth nerima blok analis bisa ~8000
+	// char). JANGAN pakai history kalau caller taskflow/scheduler: fetchHistory
+	// truncate tiap pesan 1200 char (maxHistoryCharsPerMsg) → input KE-POTONG →
+	// synth halu "data terputus / analis belum". Pakai in.Text PENUH.
+	var hist []chatTurn
+	if !isOneShotCaller(actor) {
+		hist = fetchHistory(actor)
+	}
 	// RPC path (CLI/debug) ga punya Telegram chat → ga ada notify target.
 	reply := callLLM(loadConfig(), in.Text, hist, "")
 	logInteraction("rpc", "out", actor, reply, map[string]any{"model": loadConfig().Router.Model})

@@ -41,7 +41,7 @@
         "description": "Token opsional buat warga crew (biasanya cukup lewat Mr.Flow).",
         "fields": [
           { "key": "TELEGRAM_BOT_TOKEN", "label": "Bot Token", "type": "password", "storage": "secrets", "required": false, "placeholder": "123456789:AAEx...", "help": "Dari @BotFather." },
-          { "key": "TELEGRAM_ALLOWED_CHATS", "label": "Allowed Chat IDs", "type": "text", "storage": "secrets", "required": false, "placeholder": "2012305087", "help": "Pisah koma." }
+          { "key": "TELEGRAM_ALLOWED_CHATS", "label": "Allowed Chat IDs", "type": "text", "storage": "secrets", "required": false, "placeholder": "123456789", "help": "Pisah koma." }
         ]
       }
     ]

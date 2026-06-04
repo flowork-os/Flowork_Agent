@@ -22,6 +22,11 @@ import (
 // (jujur tipis) > gantung selamanya.
 const maxRetaskRounds = 2
 
+// maxSynthGuardRetries — berapa kali engine paksa-ulang synth yang NANYA/NUNDA user
+// (confabulate "data kurang/analis belum") sebelum nyerah. 2 cukup: haiku biasanya
+// nurut di retry-1; kalau abis 2x masih ngeyel, output apa adanya > gantung.
+const maxSynthGuardRetries = 2
+
 // invokeWorker — jalanin 1 analis: prompt → invoke → ENGINE tulis output ke file
 // (worker dir + synth dir) → record step. `extra` = instruksi koreksi buat retask
 // (boleh ""). Balik StepResult.
@@ -94,15 +99,24 @@ func invokeSynth(ctx context.Context, host Invoker, synthJobDir, taskName, input
 		stepID = rec.StartStep(cat.Synthesizer, label, idx)
 	}
 	t0 := time.Now()
+	// Framing EKSPLISIT: kasih nomor "i/n" + header/footer tegas biar synth (haiku)
+	// GA confabulate "analis belum masuk". Blok yang nihil di-label SEBAGAI HASIL
+	// FINAL (udah jalan, ga nemu) — bukan "belum jalan" (akar bug run#37: teknikal
+	// "DATA TIDAK DITEMUKAN" disangka synth = analis belum lapor → nunggu).
 	var analysisBlock strings.Builder
-	for _, m := range cat.Crew {
+	n := len(cat.Crew)
+	fmt.Fprintf(&analysisBlock, "═══ OUTPUT FINAL DARI %d/%d ANALIS — SEMUA SUDAH SELESAI & LAPOR ═══\n\n", n, n)
+	for i, m := range cat.Crew {
 		data, rerr := os.ReadFile(filepath.Join(synthJobDir, taskFileName(runID, m.AgentID)))
 		body := strings.TrimSpace(string(data))
-		if rerr != nil || body == "" {
-			body = "(ga ada output)"
+		note := ""
+		if rerr != nil || body == "" || body == "(analis ga balik output)" {
+			body = "Analis ini SUDAH dijalankan — hasilnya: tidak menemukan data."
+			note = "  [HASIL: nihil — ini temuan FINAL analis, BUKAN 'belum jalan'. Putuskan pakai analis lain.]"
 		}
-		fmt.Fprintf(&analysisBlock, "### %s\n%s\n\n", m.RoleLabel, truncate(body, 8000))
+		fmt.Fprintf(&analysisBlock, "──── ANALIS %d/%d — %s%s ────\n%s\n\n", i+1, n, m.RoleLabel, note, truncate(body, 8000))
 	}
+	fmt.Fprintf(&analysisBlock, "═══ HABIS — TIDAK ADA ANALIS LAIN. JANGAN tunggu / sebut analis yang \"belum\". ═══\n")
 	synthDirective := strings.TrimSpace(cat.SynthDirective)
 	if synthDirective == "" {
 		synthDirective = "kasih 1 keputusan yang TEGAS:\n" +
@@ -112,21 +126,51 @@ func invokeSynth(ctx context.Context, host Invoker, synthJobDir, taskName, input
 	}
 	synthPrompt := fmt.Sprintf(
 		"[SYNTHESIZER — AMBIL KEPUTUSAN %s] Subjek: %s.\n"+
-			"Di bawah ini DATA ANALIS LENGKAP & FINAL (udah utuh, bukan potongan). Baca dari sini.\n"+
-			"DILARANG KERAS: manggil tool · bilang data 'terputus/incomplete/kurang lengkap' · "+
-			"minta user kirim data lagi · nanya balik ke user. **User GA AKAN jawab — lo WAJIB kasih hasil.**\n\n"+
+			"Di bawah ini DATA ANALIS LENGKAP, UTUH & FINAL. Ini SEMUA data yang ada, dan memang CUKUP buat mutusin.\n"+
+			"⚠️ PENTING soal format: teks analis BISA mengandung '…', '...', tabel ringkas, atau baris yang "+
+			"keliatan kepotong — itu GAYA NULIS analis (ringkas), BUKAN tanda data hilang. JANGAN tafsirin "+
+			"'…' atau tabel pendek sebagai 'data terputus/belum utuh'. Anggap TIAP blok analis = SELESAI & FINAL.\n"+
+			"DILARANG MUTLAK (kalau dilanggar: output DITOLAK engine = GAGAL TOTAL = user nerima ERROR): "+
+			"manggil tool · bilang data 'terputus/incomplete/kurang lengkap/belum utuh' · minta/nunggu data lagi · "+
+			"nanya atau minta klarifikasi ke user · nunda/nahan keputusan · "+
+			"nyebut/nungguin analis yang 'belum' (SEMUA analis di atas UDAH lapor — yang nulis 'tidak ada data' "+
+			"itu HASIL FINAL-nya, putuskan pakai analis lain + turunin confidence). "+
+			"**User GA AKAN jawab — lo WAJIB commit hasil SEKARANG.**\n\n"+
 			"%s\n"+
 			"OUTPUT lo CUMA 2 kemungkinan:\n"+
-			"  (A) Kalau data SALAH SUBJEK (mis. ticker/entitas BEDA dari \"%s\", topik melenceng) → "+
-			"baris PALING ATAS tulis PERSIS:\n"+
+			"  (A) HANYA kalau data SALAH SUBJEK (ticker/entitas BEDA dari \"%s\", topik melenceng — "+
+			"BUKAN sekadar 'kurang lengkap') → baris PALING ATAS tulis PERSIS:\n"+
 			"      RETASK <nama peran analis yang salah>: <instruksi cari ulang>\n"+
 			"      lalu BERHENTI. Engine kasih tugas ulang otomatis (user ga dilibatin).\n"+
-			"  (B) Kalau data SESUAI subjek (walau tipis/ga semua lengkap) → LANGSUNG %s\n"+
-			"      Kalau ada yang kurang, PAKAI yang ada + turunin confidence — TAPI TETEP KASIH KEPUTUSAN, "+
-			"JANGAN nanya, JANGAN nunda. JANGAN ngarang angka yang ga ada di data.",
+			"  (B) SELAIN itu (data sesuai subjek, walau tipis) → LANGSUNG %s\n"+
+			"      Data tipis? PAKAI yang ada + turunin confidence — TAPI TETEP KASIH KEPUTUSAN TEGAS, "+
+			"JANGAN nanya, JANGAN nunda, JANGAN minta data. JANGAN ngarang angka yang ga ada di data.",
 		taskName, input, analysisBlock.String(), input, synthDirective)
 
 	recommendation, serr := host.InvokeAgentMessage(ctx, cat.Synthesizer, synthPrompt, "taskflow:"+runID)
+	// GUARD anti-nanya: haiku KADANG masih confabulate "data terputus / analis belum"
+	// lalu nanya/nunda user, walau prompt udah ngelarang. Kalau output keliatan
+	// NANYA/NUNDA (DAN bukan RETASK yang sah), invoke ULANG dengan teguran keras →
+	// paksa commit. Loop sampai maxSynthGuardRetries (haiku bisa ngeyel 1x). Sengaja
+	// di sini (bukan loop retask di taskflow.go yang LOCKED) biar self-contained.
+	for attempt := 0; serr == nil && attempt < maxSynthGuardRetries; attempt++ {
+		if _, _, isRetask := parseRetask(recommendation); isRetask || !looksLikeAskingUser(recommendation) {
+			break
+		}
+		fmt.Fprintf(os.Stderr, "[taskflow] synth %s run=%s NANYA/NUNDA user (attempt %d) → retry-paksa commit\n",
+			cat.Synthesizer, runID, attempt+1)
+		hard := synthPrompt +
+			"\n\n──────────\n🚫 JAWABAN LO BARUSAN NANYA / NUNDA / SEBUT 'analis belum' / MINTA DATA — itu " +
+			"DILARANG MUTLAK & DITOLAK engine. SEMUA analis (lihat 1/" + fmt.Sprint(len(cat.Crew)) + " s/d " +
+			fmt.Sprint(len(cat.Crew)) + "/" + fmt.Sprint(len(cat.Crew)) + ") UDAH lapor di atas, ga ada yang ditunggu. " +
+			"SEKARANG ULANG: commit KEPUTUSAN final pakai data apa adanya, TANPA satu pun pertanyaan/penundaan. " +
+			"Mulai LANGSUNG dari baris keputusan."
+		retry, rerr := host.InvokeAgentMessage(ctx, cat.Synthesizer, hard, "taskflow:"+runID)
+		if rerr != nil || strings.TrimSpace(retry) == "" {
+			break
+		}
+		recommendation = retry
+	}
 	ms := time.Since(t0).Milliseconds()
 	status := "done"
 	errStr := ""
@@ -176,4 +220,28 @@ func findCrewByRole(crew []CrewMember, role string) *CrewMember {
 		}
 	}
 	return nil
+}
+
+// looksLikeAskingUser — deteksi synth yang NANYA / NUNDA / MINTA DATA ke user
+// (confabulate "data kurang") instead of commit keputusan. Dipakai GUARD di
+// invokeSynth buat retry-paksa. Sengaja fokus ke sinyal KUAT biar minim
+// false-positive — lagian false-positive cuma rugi 1 retry yang TETEP ngehasilin
+// keputusan, jadi aman ke arah "lebih tegas".
+func looksLikeAskingUser(text string) bool {
+	t := strings.ToLower(text)
+	needles := []string{
+		"minta klarifikasi", "klarifikasi singkat", "mohon kirim", "tolong kirim",
+		"tunggu data", "nunggu data", "kirim data", "kirimkan data", "butuh data tambahan",
+		"data belum utuh", "data belum lengkap", "belum lengkap", "data terputus",
+		"data terpotong", "jangan synthesize", "jangan synthesiz", "hold jangan",
+		"belum bisa putuskan", "belum bisa ambil keputusan", "ga bisa putusin",
+		"apakah saya synthesize", "apakah lo mau", "apakah anda", "mau saya lanjut",
+		"minta data", "data lengkap dulu", "sebelum saya putuskan",
+	}
+	for _, n := range needles {
+		if strings.Contains(t, n) {
+			return true
+		}
+	}
+	return false
 }

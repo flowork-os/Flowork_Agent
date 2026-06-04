@@ -389,7 +389,7 @@ HTML/JS. Format declarative di manifest:
         "help": "Format: <bot_id>:<secret>. Dari @BotFather." },
       { "key": "TELEGRAM_ALLOWED_CHATS", "label": "Allowed Chat IDs",
         "type": "text", "storage": "secrets", "required": true,
-        "placeholder": "2012305087, -1003944609311",
+        "placeholder": "123456789, -1001234567890",
         "help": "Pisahkan koma. Group = negative." }
     ]
   }]

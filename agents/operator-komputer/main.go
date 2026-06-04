@@ -77,9 +77,9 @@ func hostSlashDispatch(reqPtr, reqLen, outPtr, outMax uint32) uint32
 
 // === Path konstanta (HARDCODED standar Flowork) ===
 const (
-	WorkspacePrivate = "/workspace"          // mount per-agent (eksklusif)
-	WorkspaceDB      = "/workspace/state.db" // SQLite per-agent
-	WorkspaceShared  = "/shared"             // mount shared workspace (root project)
+	WorkspacePrivate = "/workspace"            // mount per-agent (eksklusif)
+	WorkspaceDB      = "/workspace/state.db"   // SQLite per-agent
+	WorkspaceShared  = "/shared"               // mount shared workspace (root project)
 )
 
 const (
@@ -278,43 +278,6 @@ func runDaemon() {
 				} else {
 					logInteraction("telegram", "out", strconv.FormatInt(chatID, 10), slashReply, map[string]any{
 						"source":           "slash",
-						"reply_to_message": u.Message.MessageID,
-					})
-				}
-				continue
-			}
-			// Anti-halu: routing deterministik — pesan jelas minta analisa kategori
-			// yang ADA → trigger crew LANGSUNG, skip LLM (reliable lepas dari model/kuota).
-			if cat, subj, rok := deterministicRoute(u.Message.Text); rok {
-				_ = runTool("task_run", map[string]any{
-					"category": cat, "subject": subj,
-					"notify_chat_id": strconv.FormatInt(chatID, 10),
-				})
-				dr := "Oke bro, gw nyalain crew " + cat + " buat analisa \"" + subj + "\" — riset beneran lewat crew, bukan ngarang. Hasilnya nyusul ya."
-				if err := sendMessage(token, chatID, dr); err != nil {
-					fmt.Fprintf(os.Stderr, "[mr-flow] sendMessage err (route): %v\n", err)
-				} else {
-					logInteraction("telegram", "out", strconv.FormatInt(chatID, 10), dr, map[string]any{
-						"source": "deterministic_route", "category": cat, "subject": subj,
-						"reply_to_message": u.Message.MessageID,
-					})
-				}
-				continue
-			}
-			// Keyword MISS → FORCED CLASSIFIER: nangkep maksud lintas-bahasa +
-			// aset global (saham US, koin apapun) yang keyword ga kekejar. LLM
-			// dipaksa (tool_choice) → reliable, dispatch tetep di kode.
-			if cat, subj, rok := classifyRoute(cfg, u.Message.Text); rok {
-				_ = runTool("task_run", map[string]any{
-					"category": cat, "subject": subj,
-					"notify_chat_id": strconv.FormatInt(chatID, 10),
-				})
-				dr := "Oke bro, gw nyalain crew " + cat + " buat \"" + subj + "\" — riset beneran lewat crew, bukan ngarang. Hasilnya nyusul ya."
-				if err := sendMessage(token, chatID, dr); err != nil {
-					fmt.Fprintf(os.Stderr, "[mr-flow] sendMessage err (classify): %v\n", err)
-				} else {
-					logInteraction("telegram", "out", strconv.FormatInt(chatID, 10), dr, map[string]any{
-						"source": "forced_classifier", "category": cat, "subject": subj,
 						"reply_to_message": u.Message.MessageID,
 					})
 				}
@@ -1028,143 +991,6 @@ func runTool(name string, args map[string]any) string {
 	return out
 }
 
-// deterministicRoute — anti-halu routing. Pesan jelas minta analisa kategori yang
-// ADA (saham/crypto) → balik (category, subject, true) buat trigger crew LANGSUNG,
-// SKIP LLM. Reliable lepas dari model/kuota — fix kasus LLM halu "ga bisa fetch"
-// + ga nyetir ke crew (BBCA/BBRI). Konservatif: cuma match intent+kategori jelas.
-func deterministicRoute(text string) (category, subject string, ok bool) {
-	words := strings.Fields(text)
-	stop := map[string]bool{
-		"analisa": true, "analisis": true, "analyze": true, "analisakan": true,
-		"saham": true, "crypto": true, "koin": true, "coin": true, "token": true,
-		"cek": true, "review": true, "rekomendasi": true, "cari": true, "carikan": true,
-		"ya": true, "bro": true, "dong": true, "deh": true, "tolong": true,
-		"gw": true, "lo": true, "dulu": true, "donk": true,
-	}
-	intent := false
-	cat := ""
-	var kept []string
-	for _, w := range words {
-		lw := strings.ToLower(strings.Trim(w, ".,!?:;"))
-		switch lw {
-		case "analisa", "analisis", "analyze", "analisakan", "cek", "review", "rekomendasi":
-			intent = true
-		}
-		switch lw {
-		case "saham":
-			cat = "saham"
-		case "crypto", "koin", "coin", "token",
-			// nama koin umum — orang bilang "analisa bitcoin", bukan "analisa crypto bitcoin".
-			"bitcoin", "btc", "ethereum", "etherium", "eth", "solana", "sol",
-			"bnb", "binance", "xrp", "ripple", "cardano", "ada", "dogecoin", "doge",
-			"shiba", "shib", "polkadot", "polygon", "matic", "avalanche", "avax",
-			"litecoin", "ltc", "tron", "trx", "chainlink", "tether", "usdt", "ton":
-			cat = "crypto"
-		}
-		if !stop[lw] {
-			kept = append(kept, w)
-		}
-	}
-	if !intent || cat == "" {
-		return "", "", false
-	}
-	subject = strings.TrimSpace(strings.Join(kept, " "))
-	if subject == "" {
-		return "", "", false
-	}
-	return cat, subject, true
-}
-
-// classifyRoute — FORCED CLASSIFIER. deterministicRoute (di atas) KUAT tapi KAKU:
-// cuma cocok kalau kata-intent pas + Bahasa Indonesia + aset udah di-list. Ini
-// nutup celah itu: LLM NGERTI bahasa APAPUN + aset GLOBAL (saham US, koin apapun),
-// TAPI DIPAKSA via tool_choice keluarin {category,subject} terstruktur — ga bisa
-// ngeles jadi teks "nyalain crew" doang (itu bug lama haiku: ngomong, ga manggil
-// tool). Dispatch tetep di KODE. Dipanggil HANYA pas keyword route MISS → common
-// case tetep instan tanpa LLM, sisanya fleksibel. Gagal/timeout → balik false
-// (fallback ke chat normal, JANGAN blok user).
-//
-// ⚠️ LOCKED-INTENT (jangan diubah AI lain / gw pasca-compact): tool_choice WAJIB
-// "force" (type:function name:route). JANGAN balikin ke auto/ngarep LLM manggil
-// task_run sendiri — itu yang dulu flaky. Force = inti reliability-nya.
-func classifyRoute(cfg agentConfig, userText string) (category, subject string, ok bool) {
-	routeTool := map[string]any{
-		"type": "function",
-		"function": map[string]any{
-			"name":        "route",
-			"description": "Klasifikasi maksud pesan user ke kategori task Flowork atau chat biasa. WAJIB dipanggil sekali.",
-			"parameters": map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"category": map[string]any{
-						"type": "string",
-						"enum": []string{"saham", "crypto", "music-ops", "promo-ops", "operasi-komputer", "chat"},
-						"description": "Pilih satu: " +
-							"'saham'=minta analisa/rekomendasi SAHAM/STOCK (pasar manapun — BBCA, Tesla, Apple, AAPL). " +
-							"'crypto'=minta analisa COIN/TOKEN kripto (Bitcoin, Ethereum, coin apapun, bahasa apapun). " +
-							"'operasi-komputer'=nyuruh kendaliin komputer (matiin/restart/tidur/kunci/logout PC). " +
-							"'music-ops'=task produksi/upload musik YouTube. " +
-							"'promo-ops'=task bikin materi promosi Flowork. " +
-							"'chat'=ngobrol biasa/sapaan/terima-kasih/pertanyaan umum yang BUKAN minta analisa/task di atas.",
-					},
-					"subject": map[string]any{
-						"type":        "string",
-						"description": "Objek konkret yang diminta (mis. 'BBCA', 'Tesla', 'Ethereum', 'matiin PC'). Kalau category='chat', isi '-'.",
-					},
-				},
-				"required": []string{"category", "subject"},
-			},
-		},
-	}
-	reqMap := map[string]any{
-		"model":       cfg.Router.Model,
-		"messages":    []any{map[string]any{"role": "user", "content": userText}},
-		"tools":       []any{routeTool},
-		"tool_choice": map[string]any{"type": "function", "function": map[string]any{"name": "route"}},
-		"max_tokens":  200,
-	}
-	body, _ := json.Marshal(reqMap)
-	resp, err := fetch("POST", cfg.Router.URL,
-		map[string]string{"Content-Type": "application/json"}, body, 30_000)
-	if err != nil || resp == nil || resp.Status >= 400 {
-		return "", "", false // gagal → biarin chat normal yang handle, jangan blok
-	}
-	var oResp struct {
-		Choices []struct {
-			Message struct {
-				ToolCalls []struct {
-					Function struct {
-						Arguments string `json:"arguments"`
-					} `json:"function"`
-				} `json:"tool_calls"`
-			} `json:"message"`
-		} `json:"choices"`
-	}
-	if json.Unmarshal(resp.Body, &oResp) != nil ||
-		len(oResp.Choices) == 0 || len(oResp.Choices[0].Message.ToolCalls) == 0 {
-		return "", "", false
-	}
-	var args struct {
-		Category string `json:"category"`
-		Subject  string `json:"subject"`
-	}
-	if json.Unmarshal([]byte(oResp.Choices[0].Message.ToolCalls[0].Function.Arguments), &args) != nil {
-		return "", "", false
-	}
-	c := strings.ToLower(strings.TrimSpace(args.Category))
-	s := strings.TrimSpace(args.Subject)
-	// Validasi DETERMINISTIK: kategori WAJIB kanonik (kalau LLM ngarang kategori,
-	// tolak → chat normal). 'chat' / subject kosong = bukan task.
-	valid := map[string]bool{
-		"saham": true, "crypto": true, "music-ops": true,
-		"promo-ops": true, "operasi-komputer": true,
-	}
-	if !valid[c] || s == "" || s == "-" {
-		return "", "", false
-	}
-	return c, s, true
-}
-
 // ── Direct RPC handlers ────────────────────────────────────────────────────
 
 func doHandle(argsRaw string) {
@@ -1204,22 +1030,6 @@ func doHandle(argsRaw string) {
 		actor = "rpc"
 	}
 	logInteraction("rpc", "in", actor, in.Text, map[string]any{})
-	// Anti-halu routing deterministik (parity dgn Telegram path).
-	if cat, subj, rok := deterministicRoute(in.Text); rok {
-		_ = runTool("task_run", map[string]any{"category": cat, "subject": subj})
-		dr := "Oke, gw nyalain crew " + cat + " buat analisa \"" + subj + "\" — riset beneran lewat crew. Hasil nyusul."
-		logInteraction("rpc", "out", actor, dr, map[string]any{"source": "deterministic_route"})
-		emit(map[string]any{"reply": dr})
-		return
-	}
-	// Keyword MISS → FORCED CLASSIFIER (parity dgn Telegram path).
-	if cat, subj, rok := classifyRoute(loadConfig(), in.Text); rok {
-		_ = runTool("task_run", map[string]any{"category": cat, "subject": subj})
-		dr := "Oke, gw nyalain crew " + cat + " buat \"" + subj + "\" — riset beneran lewat crew. Hasil nyusul."
-		logInteraction("rpc", "out", actor, dr, map[string]any{"source": "forced_classifier", "category": cat, "subject": subj})
-		emit(map[string]any{"reply": dr})
-		return
-	}
 	hist := fetchHistory(actor)
 	// RPC path (CLI/debug) ga punya Telegram chat → ga ada notify target.
 	reply := callLLM(loadConfig(), in.Text, hist, "")

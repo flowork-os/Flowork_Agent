@@ -48,6 +48,62 @@ func TestFindCrewByRole(t *testing.T) {
 	}
 }
 
+func TestLooksLikeAskingUser(t *testing.T) {
+	asking := []string{
+		"🔴 Minta klarifikasi singkat: synthesize dari potongan ini atau tunggu data lengkap?",
+		"Saya HOLD jangan SYNTHESIZE sampe data benar-benar lengkap.",
+		"Data belum utuh, mohon kirim data teknikal dulu.",
+		"Apakah saya synthesize dari fundamental potongan ini saja?",
+	}
+	for _, s := range asking {
+		if !looksLikeAskingUser(s) {
+			t.Fatalf("harusnya kedeteksi NANYA: %q", s)
+		}
+	}
+	committed := []string{
+		"KEPUTUSAN: BUY\nALASAN: fundamental solid, margin sehat.\nRISIKO: kompetisi EV.",
+		"KEPUTUSAN: AVOID — margin collapse 16.8%→7.2%, momentum bearish.",
+		"RETASK Fundamental: cari BBCA bukan BBNI",
+	}
+	for _, s := range committed {
+		if looksLikeAskingUser(s) {
+			t.Fatalf("keputusan tegas JANGAN kedeteksi nanya (false-positive): %q", s)
+		}
+	}
+}
+
+// askThenCommitInvoker: synth NANYA user di call-1 (confabulate), commit di call-2.
+type askThenCommitInvoker struct{ synthCalls int }
+
+func (s *askThenCommitInvoker) InvokeAgentMessage(ctx context.Context, agentID, text, caller string) (string, error) {
+	if agentID == "synth" {
+		s.synthCalls++
+		if s.synthCalls == 1 {
+			return "🔴 Minta klarifikasi: data belum utuh, tunggu data lengkap dulu?", nil
+		}
+		return "KEPUTUSAN: BUY\nALASAN: fundamental solid", nil
+	}
+	return "analisa " + agentID, nil
+}
+
+func TestSynthGuard_RetryOnAsking(t *testing.T) {
+	host := &askThenCommitInvoker{}
+	cat := Category{
+		ID: "saham", Name: "Saham", Synthesizer: "synth",
+		Crew: []CrewMember{{AgentID: "fund", RoleLabel: "Fundamental"}},
+	}
+	res := RunCategoryTask(context.Background(), host, t.TempDir(), cat, "BBCA", "1", nil)
+	if strings.Contains(res.Recommendation, "Minta klarifikasi") {
+		t.Fatalf("guard ga jalan — output final masih NANYA user: %q", res.Recommendation)
+	}
+	if !strings.Contains(res.Recommendation, "BUY") {
+		t.Fatalf("harusnya KEPUTUSAN setelah guard-retry, dapet: %q", res.Recommendation)
+	}
+	if host.synthCalls != 2 {
+		t.Fatalf("synth harus 2x (nanya + guard-retry paksa commit), dapet %d", host.synthCalls)
+	}
+}
+
 // stub Invoker: simulasi synth nyuruh RETASK → worker dikoreksi → synth kasih vonis.
 type stubInvoker struct {
 	synthCalls int

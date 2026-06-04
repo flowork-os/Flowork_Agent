@@ -19,18 +19,16 @@ Thumbs.db
 *.log
 *.pid
 
-# SQLite per-agent runtime DB (state.db + WAL/SHM)
-agents/*/workspace/state.db
-agents/*/workspace/state.db-shm
-agents/*/workspace/state.db-wal
-agents/*/workspace/*.sqlite*
+# Per-agent runtime workspace — NEVER commit. state.db berisi TOKEN/secret
+# (TELEGRAM_BOT_TOKEN dll). Blanket: seluruh isi workspace tiap agent di-ignore.
+agents/*/workspace/
+*.db
 *.db-shm
 *.db-wal
+*.sqlite*
 
 # Cross-agent shared workspace runtime
 /workspace/
-agents/*/workspace/cache/
-agents/*/workspace/log/
 
 # YouTube media — video owner (file gede, JANGAN ke-push ke GitHub)
 /media/
@@ -53,19 +51,10 @@ secret.key
 secret.yaml
 .scratch/
 
-# FASE 4: crew SAHAM generated (reproduce via scripts/setup-saham-crew.sh)
-agents/saham-fundamental/
-agents/saham-keuangan/
-agents/saham-teknikal/
-agents/saham-sinteser/
+# Crew saham/crypto + operator-komputer: SOURCE (go.mod/main.go/manifest.json)
+# DI-TRACK sekarang — open-source, semua agent masuk. workspace/state.db tetep
+# di-ignore via rule "agents/*/workspace/" di atas (token aman).
 /agent-config
-agents/crypto-fundamental/
-agents/crypto-onchain/
-agents/crypto-sentimen/
-agents/crypto-sinteser/
-
-# Operator agent generated (reproduce via scripts/setup-operator.sh)
-agents/operator-komputer/
 
 # Local env override (power arm, dll) — JANGAN push
 flowork.local.env

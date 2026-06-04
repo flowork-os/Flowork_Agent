@@ -1,9 +1,9 @@
 {
-  "id": "mr-flow",
+  "id": "crypto-onchain",
   "version": "1.0.0",
   "kind": "agent",
-  "display_name": "Mr.Flow",
-  "description": "Owner-class warga. All-in-one Telegram agent: long-poll bot updates, persona Mr.Flow, dispatch ke flow_router /v1/chat/completions, reply natural Bahasa Indonesia.",
+  "display_name": "Crypto Onchain",
+  "description": "Warga Flowork (spawn dari template mr-flow). Engine sama Mr.Flow; persona + tool subscription diatur per-agent via popup. Footprint kecil = subscribe tools seperlunya.",
   "min_kernel_version": "0.1.0",
   "abi_version": 1,
   "author": "@flowork-os",
@@ -27,7 +27,7 @@
     "rpc:router:skill",
     "rpc:router:brain",
     "rpc:taskflow",
-    "rpc:agent-invoke"
+    "net:fetch:*"
   ],
   "exposes_rpc": [
     {
