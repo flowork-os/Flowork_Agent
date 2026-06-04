@@ -361,6 +361,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("flowork.db open: %v", err)
 	}
+	// Plug-and-Play Phase 3: drop-folder auto-install (.fwpack di ~/.flowork/dropbox/).
+	startPluginDropWatcher(host, fdb)
 	// Inject API key tersimpan → env, supaya engine (wallet, dll) langsung
 	// pakai konfigurasi dari Settings tanpa hardcode/restart. Hanya key
 	// UPPER_SNAKE (env-var) yang di-set; password hash (lowercase) di-skip.

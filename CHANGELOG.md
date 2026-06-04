@@ -1,3 +1,25 @@
+## 2026-06-04 22:05 WIB — PLUG-AND-PLAY Phase 4: caps-consent + smoke-test + HOT-LOAD agent baru
+
+**3 hal di [plugin_handler.go](plugin_handler.go):**
+- **Caps consent (4.1):** scan manifest agent pack → flag caps BAHAYA (`exec:` kendali PC/command ·
+  `secret:` baca token owner · `fs:shared` file warga lain · `rpc:agent-invoke` setir agent — primitive
+  ASLI Flowork). Default-deny: install DITOLAK (403) kalau ada caps bahaya tanpa `?approve_caps=1`. Owner
+  approve sekali. Sandbox (SandboxRunV3) tetep enforce caps di runtime → defense-in-depth.
+- **Hot-load agent baru (fix gap 2.3):** kernel watcher fsnotify GA recurse subfolder + ada race
+  partial-write → agent baru ga ke-load tanpa restart. Fix: extract ke STAGING → **ATOMIC RENAME** ke
+  `<id>.fwagent` → watcher liat 1 dir LENGKAP → LoadInstance bersih. **Ga sentuh kernelhost (LOCKED).**
+  Agent plugin langsung kepake tanpa restart.
+- **Smoke-test (4.2):** abis install, ping synth. `not_loaded` (pack broken/agent gagal load) → DISABLE
+  kategori (ga di-expose ke mr-flow). `llm_error` (loaded tapi hiccup) → tetep enabled (transient).
+
+### Test (live)
+`exec:power` tanpa approve → 403 consent_required + flag `exec:power` ✅. Dengan `?approve_caps=1` →
+load + smoke=ok + enabled=1 ✅. Ghost synth (ga ada file) → not_loaded → enabled=0 ✅. Caps PALSU
+(`power:control`) → parser manifest nolak (`unknown primitive`) → smoke not_loaded → disable (bener).
+Hot-load kebukti: log `loaded dbg-bot... daemon-boot (hot-reload)`.
+
+---
+
 ## 2026-06-04 21:30 WIB — PLUG-AND-PLAY Phase 1+2: install task pack (.fwpack) → mr-flow auto-discover
 
 **LOOP PENUH KEBUKTI:** bikin file `.fwpack` → install → mr-flow OTOMATIS tau ada task baru + route
