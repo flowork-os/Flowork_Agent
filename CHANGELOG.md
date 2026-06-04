@@ -1,3 +1,35 @@
+## 2026-06-04 21:30 WIB — PLUG-AND-PLAY Phase 1+2: install task pack (.fwpack) → mr-flow auto-discover
+
+**LOOP PENUH KEBUKTI:** bikin file `.fwpack` → install → mr-flow OTOMATIS tau ada task baru + route
+ke situ, TANPA sentuh kode mr-flow. Persis visi Mr.Dev ("upload plugin → auto extract → mr-flow tau").
+
+### Phase 1 — Pack format ([plugin_handler.go](plugin_handler.go) BARU, package main)
+- `.fwpack` = zip: `plugin.json` + `agents/<id>/{agent.wasm,manifest.json}`.
+- `plugin.json`: `{id,name,version,author, category:{id,name,icon,trigger_hint,synth_directive}, crew:[{agent_id,role_label,kind:worker|synth}]}`.
+- `validate()`: id regex, category.id, crew non-empty, WAJIB tepat 1 synth — tolak pack ngaco sebelum nyentuh disk/DB.
+
+### Phase 2 — Install pipeline (`POST /api/plugins/install`, loopback-only)
+- Extract agent SELF-CONTAINED + path-safe (anti zip-slip via `filepath.Rel`) ke `AgentsDir/<id>.fwagent/`
+  — SENGAJA ga manggil UploadHandler (stabil) biar jalur stabil ga kesentuh.
+- Register: synth → `Synthesizer`, worker → `SetCrew`; `UpsertCategory` + `SetCrew`. Idempotent (re-install = upgrade).
+- Kategori LANGSUNG kebaca classifier (Phase 0 dynamic, cache <=60s).
+
+### Test (live, end-to-end)
+Bikin `joke.fwpack` (agent `joke-bot` + kategori `joke`) → `curl POST /api/plugins/install` → 200
+{agents_extract:2, category:joke}. Fire "ceritain lelucon dong" lewat mr-flow → route `category=joke`
+(source=forced_classifier) ✅. "analyze Tesla" → saham (ga rusak) ✅. Test artifact dibersihin (uninstall manual; endpoint uninstall = Phase 6).
+
+### Locked-file note (owner-approved)
+[internal/floworkauth/handlers.go](internal/floworkauth/handlers.go) (LOCKED) ditambah 1 case whitelist
+`/api/plugins/install` (POST + loopback-only) — pola PERSIS endpoint taskflow existing, exact-path (jaga
+properti anti-bypass), additive, build+vet OK. Mr.Dev approve setelah verifikasi ga ngerusak + sesuai arsitektur.
+
+### Catatan (roadmap berikutnya)
+Phase 3 drop-folder watcher · Phase 4 caps-consent + smoke-test (SEKARANG auto-approve, sandbox tetep
+enforce caps agent) · Phase 5 CLI · Phase 6 uninstall + versioning + dogfood.
+
+---
+
 ## 2026-06-04 21:10 WIB — PLUG-AND-PLAY Phase 0: classifier DINAMIS baca task_categories live
 
 **Tujuan (roadmap plug-and-play, Phase 0 = linchpin):** mr-flow classifier ga lagi hardcode daftar

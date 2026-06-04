@@ -213,6 +213,10 @@ func isPublicPath(r *http.Request) bool {
 		return r.Method == http.MethodGet && isLocalRequest(r)
 	case "/api/taskflow/schedule", "/api/taskflow/schedule/delete":
 		return isLocalRequest(r)
+	case "/api/plugins/install":
+		// Install task pack — loopback-only (owner-local / CLI). Server bind
+		// 127.0.0.1 → aman remote. Caps-consent = roadmap Phase 4.
+		return r.Method == http.MethodPost && isLocalRequest(r)
 	case "/api/mcp/config":
 		return r.Method == http.MethodGet && isLocalRequest(r)
 	case "/api/agents/skills", "/api/agents/skills/curate":
