@@ -1075,6 +1075,55 @@ func deterministicRoute(text string) (category, subject string, ok bool) {
 	return cat, subject, true
 }
 
+// catEntry — 1 kategori task buat classifier dinamis (plug-and-play).
+type catEntry struct{ id, name, hint string }
+
+// catCache — cache daftar kategori (TTL) biar classifier ga query DB tiap pesan.
+var (
+	catCacheData []catEntry
+	catCacheAt   uint64
+)
+
+const catCacheTTLms = 60_000
+
+// fetchCategories — ambil kategori task LIVE dari host (/api/taskflow/categories).
+// PLUG-AND-PLAY (Phase 0): kategori baru dari plugin OTOMATIS kebaca classifier
+// TANPA ngoprek kode mr-flow. Cache catCacheTTLms. Balik nil kalau gagal → caller
+// FALLBACK ke enum hardcoded (perilaku lama, ga rusak).
+func fetchCategories() []catEntry {
+	if catCacheData != nil && hostTimeNowMs()-catCacheAt < catCacheTTLms {
+		return catCacheData
+	}
+	resp, err := fetch("GET", "http://127.0.0.1:1987/api/taskflow/categories", nil, nil, 3000)
+	if err != nil || resp == nil || resp.Status >= 400 {
+		return nil
+	}
+	var out struct {
+		Categories []struct {
+			ID          string `json:"id"`
+			Name        string `json:"name"`
+			TriggerHint string `json:"trigger_hint"`
+			Enabled     bool   `json:"enabled"`
+		} `json:"categories"`
+	}
+	if json.Unmarshal(resp.Body, &out) != nil {
+		return nil
+	}
+	var cats []catEntry
+	for _, c := range out.Categories {
+		if !c.Enabled || strings.TrimSpace(c.ID) == "" {
+			continue
+		}
+		cats = append(cats, catEntry{id: c.ID, name: strings.TrimSpace(c.Name), hint: strings.TrimSpace(c.TriggerHint)})
+	}
+	if len(cats) == 0 {
+		return nil
+	}
+	catCacheData = cats
+	catCacheAt = hostTimeNowMs()
+	return cats
+}
+
 // classifyRoute — FORCED CLASSIFIER. deterministicRoute (di atas) KUAT tapi KAKU:
 // cuma cocok kalau kata-intent pas + Bahasa Indonesia + aset udah di-list. Ini
 // nutup celah itu: LLM NGERTI bahasa APAPUN + aset GLOBAL (saham US, koin apapun),
@@ -1088,6 +1137,38 @@ func deterministicRoute(text string) (category, subject string, ok bool) {
 // "force" (type:function name:route). JANGAN balikin ke auto/ngarep LLM manggil
 // task_run sendiri — itu yang dulu flaky. Force = inti reliability-nya.
 func classifyRoute(cfg agentConfig, userText string) (category, subject string, ok bool) {
+	// PLUG-AND-PLAY (Phase 0): enum + deskripsi kategori DINAMIS dari task_categories
+	// (live). Kategori baru dari plugin auto-kebaca. FALLBACK ke hardcoded kalau fetch
+	// gagal → perilaku lama ga rusak.
+	var enum []string
+	var descParts []string
+	validCat := map[string]bool{}
+	for _, c := range fetchCategories() {
+		enum = append(enum, c.id)
+		validCat[c.id] = true
+		d := c.hint
+		if d == "" {
+			d = c.name
+		}
+		descParts = append(descParts, "'"+c.id+"'="+d)
+	}
+	if len(enum) == 0 {
+		enum = []string{"saham", "crypto", "music-ops", "promo-ops", "operasi-komputer"}
+		for _, k := range enum {
+			validCat[k] = true
+		}
+		descParts = []string{
+			"'saham'=analisa SAHAM/STOCK pasar manapun (BBCA,Tesla,AAPL)",
+			"'crypto'=analisa COIN/TOKEN kripto (Bitcoin,Ethereum,coin apapun)",
+			"'operasi-komputer'=kendaliin komputer (matiin/restart/tidur/kunci/logout)",
+			"'music-ops'=task produksi/upload musik YouTube",
+			"'promo-ops'=task materi promosi Flowork",
+		}
+	}
+	enum = append(enum, "chat")
+	catDesc := "Pilih satu kategori yang COCOK sama maksud user, atau 'chat'. " +
+		strings.Join(descParts, " · ") +
+		" · 'chat'=ngobrol/sapaan/terima-kasih/pertanyaan umum yang BUKAN task di atas."
 	routeTool := map[string]any{
 		"type": "function",
 		"function": map[string]any{
@@ -1097,15 +1178,9 @@ func classifyRoute(cfg agentConfig, userText string) (category, subject string, 
 				"type": "object",
 				"properties": map[string]any{
 					"category": map[string]any{
-						"type": "string",
-						"enum": []string{"saham", "crypto", "music-ops", "promo-ops", "operasi-komputer", "chat"},
-						"description": "Pilih satu: " +
-							"'saham'=minta analisa/rekomendasi SAHAM/STOCK (pasar manapun — BBCA, Tesla, Apple, AAPL). " +
-							"'crypto'=minta analisa COIN/TOKEN kripto (Bitcoin, Ethereum, coin apapun, bahasa apapun). " +
-							"'operasi-komputer'=nyuruh kendaliin komputer (matiin/restart/tidur/kunci/logout PC). " +
-							"'music-ops'=task produksi/upload musik YouTube. " +
-							"'promo-ops'=task bikin materi promosi Flowork. " +
-							"'chat'=ngobrol biasa/sapaan/terima-kasih/pertanyaan umum yang BUKAN minta analisa/task di atas.",
+						"type":        "string",
+						"enum":        enum,
+						"description": catDesc,
 					},
 					"subject": map[string]any{
 						"type":        "string",
@@ -1153,13 +1228,10 @@ func classifyRoute(cfg agentConfig, userText string) (category, subject string, 
 	}
 	c := strings.ToLower(strings.TrimSpace(args.Category))
 	s := strings.TrimSpace(args.Subject)
-	// Validasi DETERMINISTIK: kategori WAJIB kanonik (kalau LLM ngarang kategori,
-	// tolak → chat normal). 'chat' / subject kosong = bukan task.
-	valid := map[string]bool{
-		"saham": true, "crypto": true, "music-ops": true,
-		"promo-ops": true, "operasi-komputer": true,
-	}
-	if !valid[c] || s == "" || s == "-" {
+	// Validasi DETERMINISTIK: kategori WAJIB ada di daftar valid (DINAMIS dari DB,
+	// atau fallback hardcoded — validCat dibangun di atas). LLM ngarang kategori /
+	// 'chat' / subject kosong → tolak (jatuh ke chat normal).
+	if c == "chat" || !validCat[c] || s == "" || s == "-" {
 		return "", "", false
 	}
 	return c, s, true

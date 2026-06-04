@@ -459,7 +459,7 @@ func (s *Store) SeedSahamIfEmpty() error {
 	}
 	if err := s.UpsertCategory(TaskCategory{
 		ID: "saham", Name: "Analisa Saham", Icon: "📈",
-		TriggerHint: "analisa saham <kode>", Synthesizer: "saham-sinteser", Enabled: true,
+		TriggerHint: "analisa/rekomendasi SAHAM atau STOCK pasar manapun (mis. BBCA, Tesla, AAPL)", Synthesizer: "saham-sinteser", Enabled: true,
 	}); err != nil {
 		return err
 	}

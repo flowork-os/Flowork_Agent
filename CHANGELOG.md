@@ -1,3 +1,29 @@
+## 2026-06-04 21:10 WIB — PLUG-AND-PLAY Phase 0: classifier DINAMIS baca task_categories live
+
+**Tujuan (roadmap plug-and-play, Phase 0 = linchpin):** mr-flow classifier ga lagi hardcode daftar
+kategori. Dia baca `task_categories` LIVE → kategori baru (nanti dari plugin) OTOMATIS kebaca + bisa
+di-route, TANPA ngoprek kode mr-flow.
+
+### Perubahan (ADDITIVE — ada fallback, ga rusak yang stabil)
+- `fetchCategories()` ([agents/mr-flow/main.go](agents/mr-flow/main.go)): GET `/api/taskflow/categories`
+  → cache 60s. Bangun enum + deskripsi `route` tool dari `id`+`name`+`trigger_hint` tiap kategori.
+- **FALLBACK**: kalau fetch gagal/timeout/kosong → enum HARDCODED lama (perilaku v1.2.0 utuh).
+- Validasi kategori jadi DINAMIS (`validCat` dari DB/fallback) — bukan map kanonik hardcode.
+- Cap baru mr-flow: `net:fetch:.../api/taskflow/categories`. trigger_hint saham+crypto diperkaya
+  (seed [tasks.go](internal/floworkdb/tasks.go) + DB live).
+
+### Test KILLER (live lewat mr-flow asli, scheduler-cron)
+Insert kategori DUMMY `cuaca` ke `task_categories` **TANPA sentuh kode mr-flow** → "cuaca besok di
+Jakarta gimana?" → mr-flow route `category=cuaca` (source=forced_classifier) ✅. "analyze Tesla" → saham
+(existing ga rusak) ✅. "halo apa kabar" → chat, no dispatch ✅. **Bukti: mr-flow belajar task baru cuma
+dari 1 baris DB.** Roadmap privat: `/home/mrflow/Documents/ROADMAP_PLUGIN_PLAY.md` (di luar repo).
+
+### Catatan keamanan (buat Phase 4)
+`trigger_hint` masuk ke prompt classifier → plugin pihak-ketiga bisa prompt-inject lewat hint. Sekarang
+aman (kategori owner-controlled); pas plugin install dibuka, WAJIB ada caps-consent + validasi hint.
+
+---
+
 ## 2026-06-04 18:46 WIB — FIX: synth NANYA user → ROOT-nya input synth ke-TRUNCATE 1200 char (bukan confabulation)
 
 **Gejala (kebukti live run#35–#38):** synth crew (saham/crypto/dst) sering **nanya/nunda user**

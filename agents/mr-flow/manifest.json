@@ -18,6 +18,7 @@
     "net:fetch:http://127.0.0.1:1987/api/agents/interactions",
     "net:fetch:http://127.0.0.1:1987/api/agents/tools/specs",
     "net:fetch:http://127.0.0.1:1987/api/agents/tools/run",
+    "net:fetch:http://127.0.0.1:1987/api/taskflow/categories",
     "state:read",
     "state:write",
     "time:read",
