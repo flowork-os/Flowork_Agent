@@ -15,12 +15,12 @@ import (
 type Trigger struct {
 	ID            string `json:"id"`
 	Name          string `json:"name"`
-	TypeID        string `json:"type_id"`        // "time" | "webhook" | "file-watch" | …
-	Config        string `json:"config"`         // JSON isian config tipe (mis. {"cron":"0 9 * * *"})
-	Target        string `json:"target"`         // agent id ATAU group id
-	TargetKind    string `json:"target_kind"`    // "agent" | "group"
-	Prompt        string `json:"prompt"`         // template {{payload}}
-	Deliver       string `json:"deliver"`        // "telegram" (v1)
+	TypeID        string `json:"type_id"`     // "time" | "webhook" | "file-watch" | …
+	Config        string `json:"config"`      // JSON isian config tipe (mis. {"cron":"0 9 * * *"})
+	Target        string `json:"target"`      // agent id ATAU group id
+	TargetKind    string `json:"target_kind"` // "agent" | "group"
+	Prompt        string `json:"prompt"`      // template {{payload}}
+	Deliver       string `json:"deliver"`     // "telegram" (v1)
 	Enabled       bool   `json:"enabled"`
 	State         string `json:"state"`          // blob opaque per-rule (dipakai tipe poll)
 	WebhookSecret string `json:"webhook_secret"` // untuk tipe push
