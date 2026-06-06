@@ -125,7 +125,7 @@ function cardHTML(r) {
 }
 
 function wireCard(mainEl, r) {
-  const card = mainEl.querySelector(`.tg-panel[data-id="${CSS.escape(r.id)}"]`);
+  const card = mainEl.querySelector(`.tg-panel[data-id="${r.id}"]`); // id = slug server-validated, aman
   if (!card) return;
   card.querySelector('[data-act="toggle"]').onclick = async () => {
     try { await fetchJSON(`/api/triggers/toggle?id=${encodeURIComponent(r.id)}&enabled=${r.enabled ? 0 : 1}`, { method: 'POST' }); await load(mainEl); } catch (e) { alert(e.message); }

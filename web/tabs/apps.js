@@ -76,7 +76,7 @@ function renderBody(mainEl) {
   if (!apps.length) { body.innerHTML = `<div class="ap-empty">${esc(L.empty)}</div>`; return; }
   body.innerHTML = `<div class="ap-grid">${apps.map(iconHTML).join('')}</div>`;
   apps.forEach(a => {
-    const el = body.querySelector(`[data-app="${CSS.escape(a.id)}"]`);
+    const el = body.querySelector(`[data-app="${a.id}"]`); // id = slug server-validated, aman di selector
     el.querySelector('.open').onclick = () => openApp(a);
   });
 }
