@@ -64,6 +64,7 @@ import (
 	"flowork-gui/internal/slashcmd"
 	slashbuiltins "flowork-gui/internal/slashcmd/builtins"
 	slashcustom "flowork-gui/internal/slashcmd/custom"
+	"flowork-gui/internal/triggers"
 	"flowork-gui/internal/tools"
 	"flowork-gui/internal/tools/builtins"
 	"flowork-gui/internal/watchdog"
@@ -392,6 +393,12 @@ func main() {
 			}
 		}
 	}
+	// TRIGGER engine (ROADMAP 3): papan kosong event-driven (Schedule = tipe `time`).
+	// Reuse: InvokeAgentMessage (aksi) + notifyOwnerTelegram (deliver). Hook ke tick di bawah.
+	_ = fdb.EnsureTriggerSchema()
+	go func() { _ = fdb.SweepTriggerKeys(30) }() // retensi ledger dedup
+	trigEngine := &triggers.Engine{Store: fdb, Invoke: host.InvokeAgentMessage, Notify: notifyOwnerTelegram}
+
 	// SCHEDULER LOOPING: tiap menit cek jadwal task → fire Category Task otomatis +
 	// notify Telegram (mis. tiap jam 9 pagi: analisa saham A → keputusan ke chat).
 	go func() {
@@ -411,6 +418,7 @@ func main() {
 					if n := RunDueSchedules(host, fdb); n > 0 {
 						log.Printf("task-scheduler: %d jadwal di-fire", n)
 					}
+					trigEngine.Tick(ctx) // ROADMAP 3: proses aturan trigger poll (time/file-watch/…)
 				}()
 			}
 		}
@@ -598,6 +606,14 @@ func main() {
 	mux.HandleFunc("/api/scanner/packs/install", scanapi.ScannerPackInstallHandler())            // kind:scanner .fwpack plug-and-play
 	mux.HandleFunc("/api/scanner/packs/uninstall", scanapi.ScannerPackUninstallHandler())
 	mux.HandleFunc("/api/scanner/packs/installed", scanapi.ScannerPacksInstalledHandler())
+	// TRIGGER (ROADMAP 3): otomasi event→aksi (plug-and-play, agnostic). Schedule = tipe `time`.
+	mux.HandleFunc("/api/triggers", triggersHandler(trigEngine))
+	mux.HandleFunc("/api/triggers/delete", triggersDeleteHandler(trigEngine))
+	mux.HandleFunc("/api/triggers/toggle", triggersToggleHandler(trigEngine))
+	mux.HandleFunc("/api/triggers/run", triggersRunHandler(trigEngine))
+	mux.HandleFunc("/api/triggers/runs", triggersRunsHandler(trigEngine))
+	mux.HandleFunc("/api/triggers/types", triggersTypesHandler())
+	mux.HandleFunc("/api/triggers/hook/", triggersHookHandler(trigEngine)) // webhook intake (public, secret-gated)
 	// Scheduler looping: CRUD jadwal recurring task.
 	mux.HandleFunc("/api/taskflow/schedules", taskflowSchedulesHandler(fdb))
 	mux.HandleFunc("/api/taskflow/schedule", taskflowScheduleAddHandler(fdb))

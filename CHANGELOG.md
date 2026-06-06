@@ -1,3 +1,25 @@
+## 2026-06-07 — ROADMAP 3: TRIGGER — framework otomasi event→aksi (v1 SHIPPED)
+
+Papan-kosong event-driven (ala Google Tag Manager buat mesin). KALAU <event> MAKA suruh
+<agent/group> dgn <prompt {{payload}}> → kirim Telegram. Schedule (ROADMAP 2) = tipe `time`.
+
+- **Engine generik** (`internal/triggers/engine.go`, LOCKED): tick→check→dedup→render payload→
+  runAction. Inti TIDAK tahu logika tipe (kontrak `Check(config,state)→events`). Reuse
+  `InvokeAgentMessage` (aksi) + `notifyOwnerTelegram` (deliver) + parser cron (`internal/scheduler`).
+  Hook ke tick 60s yang sudah ada (BUKAN loop baru).
+- **Tipe = file self-register** (plug-and-play di tingkat sumber; tambah tipe = tambah type_*.go,
+  engine tak diedit): `time` (cron→Schedule), `webhook` (push paling agnostic — CCTV/IoT/script),
+  `file-watch` (file baru di folder, poll+seed). Payload disuntik ke prompt via `{{key}}` (ala GTM).
+- **Data** (`internal/floworkdb/triggers.go`): trigger_rules + trigger_fired_keys (dedup) +
+  trigger_runs (history). **HTTP** (`triggers_handler.go`): CRUD+toggle+run+runs+types+webhook intake.
+- **GUI** tab "Trigger" di sidebar (Matrix×Jarvis): aturan + form dinamis (config schema per tipe)
+  + chip payload + target agent/group + history + URL webhook. i18n en/id, no hardcode.
+- **Keamanan**: handler session-gated; webhook intake secret-gated (constant-time) + public-path
+  exempt; id slug; SQL parameterized; fire async (tick non-blocking).
+- **TEST**: unit (render/dedup-time/seed-file/parse-webhook) PASS · E2E REAL: webhook→engine→
+  agent(mr-flow)→Telegram, payload templating terbukti (`ping {{title}}`→reply ber-konteks), status=ok.
+
+Kernel loket tak disentuh; jalur kritis hanya ditambah. ROADMAP 2 diserap (Schedule = tipe time).
 ## 2026-06-07 — FIX deployment gap: group template wasm ga ke-build di fresh checkout
 
 Nutup catatan dari audit Groups. `/api/groups/create` nyalin `templates/group-template/

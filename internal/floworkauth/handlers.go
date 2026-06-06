@@ -197,7 +197,7 @@ func isPublicPath(r *http.Request) bool {
 	// Generic inbound webhook (§8.H): an EXTERNAL caller POSTs here. The path is
 	// public, but WebhookHandler refuses it unless the per-module "webhook_secret"
 	// matches — a module opts in, so this is never an open trigger.
-	if r.Method == http.MethodPost && strings.HasPrefix(path, "/api/kernel/webhook/") {
+	if r.Method == http.MethodPost && (strings.HasPrefix(path, "/api/kernel/webhook/") || strings.HasPrefix(path, "/api/triggers/hook/")) {
 		return true
 	}
 	// Agent self-call (loopback only): daemon WASM fetch konteks/self-prompt/
