@@ -13,10 +13,10 @@ func init() { Register(&timeType{}) }
 // cron yang sudah ada (internal/scheduler/cron.go, LOCKED — hanya dipanggil).
 type timeType struct{}
 
-func (t *timeType) ID() string             { return "time" }
-func (t *timeType) Name() string           { return "Schedule (time)" }
-func (t *timeType) Mode() string           { return "poll" }
-func (t *timeType) PayloadKeys() []string  { return []string{"time", "date"} }
+func (t *timeType) ID() string            { return "time" }
+func (t *timeType) Name() string          { return "Schedule (time)" }
+func (t *timeType) Mode() string          { return "poll" }
+func (t *timeType) PayloadKeys() []string { return []string{"time", "date"} }
 func (t *timeType) ConfigSchema() []Field {
 	return []Field{{
 		Key: "cron", Label: "Cron (min hour dom mon dow)", Type: "text", Default: "0 9 * * *", Required: true,

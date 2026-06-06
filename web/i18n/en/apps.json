@@ -1,0 +1,11 @@
+{
+  "title": "APP",
+  "sub": "Programs used by you AND your agents — any language. Open them inside Flowork.",
+  "installed": "INSTALLED",
+  "store": "APP STORE",
+  "store_intro": "Install apps here (like an app store).",
+  "store_local": "Local install (v1): drop a folder at",
+  "store_remote": "Remote catalog (browse & install community apps) — coming soon.",
+  "empty": "No apps yet. The bundled 'Shared Notepad' (Python) proves it: you and an agent edit the same note.",
+  "close": "Close"
+}

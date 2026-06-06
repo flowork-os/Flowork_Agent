@@ -49,6 +49,7 @@ import (
 
 	"flowork-gui/internal/agentdb"
 	"flowork-gui/internal/agentmgr"
+	fwapps "flowork-gui/internal/apps"
 	"flowork-gui/internal/codescan"
 	"flowork-gui/internal/connections"
 	"flowork-gui/internal/floworkauth"
@@ -64,9 +65,9 @@ import (
 	"flowork-gui/internal/slashcmd"
 	slashbuiltins "flowork-gui/internal/slashcmd/builtins"
 	slashcustom "flowork-gui/internal/slashcmd/custom"
-	"flowork-gui/internal/triggers"
 	"flowork-gui/internal/tools"
 	"flowork-gui/internal/tools/builtins"
+	"flowork-gui/internal/triggers"
 	"flowork-gui/internal/watchdog"
 )
 
@@ -399,6 +400,14 @@ func main() {
 	go func() { _ = fdb.SweepTriggerKeys(30) }() // retensi ledger dedup
 	trigEngine := &triggers.Engine{Store: fdb, Invoke: host.InvokeAgentMessage, Notify: notifyOwnerTelegram}
 
+	// APPS platform (ROADMAP 4): program dipakai MANUSIA (GUI) & AGENT (tool) di state yang SAMA,
+	// core LINTAS BAHASA (runtime:process). Load apps/<id>/ → daftarkan operasi sbg tool agent.
+	appsMgr := fwapps.NewManager("apps")
+	if err := appsMgr.Load(); err != nil {
+		log.Printf("apps load: %v", err)
+	}
+	defer appsMgr.Shutdown()
+
 	// SCHEDULER LOOPING: tiap menit cek jadwal task → fire Category Task otomatis +
 	// notify Telegram (mis. tiap jam 9 pagi: analisa saham A → keputusan ke chat).
 	go func() {
@@ -614,6 +623,11 @@ func main() {
 	mux.HandleFunc("/api/triggers/runs", triggersRunsHandler(trigEngine))
 	mux.HandleFunc("/api/triggers/types", triggersTypesHandler())
 	mux.HandleFunc("/api/triggers/hook/", triggersHookHandler(trigEngine)) // webhook intake (public, secret-gated)
+	// APPS (ROADMAP 4): launcher + invoke operasi (1 pintu utk human GUI & agent tool) + state + aset GUI.
+	mux.HandleFunc("/api/apps", appsListHandler(appsMgr))
+	mux.HandleFunc("/api/apps/op", appsOpHandler(appsMgr))
+	mux.HandleFunc("/api/apps/state", appsStateHandler(appsMgr))
+	mux.HandleFunc("/api/apps/", appsUIHandler(appsMgr)) // /api/apps/<id>/ui/* (iframe sandbox)
 	// Scheduler looping: CRUD jadwal recurring task.
 	mux.HandleFunc("/api/taskflow/schedules", taskflowSchedulesHandler(fdb))
 	mux.HandleFunc("/api/taskflow/schedule", taskflowScheduleAddHandler(fdb))

@@ -1,0 +1,18 @@
+{
+  "id": "notepad",
+  "kind": "app",
+  "name": "Shared Notepad",
+  "description": "Satu catatan yang bisa diedit kamu DAN agent. Bukti app lintas-bahasa (core Python) dipakai human + AI.",
+  "icon": "ui/icon.svg",
+  "version": "1.0.0",
+  "runtime": "process",
+  "core_entry": "python3 core.py",
+  "gui_entry": "ui/index.html",
+  "operations": [
+    { "name": "get", "description": "Read the note", "tool": true, "gui": false, "mutates": false },
+    { "name": "set", "description": "Replace the whole note text", "tool": true, "gui": true, "mutates": true,
+      "input_schema": { "type": "object", "properties": { "text": { "type": "string" } } } },
+    { "name": "append", "description": "Append a line to the note", "tool": true, "gui": true, "mutates": true,
+      "input_schema": { "type": "object", "properties": { "text": { "type": "string" } } } }
+  ]
+}

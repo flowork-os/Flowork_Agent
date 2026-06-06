@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Shared Notepad</title>
+<style>
+  html,body{margin:0;height:100%;background:#06121a;color:#bdf5d6;
+    font-family:ui-monospace,'JetBrains Mono',Consolas,monospace}
+  .wrap{padding:14px;display:flex;flex-direction:column;height:100%;box-sizing:border-box}
+  .h{color:#22ff88;letter-spacing:2px;font-size:13px;margin-bottom:8px;text-shadow:0 0 10px rgba(34,255,136,.4)}
+  .sub{color:#7fb9a6;font-size:11px;margin-bottom:10px}
+  textarea{flex:1;width:100%;box-sizing:border-box;background:#02120c;color:#dffaf0;
+    border:1px solid rgba(34,255,136,.3);border-radius:6px;padding:11px;font:inherit;font-size:14px;resize:none;outline:none}
+  textarea:focus{border-color:#22ff88;box-shadow:0 0 0 1px #22ff88}
+  .row{margin-top:10px;display:flex;gap:8px;align-items:center}
+  button{background:linear-gradient(90deg,#22ff88,#36e6ff);color:#001a14;border:0;border-radius:5px;
+    padding:9px 18px;font:inherit;font-weight:700;letter-spacing:1px;cursor:pointer}
+  .st{color:#22ff88;font-size:11px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="h">⌨ SHARED NOTEPAD</div>
+  <div class="sub">Kamu DAN agent edit catatan yang SAMA. Coba minta agent: "tulis sesuatu di notepad" → muncul di sini.</div>
+  <textarea id="t" placeholder="ketik catatan… (atau biar agent yang nulis)"></textarea>
+  <div class="row"><button id="save">SAVE</button><span class="st" id="st"></span></div>
+</div>
+<script>
+  // Bridge ke host Flowork lewat postMessage (iframe ter-sandbox; tak bisa fetch sendiri).
+  let rq = 0; const pending = {};
+  function call(op, args) {
+    return new Promise((res) => {
+      const id = ++rq; pending[id] = res;
+      parent.postMessage({ fw: 1, kind: 'op', reqId: id, op, args: args || {} }, '*');
+    });
+  }
+  window.addEventListener('message', (e) => {
+    const d = e.data || {};
+    if (d.fw !== 1) return;
+    if (d.kind === 'res' && pending[d.reqId]) { pending[d.reqId](d); delete pending[d.reqId]; }
+    if (d.kind === 'state') { refresh(); } // aksi agent → host kasih tau → tarik ulang
+  });
+  async function refresh() {
+    const r = await call('get');
+    if (r.ok && r.result) {
+      const ta = document.getElementById('t');
+      if (document.activeElement !== ta) ta.value = (r.result.text || '');
+    }
+  }
+  document.getElementById('save').onclick = async () => {
+    const st = document.getElementById('st'); st.textContent = '…';
+    const r = await call('set', { text: document.getElementById('t').value });
+    st.textContent = r.ok ? '✓ tersimpan' : ('✕ ' + (r.error || ''));
+    setTimeout(() => st.textContent = '', 1500);
+  };
+  refresh();
+</script>
+</body>
+</html>

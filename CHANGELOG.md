@@ -1,3 +1,27 @@
+## 2026-06-07 — ROADMAP 4: APPS — platform aplikasi human+AI LINTAS BAHASA (v1 SHIPPED)
+
+Program yang dipakai MANUSIA (GUI) DAN AGENT (tool) di state yang SAMA. Core LINTAS BAHASA —
+"satu state, dua pengemudi". Pembeda Flowork: app bisa bahasa apa pun, dipakai human + AI.
+
+- **Substrat** (`internal/apps`, LOCKED): registry (scan apps/<id>/manifest.json kind:app) +
+  `InvokeOp` (SATU pintu utk human GUI & agent tool) + **adapter PROSES** (`proc.go`: spawn core
+  bahasa apa pun, JSON per-baris di stdio — reuse pola mcpclient) + **op→tool bridge**
+  (`tools.RegisterDynamic`, pola mcphub.bridgeTool → operasi app jadi tool agent). Inti tak tahu
+  logika app.
+- **Reference app** `apps/notepad/` (core **Python** + GUI html) — bukti polyglot: catatan yang
+  diedit kamu & agent bareng.
+- **GUI** tab "App" ala Android (sidebar, Matrix×Jarvis): grid ikon → klik buka app DI DALAM
+  Flowork via **iframe sandbox** (`allow-scripts`, no same-origin) + bridge **postMessage**
+  (op divalidasi host) + poll state (sinkron human↔agent) + segmen App Store. i18n en/id.
+- **HTTP** (`apps_handler.go`): /api/apps (list) · /api/apps/op (invoke) · /api/apps/state ·
+  /api/apps/<id>/ui/* (aset GUI, anti-traversal). main.go: load apps + register tool + route.
+- **Keamanan**: GUI app pihak-ketiga ter-ISOLASI di iframe sandbox (tak bisa baca session);
+  satu-satunya kanal = postMessage {op} yg divalidasi (op terdaftar) → InvokeOp. App native
+  (process) = tier "trusted" (owner pasang sadar). invokeOp validasi op + path-clean aset.
+- **TEST**: Go→spawn Python core→stdio→SHARED state PASS (driver agent set → driver human get =
+  state sama; append; op tak-terdaftar ditolak; ops jadi tool agent). build+boot bersih.
+
+Kernel tak disentuh; route hanya ditambah. Lanjutan: SSE, .fwpack kind:app, runtime wasm/http.
 ## 2026-06-07 — ROADMAP 3: TRIGGER — framework otomasi event→aksi (v1 SHIPPED)
 
 Papan-kosong event-driven (ala Google Tag Manager buat mesin). KALAU <event> MAKA suruh

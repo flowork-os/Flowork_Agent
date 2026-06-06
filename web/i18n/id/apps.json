@@ -1,0 +1,11 @@
+{
+  "title": "APP",
+  "sub": "Program yang dipakai kamu DAN agent — bahasa apa pun. Dibuka di dalam Flowork.",
+  "installed": "TERINSTALL",
+  "store": "APP STORE",
+  "store_intro": "Pasang app di sini (ala app store).",
+  "store_local": "Install lokal (v1): taruh folder di",
+  "store_remote": "Katalog remote (browse & install app komunitas) — segera hadir.",
+  "empty": "Belum ada app. 'Shared Notepad' (Python) bawaan buktiin: kamu & agent edit catatan yang sama.",
+  "close": "Tutup"
+}
