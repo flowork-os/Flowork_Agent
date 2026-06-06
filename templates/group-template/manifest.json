@@ -1,0 +1,27 @@
+{
+  "id": "content-team",
+  "version": "1.0.0",
+  "kind": "agent",
+  "display_name": "Content Team",
+  "description": "A group (colony of ants): routes one task to its member ants via the loket bus and gathers their answers. Members are set in config.",
+  "min_kernel_version": "0.1.0",
+  "abi_version": 1,
+  "author": "@flowork-os",
+  "license": "MIT",
+  "entry": "agent.wasm",
+  "memory_max_mb": 16,
+  "timeout_call_ms": 120000,
+  "capabilities_required": [
+    "net:fetch:http://127.0.0.1:1987/api/kernel/call",
+    "state:read",
+    "state:write",
+    "time:read"
+  ],
+  "exposes_rpc": [
+    {
+      "name": "handle_message",
+      "description": "Run the team task: fan out to member ants via the loket bus, gather answers.",
+      "input_schema": { "type": "object", "properties": {} }
+    }
+  ]
+}

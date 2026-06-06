@@ -1,0 +1,16 @@
+{
+  "id": "connector-template",
+  "kind": "channel",
+  "name": "Connector Template",
+  "version": "0.1.0",
+  "abi_version": "1",
+  "entry": "handle",
+  "tier": "extension",
+  "consumes": [
+    "bus.request"
+  ],
+  "meta": {
+    "author": "",
+    "description": "Copy this folder to make a new connector. Fill the TODO(connector) spots in main.go."
+  }
+}

@@ -1,0 +1,60 @@
+# Build artifacts
+flowork-gui
+*.exe
+*.dll
+*.pyc
+*.wasm
+bin/
+referensifile/
+roadmap.md
+CHANGELOG.md
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs / PID / runtime
+*.log
+*.pid
+
+# Per-agent runtime workspace — NEVER commit. state.db berisi TOKEN/secret
+# (TELEGRAM_BOT_TOKEN dll). Blanket: seluruh isi workspace tiap agent di-ignore.
+agents/*/workspace/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite*
+
+# Cross-agent shared workspace runtime
+/workspace/
+
+# YouTube media — video owner (file gede, JANGAN ke-push ke GitHub)
+/media/
+
+# Working notes shared only with Claude
+catatan.md
+catatan_untuk_ai_external/
+catatan/
+
+# Env files (token / API key)
+.env
+.env.local
+.env.*.local
+
+# Secrets / keys
+*.key
+*.pem
+secret.key
+*-credentials.json
+secret.yaml
+.scratch/
+
+# Crew saham/crypto + operator-komputer: SOURCE (go.mod/main.go/manifest.json)
+# DI-TRACK sekarang — open-source, semua agent masuk. workspace/state.db tetep
+# di-ignore via rule "agents/*/workspace/" di atas (token aman).
+/agent-config
+
+# Local env override (power arm, dll) — JANGAN push
+flowork.local.env

@@ -1,0 +1,34 @@
+{
+  "owner": "Mr.Dev",
+  "btn": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "close": "Close",
+    "sign_in": "Sign In",
+    "register": "Register",
+    "verifying": "Verifying…",
+    "edit": "Edit"
+  },
+  "loading_label": "Loading {label}…",
+  "load_failed_label": "Failed to load {label}:",
+  "module_no_render": "Module {name} has not exported a render() function. (WIP)",
+  "placeholder": {
+    "password": "Password",
+    "username": "Username"
+  },
+  "auth": {
+    "title_login": "Flowork",
+    "subtitle_login": "Welcome back. Please sign in.",
+    "title_register": "Flowork — Register",
+    "subtitle_register": "First-time setup — create your owner password.",
+    "hint_owner": "Your owner password.",
+    "no_account": "No account yet?",
+    "register_here": "Register here",
+    "have_account": "Already have an account?",
+    "back_to_login": "Back to sign in",
+    "footer": "secure session, local only",
+    "welcome_msg": "Welcome",
+    "registered_msg": "Account created. Redirecting to sign in…"
+  }
+}

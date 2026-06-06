@@ -1,0 +1,9 @@
+{
+  "_comment": "FASE 7: wiring AI eksternal (Claude Desktop/Code, Cursor) -> Flowork via MCP. 1-pintu: tool MCP -> endpoint taskflow lokal -> jalur SAMA kayak chat/Telegram. Build: go build -o bin/flowork-mcp ./cmd/flowork-mcp. Server Flowork (:1987) harus jalan. Tools: task_list, task_run, task_result.",
+  "mcpServers": {
+    "flowork": {
+      "command": "/home/mrflow/Documents/Flowork_Agent/bin/flowork-mcp",
+      "env": { "FLOWORK_SELF_URL": "http://127.0.0.1:1987" }
+    }
+  }
+}

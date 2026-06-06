@@ -1,0 +1,11 @@
+{
+  "AUTH_REQUIRED":   "Login dulu sebelum lanjut.",
+  "AUTH_DENIED":     "Akses ditolak — password owner salah.",
+  "NETWORK_FAIL":    "Tidak bisa menjangkau server. Cek koneksi.",
+  "FETCH_TIMEOUT":   "Request timeout. Coba lagi.",
+  "PARSE_FAIL":      "Format respons salah.",
+  "NOT_FOUND":       "Data tidak ditemukan.",
+  "ROUTER_DOWN":     "flow_router belum jalan di :2402.",
+  "UPLOAD_TOO_BIG":  "File terlalu besar. Maks 25 MiB per upload.",
+  "GENERIC":         "Terjadi kesalahan. Coba lagi atau periksa log."
+}

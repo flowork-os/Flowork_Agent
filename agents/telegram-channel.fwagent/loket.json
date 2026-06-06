@@ -1,0 +1,17 @@
+{
+  "id": "telegram-channel",
+  "kind": "channel",
+  "name": "Telegram Channel",
+  "version": "0.1.0",
+  "abi_version": "1",
+  "entry": "handle",
+  "tier": "extension",
+  "consumes": [
+    "bus.request"
+  ],
+  "config": [
+    { "key": "TELEGRAM_BOT_TOKEN", "label": "Bot Token", "type": "secret", "help": "from @BotFather" },
+    { "key": "TELEGRAM_ALLOWED_CHATS", "label": "Allowed chat IDs", "type": "text", "help": "comma-separated; first one receives owner notifications" },
+    { "key": "TARGET_AGENT", "label": "Target agent", "type": "text", "default": "mr-flow-next", "help": "which agent this connector feeds" }
+  ]
+}

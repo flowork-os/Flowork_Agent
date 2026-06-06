@@ -1,0 +1,19 @@
+{
+  "id": "mr-flow-next",
+  "kind": "agent",
+  "name": "Mr.Flow (loket-native)",
+  "version": "0.1.0",
+  "abi_version": "1",
+  "entry": "handle",
+  "tier": "primary",
+  "consumes": [
+    "store.brain.add",
+    "store.brain.search",
+    "brain.shared.search",
+    "llm.complete",
+    "time.now",
+    "tool.specs",
+    "tool.run",
+    "slash.run"
+  ]
+}

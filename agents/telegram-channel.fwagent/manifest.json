@@ -1,0 +1,36 @@
+{
+  "id": "telegram-channel",
+  "version": "0.1.0",
+  "kind": "agent",
+  "display_name": "Telegram Channel",
+  "description": "Loket-native Telegram channel adapter — a dumb pipe that forwards each message to a target agent over the loket bus and relays the reply. Idle (no polling) until a bot token is set, so it loads safely beside the legacy telegram daemon.",
+  "min_kernel_version": "0.1.0",
+  "abi_version": 1,
+  "author": "@flowork-os",
+  "license": "MIT",
+  "entry": "agent.wasm",
+  "memory_max_mb": 16,
+  "timeout_call_ms": 300000,
+  "capabilities_required": [
+    "net:fetch:http://127.0.0.1:1987/api/kernel/call",
+    "net:fetch:https://api.telegram.org",
+    "state:read",
+    "state:write"
+  ],
+  "exposes_rpc": [
+    {
+      "name": "boot",
+      "description": "Live daemon: long-poll Telegram, forward each allowed message to the target agent over the bus, relay the reply. Idle (clean exit) without a token.",
+      "input_schema": { "type": "object", "properties": {} }
+    },
+    {
+      "name": "handle_update",
+      "description": "Process ONE synthetic update (testable core): forward {text,chat_id,user,target} to the agent over the bus and return the reply. send:true relays to Telegram when a token is set.",
+      "input_schema": {
+        "type": "object",
+        "properties": { "text": { "type": "string" }, "target": { "type": "string" } },
+        "required": ["text"]
+      }
+    }
+  ]
+}

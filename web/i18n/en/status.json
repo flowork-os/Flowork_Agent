@@ -1,0 +1,15 @@
+{
+  "aktif":       "ACTIVE",
+  "standby":     "STANDBY",
+  "ok":          "OK",
+  "fail":        "FAIL",
+  "loading":     "Loading…",
+  "saving":      "Saving…",
+  "saved":       "Saved",
+  "empty":       "No data yet",
+  "mock":        "MOCK",
+  "online":      "Online",
+  "offline":     "Offline",
+  "reachable":   "Reachable",
+  "unreachable": "Unreachable"
+}

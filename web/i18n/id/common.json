@@ -1,0 +1,32 @@
+{
+  "owner": "Mr.Dev",
+  "btn": {
+    "save": "Simpan",
+    "cancel": "Batal",
+    "delete": "Hapus",
+    "close": "Tutup",
+    "sign_in": "Masuk",
+    "register": "Daftar",
+    "verifying": "Memverifikasi…",
+    "edit": "Edit"
+  },
+  "load_failed_label": "Gagal load {label}:",
+  "placeholder": {
+    "password": "Password",
+    "username": "Username"
+  },
+  "auth": {
+    "title_login": "Flowork",
+    "subtitle_login": "Selamat datang. Silakan masuk.",
+    "title_register": "Flowork — Daftar",
+    "subtitle_register": "Setup pertama — bikin password owner kamu.",
+    "hint_owner": "Password owner kamu.",
+    "no_account": "Belum punya akun?",
+    "register_here": "Daftar di sini",
+    "have_account": "Sudah punya akun?",
+    "back_to_login": "Kembali ke login",
+    "footer": "secure session, lokal saja",
+    "welcome_msg": "Selamat datang",
+    "registered_msg": "Akun dibuat. Mengarahkan ke login…"
+  }
+}

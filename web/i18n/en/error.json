@@ -1,0 +1,12 @@
+{
+  "MESH_LOAD_FAIL": "Failed to load mesh status:",
+  "AUTH_REQUIRED":  "Please sign in first.",
+  "AUTH_DENIED":    "Access denied — owner password is wrong.",
+  "NETWORK_FAIL":   "Cannot reach the server. Check your connection.",
+  "FETCH_TIMEOUT":  "Request timed out. Try again.",
+  "PARSE_FAIL":     "Response format is invalid.",
+  "NOT_FOUND":      "Not found.",
+  "ROUTER_DOWN":    "flow_router is not running on :2402.",
+  "UPLOAD_TOO_BIG": "File too large. 25 MiB per upload max.",
+  "GENERIC":        "Something went wrong. Try again or check the logs."
+}

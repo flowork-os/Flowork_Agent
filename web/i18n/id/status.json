@@ -1,0 +1,15 @@
+{
+  "aktif":     "AKTIF",
+  "standby":   "STANDBY",
+  "ok":        "OK",
+  "fail":      "GAGAL",
+  "loading":   "Memuat…",
+  "saving":    "Menyimpan…",
+  "saved":     "Tersimpan",
+  "empty":     "Belum ada data",
+  "mock":      "MOCK",
+  "online":    "Online",
+  "offline":   "Offline",
+  "reachable": "Reachable",
+  "unreachable": "Tidak terjangkau"
+}

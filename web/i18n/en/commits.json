@@ -1,0 +1,11 @@
+{
+  "title": "📋 Code Progress",
+  "sub": "Git log to track direct changes made by the AI or the owner.",
+  "running": "Running git log…",
+  "none": "No progress detected.",
+  "recent": "Latest 100 commits",
+  "col_time": "Time",
+  "col_author": "Author",
+  "col_message": "Message",
+  "col_hash": "Hash"
+}

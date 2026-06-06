@@ -1,0 +1,104 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/flowork-ai-agent
+// Locked at: 2026-05-30
+// Reason: Section 11 phase 1a (ctx propagation) DONE. API stable:
+//   WithStore/FromStore, WithCaller/FromCaller, WithAgent/FromAgent.
+//   ctxKey type private. Phase 2 extend (WithDeadline, WithCapability
+//   set, WithSpan tracing) → tambah file baru, JANGAN modify ini.
+//
+// context.go — ctx propagation buat tool runtime.
+//
+// Tool.Run signature `(ctx, args)` ngga punya akses langsung ke agentdb
+// store atau caller metadata. Dispatcher inject lewat ctx values yang
+// tool extract via FromXxx helpers.
+
+package tools
+
+import (
+	"context"
+
+	"flowork-gui/internal/agentdb"
+)
+
+// ctxKey type private supaya ngga collide dengan ctx key dari package lain.
+type ctxKey int
+
+const (
+	keyStore     ctxKey = iota // *agentdb.Store
+	keyCaller                  // string identifier (mis. 'daemon', 'rpc', 'http-admin')
+	keyAgent                   // string agent id (mr-flow)
+	keySharedDir               // string filesystem path ke `<root>/workspace/<agent_id>/`
+	keyCapsCheck               // CapsChecker func(cap string) bool — Section 12 sandbox
+)
+
+// CapsChecker — signature buat capability gate. Caller (dispatcher) inject
+// from broker. Section 12 phase 1.
+type CapsChecker func(capability string) bool
+
+// WithStore — attach per-agent *agentdb.Store ke ctx. Dipanggil dispatcher
+// sebelum Run.
+func WithStore(ctx context.Context, s *agentdb.Store) context.Context {
+	return context.WithValue(ctx, keyStore, s)
+}
+
+// FromStore — extract store. Return nil + ok=false kalau ngga ada (tool
+// harus handle gracefully).
+func FromStore(ctx context.Context) (*agentdb.Store, bool) {
+	s, ok := ctx.Value(keyStore).(*agentdb.Store)
+	return s, ok && s != nil
+}
+
+// WithCaller — attach caller identity string (mis. 'daemon', 'http-admin',
+// 'rpc', 'skill:<id>') ke ctx. Buat audit log.
+func WithCaller(ctx context.Context, caller string) context.Context {
+	return context.WithValue(ctx, keyCaller, caller)
+}
+
+// FromCaller — extract caller, default 'unknown'.
+func FromCaller(ctx context.Context) string {
+	c, _ := ctx.Value(keyCaller).(string)
+	if c == "" {
+		return "unknown"
+	}
+	return c
+}
+
+// WithAgent — attach agent ID. Buat tool-cross-agent logic future.
+func WithAgent(ctx context.Context, agentID string) context.Context {
+	return context.WithValue(ctx, keyAgent, agentID)
+}
+
+// FromAgent — extract agent ID, default empty string.
+func FromAgent(ctx context.Context) string {
+	a, _ := ctx.Value(keyAgent).(string)
+	return a
+}
+
+// WithSharedDir — attach absolute filesystem path ke shared workspace root
+// per agent (`<root>/workspace/<agent_id>/`). File ops tools resolve
+// path safely di sini.
+func WithSharedDir(ctx context.Context, path string) context.Context {
+	return context.WithValue(ctx, keySharedDir, path)
+}
+
+// FromSharedDir — extract shared dir path. Return empty kalau ngga ada
+// (tool harus reject kalau butuh fs access).
+func FromSharedDir(ctx context.Context) string {
+	p, _ := ctx.Value(keySharedDir).(string)
+	return p
+}
+
+// WithCapsChecker — Section 12: attach broker IsApproved closure ke ctx.
+// Dispatcher inject sebelum Run supaya tool sandbox bisa cek capability.
+func WithCapsChecker(ctx context.Context, f CapsChecker) context.Context {
+	return context.WithValue(ctx, keyCapsCheck, f)
+}
+
+// FromCapsChecker — extract. Nil kalau ngga di-set (sandbox skip check —
+// default-allow di phase 1 supaya backward compat).
+func FromCapsChecker(ctx context.Context) CapsChecker {
+	f, _ := ctx.Value(keyCapsCheck).(CapsChecker)
+	return f
+}
