@@ -30,7 +30,9 @@ import (
 //go:wasmimport flowork host_net_fetch
 func hostNetFetch(reqPtr, reqLen, outPtr, outMax uint32) uint32
 
-var outBuf [262144]byte
+// 4 MiB response buffer — large enough to hold a base64-wrapped audio reply
+// (TTS mp3) from the router; text/JSON responses use only a sliver of it.
+var outBuf [4 << 20]byte
 
 func bytesPtr(b []byte) uint32 {
 	if len(b) == 0 {
@@ -163,6 +165,87 @@ func forwardToAgent(target, text string, chatID int64, user string) string {
 	return "(agent ga balikin reply)"
 }
 
+// ── Voice: router STT/TTS + multipart (additive; degrades to text if no
+// provider) ─────────────────────────────────────────────────────────────────
+//
+// A voice note is just another surface: download it, ask the ROUTER to
+// transcribe (the router owns the STT provider — sovereign whisper or cloud, the
+// channel doesn't care), forward the transcript to the agent exactly like text,
+// then ask the router to speak the reply. If the router has no STT/TTS provider
+// configured these return empty and the flow degrades cleanly to text.
+
+func routerURL() string {
+	if v := strings.TrimSpace(os.Getenv("FLOWORK_ROUTER_URL")); v != "" {
+		return strings.TrimRight(v, "/")
+	}
+	return "http://127.0.0.1:2402"
+}
+
+// mpBoundary is a fixed multipart boundary — safe because our parts are short
+// text fields + audio that won't contain this exact token.
+const mpBoundary = "----floworkVoiceBoundaryX7MA4YWxkTrZu0gW"
+
+// multipartBody assembles a multipart/form-data body (text fields + one file
+// part) as raw bytes, so it works inside wasm with the single host_net_fetch
+// primitive. Returns the Content-Type (with boundary) and the body bytes.
+func multipartBody(fields map[string]string, fileField, fileName, fileMIME string, fileBytes []byte) (string, []byte) {
+	var b []byte
+	for k, v := range fields {
+		b = append(b, ("--" + mpBoundary + "\r\n")...)
+		b = append(b, ("Content-Disposition: form-data; name=\"" + k + "\"\r\n\r\n")...)
+		b = append(b, v...)
+		b = append(b, "\r\n"...)
+	}
+	if fileField != "" {
+		b = append(b, ("--" + mpBoundary + "\r\n")...)
+		b = append(b, ("Content-Disposition: form-data; name=\"" + fileField + "\"; filename=\"" + fileName + "\"\r\n")...)
+		b = append(b, ("Content-Type: " + fileMIME + "\r\n\r\n")...)
+		b = append(b, fileBytes...)
+		b = append(b, "\r\n"...)
+	}
+	b = append(b, ("--" + mpBoundary + "--\r\n")...)
+	return "multipart/form-data; boundary=" + mpBoundary, b
+}
+
+// routerTranscribe sends audio to the router STT and returns the transcript.
+// Empty string on any failure (→ caller degrades to "no transcript").
+func routerTranscribe(audio []byte, mime string) string {
+	if mime == "" {
+		mime = "audio/ogg"
+	}
+	ct, body := multipartBody(map[string]string{"model": "base"}, "file", "voice", mime, audio)
+	st, raw := hostFetch("POST", routerURL()+"/v1/audio/transcriptions", map[string]string{"Content-Type": ct}, body)
+	if st == 0 || st >= 400 {
+		fmt.Fprintf(os.Stderr, "[%s] stt status=%d\n", selfID(), st)
+		return ""
+	}
+	var res struct {
+		Text string `json:"text"`
+	}
+	if json.Unmarshal(raw, &res) != nil {
+		return ""
+	}
+	return strings.TrimSpace(res.Text)
+}
+
+// routerTTS asks the router to speak text and returns mp3 bytes (nil on failure).
+func routerTTS(text string) []byte {
+	voice := strings.TrimSpace(os.Getenv("TTS_VOICE"))
+	if voice == "" {
+		voice = "id-ID-ArdiNeural"
+	}
+	if len(text) > 1500 { // keep spoken replies concise (and the audio small)
+		text = text[:1500]
+	}
+	body, _ := json.Marshal(map[string]any{"text": text, "voice": voice, "format": "mp3"})
+	st, raw := hostFetch("POST", routerURL()+"/api/media-providers/tts", map[string]string{"Content-Type": "application/json"}, body)
+	if st == 0 || st >= 400 {
+		fmt.Fprintf(os.Stderr, "[%s] tts status=%d\n", selfID(), st)
+		return nil
+	}
+	return raw
+}
+
 // ── Telegram I/O (only used live, when a token is set) ──────────────────────
 
 type tgUpdate struct {
@@ -176,7 +259,48 @@ type tgUpdate struct {
 		From struct {
 			Username string `json:"username"`
 		} `json:"from"`
+		Voice *struct {
+			FileID   string `json:"file_id"`
+			MimeType string `json:"mime_type"`
+		} `json:"voice"`
 	} `json:"message"`
+}
+
+// tgGetFilePath resolves a Telegram file_id to its downloadable file_path.
+func tgGetFilePath(token, fileID string) string {
+	st, raw := hostFetch("GET", fmt.Sprintf("https://api.telegram.org/bot%s/getFile?file_id=%s", token, fileID), nil, nil)
+	if st == 0 || st >= 400 {
+		return ""
+	}
+	var res struct {
+		OK     bool `json:"ok"`
+		Result struct {
+			FilePath string `json:"file_path"`
+		} `json:"result"`
+	}
+	if json.Unmarshal(raw, &res) != nil || !res.OK {
+		return ""
+	}
+	return res.Result.FilePath
+}
+
+// tgDownloadFile fetches a Telegram file's raw bytes by its file_path.
+func tgDownloadFile(token, filePath string) []byte {
+	st, raw := hostFetch("GET", fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", token, filePath), nil, nil)
+	if st == 0 || st >= 400 {
+		return nil
+	}
+	return raw
+}
+
+// sendAudio uploads an mp3 reply to a chat (spoken reply for voice notes).
+func sendAudio(token string, chatID int64, mp3 []byte) error {
+	ct, body := multipartBody(map[string]string{"chat_id": strconv.FormatInt(chatID, 10)}, "audio", "reply.mp3", "audio/mpeg", mp3)
+	st, _ := hostFetch("POST", fmt.Sprintf("https://api.telegram.org/bot%s/sendAudio", token), map[string]string{"Content-Type": ct}, body)
+	if st == 0 || st >= 400 {
+		return fmt.Errorf("telegram sendAudio status=%d", st)
+	}
+	return nil
 }
 
 func getUpdates(token string, offset int64, timeoutSec int) ([]tgUpdate, error) {
@@ -244,17 +368,42 @@ func boot() {
 		}
 		for _, u := range updates {
 			offset = u.UpdateID + 1
-			if u.Message == nil || strings.TrimSpace(u.Message.Text) == "" {
+			if u.Message == nil {
 				continue
 			}
 			chatID := u.Message.Chat.ID
 			if len(allowed) > 0 && !allowed[chatID] {
 				continue
 			}
-			reply := forwardToAgent(target, u.Message.Text, chatID, u.Message.From.Username)
-			if reply != "" {
-				if err := sendMessage(token, chatID, reply); err != nil {
-					fmt.Fprintf(os.Stderr, "[%s] sendMessage: %v\n", selfID(), err)
+			text := strings.TrimSpace(u.Message.Text)
+			spoken := false
+			// Voice note (additive): no text but a voice payload → download +
+			// transcribe via the router, then treat the transcript as the text.
+			if text == "" && u.Message.Voice != nil && u.Message.Voice.FileID != "" {
+				if fp := tgGetFilePath(token, u.Message.Voice.FileID); fp != "" {
+					if audio := tgDownloadFile(token, fp); len(audio) > 0 {
+						text = routerTranscribe(audio, u.Message.Voice.MimeType)
+						spoken = true
+					}
+				}
+			}
+			if text == "" {
+				continue
+			}
+			reply := forwardToAgent(target, text, chatID, u.Message.From.Username)
+			if reply == "" {
+				continue
+			}
+			if err := sendMessage(token, chatID, reply); err != nil {
+				fmt.Fprintf(os.Stderr, "[%s] sendMessage: %v\n", selfID(), err)
+			}
+			// If the user spoke, speak the reply back too (best-effort; silently
+			// skipped if the router has no TTS provider).
+			if spoken {
+				if mp3 := routerTTS(reply); len(mp3) > 0 {
+					if err := sendAudio(token, chatID, mp3); err != nil {
+						fmt.Fprintf(os.Stderr, "[%s] sendAudio: %v\n", selfID(), err)
+					}
 				}
 			}
 		}
@@ -287,6 +436,42 @@ func handleUpdate(argsJSON string) {
 	emit(map[string]any{"reply": reply, "target": target, "sent": sent})
 }
 
+// handleVoice is the testable voice core: base64 audio → router STT → forward
+// the transcript to the agent → (speak) router TTS. Callable via RPC so the whole
+// voice pipe is verifiable with no live Telegram bot.
+func handleVoice(argsJSON string) {
+	var in struct {
+		AudioB64 string `json:"audio_b64"`
+		MIME     string `json:"mime"`
+		Target   string `json:"target"`
+		Speak    bool   `json:"speak"`
+	}
+	_ = json.Unmarshal([]byte(argsJSON), &in)
+	audio, err := base64.StdEncoding.DecodeString(strings.TrimSpace(in.AudioB64))
+	if err != nil || len(audio) == 0 {
+		emit(map[string]any{"error": "bad audio_b64"})
+		return
+	}
+	target := in.Target
+	if target == "" {
+		target = targetAgent()
+	}
+	transcript := routerTranscribe(audio, in.MIME)
+	if transcript == "" {
+		emit(map[string]any{"error": "transcribe failed (no STT provider or empty audio)", "transcript": ""})
+		return
+	}
+	reply := forwardToAgent(target, transcript, 0, "voice")
+	out := map[string]any{"transcript": transcript, "reply": reply, "target": target}
+	if in.Speak {
+		if mp3 := routerTTS(reply); len(mp3) > 0 {
+			out["audio_b64"] = base64.StdEncoding.EncodeToString(mp3)
+			out["audio_bytes"] = len(mp3)
+		}
+	}
+	emit(out)
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		return
@@ -301,6 +486,8 @@ func main() {
 		boot()
 	case "handle_update":
 		handleUpdate(args)
+	case "handle_voice":
+		handleVoice(args)
 	case "handle":
 		// Loket-bus invocation — unwrap the Message payload, treat as an update.
 		var msg struct {

@@ -3,16 +3,17 @@
   "version": "0.1.0",
   "kind": "agent",
   "display_name": "Telegram Channel",
-  "description": "Loket-native Telegram channel adapter — a dumb pipe that forwards each message to a target agent over the loket bus and relays the reply. Idle (no polling) until a bot token is set, so it loads safely beside the legacy telegram daemon.",
+  "description": "Loket-native Telegram channel adapter — a dumb pipe that forwards each message to a target agent over the loket bus and relays the reply. Handles text AND voice notes (voice → router STT → agent → router TTS → spoken reply). Idle (no polling) until a bot token is set, so it loads safely beside the legacy telegram daemon.",
   "min_kernel_version": "0.1.0",
   "abi_version": 1,
   "author": "@flowork-os",
   "license": "MIT",
   "entry": "agent.wasm",
-  "memory_max_mb": 16,
+  "memory_max_mb": 32,
   "timeout_call_ms": 300000,
   "capabilities_required": [
     "net:fetch:http://127.0.0.1:1987/api/kernel/call",
+    "net:fetch:http://127.0.0.1:2402",
     "net:fetch:https://api.telegram.org",
     "state:read",
     "state:write"
@@ -30,6 +31,15 @@
         "type": "object",
         "properties": { "text": { "type": "string" }, "target": { "type": "string" } },
         "required": ["text"]
+      }
+    },
+    {
+      "name": "handle_voice",
+      "description": "Testable voice core: take base64 audio, transcribe via the router STT, forward the transcript to the agent over the bus, and (speak:true) synthesize the reply via the router TTS. Returns {transcript, reply, audio_b64}. Exercises the full voice pipe with no live bot.",
+      "input_schema": {
+        "type": "object",
+        "properties": { "audio_b64": { "type": "string" }, "target": { "type": "string" }, "speak": { "type": "boolean" } },
+        "required": ["audio_b64"]
       }
     }
   ]

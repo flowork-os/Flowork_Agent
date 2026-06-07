@@ -1,3 +1,31 @@
+## 2026-06-07 — G5: Voice (STT + TTS, sovereign) (gap-closing vs OpenClaw/Hermes)
+
+Roadmap **G5** (TIER 1): agent bisa **denger** (voice note → teks) & **ngomong** (balasan → audio).
+Berdaulat + gratis (whisper lokal + edge-tts). Multi-OS, plug-and-play, channel degrade mulus ke teks.
+
+**Arsitektur (otak/provider tetep di router; channel = pipa bodoh):**
+- **Backend voice** (`voice-backend/`, OPSIONAL, terisolasi): STT faster-whisper :5060 (100% lokal/offline)
+  + TTS edge-tts :5050 (gratis, no key). Launcher bash + Python cross-platform (Win/Mac/Linux). venv
+  sendiri, reversible (hapus folder = hilang). Bisa diganti provider cloud tanpa ubah apa pun.
+- **Router** (`handlers_media_ext.go`, owner-approved edit ke file locked): wiring **additive** — kalau
+  TTS provider ga punya BaseURL upstream → pakai adapter in-process (edgeTts), mirror cara STT handler.
+  HANYA kena kasus BaseURL-kosong yg dulu 502; passthrough lama UTUH (nol regresi). Build+vet bersih.
+- **Channel** (`telegram-channel.fwagent`, additive — jalur teks UTUH): voice note → `getFile`+download
+  → router STT → transkrip diperlakukan kayak teks → bus → agent → balasan → router TTS → `sendAudio`.
+  Degrade mulus: kalau router ga ada provider voice → otomatis balik ke teks. Caps minimal (+`net:fetch`
+  router loopback), multipart pure-byte (wasm), outBuf 4MiB (fix overflow audio), TTS text cap 1500.
+
+**TEST (beneran, bukan halu):**
+- Router **round-trip**: "Halo, ini suara berdaulat Flowork…" → TTS mp3 → STT → "Halo, ini suara
+  berdawlat floor 1,2,3" (0.6s, lang=id auto). Pipa TTS↔STT TERBUKTI.
+- Channel **`handle_voice`** (RPC testable, mp3 → STT → mr-flow-next → reply → TTS): transcript ✅,
+  reply agent ✅, audio balasan 256KB valid MPEG ✅.
+- **No-regression** jalur teks `handle_update` ✅. **Degrade** audio invalid → error bersih, no crash ✅.
+- Catatan jujur: E2E lewat Telegram beneran (download/upload) butuh bot token live (go-live), sama
+  kayak transport G1-G3. Akurasi model `base` rada meleset di Bahasa Indonesia → bisa naik ke `small`.
+
+---
+
 ## 2026-06-07 — G3: WhatsApp Channel (Meta Cloud API, webhook-driven) (gap-closing)
 
 Roadmap **G3** (TIER 1 gap-closing): channel keempat. Beda dari G1/G2 — WhatsApp Cloud API **ga
