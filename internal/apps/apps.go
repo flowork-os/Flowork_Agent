@@ -1,4 +1,5 @@
 // === LOCKED FILE (soft) — STABLE (ROADMAP 4 v1, owner-approved 2026-06-07). ===
+// 2026-06-07: ensureProc spawn-lock (fix double-spawn race, owner-mandated audit).
 // Substrat platform; app = plugin di apps/<id>/ (JANGAN edit substrat utk app baru).
 //
 // Package apps — ROADMAP 4: platform aplikasi dipakai-bersama MANUSIA & AGENT.
@@ -65,6 +66,7 @@ func (a *App) op(name string) (Op, bool) {
 // Manager — registri app + core yang jalan + tool yang terdaftar. Aman concurrent.
 type Manager struct {
 	mu      sync.Mutex
+	spawnMu sync.Mutex // serialize spawn core (anti double-spawn race, lihat ensureProc)
 	dir     string
 	apps    map[string]*App
 	procs   map[string]*proc
@@ -135,6 +137,17 @@ func (m *Manager) ensureProc(app *App) (*proc, error) {
 	if app.Runtime != "process" && app.Runtime != "" {
 		return nil, fmt.Errorf("runtime %q belum didukung (v1: process)", app.Runtime)
 	}
+	// spawn-lock: tanpa ini dua caller (GUI manusia + tool agent) yang nembak app
+	// SAMA pertama kali bisa lolos cek di atas berbarengan → double-spawn → proc
+	// kedua nimpa yang pertama (zombie) + state pecah. Re-check di dalam lock.
+	m.spawnMu.Lock()
+	defer m.spawnMu.Unlock()
+	m.mu.Lock()
+	if p, ok := m.procs[app.ID]; ok {
+		m.mu.Unlock()
+		return p, nil
+	}
+	m.mu.Unlock()
 	p, err := startProc(app.CoreEntry, app.Dir)
 	if err != nil {
 		return nil, err
