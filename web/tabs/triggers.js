@@ -80,7 +80,8 @@ export async function render(mainEl) {
 }
 
 async function loadRefs() {
-  try { const d = await fetchJSON('/api/triggers/types'); types = d.types || []; } catch { types = []; }
+  // Schedule (type "time") punya menu SENDIRI → di sini cuma event PLUGIN (webhook/file-watch/…).
+  try { const d = await fetchJSON('/api/triggers/types'); types = (d.types || []).filter(t => t.id !== 'time'); } catch { types = []; }
   try { const d = await fetchJSON('/api/kernel/agents'); agents = (d.plugins || []).filter(a => a.id && a.kind !== 'channel'); } catch { agents = []; }
   try { const d = await fetchJSON('/api/groups'); groups = d.groups || []; } catch { groups = []; }
 }
@@ -90,7 +91,7 @@ async function load(mainEl) {
   let data;
   try { data = await fetchJSON('/api/triggers'); }
   catch (e) { list.innerHTML = `<div class="tg-empty">${esc(String(e.message || e))}</div>`; return; }
-  const rules = data.triggers || [];
+  const rules = (data.triggers || []).filter(r => r.type_id !== 'time'); // jadwal waktu → tab Schedule
   mainEl.querySelector('#tgCount').textContent = `${rules.length} ${L.count_label}`;
   if (!rules.length) { list.innerHTML = `<div class="tg-panel"><div class="tg-empty">${esc(L.empty)}</div></div>`; return; }
   list.innerHTML = rules.map(cardHTML).join('');
@@ -159,7 +160,7 @@ function targetOptions(sel) {
 function openForm(mainEl, r) {
   const box = mainEl.querySelector('#tgForm');
   const editing = !!r;
-  const cur = r || { id: '', name: '', type_id: types[0] ? types[0].id : 'time', config: '{}', target: '', target_kind: 'agent', prompt: '' };
+  const cur = r || { id: '', name: '', type_id: types[0] ? types[0].id : 'webhook', config: '{}', target: '', target_kind: 'agent', prompt: '' };
   let cfg = {}; try { cfg = JSON.parse(cur.config || '{}'); } catch {}
   const selTarget = cur.target ? cur.target_kind + ':' + cur.target : '';
   box.innerHTML = `<div class="tg-panel">

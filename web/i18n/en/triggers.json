@@ -1,10 +1,10 @@
 {
   "title": "TRIGGER",
-  "sub": "Event → action. If something happens, an agent/group does something. (Tag-Manager for your machine.)",
+  "sub": "Event plugins → action. When something happens (a webhook, a new file, …), an agent/group acts. Plug-and-play: each event source is a plugin. For time-based runs, use Schedule.",
   "loading": "loading…",
   "new_btn": "NEW RULE",
   "count_label": "rules",
-  "empty": "No triggers yet. Create one — e.g. every weekday 09:00 → ask an agent for a report.",
+  "empty": "No triggers yet. Create one — e.g. an incoming webhook → ask an agent to handle it. (Need a time schedule instead? Use the Schedule tab.)",
   "idle": "idle",
   "btn_enable": "enable",
   "btn_disable": "disable",
