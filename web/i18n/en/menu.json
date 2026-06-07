@@ -192,7 +192,9 @@
       "grd_arm_btn": "🛡️ Arm guardian",
       "grd_disarm_btn": "Disarm",
       "grd_pw_ph": "Password to disarm",
-      "grd_arm_confirm": "Record the current binary + kernel as the trusted baseline and start verifying every boot?"
+      "grd_arm_confirm": "Record the current binary + kernel as the trusted baseline and start verifying every boot?",
+      "grd_seal_os": "OS-immutable (sealed)",
+      "grd_seal_detect": "Detection-only — run `sudo flowork --arm` for OS-immutability"
     }
   }
 }

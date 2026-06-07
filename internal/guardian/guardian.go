@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"os/user"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -30,10 +31,12 @@ const selfKey = "@self"
 // Vault — state guardian, satu sumber kebenaran (~/.flowork/guardian/vault.json).
 // Di FASE 2 file ini yang disegel OS supaya baseline tak bisa dipalsu.
 type Vault struct {
-	Armed    bool              `json:"armed"`
-	Mode     string            `json:"mode"`     // "safe" (default) — respons tamper
-	Baseline map[string]string `json:"baseline"` // key -> sha256 hex ("@self" = binary)
-	SealedAt string            `json:"sealed_at"`
+	Armed      bool              `json:"armed"`
+	Mode       string            `json:"mode"`        // "safe" (default) — respons tamper
+	Baseline   map[string]string `json:"baseline"`    // key -> sha256 hex ("@self" = binary)
+	SealedAt   string            `json:"sealed_at"`
+	Sealed     bool              `json:"sealed"`      // FASE 2: artefak immutable di OS (chattr/dll)
+	SealMethod string            `json:"seal_method"` // "chattr+i" | "chflags uchg" | ...
 }
 
 // safeMode — flag global runtime (di-set saat boot kalau integritas gagal).
@@ -45,13 +48,27 @@ func SafeMode() bool { return safeMode.Load() }
 // EnterSafeMode — aktifkan neuter mode (dipanggil boot gate saat mismatch).
 func EnterSafeMode() { safeMode.Store(true) }
 
-// VaultPath — ~/.flowork/guardian/vault.json.
-func VaultPath() string {
+// dataHome — home tempat ~/.flowork berada. SUDO_USER-aware: `sudo flowork --arm` jalan sebagai
+// root, tapi vault HARUS di home user asli (yang dibaca server non-root). FLOWORK_HOME override.
+func dataHome() string {
+	if h := strings.TrimSpace(os.Getenv("FLOWORK_HOME")); h != "" {
+		return h
+	}
+	if su := strings.TrimSpace(os.Getenv("SUDO_USER")); su != "" {
+		if u, err := user.Lookup(su); err == nil && u.HomeDir != "" {
+			return u.HomeDir
+		}
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		home = "."
 	}
-	return filepath.Join(home, ".flowork", "guardian", "vault.json")
+	return home
+}
+
+// VaultPath — ~/.flowork/guardian/vault.json (di home user asli, lihat dataHome).
+func VaultPath() string {
+	return filepath.Join(dataHome(), ".flowork", "guardian", "vault.json")
 }
 
 // Load — baca vault. Kalau belum ada → Vault kosong (armed=false, guardian pasif/dev mode).
@@ -86,8 +103,10 @@ func (v *Vault) Save() error {
 	if err != nil {
 		return err
 	}
+	// 0644: vault bisa ditulis root (`sudo --arm`) tapi WAJIB kebaca server non-root.
+	// Isinya hash+flag (bukan rahasia); proteksi tamper datang dari seal OS (FASE 2), bukan perms.
 	tmp := p + ".tmp"
-	if err := os.WriteFile(tmp, raw, 0o600); err != nil {
+	if err := os.WriteFile(tmp, raw, 0o644); err != nil {
 		return err
 	}
 	return os.Rename(tmp, p)
@@ -115,9 +134,12 @@ func (v *Vault) Verify() (bool, []string) {
 	return len(problems) == 0, problems
 }
 
-// Arm — rekam baseline (binary + file inti yang ADA) → armed=true. now = timestamp dari caller
-// (package ini tak panggil time.Now sendiri biar deterministik/testable).
+// Arm — rekam baseline (binary + file inti yang ADA) → armed=true, lalu COBA seal OS-immutable
+// (binary + manifest + vault). Seal gagal (no-root) → DEGRADE detection-only (Sealed=false), arm
+// tetap sukses. now = timestamp dari caller (package ini tak panggil time.Now sendiri biar testable).
 func Arm(coreFiles []string, now string) (*Vault, error) {
+	sealer := DefaultSealer()
+	_ = sealer.Unseal(VaultPath()) // kalau re-arm & vault lama ke-seal, buka biar bisa ditulis
 	v, err := Load()
 	if err != nil {
 		return nil, err
@@ -137,20 +159,52 @@ func Arm(coreFiles []string, now string) (*Vault, error) {
 	}
 	v.Baseline = base
 	v.SealedAt = now
-	if err := v.Save(); err != nil {
+	v.SealMethod = sealer.Name()
+
+	// seal artefak immutable (all-or-nothing; rollback kalau gagal di tengah).
+	sealed := true
+	var done []string
+	for _, p := range immutableTargets() {
+		if e := sealer.Seal(p); e != nil {
+			sealed = false
+			break
+		}
+		done = append(done, p)
+	}
+	if !sealed {
+		for _, p := range done {
+			_ = sealer.Unseal(p)
+		}
+	}
+	v.Sealed = sealed
+
+	if err := v.Save(); err != nil { // tulis vault SEBELUM nyegel vault
 		return nil, err
+	}
+	if sealed {
+		_ = sealer.Seal(VaultPath()) // vault disegel TERAKHIR (nutup pemalsuan baseline)
 	}
 	return v, nil
 }
 
-// Disarm — matikan guardian (armed=false). Buat update kernel/binary yang disengaja owner.
+// Disarm — matikan guardian (armed=false) + buka semua segel OS. Buat update kernel/binary yang
+// disengaja owner. Kalau vault ke-seal & proses ga punya privilege → Save gagal (perlu root).
 func Disarm() error {
+	sealer := DefaultSealer()
+	_ = sealer.Unseal(VaultPath()) // buka vault dulu biar bisa ditulis
 	v, err := Load()
 	if err != nil {
 		return err
 	}
 	v.Armed = false
-	return v.Save()
+	v.Sealed = false
+	if err := v.Save(); err != nil {
+		return err
+	}
+	for _, p := range immutableTargets() {
+		_ = sealer.Unseal(p) // best-effort buka segel binary + manifest
+	}
+	return nil
 }
 
 // selfHash — sha256 dari binary yang sedang jalan.

@@ -192,7 +192,9 @@
       "grd_arm_btn": "🛡️ Aktifkan guardian",
       "grd_disarm_btn": "Matikan",
       "grd_pw_ph": "Password buat matikan",
-      "grd_arm_confirm": "Rekam binary + kernel sekarang sebagai baseline tepercaya & mulai verifikasi tiap boot?"
+      "grd_arm_confirm": "Rekam binary + kernel sekarang sebagai baseline tepercaya & mulai verifikasi tiap boot?",
+      "grd_seal_os": "OS-immutable (tersegel)",
+      "grd_seal_detect": "Deteksi saja — jalankan `sudo flowork --arm` buat immutability OS"
     }
   }
 }
