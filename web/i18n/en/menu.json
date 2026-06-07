@@ -180,7 +180,19 @@
       "yt_videos": "videos",
       "yt_subs": "subscribers",
       "yt_long_uploads": "Videos >15 min",
-      "yt_open_auth": "If the browser did not open, click here"
+      "yt_open_auth": "If the browser did not open, click here",
+      "seg_guardian": "Guardian",
+      "grd_title": "Kernel Guardian",
+      "grd_desc": "Verifies the binary + frozen kernel are untampered at boot. If they change, Flowork enters SAFE-MODE (exec/install blocked) and alerts you. Detection only — no root needed.",
+      "grd_armed": "ARMED",
+      "grd_disarmed": "disarmed",
+      "grd_safemode": "SAFE-MODE (tamper detected)",
+      "grd_protected": "protected artifacts",
+      "grd_sealed": "sealed",
+      "grd_arm_btn": "🛡️ Arm guardian",
+      "grd_disarm_btn": "Disarm",
+      "grd_pw_ph": "Password to disarm",
+      "grd_arm_confirm": "Record the current binary + kernel as the trusted baseline and start verifying every boot?"
     }
   }
 }

@@ -180,7 +180,19 @@
       "yt_videos": "video",
       "yt_subs": "subscriber",
       "yt_long_uploads": "Video >15 menit",
-      "yt_open_auth": "Kalau browser ga kebuka otomatis, klik di sini"
+      "yt_open_auth": "Kalau browser ga kebuka otomatis, klik di sini",
+      "seg_guardian": "Guardian",
+      "grd_title": "Kernel Guardian",
+      "grd_desc": "Pastiin binary + kernel beku ga diutak-atik pas boot. Kalau berubah, Flowork masuk SAFE-MODE (exec/install diblok) + ngabarin lo. Cuma deteksi — ga butuh root.",
+      "grd_armed": "AKTIF",
+      "grd_disarmed": "mati",
+      "grd_safemode": "SAFE-MODE (tamper terdeteksi)",
+      "grd_protected": "artefak dijaga",
+      "grd_sealed": "disegel",
+      "grd_arm_btn": "🛡️ Aktifkan guardian",
+      "grd_disarm_btn": "Matikan",
+      "grd_pw_ph": "Password buat matikan",
+      "grd_arm_confirm": "Rekam binary + kernel sekarang sebagai baseline tepercaya & mulai verifikasi tiap boot?"
     }
   }
 }

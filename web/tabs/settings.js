@@ -64,6 +64,7 @@ const SEGMENTS = [
   { key: 'keys', label: () => t('menu.tab.settings.seg_keys'), render: renderKeys },
   { key: 'notify', label: () => t('menu.tab.settings.seg_notify'), render: renderNotify },
   { key: 'youtube', label: () => t('menu.tab.settings.seg_youtube'), render: renderYouTube },
+  { key: 'guardian', label: () => t('menu.tab.settings.seg_guardian'), render: renderGuardian },
 ];
 
 // The YouTube OAuth flow polls /api/settings/youtube every 2s while the owner
@@ -380,6 +381,49 @@ async function renderYouTube(panel) {
         watcher_enabled: panel.querySelector('#ytWatcher').checked,
       }) });
       msg.className = 'set-msg ok'; msg.textContent = '✓';
+    } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
+  });
+}
+
+// ── Guardian (integritas kernel) ─────────────────────────────────────────────
+async function renderGuardian(panel) {
+  const tk = (k) => t('menu.tab.settings.' + k);
+  let s;
+  try { s = await fetchJSON('/api/guardian/status'); }
+  catch (e) { panel.innerHTML = `<div class="set-msg err">${esc(cleanErr(e))}</div>`; return; }
+  const badge = s.safe_mode
+    ? `<span style="color:#ff476f;font-weight:700">⛔ ${esc(tk('grd_safemode'))}</span>`
+    : s.armed
+      ? `<span style="color:#22ff88;font-weight:700">🛡️ ${esc(tk('grd_armed'))}</span>`
+      : `<span style="color:#ffc24d">○ ${esc(tk('grd_disarmed'))}</span>`;
+  panel.innerHTML = `
+    <div class="set-card">
+      <h3>🛡️ ${esc(tk('grd_title'))}</h3>
+      <div class="sub">${esc(tk('grd_desc'))}</div>
+      <div class="set-row">${badge} &nbsp;·&nbsp; ${esc(tk('grd_protected'))}: <b>${s.protected || 0}</b>${s.sealed_at ? ` &nbsp;·&nbsp; ${esc(tk('grd_sealed'))}: ${esc(s.sealed_at)}` : ''}</div>
+      <div class="set-row" style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+        ${s.armed
+          ? `<input type="password" id="grdPw" placeholder="${escAttr(tk('grd_pw_ph'))}" autocomplete="current-password" style="flex:1;min-width:160px">
+             <button class="set-btn-primary" id="grdDisarm">${esc(tk('grd_disarm_btn'))}</button>`
+          : `<button class="set-btn-primary" id="grdArm">${esc(tk('grd_arm_btn'))}</button>`}
+      </div>
+      <div class="set-msg" id="grdMsg"></div>
+    </div>`;
+  const msg = panel.querySelector('#grdMsg');
+  const arm = panel.querySelector('#grdArm');
+  if (arm) arm.addEventListener('click', async () => {
+    if (!confirm(tk('grd_arm_confirm'))) return;
+    msg.className = 'set-msg';
+    try { await fetchJSON('/api/guardian/arm', { method: 'POST' }); renderGuardian(panel); }
+    catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
+  });
+  const dis = panel.querySelector('#grdDisarm');
+  if (dis) dis.addEventListener('click', async () => {
+    msg.className = 'set-msg';
+    try {
+      await fetchJSON('/api/guardian/disarm', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: panel.querySelector('#grdPw').value }) });
+      renderGuardian(panel);
     } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
   });
 }
