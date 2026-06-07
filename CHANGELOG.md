@@ -1,3 +1,28 @@
+## 2026-06-07 — G1: Discord Channel (gap-closing vs OpenClaw/Hermes)
+
+Roadmap **G1** (TIER 1 gap-closing, `Documents/roadmap.md`): nutup gap channel — kompetitor punya
+20-27+ channel, Flowork baru Telegram+CLI. Plug-and-play, terisolasi total, nol edit kernel.
+
+**Baru: `agents/discord-channel.fwagent`** — connector loket-native, dumb-pipe (ikutin pola proven
+`telegram-channel.fwagent`):
+- Channel = pipa bodoh: `forwardToAgent` (Discord-agnostic) → `bus.request` → target agent
+  (default `mr-flow-next`) → relay balasan. Semua "mikir" di agent, nol di channel.
+- **WHY POLLING:** Discord kirim pesan via Gateway WEBSOCKET — ga ada di wasip1 (cuma host HTTP).
+  Sesuai desain Connections (wasm+HTTP+polling): poll REST `GET /channels/{id}/messages?after=`
+  per channel (interval 3s), cursor snowflake di-seed dari pesan terbaru saat boot (ga replay history).
+- **Idle-safe:** tanpa `DISCORD_BOT_TOKEN`/`DISCORD_CHANNELS` → daemon `boot` exit bersih (IDLE),
+  aman ke-load barengan channel lain. Token = secret di config loket.json (owner-set, GUI Connections).
+- **Keamanan:** token di header `Authorization: Bot` (bukan di URL), cap minimal
+  (`net:fetch:https://discord.com` + loket + state, no exec/shell), skip `author.bot` (anti-loop
+  balas-diri-sendiri), SSRF guard socket-layer nutup discord.com. Build `GOOS=wasip1` bersih, vet clean.
+- **TEST (jalur-identik, bukan curl-bypass):** `POST /api/kernel/rpc {plugin:"discord-channel",
+  function:"handle_update",...}` → channel→bus→`mr-flow-next` asli (lewat LLM router) → balas OK,
+  `sent:false` (no token, ga relay). handle_update = testable core (sama kayak telegram-channel).
+- Isolasi: folder + DB + secret sendiri. 1 rusak = 1 folder. Connector = swappable (TIDAK di-lock,
+  konsisten pola `telegram-channel`; nol file kernel/shared disentuh).
+
+---
+
 ## 2026-06-07 — v2.3.0: KERNEL FREEZE + GUARDIAN (4-lapis, one-click) + AUDIT KEAMANAN
 
 Milestone "produk abadi": kernel inti dibekukan + dijaga otomatis dari tamper. Semua additive,

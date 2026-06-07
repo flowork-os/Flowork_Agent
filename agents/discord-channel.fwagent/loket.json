@@ -1,0 +1,17 @@
+{
+  "id": "discord-channel",
+  "kind": "channel",
+  "name": "Discord Channel",
+  "version": "0.1.0",
+  "abi_version": "1",
+  "entry": "handle",
+  "tier": "extension",
+  "consumes": [
+    "bus.request"
+  ],
+  "config": [
+    { "key": "DISCORD_BOT_TOKEN", "label": "Bot Token", "type": "secret", "help": "from Discord Developer Portal → Bot → Token. Bot must be in the server with View Channel + Read Message History permission; enable the Message Content intent too." },
+    { "key": "DISCORD_CHANNELS", "label": "Channel IDs", "type": "text", "help": "comma-separated channel IDs to watch + reply in (enable Developer Mode → right-click channel → Copy ID)" },
+    { "key": "TARGET_AGENT", "label": "Target agent", "type": "text", "default": "mr-flow-next", "help": "which agent this connector feeds" }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "id": "discord-channel",
+  "version": "0.1.0",
+  "kind": "agent",
+  "display_name": "Discord Channel",
+  "description": "Loket-native Discord channel adapter — a dumb pipe that forwards each message to a target agent over the loket bus and relays the reply. Discord has no long-poll (Gateway is a websocket, unavailable in wasip1), so this polls the REST messages API per configured channel. Idle (no polling) until a bot token is set, so it loads safely beside other channels.",
+  "min_kernel_version": "0.1.0",
+  "abi_version": 1,
+  "author": "@flowork-os",
+  "license": "MIT",
+  "entry": "agent.wasm",
+  "memory_max_mb": 16,
+  "timeout_call_ms": 300000,
+  "capabilities_required": [
+    "net:fetch:http://127.0.0.1:1987/api/kernel/call",
+    "net:fetch:https://discord.com",
+    "state:read",
+    "state:write"
+  ],
+  "exposes_rpc": [
+    {
+      "name": "boot",
+      "description": "Live daemon: poll the Discord REST messages API for each configured channel, forward each new (non-bot) message to the target agent over the bus, relay the reply. Idle (clean exit) without a token.",
+      "input_schema": { "type": "object", "properties": {} }
+    },
+    {
+      "name": "handle_update",
+      "description": "Process ONE synthetic update (testable core): forward {text,channel_id,user,target} to the agent over the bus and return the reply. send:true relays to Discord when a token is set.",
+      "input_schema": {
+        "type": "object",
+        "properties": { "text": { "type": "string" }, "target": { "type": "string" } },
+        "required": ["text"]
+      }
+    }
+  ]
+}
