@@ -8,10 +8,14 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"flowork-gui/internal/floworkauth"
 	"flowork-gui/internal/guardian"
+	"flowork-gui/internal/kernel/loader"
 )
 
 // GET /api/guardian/status — status guardian buat GUI panel.
@@ -94,6 +98,63 @@ func guardianBootCheck() {
 		defer cancel()
 		_ = notifyOwnerTelegram(ctx, msg)
 	}()
+}
+
+// guardianDangerCaps — CapSource buat sentinel (FASE 3): enumerate tiap agent → daftar cap
+// BERBAHAYA yang dideklarasi. Baca manifest.json (capabilities_required) + loket.json (consumes)
+// di tiap <agentsdir>/*. Sentinel bandingin snapshot ini → cap berbahaya BARU = eskalasi → alert.
+func guardianDangerCaps() map[string][]string {
+	out := map[string][]string{}
+	root := loader.AgentsDir()
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return out
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		id := strings.TrimSuffix(e.Name(), ".fwagent")
+		dir := filepath.Join(root, e.Name())
+		var caps []string
+		if raw, rerr := os.ReadFile(filepath.Join(dir, "manifest.json")); rerr == nil {
+			var m struct {
+				CapabilitiesRequired []string `json:"capabilities_required"`
+			}
+			if json.Unmarshal(raw, &m) == nil {
+				for _, c := range m.CapabilitiesRequired {
+					if pluginCapDangerous(c) {
+						caps = append(caps, c)
+					}
+				}
+			}
+		}
+		if raw, rerr := os.ReadFile(filepath.Join(dir, "loket.json")); rerr == nil {
+			var m struct {
+				Consumes []string `json:"consumes"`
+			}
+			if json.Unmarshal(raw, &m) == nil {
+				for _, c := range m.Consumes {
+					if loketCapDangerous(c) {
+						caps = append(caps, c)
+					}
+				}
+			}
+		}
+		if len(caps) > 0 {
+			out[id] = caps
+		}
+	}
+	return out
+}
+
+// loketCapDangerous — cap loket yang ngasih kuasa nyata (GrantOwner-class).
+func loketCapDangerous(c string) bool {
+	switch c {
+	case "exec.run", "http.fetch", "fs.read", "fs.write", "fs.list", "tool.run", "slash.run":
+		return true
+	}
+	return false
 }
 
 func joinUpTo(items []string, max int) string {

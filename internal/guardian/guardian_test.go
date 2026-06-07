@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -129,6 +130,70 @@ func TestSealOrchestration(t *testing.T) {
 	if len(fail.sealed) != 0 {
 		t.Fatalf("rollback: ga boleh ada sisa ke-seal, dapat: %v", fail.sealed)
 	}
+}
+
+func anyContains(items []string, sub string) bool {
+	for _, s := range items {
+		if strings.Contains(s, sub) {
+			return true
+		}
+	}
+	return false
+}
+
+func TestSentinelCapDrift(t *testing.T) {
+	safeMode.Store(false)
+	t.Setenv("HOME", t.TempDir())
+	defer setSealerForTest(newFake())()
+	core := filepath.Join(t.TempDir(), "k.go")
+	if err := os.WriteFile(core, []byte("v1"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Arm([]string{core}, "t0"); err != nil {
+		t.Fatal(err)
+	}
+
+	var alerts []string
+	al := func(m string) { alerts = append(alerts, m) }
+	baseline := map[string]bool{} // start kosong → exec agent1 = BARU
+
+	caps := func() map[string][]string { return map[string][]string{"agent1": {"exec:power"}} }
+	sentinelTick(caps, al, baseline)
+	if !anyContains(alerts, "agent1 → exec:power") {
+		t.Fatalf("harus alert cap berbahaya baru, dapat: %v", alerts)
+	}
+	n := len(alerts)
+	sentinelTick(caps, al, baseline) // cap sama → ga boleh re-alert
+	if len(alerts) != n {
+		t.Fatal("cap yang sama ga boleh re-alert tiap tick")
+	}
+	caps2 := func() map[string][]string { return map[string][]string{"agent1": {"exec:power", "secret:read"}} }
+	sentinelTick(caps2, al, baseline)
+	if !anyContains(alerts, "secret:read") {
+		t.Fatal("cap berbahaya baru kedua harus alert")
+	}
+}
+
+func TestSentinelIntegrityRuntime(t *testing.T) {
+	safeMode.Store(false)
+	t.Setenv("HOME", t.TempDir())
+	defer setSealerForTest(newFake())()
+	core := filepath.Join(t.TempDir(), "k.go")
+	os.WriteFile(core, []byte("v1"), 0o644)
+	if _, err := Arm([]string{core}, "t0"); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(core, []byte("HACKED-at-runtime"), 0o644) // tamper PASCA-arm
+
+	var alerts []string
+	sentinelTick(nil, func(m string) { alerts = append(alerts, m) }, map[string]bool{})
+	if !SafeMode() {
+		t.Fatal("integritas runtime gagal → harus masuk SAFE-MODE")
+	}
+	if !anyContains(alerts, "integritas") {
+		t.Fatalf("harus alert integritas, dapat: %v", alerts)
+	}
+	safeMode.Store(false) // bersihin buat test lain
 }
 
 func TestDangerousPath(t *testing.T) {
