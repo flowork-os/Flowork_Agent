@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "kind": "agent",
   "display_name": "Telegram Channel",
-  "description": "Loket-native Telegram channel adapter — a dumb pipe that forwards each message to a target agent over the loket bus and relays the reply. Handles text AND voice notes (voice → router STT → agent → router TTS → spoken reply). Idle (no polling) until a bot token is set, so it loads safely beside the legacy telegram daemon.",
+  "description": "Loket-native Telegram channel adapter \u2014 a dumb pipe that forwards each message to a target agent over the loket bus and relays the reply. Handles text AND voice notes (voice \u2192 router STT \u2192 agent \u2192 router TTS \u2192 spoken reply). Idle (no polling) until a bot token is set, so it loads safely beside the legacy telegram daemon.",
   "min_kernel_version": "0.1.0",
   "abi_version": 1,
   "author": "@flowork-os",
@@ -22,15 +22,27 @@
     {
       "name": "boot",
       "description": "Live daemon: long-poll Telegram, forward each allowed message to the target agent over the bus, relay the reply. Idle (clean exit) without a token.",
-      "input_schema": { "type": "object", "properties": {} }
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
     },
     {
       "name": "handle_update",
       "description": "Process ONE synthetic update (testable core): forward {text,chat_id,user,target} to the agent over the bus and return the reply. send:true relays to Telegram when a token is set.",
       "input_schema": {
         "type": "object",
-        "properties": { "text": { "type": "string" }, "target": { "type": "string" } },
-        "required": ["text"]
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ]
       }
     },
     {
@@ -38,8 +50,20 @@
       "description": "Testable voice core: take base64 audio, transcribe via the router STT, forward the transcript to the agent over the bus, and (speak:true) synthesize the reply via the router TTS. Returns {transcript, reply, audio_b64}. Exercises the full voice pipe with no live bot.",
       "input_schema": {
         "type": "object",
-        "properties": { "audio_b64": { "type": "string" }, "target": { "type": "string" }, "speak": { "type": "boolean" } },
-        "required": ["audio_b64"]
+        "properties": {
+          "audio_b64": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "speak": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "audio_b64"
+        ]
       }
     }
   ]
