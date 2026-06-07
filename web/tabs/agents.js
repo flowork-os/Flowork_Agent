@@ -51,6 +51,9 @@ function esc(s) {
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   }[c]));
 }
+// esc() di file ini SUDAH escape kutip → attribute-safe. escAttr = alias biar
+// konteks atribut eksplisit (konsisten sama util global).
+const escAttr = esc;
 
 async function fetchJSON(url, opts) {
   const r = await fetch(url, opts);
@@ -452,7 +455,7 @@ function renderCard(a) {
     ? `<span class="ag-cap">+${(a.capabilities_required.length - 4)}</span>` : '';
   const statusLabel = !enabled ? t('menu.tab.agents.card_disabled') : (a.state || '?');
   return `
-    <article class="ag-card ${stateCls}" data-id="${esc(a.id)}"
+    <article class="ag-card ${stateCls}" data-id="${escAttr(a.id)}"
              style="--accent:${palette[0]}66">
       <div class="ag-card-head">
         ${avatarHTML(a.id, 56)}
@@ -476,9 +479,9 @@ function renderCard(a) {
         <button class="ag-btn"         data-action="diagnostics" title="Diagnostics">📊</button>
         <button class="ag-btn"         data-action="doktrin" title="Educational Errors (Doktrin) — this agent's own store">📚</button>
         <button class="ag-btn"         data-action="duplicate" title="Duplicate / copy this agent">⧉</button>
-        <button class="ag-btn"         data-action="slash" title="${esc(t('menu.tab.agents.btn_slash_title') || 'Quick slash command')}">/</button>
-        <button class="ag-btn"         data-action="download" title="${esc(t('menu.tab.agents.btn_download'))}">⬇</button>
-        <button class="ag-btn danger"  data-action="remove" title="${esc(t('menu.tab.agents.btn_remove'))}">🗑</button>
+        <button class="ag-btn"         data-action="slash" title="${escAttr(t('menu.tab.agents.btn_slash_title') || 'Quick slash command')}">/</button>
+        <button class="ag-btn"         data-action="download" title="${escAttr(t('menu.tab.agents.btn_download'))}">⬇</button>
+        <button class="ag-btn danger"  data-action="remove" title="${escAttr(t('menu.tab.agents.btn_remove'))}">🗑</button>
       </div>
     </article>
   `;
@@ -662,7 +665,7 @@ async function openSettingModal(root, a) {
       <h4>📝 1. ${esc(t('menu.tab.agents.section_prompt'))}</h4>
       <div class="ag-field">
         <label>${esc(t('menu.tab.agents.prompt_lbl'))}</label>
-        <textarea id="cf-prompt" placeholder="${esc(t('menu.tab.agents.prompt_ph'))}">${esc(cfg.prompt || '')}</textarea>
+        <textarea id="cf-prompt" placeholder="${escAttr(t('menu.tab.agents.prompt_ph'))}">${esc(cfg.prompt || '')}</textarea>
       </div>
     </section>
 
@@ -679,11 +682,11 @@ async function openSettingModal(root, a) {
       <div class="ag-tools-grid">${toolsHTML}</div>
       <details style="margin-top:12px">
         <summary style="cursor:pointer;color:#94a3b8;font-size:13px">${esc(t('menu.tab.agents.tools_catalog_h') || '📚 Browse all registered tools (Section 13)')}</summary>
-        <div id="cf-tools-catalog" data-agent-id="${esc(a.id)}" style="margin-top:8px"></div>
+        <div id="cf-tools-catalog" data-agent-id="${escAttr(a.id)}" style="margin-top:8px"></div>
       </details>
       <details style="margin-top:10px">
         <summary style="cursor:pointer;color:#94a3b8;font-size:13px">🔗 ${esc(t('menu.tab.agents.mcp_h') || 'MCP servers — uncheck to hide from this agent')}</summary>
-        <div id="cf-mcp-list" data-agent-id="${esc(a.id)}" style="margin-top:8px;font-size:13px;color:#cbd5e1"></div>
+        <div id="cf-mcp-list" data-agent-id="${escAttr(a.id)}" style="margin-top:8px;font-size:13px;color:#cbd5e1"></div>
       </details>
     </section>
 
@@ -693,7 +696,7 @@ async function openSettingModal(root, a) {
       <div id="cf-skills-list"></div>
       <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
         <button class="ag-btn" id="cf-skills-add" type="button">${esc(t('menu.tab.agents.skills_add'))}</button>
-        <button class="ag-btn" id="cf-skills-browse-router" type="button" data-agent-id="${esc(a.id)}">${esc(t('menu.tab.agents.skills_browse_router'))}</button>
+        <button class="ag-btn" id="cf-skills-browse-router" type="button" data-agent-id="${escAttr(a.id)}">${esc(t('menu.tab.agents.skills_browse_router'))}</button>
       </div>
     </section>
 
@@ -706,11 +709,11 @@ async function openSettingModal(root, a) {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div class="ag-field">
           <label>${esc(t('menu.tab.agents.router_url_lbl'))}</label>
-          <input id="cf-router-url" value="${esc(router.url || '')}" placeholder="${esc(t('menu.tab.agents.router_url_ph'))}">
+          <input id="cf-router-url" value="${escAttr(router.url || '')}" placeholder="${escAttr(t('menu.tab.agents.router_url_ph'))}">
         </div>
         <div class="ag-field">
           <label>${esc(t('menu.tab.agents.router_model_lbl'))}</label>
-          <input id="cf-router-model" value="${esc(router.model || '')}" placeholder="${esc(t('menu.tab.agents.router_model_ph'))}">
+          <input id="cf-router-model" value="${escAttr(router.model || '')}" placeholder="${escAttr(t('menu.tab.agents.router_model_ph'))}">
         </div>
       </div>
 
@@ -740,9 +743,9 @@ async function openSettingModal(root, a) {
     }
     list.innerHTML = sched.map((s, i) => `
       <div class="ag-sched-row" data-idx="${i}">
-        <input data-k="id"   value="${esc(s.id || '')}"   placeholder="${esc(t('menu.tab.agents.schedule_id_ph'))}">
-        <input data-k="cron" value="${esc(s.cron || '')}" placeholder="${esc(t('menu.tab.agents.schedule_cron_ph'))}">
-        <input data-k="task" value="${esc(s.task || '')}" placeholder="${esc(t('menu.tab.agents.schedule_task_ph'))}">
+        <input data-k="id"   value="${escAttr(s.id || '')}"   placeholder="${escAttr(t('menu.tab.agents.schedule_id_ph'))}">
+        <input data-k="cron" value="${escAttr(s.cron || '')}" placeholder="${escAttr(t('menu.tab.agents.schedule_cron_ph'))}">
+        <input data-k="task" value="${escAttr(s.task || '')}" placeholder="${escAttr(t('menu.tab.agents.schedule_task_ph'))}">
         <button class="ag-btn danger" type="button" data-rm="${i}">${esc(t('menu.tab.agents.schedule_remove'))}</button>
       </div>
     `).join('');
@@ -769,9 +772,9 @@ async function openSettingModal(root, a) {
     }
     skillsBox.innerHTML = skills.map((s, i) => `
       <div class="ag-sched-row" data-idx="${i}">
-        <input data-k="id"           value="${esc(s.id || '')}"           placeholder="${esc(t('menu.tab.agents.skill_id_ph'))}">
-        <input data-k="trigger"      value="${esc(s.trigger || '')}"      placeholder="${esc(t('menu.tab.agents.skill_trigger_ph'))}">
-        <input data-k="instructions" value="${esc(s.instructions || '')}" placeholder="${esc(t('menu.tab.agents.skill_instr_ph'))}">
+        <input data-k="id"           value="${escAttr(s.id || '')}"           placeholder="${escAttr(t('menu.tab.agents.skill_id_ph'))}">
+        <input data-k="trigger"      value="${escAttr(s.trigger || '')}"      placeholder="${escAttr(t('menu.tab.agents.skill_trigger_ph'))}">
+        <input data-k="instructions" value="${escAttr(s.instructions || '')}" placeholder="${escAttr(t('menu.tab.agents.skill_instr_ph'))}">
         <button class="ag-btn danger" type="button" data-rm="${i}">${esc(t('menu.tab.agents.skills_remove'))}</button>
       </div>
     `).join('');
@@ -830,8 +833,8 @@ async function openSettingModal(root, a) {
     }
     credsBox.innerHTML = creds.map((c, i) => `
       <div class="ag-cred-row" data-idx="${i}">
-        <input data-k="key"   value="${esc(c.key || '')}"   placeholder="${esc(t('menu.tab.agents.settings_creds_key_ph'))}">
-        <input data-k="value" value="${esc(c.value || '')}" placeholder="${esc(t('menu.tab.agents.settings_creds_val_ph'))}" type="password">
+        <input data-k="key"   value="${escAttr(c.key || '')}"   placeholder="${escAttr(t('menu.tab.agents.settings_creds_key_ph'))}">
+        <input data-k="value" value="${escAttr(c.value || '')}" placeholder="${escAttr(t('menu.tab.agents.settings_creds_val_ph'))}" type="password">
         <button class="ag-btn ghost" type="button" data-reveal="${i}" title="show/hide">${esc(t('menu.tab.agents.settings_creds_reveal'))}</button>
         <button class="ag-btn danger" type="button" data-rm="${i}">${esc(t('menu.tab.agents.settings_creds_rm'))}</button>
       </div>
@@ -925,13 +928,13 @@ function renderSchemaField(sectionId, field, cfg) {
   let widget = '';
   switch (type) {
     case 'password':
-      widget = `<input id="${id}" type="password" value="${esc(val)}" placeholder="${ph}">`;
+      widget = `<input id="${id}" type="password" value="${escAttr(val)}" placeholder="${ph}">`;
       break;
     case 'textarea':
       widget = `<textarea id="${id}" placeholder="${ph}">${esc(val)}</textarea>`;
       break;
     case 'number':
-      widget = `<input id="${id}" type="number" value="${esc(val)}" placeholder="${ph}">`;
+      widget = `<input id="${id}" type="number" value="${escAttr(val)}" placeholder="${ph}">`;
       break;
     case 'checkbox': {
       const checked = (val === true || val === '1' || val === 'true') ? 'checked' : '';
@@ -941,7 +944,7 @@ function renderSchemaField(sectionId, field, cfg) {
     }
     case 'select': {
       const opts = (field.options || []).map((o) =>
-        `<option value="${esc(o.value)}" ${o.value === String(val) ? 'selected' : ''}>${esc(o.label || o.value)}</option>`
+        `<option value="${escAttr(o.value)}" ${o.value === String(val) ? 'selected' : ''}>${esc(o.label || o.value)}</option>`
       ).join('');
       widget = `<select id="${id}">${opts}</select>`;
       break;
@@ -951,7 +954,7 @@ function renderSchemaField(sectionId, field, cfg) {
       break;
     case 'text':
     default:
-      widget = `<input id="${id}" type="text" value="${esc(val)}" placeholder="${ph}">`;
+      widget = `<input id="${id}" type="text" value="${escAttr(val)}" placeholder="${ph}">`;
   }
   return `<div class="ag-field">${labelHTML}${widget}${help}</div>`;
 }
@@ -964,7 +967,7 @@ function renderSchemaSections(schema, cfg, startIdx) {
     const fields = (sec.fields || []).map((f) => renderSchemaField(sec.id, f, cfg)).join('');
     const desc = sec.description ? `<p class="ag-msg-modal" style="color:#94a3b8">${esc(sec.description)}</p>` : '';
     return `
-      <section class="ag-section" data-schema-section="${esc(sec.id)}">
+      <section class="ag-section" data-schema-section="${escAttr(sec.id)}">
         <h4>${icon} ${num}. ${esc(sec.title || sec.id)}</h4>
         ${desc}
         ${fields}
@@ -1030,7 +1033,7 @@ async function renderMCPChecklist(host, agentID) {
   }
   host.innerHTML = conns.map((c) =>
     `<label style="display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer">
-      <input type="checkbox" data-mcp-id="${esc(c.id)}" ${c.enabled ? 'checked' : ''}>
+      <input type="checkbox" data-mcp-id="${escAttr(c.id)}" ${c.enabled ? 'checked' : ''}>
       <span>${esc(c.id)} <span style="opacity:.5">(${esc(String(c.tools))} tools)</span></span>
     </label>`).join('') +
     '<div style="margin-top:6px;font-size:11px;opacity:.5">Unchecked = hidden from this agent\'s tool search.</div>';

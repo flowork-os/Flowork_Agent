@@ -10,7 +10,7 @@
 //   loket-native. Field map code→error_code, explanation→message_template,
 //   remediation→evolution_hint is done client-side (legacy_compat_v2.go untouched).
 
-import { esc, fetchJSON, loadStyle } from '../js/utils.js';
+import { esc, escAttr, fetchJSON, loadStyle } from '../js/utils.js';
 import { t } from '/js/i18n.js';
 const L = new Proxy({}, { get: (_, k) => t('doktrin_edukasi.' + String(k).replace(/[A-Z]/g, (c) => '_' + c.toLowerCase())) });
 
@@ -190,7 +190,7 @@ export async function render(mainEl, agentId = 'mr-flow') {
     <div class="sub">${esc(L.sub)} (per-agent: <code>${esc(agentId)}</code>).</div>
     <div class="de-shell">
       <div class="de-bar">
-        <input type="text" id="deSearch" placeholder="${esc(L.searchPh)}" autocomplete="off" title="${esc(L.searchTip)}">
+        <input type="text" id="deSearch" placeholder="${escAttr(L.searchPh)}" autocomplete="off" title="${escAttr(L.searchTip)}">
         <div class="stat">
           <span><b id="deCount">0</b> ${esc(L.countLabel)}</span>
         </div>
@@ -242,7 +242,7 @@ export async function render(mainEl, agentId = 'mr-flow') {
             ${esc(e.message_template || '')}
             <span class="pre-hint">${esc(e.evolution_hint || '')}</span>
           </div>
-          <button class="de-edit-btn" data-idx="${i}" title="${esc(L.editBtnTip)}">${esc(L.editBtn)}</button>
+          <button class="de-edit-btn" data-idx="${i}" title="${escAttr(L.editBtnTip)}">${esc(L.editBtn)}</button>
         </div>
       `;
     }).join('');
@@ -265,23 +265,23 @@ export async function render(mainEl, agentId = 'mr-flow') {
         <div class="de-modal-hint">${esc(L.modalHint)}</div>
         <div>
           <label>${esc(L.errorCodeLabel)}</label>
-          <input type="text" value="${esc(entry.error_code)}" readonly title="${esc(L.errorCodeTip)}">
+          <input type="text" value="${escAttr(entry.error_code)}" readonly title="${escAttr(L.errorCodeTip)}">
         </div>
         <div>
           <label>${esc(L.titleLabel)}</label>
-          <input type="text" value="${esc(entry.title || '')}" readonly title="${esc(L.titleTip)}">
+          <input type="text" value="${escAttr(entry.title || '')}" readonly title="${escAttr(L.titleTip)}">
         </div>
         <div>
           <label>${esc(L.msgLabel)} <code>%s</code> ${esc(L.msgLabel2)}</label>
-          <textarea id="deMsg" title="${esc(L.msgTip)}">${esc(entry.message_template || '')}</textarea>
+          <textarea id="deMsg" title="${escAttr(L.msgTip)}">${esc(entry.message_template || '')}</textarea>
         </div>
         <div>
           <label>${esc(L.hintLabel)}</label>
-          <textarea id="deHint" title="${esc(L.hintTip)}">${esc(entry.evolution_hint || '')}</textarea>
+          <textarea id="deHint" title="${escAttr(L.hintTip)}">${esc(entry.evolution_hint || '')}</textarea>
         </div>
         <div class="de-modal-actions">
-          <button class="de-btn-cancel" id="deCancel" title="${esc(L.cancelTip)}">${esc(L.cancel)}</button>
-          <button class="de-btn-save" id="deSave" title="${esc(L.saveTip)}">${esc(L.save)}</button>
+          <button class="de-btn-cancel" id="deCancel" title="${escAttr(L.cancelTip)}">${esc(L.cancel)}</button>
+          <button class="de-btn-save" id="deSave" title="${escAttr(L.saveTip)}">${esc(L.save)}</button>
         </div>
       </div>
     `;

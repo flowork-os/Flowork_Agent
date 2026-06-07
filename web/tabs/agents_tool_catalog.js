@@ -23,6 +23,7 @@ function esc(s) {
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
 }
+const escAttr = esc; // esc lokal sudah escape kutip → attribute-safe
 
 export async function renderToolCatalog(hostEl, agentId) {
   hostEl.innerHTML = `<p style="color:#64748b;font-size:12px">${esc(t('menu.tab.agents.tools_catalog_loading') || 'Loading…')}</p>`;
@@ -46,7 +47,7 @@ export async function renderToolCatalog(hostEl, agentId) {
       <div style="display:grid;gap:4px;max-height:240px;overflow-y:auto">
         ${items.map((it) => `
           <label style="display:flex;align-items:flex-start;gap:8px;padding:6px;background:#1e293b;border:1px solid #334155;border-radius:6px;cursor:pointer">
-            <input type="checkbox" data-tool="${esc(it.name)}" ${it.subscribed ? 'checked' : ''}>
+            <input type="checkbox" data-tool="${escAttr(it.name)}" ${it.subscribed ? 'checked' : ''}>
             <div style="flex:1;min-width:0">
               <div style="color:#f1f5f9;font-family:ui-monospace,monospace;font-size:12px">${esc(it.name)}</div>
               <div style="color:#94a3b8;font-size:11px">${esc(it.capability || '(no cap)')}</div>
