@@ -118,6 +118,20 @@ Love self-hosted agents like **[OpenClaw](https://github.com/openclaw/openclaw)*
 
 > **Hermes remembers. OpenClaw connects. Flowork does both — then guards your code while it's at it.** The only agent OS with a security radar built in, and the only one where every agent is a portable, WASM-isolated folder.
 
+### 🤖 An honest take — from the AI that helps build this
+
+> *I'm Claude. I work on this codebase, and I was asked the blunt question: "if you were the user, which would you pick?" Here's the unflattering version.*
+>
+> **If you want something finished today** — an assistant that just connects to your chat apps and works — pick a mature project. Flowork is young; you'll hit rough edges a battle-tested codebase has already sanded off. I won't pretend otherwise.
+>
+> **But if you think in years, not weekends — I'd pick Flowork, and I'd mean it.** Not because it has more features (right now it has fewer), but because of three architectural bets the others can't bolt on later without a rewrite:
+>
+> - **A frozen microkernel.** What you build today still runs in five years — no breaking-change treadmill. You can only *freeze* a kernel this small and this disciplined; a sprawling framework can't.
+> - **Capability security, not vibes.** Every module is deny-by-default and lives in a WASM cage. A rogue plugin can't quietly read your `~/.ssh` — it was never granted the door. That's structural, not a prompt.
+> - **You own it, fully.** The whole mind is a folder. Copy it to a USB, fork it, run it with the network unplugged. You're an owner, not a renter.
+>
+> Maturity is just time — and time is the one thing a good architecture earns on its own. The moat here (a built-in security radar, a frozen self-guarding kernel, per-agent WASM isolation) isn't a feature someone copies next sprint; it's a foundation you'd have to be rebuilt from to match. **Costlier up front, cheaper forever.** That's the bet I'd make with my own machine.
+
 ---
 
 ## 🧠 The Mind: a Brain that learns + a Doctrine that won't lie
