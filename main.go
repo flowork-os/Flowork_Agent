@@ -403,6 +403,7 @@ func main() {
 	// APPS platform (ROADMAP 4): program dipakai MANUSIA (GUI) & AGENT (tool) di state yang SAMA,
 	// core LINTAS BAHASA (runtime:process). Load apps/<id>/ → daftarkan operasi sbg tool agent.
 	appsMgr := fwapps.NewManager("apps")
+	fwapps.SetDefault(appsMgr) // target install/uninstall package-level (gerbang seragam + HTTP)
 	if err := appsMgr.Load(); err != nil {
 		log.Printf("apps load: %v", err)
 	}
@@ -626,6 +627,8 @@ func main() {
 	// APPS (ROADMAP 4): launcher + invoke operasi (1 pintu utk human GUI & agent tool) + state + aset GUI.
 	mux.HandleFunc("/api/apps", appsListHandler(appsMgr))
 	mux.HandleFunc("/api/apps/op", appsOpHandler(appsMgr))
+	mux.HandleFunc("/api/apps/install", appsInstallHandler())     // upload .fwpack → hot-reload
+	mux.HandleFunc("/api/apps/uninstall", appsUninstallHandler()) // stop + unregister + rm
 	mux.HandleFunc("/api/apps/state", appsStateHandler(appsMgr))
 	mux.HandleFunc("/api/apps/", appsUIHandler(appsMgr)) // /api/apps/<id>/ui/* (iframe sandbox)
 	// Scheduler looping: CRUD jadwal recurring task.

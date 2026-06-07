@@ -3,9 +3,16 @@
   "sub": "Program yang dipakai kamu DAN agent — bahasa apa pun. Dibuka di dalam Flowork.",
   "installed": "TERINSTALL",
   "store": "APP STORE",
-  "store_intro": "Pasang app di sini (ala app store).",
-  "store_local": "Install lokal (v1): taruh folder di",
+  "store_intro": "Pasang app dari bundel .fwpack. Install langsung hidup — tanpa restart.",
+  "store_local": "Install manual: taruh folder di",
   "store_remote": "Katalog remote (browse & install app komunitas) — segera hadir.",
+  "store_pick": "⬆ Pasang .fwpack",
+  "store_exec_warn": "App ini menjalankan program di komputermu (core-nya, bahasa apa pun). Pasang cuma app yang kamu percaya. Lanjut?",
+  "installing": "Memasang…",
+  "install_ok": "Terpasang",
+  "install_fail": "Gagal pasang",
+  "uninstall": "Copot",
+  "uninstall_confirm": "Copot app \"{name}\"? Folder & state-nya dihapus.",
   "empty": "Belum ada app. 'Shared Notepad' (Python) bawaan buktiin: kamu & agent edit catatan yang sama.",
   "close": "Tutup"
 }

@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"flowork-gui/internal/agentdb"
+	fwapps "flowork-gui/internal/apps"
 	"flowork-gui/internal/connections"
 	"flowork-gui/internal/floworkdb"
 	"flowork-gui/internal/kernel/loader"
@@ -194,6 +195,10 @@ func installPluginPack(host *kernelhost.Host, store *floworkdb.Store, raw []byte
 		return pluginInstallResult{s, b}
 	case "channel":
 		b, s := connections.InstallChannelPack(raw)
+		return pluginInstallResult{s, b}
+	case "app":
+		// core app = exec OS bebas → consent owner. approveCaps (drop-folder/owner) = approve.
+		b, s := fwapps.InstallAppPack(raw, approveCaps)
 		return pluginInstallResult{s, b}
 	}
 	var man pluginManifest

@@ -60,6 +60,54 @@ func appsOpHandler(mgr *apps.Manager) http.HandlerFunc {
 	}
 }
 
+// POST /api/apps/install (multipart "file" = .fwpack) — install/hot-reload app TANPA restart.
+// Consent exec: core app jalanin perintah OS → wajib ?approve_exec=1 (owner buka gerbang).
+func appsInstallHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			tfWriteJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "POST only"})
+			return
+		}
+		if err := r.ParseMultipartForm(64 << 20); err != nil {
+			tfWriteJSON(w, http.StatusBadRequest, map[string]any{"error": "parse form: " + err.Error()})
+			return
+		}
+		file, _, err := r.FormFile("file")
+		if err != nil {
+			tfWriteJSON(w, http.StatusBadRequest, map[string]any{"error": "missing file field"})
+			return
+		}
+		defer file.Close()
+		raw, err := io.ReadAll(io.LimitReader(file, 128<<20))
+		if err != nil {
+			tfWriteJSON(w, http.StatusBadRequest, map[string]any{"error": "read: " + err.Error()})
+			return
+		}
+		body, status := apps.InstallAppPack(raw, r.URL.Query().Get("approve_exec") == "1")
+		tfWriteJSON(w, status, body)
+	}
+}
+
+// POST /api/apps/uninstall?id= — copot app (stop core + unregister tool + hapus folder).
+func appsUninstallHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			tfWriteJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "POST only"})
+			return
+		}
+		id := strings.TrimSpace(r.URL.Query().Get("id"))
+		if !appPathIDRe.MatchString(id) {
+			tfWriteJSON(w, http.StatusBadRequest, map[string]any{"error": "id invalid"})
+			return
+		}
+		if err := apps.UninstallApp(id); err != nil {
+			tfWriteJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+			return
+		}
+		tfWriteJSON(w, 0, map[string]any{"ok": true, "uninstalled": id})
+	}
+}
+
 // GET /api/apps/state?id= — versi state (GUI poll → sinkron dgn aksi agent).
 func appsStateHandler(mgr *apps.Manager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

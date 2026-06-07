@@ -201,7 +201,12 @@ func triggersHookHandler(eng *triggers.Engine) http.HandlerFunc {
 			return
 		}
 		body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<20))
-		if err := eng.HandleWebhook(id, r.URL.Query().Get("key"), body); err != nil {
+		// secret via header X-Flowork-Key (DIANJURKAN — ga bocor di access-log/URL) ATAU ?key=.
+		key := r.Header.Get("X-Flowork-Key")
+		if key == "" {
+			key = r.URL.Query().Get("key")
+		}
+		if err := eng.HandleWebhook(id, key, body); err != nil {
 			tfWriteJSON(w, http.StatusForbidden, map[string]any{"error": err.Error()})
 			return
 		}
