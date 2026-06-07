@@ -1,3 +1,23 @@
+## 2026-06-07 — G2: Slack Channel (gap-closing vs OpenClaw/Hermes)
+
+Roadmap **G2** (TIER 1 gap-closing): channel ketiga, pola sama persis `telegram`/`discord`.
+
+**Baru: `agents/slack-channel.fwagent`** — connector loket-native dumb-pipe:
+- **WHY POLLING:** Slack realtime = Socket Mode (websocket) — ga ada di wasip1. Sesuai desain
+  Connections: poll REST `conversations.history?channel=…&oldest=…&inclusive=false` per channel
+  (interval 3s), cursor `ts` di-seed dari pesan terbaru saat boot (ga replay history).
+- **Idle-safe:** tanpa `SLACK_BOT_TOKEN`/`SLACK_CHANNELS` → daemon boot exit bersih (IDLE).
+- **Keamanan/robust:** token di header `Authorization: Bearer` (bukan URL); Slack balikin HTTP 200
+  walau error logis → cek flag `ok` di history & `chat.postMessage`; skip `bot_id`/`subtype`
+  (anti-loop balas-diri + skip join/edit events); cursor maju SEBELUM filter (bot msg ga refetch);
+  channel ID alfanumerik → FNV hash jadi `chat_id` (sesi per-channel); cap minimal
+  (`net:fetch:https://slack.com` + loket + state), SSRF guard socket-layer. Build wasip1 bersih.
+- **TEST jalur-identik:** `POST /api/kernel/rpc {plugin:"slack-channel",function:"handle_update"}`
+  → channel→bus→`mr-flow-next` asli → balas OK, `sent:false`.
+- Isolasi penuh (folder+DB+secret sendiri), nol edit kernel, connector swappable (TIDAK di-lock).
+
+---
+
 ## 2026-06-07 — G1: Discord Channel (gap-closing vs OpenClaw/Hermes)
 
 Roadmap **G1** (TIER 1 gap-closing, `Documents/roadmap.md`): nutup gap channel — kompetitor punya
