@@ -17,7 +17,7 @@
 [![Platform](https://img.shields.io/badge/os-Linux%20%7C%20macOS%20%7C%20Windows-blue)]()
 [![Self-Protecting](https://img.shields.io/badge/kernel-frozen%20%2B%20guarded-22ff88)]()
 
-**self-hosted AI agent · local-first AI agent framework · self-improving agent memory · multi-agent orchestration · MCP client & server · Telegram / CLI AI bot · 117 built-in tools · plug-and-play tools / slash / scanners / channels / agents / apps · WASM-sandboxed · built-in security scanner · frozen self-guarding kernel (tamper → safe-mode) · 100% offline-capable · OpenClaw alternative · Hermes Agent alternative**
+**self-hosted AI agent · local-first AI agent framework · self-improving agent memory · multi-agent orchestration · MCP client & server · Telegram / Discord / Slack / WhatsApp / CLI AI bot · sovereign voice (offline STT + free TTS) · 117 built-in tools · plug-and-play tools / slash / scanners / channels / agents / apps · WASM-sandboxed · built-in security scanner · frozen self-guarding kernel (tamper → safe-mode) · 100% offline-capable · OpenClaw alternative · Hermes Agent alternative**
 
 ```bash
 git clone https://github.com/flowork-os/Flowork_Agent.git && cd Flowork_Agent && ./start.sh
@@ -61,12 +61,12 @@ Everything flows through **one counter (the "loket")**. A module can do nothing 
 
 ```
    ENTRY POINTS              KERNEL ("the blank board")           THE MIND
- ┌──────────────┐  message  ┌──────────────────────────┐  call() ┌──────────────────┐
- │  Telegram    │─────────▶ │   BUS  →  loket           │ ──────▶ │   AI AGENT       │
- │  CLI         │           │   call(cap, args)         │         │  (WASM sandbox,  │
- │  MCP client  │           │   ── grant check ──       │ ◀────── │   own folder &   │
- │  Web / Cron  │ ◀──────── │   route → provider        │  reply  │   own brain)     │
- └──────────────┘   reply   └──────────────────────────┘         └────────┬─────────┘
+ ┌──────────────────┐ msg  ┌──────────────────────────┐  call() ┌──────────────────┐
+ │ Telegram/Discord │────▶ │   BUS  →  loket           │ ──────▶ │   AI AGENT       │
+ │ Slack/WhatsApp   │      │   call(cap, args)         │         │  (WASM sandbox,  │
+ │ Voice · CLI · MCP│      │   ── grant check ──       │ ◀────── │   own folder &   │
+ │ Web / Cron       │ ◀─── │   route → provider        │  reply  │   own brain)     │
+ └──────────────────┘ reply└──────────────────────────┘         └────────┬─────────┘
                                                                           │ call(cap,args)
                                                         ┌─────────────────┼─────────────────┐
                                                         ▼                 ▼                 ▼
@@ -77,7 +77,7 @@ Everything flows through **one counter (the "loket")**. A module can do nothing 
 
 **Three steps, end to end:**
 
-1. **In** — a **connector** (Telegram, CLI, MCP, web, schedule) drops the message on the bus. The agent never knows *which* surface it came from.
+1. **In** — a **connector** (Telegram, Discord, Slack, WhatsApp, voice, CLI, MCP, web, schedule) drops the message on the bus. The agent never knows *which* surface it came from.
 2. **Think** — the agent asks the loket for everything: the **LLM**, its **own brain**, **tools**, **external MCP tools**. The kernel checks each grant, routes it, sandboxes it. A panicking module becomes an error — **the kernel and every other agent keep running.**
 3. **Out** — the reply travels back the same way. `mr-flow` is the **orchestrator**: it can delegate deep work to a **GROUP** (an ant-colony of small specialists) and merge their answers.
 
@@ -186,7 +186,9 @@ Out of the box: **117 built-in tools** and **9 slash commands** — files, shell
 Everything connecting the outside world to your agents is a **connector**, managed from one **Connections** tab. Two kinds:
 
 ### 1. Channels — *talk TO your agents*
-Telegram, CLI, web, schedule (Discord / WhatsApp via the same pattern). A channel is a **dumb pipe**: it carries a message to an agent over the bus and relays the reply. Built on **WASM + HTTP + polling**, so the same connector runs on Windows / macOS / Linux with **no per-OS binary**. Tokens live in the connector's **own folder** (self-managed, masked in the UI). The CLI connector doubles as the project's automated test harness.
+**Telegram, Discord, Slack, WhatsApp, CLI** — plus web & schedule. A channel is a **dumb pipe**: it carries a message to an agent over the bus and relays the reply; *all* the thinking stays in the agent, so swapping a channel never touches the agent and vice-versa. Built on **WASM + HTTP + polling** (Telegram long-poll · Discord/Slack REST · WhatsApp Cloud-API webhook), so the same connector runs on Windows / macOS / Linux with **no per-OS binary**. Tokens live in the connector's **own folder** (self-managed, masked in the UI) — *one connector leaks → one folder.* The CLI connector doubles as the project's automated test harness.
+
+**🎙️ Voice — talk *out loud*.** Send a Telegram voice note and the agent transcribes it (speech-to-text), thinks, and **replies with synthesized speech**. Fully sovereign by default: STT runs on **local whisper** (offline), TTS on **free Edge voices** — no paid key, no cloud lock-in. The provider is pluggable through the router, so you can point it at a cloud STT/TTS instead if you prefer.
 
 ### 2. MCP — *give your agents superpowers*
 Flowork is an **MCP client**: paste the same `mcpServers` JSON you'd use in Claude Desktop (e.g. GitHub, filesystem) → Flowork spawns the server, lists its tools, and **registers each into the engine's tool registry**. Now **any agent can use them** — default-on, with a per-agent opt-out.
@@ -279,7 +281,7 @@ go build -o bin/flowork-mcp ./cmd/flowork-mcp
 # { "mcpServers": { "flowork": { "command": "/abs/path/bin/flowork-mcp" } } }
 ```
 
-**Optional power-ups** (*Settings*): Telegram bot token + chat ID → chat your agent + owner alerts.
+**Optional power-ups** (*Connections / Settings*): drop a bot token to go live on **Telegram / Discord / Slack / WhatsApp**, send a **voice note** for spoken replies, or set an owner-alert chat. Each connector keeps its token in its **own folder**.
 
 ---
 
@@ -322,13 +324,14 @@ Flowork Agent runs **fully standalone** (local brain + your own LLM keys). For m
 
 - ✅ Microkernel "papan kosong" — frozen ABI, grant model, manifest-driven plug-and-play
 - ✅ Per-agent brain (FTS5) + sacred constitution + immune system + federation
-- ✅ Connections — Channels (Telegram / CLI / native) with self-managed tokens
+- ✅ Connections — Channels (**Telegram · Discord · Slack · WhatsApp · CLI**) with self-managed per-folder tokens
+- ✅ **Voice** — sovereign STT (local whisper, offline) + TTS (free Edge voices); Telegram voice-note in → spoken reply out
 - ✅ MCP — **client** (external servers as agent tools) **and server** (expose agents)
 - ✅ Security Radar — auditors + Nuclei arsenal + distillation + body scan
 - ✅ AI Studio — Coder → Verifier → Reaper
 - ✅ Schedule (cron) + Trigger (event plugins) + Apps (cross-language, install/uninstall)
 - ✅ **Kernel FREEZE + Guardian** — frozen 27-file core + boot/runtime integrity + OS-immutability (Linux/macOS; Windows pending real-machine test)
-- ⏳ More channels (Discord / WhatsApp / email via the same WASM+HTTP pattern)
+- ⏳ Email channel (IMAP/SMTP) via the same WASM+HTTP pattern + more surfaces
 - ⏳ Runtime-pluggable trigger types (`.fwpack` wasm) + remote app store
 
 *Every shipped milestone is recorded in `CHANGELOG.md`, and each subsystem carries its rationale in-code (locked-file headers + module doc comments) — so the work can be audited without guesswork.*
