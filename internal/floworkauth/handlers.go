@@ -8,6 +8,10 @@
 //	cap, status code eksplisit, whitelist exact-path (anti future-handler
 //	bypass) + asset prefix, /api/* → 401 JSON, HTML → redirect. E2E verified.
 //
+// 2026-06-07 pre-freeze hardening: drive-by-localhost defense — cross-site
+// browser request (Sec-Fetch-Site) dicabut dari bypass loopback, biar web jahat
+// yang dibuka owner ga bisa memicu exec/install via fetch ke 127.0.0.1.
+//
 // handlers.go — HTTP endpoint + middleware untuk floworkauth.
 //
 // Endpoint (shape dicocokkan dengan web/login.html + web/register.html):
@@ -23,6 +27,7 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -200,6 +205,16 @@ func isPublicPath(r *http.Request) bool {
 	if r.Method == http.MethodPost && (strings.HasPrefix(path, "/api/kernel/webhook/") || strings.HasPrefix(path, "/api/triggers/hook/")) {
 		return true
 	}
+	// DRIVE-BY-LOCALHOST DEFENSE (pre-freeze hardening 2026-06-07): semua di BAWAH
+	// ini = endpoint sensitif loopback-gated (exec/install/coder/kernel-call) yang
+	// lewat TANPA sesi asal request dari 127.0.0.1. Tapi web jahat yang dibuka owner
+	// JUGA datang dari 127.0.0.1 → bisa fetch() endpoint ini & memicu exec tanpa
+	// sesi. Sec-Fetch-Site di-set browser (forbidden header, JS halaman ga bisa
+	// palsu); caller non-browser (agent WASM bawa loopback-secret / curl headless)
+	// ga ngirimnya → ga kena. Cross-site browser → cabut bypass loopback.
+	if isCrossSiteBrowser(r) {
+		return false
+	}
 	// Agent self-call (loopback only): daemon WASM fetch konteks/self-prompt/
 	// tool-specs buat di-inject ke LLM + EXEC tool via tools/run. Tanpa ini,
 	// agent ga bisa inget history / pake tools (kena 401). Server bind 127.0.0.1
@@ -299,6 +314,27 @@ func isPublicPath(r *http.Request) bool {
 	case "/api/agents/skills", "/api/agents/skills/curate":
 		// FASE 8 Curator — list/grade/curate skill per-agent (owner-local).
 		return isLocalRequest(r)
+	}
+	return false
+}
+
+// isCrossSiteBrowser — true kalau request kemungkinan besar dipicu DARI origin
+// lain di dalam BROWSER (drive-by). Sec-Fetch-Site di-set browser & ga bisa
+// di-override JS halaman (forbidden header):
+//   same-origin / none  = GUI sendiri / navigasi langsung → AMAN
+//   same-site / cross-site = origin lain yang mulai → BAHAYA
+// Fallback browser lama: header Origin ada & host-nya beda dari Host request.
+// Caller non-browser (agent WASM / curl / script) ga kirim Sec-Fetch maupun
+// Origin → false → tetap boleh (mereka bukan vektor drive-by).
+func isCrossSiteBrowser(r *http.Request) bool {
+	switch r.Header.Get("Sec-Fetch-Site") {
+	case "same-site", "cross-site":
+		return true
+	}
+	if o := r.Header.Get("Origin"); o != "" {
+		if u, err := url.Parse(o); err == nil && u.Host != "" && !strings.EqualFold(u.Host, r.Host) {
+			return true
+		}
 	}
 	return false
 }
