@@ -43,6 +43,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -746,6 +747,19 @@ func main() {
 	// + alert owner. SafeModeMiddleware = lapis paling LUAR (blok exec/install saat safe-mode),
 	// di atas auth — nol perubahan ke kernel beku.
 	guardianBootCheck()
+	// GUARDIAN sentinel (FASE 3): pengawas runtime — tiap 5 mnt cek integritas + seal-drift +
+	// cap-drift (agent dapet cap berbahaya baru → eskalasi). Pasif kalau belum di-arm.
+	sentinelEvery := 5 * time.Minute
+	if s := os.Getenv("FLOWORK_GUARDIAN_INTERVAL_SEC"); s != "" {
+		if n, e := strconv.Atoi(s); e == nil && n > 0 {
+			sentinelEvery = time.Duration(n) * time.Second
+		}
+	}
+	go guardian.RunSentinel(ctx, sentinelEvery, guardianDangerCaps, func(msg string) {
+		nctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		_ = notifyOwnerTelegram(nctx, msg)
+	})
 	srv := &http.Server{
 		Addr:              *addr,
 		Handler:           httpx.NoCache(guardian.SafeModeMiddleware(authMgr.Middleware(mux))),
