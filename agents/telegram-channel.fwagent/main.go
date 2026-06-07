@@ -24,6 +24,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 	"unsafe"
 )
 
@@ -137,11 +138,24 @@ func forwardToAgent(target, text string, chatID int64, user string) string {
 	if target == "" {
 		target = targetAgent()
 	}
-	r, err := loketCall("bus.request", map[string]any{
-		"to":      target,
-		"payload": map[string]any{"text": text, "chat_id": chatID, "user": user},
-	})
+	// Retry on transient failure: a blip (or an agent still warming right after a
+	// restart) can make a single attempt fail even though the kernel is up. A few
+	// short retries smooth that over; we don't wait forever, so a genuinely-down
+	// agent still surfaces as an error instead of hanging the poll loop.
+	var r json.RawMessage
+	var err error
+	for attempt := 0; attempt < 5; attempt++ {
+		r, err = loketCall("bus.request", map[string]any{
+			"to":      target,
+			"payload": map[string]any{"text": text, "chat_id": chatID, "user": user},
+		})
+		if err == nil {
+			break
+		}
+		time.Sleep(time.Second)
+	}
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "[%s] bus.request failed after retries: %v\n", selfID(), err)
 		return "[channel] agent error: " + err.Error()
 	}
 	// bus.request returns {"reply": <agent's raw emit>}; the agent's emit is itself
@@ -179,6 +193,16 @@ func routerURL() string {
 		return strings.TrimRight(v, "/")
 	}
 	return "http://127.0.0.1:2402"
+}
+
+// tgBase is the Telegram API root. Configurable (TELEGRAM_API_BASE) so it can
+// point at a self-hosted Bot API server or a test harness; defaults to the real
+// cloud endpoint.
+func tgBase() string {
+	if v := strings.TrimSpace(os.Getenv("TELEGRAM_API_BASE")); v != "" {
+		return strings.TrimRight(v, "/")
+	}
+	return "https://api.telegram.org"
 }
 
 // mpBoundary is a fixed multipart boundary — safe because our parts are short
@@ -268,7 +292,7 @@ type tgUpdate struct {
 
 // tgGetFilePath resolves a Telegram file_id to its downloadable file_path.
 func tgGetFilePath(token, fileID string) string {
-	st, raw := hostFetch("GET", fmt.Sprintf("https://api.telegram.org/bot%s/getFile?file_id=%s", token, fileID), nil, nil)
+	st, raw := hostFetch("GET", fmt.Sprintf("%s/bot%s/getFile?file_id=%s", tgBase(), token, fileID), nil, nil)
 	if st == 0 || st >= 400 {
 		return ""
 	}
@@ -286,7 +310,7 @@ func tgGetFilePath(token, fileID string) string {
 
 // tgDownloadFile fetches a Telegram file's raw bytes by its file_path.
 func tgDownloadFile(token, filePath string) []byte {
-	st, raw := hostFetch("GET", fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", token, filePath), nil, nil)
+	st, raw := hostFetch("GET", fmt.Sprintf("%s/file/bot%s/%s", tgBase(), token, filePath), nil, nil)
 	if st == 0 || st >= 400 {
 		return nil
 	}
@@ -296,7 +320,7 @@ func tgDownloadFile(token, filePath string) []byte {
 // sendAudio uploads an mp3 reply to a chat (spoken reply for voice notes).
 func sendAudio(token string, chatID int64, mp3 []byte) error {
 	ct, body := multipartBody(map[string]string{"chat_id": strconv.FormatInt(chatID, 10)}, "audio", "reply.mp3", "audio/mpeg", mp3)
-	st, _ := hostFetch("POST", fmt.Sprintf("https://api.telegram.org/bot%s/sendAudio", token), map[string]string{"Content-Type": ct}, body)
+	st, _ := hostFetch("POST", fmt.Sprintf("%s/bot%s/sendAudio", tgBase(), token), map[string]string{"Content-Type": ct}, body)
 	if st == 0 || st >= 400 {
 		return fmt.Errorf("telegram sendAudio status=%d", st)
 	}
@@ -304,7 +328,7 @@ func sendAudio(token string, chatID int64, mp3 []byte) error {
 }
 
 func getUpdates(token string, offset int64, timeoutSec int) ([]tgUpdate, error) {
-	url := fmt.Sprintf("https://api.telegram.org/bot%s/getUpdates?timeout=%d&allowed_updates=%%5B%%22message%%22%%5D", token, timeoutSec)
+	url := fmt.Sprintf("%s/bot%s/getUpdates?timeout=%d&allowed_updates=%%5B%%22message%%22%%5D", tgBase(), token, timeoutSec)
 	if offset > 0 {
 		url += fmt.Sprintf("&offset=%d", offset)
 	}
@@ -327,7 +351,7 @@ func sendMessage(token string, chatID int64, text string) error {
 		text = text[:3900] + "\n…(truncated)"
 	}
 	body, _ := json.Marshal(map[string]any{"chat_id": chatID, "text": text, "disable_web_page_preview": true})
-	st, _ := hostFetch("POST", fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", token), map[string]string{"Content-Type": "application/json"}, body)
+	st, _ := hostFetch("POST", fmt.Sprintf("%s/bot%s/sendMessage", tgBase(), token), map[string]string{"Content-Type": "application/json"}, body)
 	if st == 0 || st >= 400 {
 		return fmt.Errorf("telegram sendMessage status=%d", st)
 	}
@@ -346,6 +370,20 @@ func parseAllowed(s string) map[int64]bool {
 
 const pollTimeout = 50 // long-poll seconds
 
+// waitLoketReady blocks until the kernel loket is reachable (or ~15s elapses).
+// AutoBootDaemons can spawn this daemon before the kernel's HTTP surface (:1987)
+// is fully up; without this gate a message already queued at startup would be
+// processed too early and fail with "loket: no response". Pinging the always-safe
+// time.now cap until it answers makes the daemon startup-race-proof.
+func waitLoketReady() {
+	for i := 0; i < 30; i++ {
+		if _, err := loketCall("time.now", map[string]any{}); err == nil {
+			return
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+}
+
 // boot is the live daemon: long-poll Telegram → forward each allowed message to
 // the agent → send the reply back. IDLE (clean exit) when no token, so it can sit
 // loaded beside the legacy telegram daemon without both polling the same bot.
@@ -359,6 +397,7 @@ func boot() {
 	target := targetAgent()
 	allowed := parseAllowed(os.Getenv("TELEGRAM_ALLOWED_CHATS"))
 	fmt.Fprintf(os.Stderr, "[%s] live: target=%s allowed=%d\n", selfID(), target, len(allowed))
+	waitLoketReady()
 	var offset int64
 	for {
 		updates, err := getUpdates(token, offset, pollTimeout)

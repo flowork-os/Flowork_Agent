@@ -21,8 +21,17 @@ Berdaulat + gratis (whisper lokal + edge-tts). Multi-OS, plug-and-play, channel 
 - Channel **`handle_voice`** (RPC testable, mp3 → STT → mr-flow-next → reply → TTS): transcript ✅,
   reply agent ✅, audio balasan 256KB valid MPEG ✅.
 - **No-regression** jalur teks `handle_update` ✅. **Degrade** audio invalid → error bersih, no crash ✅.
-- Catatan jujur: E2E lewat Telegram beneran (download/upload) butuh bot token live (go-live), sama
-  kayak transport G1-G3. Akurasi model `base` rada meleset di Bahasa Indonesia → bisa naik ke `small`.
+- **TEST JALUR-ASLI (mock Telegram + boot daemon, BUKAN RPC bypass):** `TELEGRAM_API_BASE` dibikin
+  configurable (fitur sah: self-hosted Bot API) → diarahkan ke mock → `boot` polling beneran:
+  getUpdates → text: forward→sendMessage · voice: getFile→download→STT→agent→TTS→**sendAudio** ✅.
+  Di sistem **WARM (skenario user nyata): balasan bersih, race=0** → hasil test = hasil user.
+- **Fix robustness (dari temuan test):** readiness-gate `waitLoketReady` (ping `time.now` sebelum
+  polling) + retry `bus.request` (5×) + `tgBase()` configurable + outBuf 4MiB.
+- **Catatan jujur:** anomali **cold-start** — pesan PERTAMA dalam ~20s sejak restart bisa kena
+  "loket: no response" (mr-flow-next/router cold-boot; perilaku kernel/bus yg udah ada; sembuh
+  sendiri; NON-ISSUE normal krn pesan datang pas warm). E2E Telegram cloud beneran (token live)
+  BELUM di-smoke-test (transport identik, tinggal token). Model `base` rada meleset di Bahasa
+  Indonesia → bisa naik `small` (env `STT_MODEL`).
 
 ---
 
