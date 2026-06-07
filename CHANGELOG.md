@@ -1,3 +1,29 @@
+## 2026-06-07 — Mind gap-close: G8 self-authoring skills + model breadth + brain README
+
+Nutup 2 gap kognitif terakhir vs Hermes (sisanya = kematangan/waktu). Plus dokumentasi otak
+2-tier yang selama ini belum ke-README.
+
+**G8 — self-authoring skills (`internal/tools/builtins/skill_author.go`):** builtin tool baru.
+Agent distill skill dari pengalamannya sendiri → **GATE immune+verifier JALAN DULU** sebelum apa pun
+disimpan: tolak pola syscall bahaya (`rm -rf`, `curl|sh`, `/etc/shadow`, 169.254…) + injection
+("ignore previous", "reveal system prompt"). Aman → masuk brain (recallable); bahaya → DIBLOKIR,
+ga pernah tersimpan = **anti self-poison** (versi aman dari self-improvement Hermes). Frozen-safe:
+builtin tool lewat jalur tool yang ada, **NOL edit kernel/auth** (ga jadi unfreeze — freeze utuh).
+TEST jalur-identik (`/api/agents/tools/run`): skill aman → tersimpan + recallable di `skills` table;
+skill bahaya → blocked (flags: rm -rf, curl|sh), 0 tersimpan. ✅
+
+**Model breadth (verifikasi, nol kode baru):** sistem provider router udah generik OpenAI-compat
+(`providerConnections`: baseUrl+apiKey+authType). Dibuktiin route ke model LOKAL berdaulat
+(`qwen-flowork` via Ollama, provider `local-llama` authType=none) → balas "SOVEREIGN OK". Jadi
+"any OpenAI-compatible provider, sovereign-first" = nyata. Tambah OpenRouter/dll = tinggal config.
+
+**README — section otak lengkap:** diagram arsitektur mind 2-tier (per-agent brain + router shared
+brain 5M drawer/1M embedding), antibody-loop self-reinforcing, immune+confidence, Coder/Verifier/
+Reaper (build+prune agent), Death Letter, **educational errors (ide original)**, federation, +
+tabel "mind vs OpenClaw/Hermes". Semua klaim = fitur yang BENER-BENER ada (anti-overclaim).
+
+---
+
 ## 2026-06-07 — G5: Voice (STT + TTS, sovereign) (gap-closing vs OpenClaw/Hermes)
 
 Roadmap **G5** (TIER 1): agent bisa **denger** (voice note → teks) & **ngomong** (balasan → audio).

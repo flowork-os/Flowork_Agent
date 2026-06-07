@@ -62,6 +62,8 @@ func Init() {
 	tools.Register(&mistakeRecallTool{})
 	// Roadmap 2 B4: suggest skill dari pola tool sukses (skill_suggest.go).
 	tools.Register(&skillSuggestTool{})
+	// G8: self-author skill dari pengalaman, di-gate immune+verifier (skill_author.go).
+	tools.Register(&skillAuthorTool{})
 	// Roadmap 2 B5: immune brain (brain_immune.go) — scan/quarantine + verify.
 	tools.Register(&brainImmuneScanTool{})
 	tools.Register(&brainVerifyTool{})

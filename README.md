@@ -146,6 +146,7 @@ A local **SQLite FTS5 (BM25)** memory — **keyword-fast, no embeddings → ligh
 |---|---|
 | **Local memory** | `brain_add` / `brain_search` — stores and recalls the agent's **own experience**, tagged by `wing` (general / experience / eureka / constitution) and `mem_type`, deduped by content hash. |
 | **Mistakes recall** | Errors are logged with a hit-count and **recalled before being repeated**: *"last time you broke X, the fix was Y."* |
+| **Educational errors** *(Flowork original)* | A built-in catalog mapping error codes → plain-language explanation **+ remediation**, so a failure becomes a **lesson the agent can look up** ("why it broke, how to fix") instead of a dead log line. Errors *teach*, not just alarm. |
 | **Dream → Eureka** | While idle, a rule-based pass consolidates recurring patterns into **`eureka`** insights — the brain grows richer from the agent's own history. |
 | **Immune system** | An **antibody** scanner quarantines prompt-injection / jailbreak / low-confidence drawers, so the memory never gets poisoned. |
 | **Federation** | An agent can **promote** vetted knowledge to a shared corpus (primary-tier only) so peers learn from each other — optional, offline-capable. |
@@ -167,6 +168,67 @@ Every agent has a **constitution** in its `state.db` — *sacred, always-injecte
 ```
 
 A **5W1H gate**, an **identity guard**, and a **truth rule** — baked into the model's context every turn. Anti-hallucination isn't a setting here. It's law.
+
+### 🧬 The mind is two-tier — a portable brain *and* a collective one
+
+Every agent thinks with **two brains at once**: its **own** (in its folder, offline, travels with it) and the **shared** corpus (a ~32 GB knowledge base the router owns). A capability grant decides who may read the big one.
+
+```
+  ╔══ PER-AGENT BRAIN (in the folder, offline, portable) ═════════════════╗
+  ║  FTS5 keyword memory · mistakes-recall · dream→eureka consolidation    ║
+  ║  immune system (antibody quarantine + confidence tiering)              ║
+  ║  sacred constitution (always-inject, 5W1H · identity · truth)          ║
+  ╚════════════════════════════════════╤══════════════════════════════════╝
+            agent asks the loket ───────┤  call("brain.shared.search", …)   (PRIMARY tier only)
+                                        ▼
+  ╔══ ROUTER SHARED BRAIN (32 GB · the collective unconscious) ════════════╗
+  ║  ~5,000,000 drawers  +  ~1,000,000 vector embeddings (semantic recall) ║
+  ║  hybrid FTS5 + vector · importance-scored · security-heavy corpus      ║
+  ║    (whitehat 1.7M · threat-intel 759k · exploitdb · red-team · web3)   ║
+  ║                                                                        ║
+  ║  ANTIBODY LOOP (anti-hallucination, deterministic, no GPU):            ║
+  ║    rank mistakes by  karma × relevance × recency  → inject top-3       ║
+  ║    BEFORE the LLM → a hallucination is detected → that antibody is     ║
+  ║    reinforced (+karma) → it ranks higher next time. Self-strengthening.║
+  ║                                                                        ║
+  ║  tiered enrichment (commander = full · crew = lean) · tool-pattern     ║
+  ║  learning · model pool (cost/context) · quality gate · injection guard ║
+  ╚════════════════════════════════════╤══════════════════════════════════╝
+                                        │  mesh gossip (optional, sovereign)
+                                        ▼
+  ╔══ FEDERATION (collective intelligence, no central server) ═════════════╗
+  ║  peers share VETTED knowledge: shadow → quarantine → promoted          ║
+  ║  per-peer trust karma (auto-block bad actors) · offline trigram dedup  ║
+  ╚════════════════════════════════════════════════════════════════════════╝
+```
+
+**Anti-hallucination is a *loop*, not a prompt.** Mistakes become **antibodies** ranked by karma × relevance × recency and injected *before* the model speaks. When a hallucination is caught, the matching antibody is **reinforced** — so the same mistake gets harder to repeat over time. Deterministic, no GPU, and it works on **small local models** too. *No other agent framework does this.*
+
+### 🔁 It builds — and prunes — itself
+
+Flowork doesn't just learn facts; it manages its own population of agents:
+
+| Faculty | What it does |
+|---|---|
+| **Coder** | The LLM fills a *spec*; the engine deterministically assembles a new agent into a `.fwpack`. Creativity proposes, the kernel builds. |
+| **Verifier** | An **adversarial dry-run gate** — red-flag syscall scan, capability-safety, manifest sanity — *before* anything installs. No LLM judge, no side effects. |
+| **Reaper** | **Apoptosis.** Flags broken/failing agents by real task stats (error-rate, smoke-test) so dead weight gets pruned. |
+| **Death Letter** | A retired agent seals a **handover letter** — knowledge continuity across generations. The colony outlives any one member. |
+
+### 🆚 The mind vs OpenClaw / Hermes
+
+| Faculty | OpenClaw | Hermes | **⚡ Flowork** |
+|---|---|---|---|
+| **Recall** | sessions | FTS5 + summary + (cloud) vectors | **2-tier: offline keyword + ~1M-vector semantic** |
+| **Knowledge corpus** | per-user (MB) | per-user (MB) | **~5M drawers / 32 GB — a knowledge base, not a chat log** |
+| **Anti-hallucination** | prompt guidance | prompt guidance | **self-reinforcing antibody loop + immune quarantine + sacred constitution** |
+| **Self-improvement** | — | auto-writes skills | **self-authors skills from experience — immune- + verifier-gated, so they can't self-poison** |
+| **Self-construction** | — | auto-writes skills | **builds *and prunes* whole agents (Coder · Verifier · Reaper)** |
+| **Model reach** | local + Ollama | 200+ models | **any OpenAI-compatible provider via the model-pool resolver — sovereign-first (yours before cloud)** |
+| **Collective mind** | siloed | siloed | **sovereign federation — vetted gossip + trust-karma, no central server** |
+| **Sovereignty** | local | partly cloud-backed | **the whole mind is a folder — offline, forkable, USB-portable** |
+
+> **Hermes remembers harder. Flowork remembers *more*, lies *less*, and *owns* its memory** — a brain you can hold in your hand, that defends itself from being poisoned and grows a colony that survives its own members.
 
 ---
 
@@ -331,7 +393,9 @@ Flowork Agent runs **fully standalone** (local brain + your own LLM keys). For m
 - ✅ AI Studio — Coder → Verifier → Reaper
 - ✅ Schedule (cron) + Trigger (event plugins) + Apps (cross-language, install/uninstall)
 - ✅ **Kernel FREEZE + Guardian** — frozen 27-file core + boot/runtime integrity + OS-immutability (Linux/macOS; Windows pending real-machine test)
-- ⏳ Email channel (IMAP/SMTP) via the same WASM+HTTP pattern + more surfaces
+- ✅ **Self-authoring skills (G8)** — agents distill new skills from their own experience, gated by the immune system + Verifier so a learned skill can't poison the brain
+- ✅ **Model-pool resolver** — any OpenAI-compatible provider (OpenRouter / Ollama / local) selectable per agent, sovereign-first
+- ⏳ Email channel (IMAP/SMTP) — *left for the community* (drop-in `.fwpack`, same WASM+HTTP pattern)
 - ⏳ Runtime-pluggable trigger types (`.fwpack` wasm) + remote app store
 
 *Every shipped milestone is recorded in `CHANGELOG.md`, and each subsystem carries its rationale in-code (locked-file headers + module doc comments) — so the work can be audited without guesswork.*
