@@ -1,10 +1,10 @@
 {
   "title": "TRIGGER",
-  "sub": "Event → aksi. Kalau ada sesuatu, agent/group lakukan sesuatu. (Tag-Manager buat mesin lo.)",
+  "sub": "Event plugin → aksi. Kalau ada kejadian (webhook, file baru, …), agent/group bertindak. Plug-and-play: tiap sumber event = plugin. Buat jadwal waktu, pakai Schedule.",
   "loading": "memuat…",
   "new_btn": "ATURAN BARU",
   "count_label": "aturan",
-  "empty": "Belum ada trigger. Bikin satu — mis. tiap hari kerja 09:00 → minta report ke agent.",
+  "empty": "Belum ada trigger. Bikin satu — mis. webhook masuk → minta agent nanganin. (Mau jadwal waktu? Pakai tab Schedule.)",
   "idle": "idle",
   "btn_enable": "nyalakan",
   "btn_disable": "matikan",
