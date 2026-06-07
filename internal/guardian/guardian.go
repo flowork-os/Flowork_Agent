@@ -134,10 +134,10 @@ func (v *Vault) Verify() (bool, []string) {
 	return len(problems) == 0, problems
 }
 
-// Arm — rekam baseline (binary + file inti yang ADA) → armed=true, lalu COBA seal OS-immutable
-// (binary + manifest + vault). Seal gagal (no-root) → DEGRADE detection-only (Sealed=false), arm
-// tetap sukses. now = timestamp dari caller (package ini tak panggil time.Now sendiri biar testable).
-func Arm(coreFiles []string, now string) (*Vault, error) {
+// Arm — rekam baseline (binary + file inti yang ADA) → armed=true. attemptSeal=true → COBA seal
+// OS-immutable (binary+manifest+vault); gagal (no-root) → DEGRADE detection-only. attemptSeal=false
+// → DETEKSI-saja (auto mode: tanpa nyentuh chattr). now = timestamp dari caller (biar testable).
+func Arm(coreFiles []string, now string, attemptSeal bool) (*Vault, error) {
 	sealer := DefaultSealer()
 	_ = sealer.Unseal(VaultPath()) // kalau re-arm & vault lama ke-seal, buka biar bisa ditulis
 	v, err := Load()
@@ -159,24 +159,31 @@ func Arm(coreFiles []string, now string) (*Vault, error) {
 	}
 	v.Baseline = base
 	v.SealedAt = now
-	v.SealMethod = sealer.Name()
 
-	// seal artefak immutable (all-or-nothing; rollback kalau gagal di tengah).
-	sealed := true
-	var done []string
-	for _, p := range immutableTargets() {
-		if e := sealer.Seal(p); e != nil {
-			sealed = false
-			break
+	// seal artefak immutable (all-or-nothing; rollback kalau gagal di tengah). Skip kalau deteksi-saja.
+	sealed := false
+	if attemptSeal {
+		sealed = true
+		var done []string
+		for _, p := range immutableTargets() {
+			if e := sealer.Seal(p); e != nil {
+				sealed = false
+				break
+			}
+			done = append(done, p)
 		}
-		done = append(done, p)
-	}
-	if !sealed {
-		for _, p := range done {
-			_ = sealer.Unseal(p)
+		if !sealed {
+			for _, p := range done {
+				_ = sealer.Unseal(p)
+			}
 		}
 	}
 	v.Sealed = sealed
+	if sealed {
+		v.SealMethod = sealer.Name()
+	} else {
+		v.SealMethod = ""
+	}
 
 	if err := v.Save(); err != nil { // tulis vault SEBELUM nyegel vault
 		return nil, err

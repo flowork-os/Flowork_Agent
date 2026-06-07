@@ -183,7 +183,7 @@
       "yt_open_auth": "Kalau browser ga kebuka otomatis, klik di sini",
       "seg_guardian": "Guardian",
       "grd_title": "Kernel Guardian",
-      "grd_desc": "Pastiin binary + kernel beku ga diutak-atik pas boot. Kalau berubah, Flowork masuk SAFE-MODE (exec/install diblok) + ngabarin lo. Cuma deteksi — ga butuh root.",
+      "grd_desc": "Auto-jaga tiap start (tanpa setel): rekam baseline fresh + sentinel jaga runtime. Kalau file/cap kernel diutak-atik, Flowork masuk SAFE-MODE + ngabarin lo. Buat immutability tingkat-OS (binary ga bisa diganti sama sekali), jalankan `sudo flowork --arm` sekali.",
       "grd_armed": "AKTIF",
       "grd_disarmed": "mati",
       "grd_safemode": "SAFE-MODE (tamper terdeteksi)",
