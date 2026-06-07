@@ -111,8 +111,8 @@ Love self-hosted agents like **[OpenClaw](https://github.com/openclaw/openclaw)*
 | **🔒 Self-protection** | — | — | **✅ Frozen kernel + Guardian** — boot/runtime integrity + OS-immutability + tamper → SAFE-MODE. *Neither competitor ships this.* |
 | **🔌 MCP** | not highlighted | **client** | **client *and* server** — consume external MCP tools *and* expose your agents to Claude Desktop / Cursor |
 | **Extensibility** | skills (ClawHub) | skills (Markdown) | **microkernel + `.fwpack`** — tools, slash, scanners, channels, agents install/remove at runtime, hot-loaded |
-| **Anti-hallucination** | prompt guidance | prompt guidance | **sacred constitution + immune system** that quarantines poisoned memory — *by design* |
-| **Memory** | session + workspace | **FTS5 + LLM summary** | **per-agent FTS5 brain that travels with the folder** (portable, fork-able, offline) |
+| **Anti-hallucination** | prompt guidance | prompt guidance | **self-reinforcing antibody loop + immune quarantine + sacred constitution** — a halu gets *harder* to repeat over time, *by design* |
+| **Memory** | session + workspace | **FTS5 + LLM summary** | **two-tier brain** — a portable per-agent FTS5 memory *plus* a ~5M-drawer / ~1M-vector shared corpus (offline, fork-able) |
 
 **Where they shine** (credit where due): OpenClaw has **50+ chat integrations + voice + a huge community**; Hermes is **model-agnostic across 200+ models with serverless deployment.** Flowork's bet is different:
 
