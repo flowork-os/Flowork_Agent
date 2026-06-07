@@ -1,3 +1,11 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Locked: 2026-06-07 (pre-freeze audit pass).
+// Reason: THE capability gate. Single chokepoint Call() enforces args cap + grant
+//   check (GrantAuto auto, GrantOwner/GrantTier must be granted) + provider
+//   existence + panic isolation (one provider panic → error Result, kernel +
+//   other modules survive). Verified caller id is the transport's job (loopback).
 package loket
 
 import (
