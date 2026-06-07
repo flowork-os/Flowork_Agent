@@ -55,6 +55,7 @@ import (
 	"flowork-gui/internal/floworkauth"
 	"flowork-gui/internal/floworkdb"
 	"flowork-gui/internal/groupsapi"
+	"flowork-gui/internal/guardian"
 	"flowork-gui/internal/httpx"
 	"flowork-gui/internal/kernel/loader"
 	"flowork-gui/internal/kernelhost"
@@ -78,7 +79,27 @@ const version = "1.0.0"
 
 func main() {
 	addr := flag.String("addr", "127.0.0.1:1987", "listen address")
+	armFlag := flag.Bool("arm", false, "Guardian: rekam baseline integritas + aktifkan, lalu keluar")
+	disarmFlag := flag.Bool("disarm", false, "Guardian: matikan (buat update kernel/binary yang disengaja), lalu keluar")
 	flag.Parse()
+
+	// Guardian CLI (FASE 1): arm/disarm dari shell lokal (sudah trusted). Jalan lalu exit.
+	if *armFlag {
+		now := time.Now().UTC().Format(time.RFC3339)
+		v, err := guardian.Arm(guardian.CoreFilesFromManifest(), now)
+		if err != nil {
+			log.Fatalf("guardian arm: %v", err)
+		}
+		log.Printf("guardian ARMED — %d artefak terlindungi (binary + kernel). Boot berikut akan diverifikasi.", len(v.Baseline))
+		return
+	}
+	if *disarmFlag {
+		if err := guardian.Disarm(); err != nil {
+			log.Fatalf("guardian disarm: %v", err)
+		}
+		log.Printf("guardian DISARMED — verifikasi integritas mati. Re-arm (`--arm`) setelah update.")
+		return
+	}
 
 	staticFS, err := fs.Sub(webFS, "web")
 	if err != nil {
@@ -631,6 +652,10 @@ func main() {
 	mux.HandleFunc("/api/apps/uninstall", appsUninstallHandler()) // stop + unregister + rm
 	mux.HandleFunc("/api/apps/state", appsStateHandler(appsMgr))
 	mux.HandleFunc("/api/apps/", appsUIHandler(appsMgr)) // /api/apps/<id>/ui/* (iframe sandbox)
+	// GUARDIAN (FASE 1): status + arm/disarm. Owner-session gated (lewat authMgr.Middleware).
+	mux.HandleFunc("/api/guardian/status", guardianStatusHandler())
+	mux.HandleFunc("/api/guardian/arm", guardianArmHandler())
+	mux.HandleFunc("/api/guardian/disarm", guardianDisarmHandler(authMgr))
 	// Scheduler looping: CRUD jadwal recurring task.
 	mux.HandleFunc("/api/taskflow/schedules", taskflowSchedulesHandler(fdb))
 	mux.HandleFunc("/api/taskflow/schedule", taskflowScheduleAddHandler(fdb))
@@ -713,9 +738,13 @@ func main() {
 
 	mux.Handle("/", http.FileServer(http.FS(staticFS)))
 
+	// GUARDIAN boot gate (FASE 1): kalau armed & integritas binary/kernel gagal → SAFE-MODE
+	// + alert owner. SafeModeMiddleware = lapis paling LUAR (blok exec/install saat safe-mode),
+	// di atas auth — nol perubahan ke kernel beku.
+	guardianBootCheck()
 	srv := &http.Server{
 		Addr:              *addr,
-		Handler:           httpx.NoCache(authMgr.Middleware(mux)),
+		Handler:           httpx.NoCache(guardian.SafeModeMiddleware(authMgr.Middleware(mux))),
 		ReadHeaderTimeout: 15 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
