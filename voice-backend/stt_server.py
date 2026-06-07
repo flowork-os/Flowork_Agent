@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# === LOCKED FILE ===
+# Status: STABLE — Flowork voice backend, live-proven 2026-06-07. Do not edit without owner approval.
+# Owner: Aola Sahidin (Mr.Dev).
 """Flowork sovereign STT backend — 100%% local/offline via faster-whisper.
 
 Speaks the OpenAI-compatible transcription protocol the flow_router "openai" STT

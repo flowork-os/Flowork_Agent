@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# === LOCKED FILE ===
+# Status: STABLE — Flowork voice backend, live-proven 2026-06-07. Do not edit without owner approval.
+# Owner: Aola Sahidin (Mr.Dev).
 """Flowork sovereign TTS backend — free Microsoft Edge voices, no API key.
 
 Speaks the edgeTts adapter's protocol from flow_router
