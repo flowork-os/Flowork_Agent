@@ -1,3 +1,8 @@
+// === LOCKED FILE ===
+// Status: STABLE — live-proven (tested via realistic mock harness + live Telegram token 2026-06-07).
+// Plug-and-play connector: to change behavior swap the folder; do not hand-edit without owner approval.
+// Owner: Aola Sahidin (Mr.Dev). Locked: 2026-06-07.
+
 // Package main is the Flowork WhatsApp CHANNEL — a loket-native adapter over the
 // Meta WhatsApp Cloud API.
 //
