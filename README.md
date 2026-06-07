@@ -59,6 +59,10 @@ Everything else — agents, tools, slash commands, security scanners, channels, 
 
 Everything flows through **one counter (the "loket")**. A module can do nothing alone — to think, remember, run a tool, or send a message, it asks the kernel for a **capability** by name: `call(cap, args)`. The kernel checks the grant, routes to a provider, enforces the sandbox, returns the result.
 
+<div align="center"><img src="img/how-it-works.png" alt="How Flowork works: entry points (Telegram/Discord/Slack/WhatsApp/Voice/CLI/MCP/Web) drop a message on the bus → the kernel routes it through the loket call(cap,args) with a grant check inside a WASM sandbox → the AI agent asks the loket for the LLM router, its two-tier brain, 117 tools + MCP, and the GROUP bus → the reply travels back; a Guardian freezes and guards the whole kernel" width="100%"/></div>
+
+<details><summary>Same flow as text</summary>
+
 ```
    ENTRY POINTS              KERNEL ("the blank board")           THE MIND
  ┌──────────────────┐ msg  ┌──────────────────────────┐  call() ┌──────────────────┐
@@ -74,6 +78,8 @@ Everything flows through **one counter (the "loket")**. A module can do nothing 
                                                   (LLM router,      (own FTS5          (117 tools +
                                                    swap local)       memory)            external MCP tools)
 ```
+
+</details>
 
 **Three steps, end to end:**
 

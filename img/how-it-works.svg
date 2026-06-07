@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 900" width="1280" height="900" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#05100b"/><stop offset="1" stop-color="#040a10"/>
+    </linearGradient>
+    <linearGradient id="ttl" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#eafff5"/><stop offset="0.6" stop-color="#22ff88"/><stop offset="1" stop-color="#19c2ff"/>
+    </linearGradient>
+    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#22ff88"/>
+    </marker>
+    <marker id="arrc" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#19c2ff"/>
+    </marker>
+  </defs>
+  <rect width="1280" height="900" fill="url(#bg)"/>
+
+  <!-- title -->
+  <text x="640" y="58" text-anchor="middle" fill="url(#ttl)" font-size="40" font-weight="800">How Flowork works — one loket, total isolation</text>
+  <text x="640" y="90" text-anchor="middle" fill="#7fae9d" font-size="19">A module can do nothing alone. To think, remember, act, or reply it must ask the kernel: <tspan fill="#cfe9df" font-weight="700">call(cap, args)</tspan>.</text>
+
+  <!-- ===== 1. ENTRY POINTS ===== -->
+  <text x="640" y="135" text-anchor="middle" fill="#22ff88" font-size="16" font-weight="700" letter-spacing="3">① ENTRY POINTS · CONNECTORS  (the agent never knows which surface)</text>
+  <g font-size="17" font-weight="600" text-anchor="middle">
+    <g><rect x="120" y="150" width="130" height="40" rx="20" fill="#0e2a20" stroke="#22ff88" stroke-opacity="0.4"/><text x="185" y="175" fill="#dff7ec">Telegram</text></g>
+    <g><rect x="262" y="150" width="120" height="40" rx="20" fill="#0e2a20" stroke="#22ff88" stroke-opacity="0.4"/><text x="322" y="175" fill="#dff7ec">Discord</text></g>
+    <g><rect x="394" y="150" width="105" height="40" rx="20" fill="#0e2a20" stroke="#22ff88" stroke-opacity="0.4"/><text x="446" y="175" fill="#dff7ec">Slack</text></g>
+    <g><rect x="511" y="150" width="135" height="40" rx="20" fill="#0e2a20" stroke="#22ff88" stroke-opacity="0.4"/><text x="578" y="175" fill="#dff7ec">WhatsApp</text></g>
+    <g><rect x="658" y="150" width="110" height="40" rx="20" fill="#0e2a20" stroke="#19c2ff" stroke-opacity="0.5"/><text x="713" y="175" fill="#dff7ec">🎙 Voice</text></g>
+    <g><rect x="780" y="150" width="95" height="40" rx="20" fill="#0e2a20" stroke="#22ff88" stroke-opacity="0.4"/><text x="827" y="175" fill="#dff7ec">CLI</text></g>
+    <g><rect x="887" y="150" width="100" height="40" rx="20" fill="#0e2a20" stroke="#22ff88" stroke-opacity="0.4"/><text x="937" y="175" fill="#dff7ec">MCP</text></g>
+    <g><rect x="999" y="150" width="160" height="40" rx="20" fill="#0e2a20" stroke="#22ff88" stroke-opacity="0.4"/><text x="1079" y="175" fill="#dff7ec">Web · Cron</text></g>
+  </g>
+
+  <!-- arrow down to kernel -->
+  <line x1="640" y1="200" x2="640" y2="232" stroke="#22ff88" stroke-width="2.5" marker-end="url(#arr)"/>
+  <text x="660" y="222" fill="#7fae9d" font-size="14">message on the bus</text>
+
+  <!-- ===== 2. KERNEL ===== -->
+  <rect x="150" y="240" width="980" height="130" rx="16" fill="#091a13" stroke="#22ff88" stroke-opacity="0.55" stroke-width="2"/>
+  <text x="175" y="272" fill="#22ff88" font-size="16" font-weight="700" letter-spacing="2">② KERNEL — "the blank board" · written once · frozen · guarded</text>
+  <g font-size="17" font-weight="700" text-anchor="middle">
+    <g><rect x="180" y="290" width="150" height="56" rx="12" fill="#0e2a20" stroke="#22ff88" stroke-opacity="0.4"/><text x="255" y="316" fill="#dff7ec">BUS</text><text x="255" y="334" fill="#7fae9d" font-size="12" font-weight="500">routes the message</text></g>
+    <line x1="330" y1="318" x2="372" y2="318" stroke="#22ff88" stroke-width="2.2" marker-end="url(#arr)"/>
+    <g><rect x="374" y="290" width="210" height="56" rx="12" fill="#0e2a20" stroke="#22ff88" stroke-opacity="0.55"/><text x="479" y="314" fill="#eafff5">loket: call(cap, args)</text><text x="479" y="334" fill="#7fae9d" font-size="12" font-weight="500">the one and only door</text></g>
+    <line x1="584" y1="318" x2="626" y2="318" stroke="#22ff88" stroke-width="2.2" marker-end="url(#arr)"/>
+    <g><rect x="628" y="290" width="200" height="56" rx="12" fill="#0e2a20" stroke="#19c2ff" stroke-opacity="0.5"/><text x="728" y="314" fill="#dff7ec">grant check</text><text x="728" y="334" fill="#7fae9d" font-size="12" font-weight="500">deny-by-default</text></g>
+    <line x1="828" y1="318" x2="870" y2="318" stroke="#22ff88" stroke-width="2.2" marker-end="url(#arr)"/>
+    <g><rect x="872" y="290" width="232" height="56" rx="12" fill="#0e2a20" stroke="#7c3aed" stroke-opacity="0.6"/><text x="988" y="314" fill="#dff7ec">WASM sandbox</text><text x="988" y="334" fill="#7fae9d" font-size="12" font-weight="500">fault in A ≠ touches B</text></g>
+  </g>
+
+  <!-- arrow down to agent -->
+  <line x1="640" y1="370" x2="640" y2="404" stroke="#22ff88" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <!-- ===== 3. AGENT ===== -->
+  <rect x="430" y="412" width="420" height="92" rx="16" fill="#0b1f30" stroke="#19c2ff" stroke-opacity="0.6" stroke-width="2"/>
+  <text x="640" y="446" text-anchor="middle" fill="#eafff5" font-size="22" font-weight="800">③ AI AGENT  ·  WASM citizen</text>
+  <text x="640" y="476" text-anchor="middle" fill="#9fd6ea" font-size="15">own folder · own persona · own doctrine · own brain — clone it to a USB</text>
+  <text x="640" y="495" text-anchor="middle" fill="#7fae9d" font-size="13">it asks the loket for everything ↓</text>
+
+  <!-- fan-out arrows to 4 providers -->
+  <line x1="500" y1="504" x2="250" y2="556" stroke="#19c2ff" stroke-width="2.2" marker-end="url(#arrc)"/>
+  <line x1="585" y1="504" x2="520" y2="556" stroke="#19c2ff" stroke-width="2.2" marker-end="url(#arrc)"/>
+  <line x1="695" y1="504" x2="760" y2="556" stroke="#19c2ff" stroke-width="2.2" marker-end="url(#arrc)"/>
+  <line x1="780" y1="504" x2="1030" y2="556" stroke="#19c2ff" stroke-width="2.2" marker-end="url(#arrc)"/>
+
+  <!-- ===== 4. PROVIDERS (what the loket routes to) ===== -->
+  <text x="640" y="548" text-anchor="middle" fill="#19c2ff" font-size="15" font-weight="700" letter-spacing="2">④ CAPABILITIES — what the loket routes to</text>
+  <g font-size="16" text-anchor="middle">
+    <!-- llm -->
+    <g><rect x="80" y="560" width="300" height="120" rx="14" fill="#0e1f2b" stroke="#19c2ff" stroke-opacity="0.45"/>
+      <text x="230" y="590" fill="#eafff5" font-size="17" font-weight="700">llm.complete</text>
+      <text x="230" y="616" fill="#9fd6ea" font-size="13">→ Router (one OpenAI-compat gate)</text>
+      <text x="230" y="638" fill="#7fae9d" font-size="13">Claude · local Qwen · any model</text>
+      <text x="230" y="662" fill="#7fae9d" font-size="13">sovereign-first · auto-fallback</text></g>
+    <!-- brain -->
+    <g><rect x="392" y="560" width="300" height="120" rx="14" fill="#0e2a20" stroke="#22ff88" stroke-opacity="0.5"/>
+      <text x="542" y="590" fill="#eafff5" font-size="17" font-weight="700">store.brain</text>
+      <text x="542" y="616" fill="#dff7ec" font-size="13">per-agent FTS5 (offline, portable)</text>
+      <text x="542" y="638" fill="#dff7ec" font-size="13">+ shared 5M-drawer / 1M-vector</text>
+      <text x="542" y="662" fill="#7fae9d" font-size="13">antibody anti-halu · immune</text></g>
+    <!-- tools -->
+    <g><rect x="704" y="560" width="240" height="120" rx="14" fill="#0e1f2b" stroke="#19c2ff" stroke-opacity="0.45"/>
+      <text x="824" y="590" fill="#eafff5" font-size="17" font-weight="700">tool.run</text>
+      <text x="824" y="616" fill="#9fd6ea" font-size="13">117 built-in tools</text>
+      <text x="824" y="638" fill="#9fd6ea" font-size="13">+ external MCP tools</text>
+      <text x="824" y="662" fill="#7fae9d" font-size="13">pulled on-demand</text></g>
+    <!-- bus/group -->
+    <g><rect x="956" y="560" width="244" height="120" rx="14" fill="#1a1430" stroke="#7c3aed" stroke-opacity="0.55"/>
+      <text x="1078" y="590" fill="#eafff5" font-size="17" font-weight="700">bus → GROUP</text>
+      <text x="1078" y="616" fill="#d9ccf7" font-size="13">ant-colony of small</text>
+      <text x="1078" y="638" fill="#d9ccf7" font-size="13">specialist agents</text>
+      <text x="1078" y="662" fill="#7fae9d" font-size="13">fan-out · synthesize</text></g>
+  </g>
+
+  <!-- reply back -->
+  <line x1="1150" y1="540" x2="1150" y2="232" stroke="#19c2ff" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#arrc)" opacity="0.8"/>
+  <text x="1162" y="390" fill="#9fd6ea" font-size="13" transform="rotate(90 1162 390)">reply travels back the same way</text>
+
+  <!-- ===== 5. GUARDIAN band ===== -->
+  <rect x="80" y="712" width="1120" height="78" rx="14" fill="#0a0716" stroke="#7c3aed" stroke-opacity="0.5"/>
+  <text x="110" y="742" fill="#a78bfa" font-size="16" font-weight="700" letter-spacing="2">🛡 GUARDIAN — underneath it all</text>
+  <text x="110" y="768" fill="#cbb9f0" font-size="14">27-file kernel frozen by SHA-256 · boot + runtime integrity · OS-immutable seal · tamper → SAFE-MODE · security radar scans the code agents run</text>
+
+  <text x="640" y="836" text-anchor="middle" fill="#5f8a7b" font-size="15">In → Think → Out. Every arrow is a grant-checked, sandboxed <tspan fill="#9fd6ea">call(cap, args)</tspan>. Nothing bypasses the loket.</text>
+  <text x="640" y="862" text-anchor="middle" fill="#456" font-size="13">github.com/flowork-os/Flowork_Agent</text>
+</svg>
