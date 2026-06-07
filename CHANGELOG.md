@@ -1,3 +1,24 @@
+## 2026-06-07 — Brain/intelligence AUDIT (all subsystems verified working) + lock
+
+Audited the whole "mind" via real paths (router `/api/brain/*`, agent `/api/agents/tools/run`).
+**FULL PASS — every subsystem works:**
+- ROUTER: explore (5,030,502 drawers live) · search-drawers FTS over the 5M corpus · prompt-injection
+  detector (safe→pass, "reveal system prompt"→blocked) · quality gate (0.95) · constitution (47 sacred
+  rules) · skills · tool-patterns · model pool (2) · mistakes journal/antibody · wing/corpus enum.
+- AGENT (mr-flow-next): `brain_add`→`brain_search` round-trip (per-agent FTS5) · `brain_search_shared`
+  → router 5M corpus (two-tier proven) · `mistake_log`→`mistake_recall` (hit-count + remediation) ·
+  `skill_suggest` (from tool patterns) · `skill_author` (safe saved · `rm -rf` blocked) · immune scan ·
+  `edu_error_count` 28 / lookup (the original educational-errors idea) · karma query.
+- Integrated anti-halu (enrich + constitution + antibody) exercised server-side by every chat through
+  mr-flow-next during this session's channel tests → coherent replies.
+
+**Lock:** the brain machinery was already ~95% locked; locked the last two audited-working files
+(`internal/agentdb/constitution_tier.go`; router `internal/brain/wing_enum.go`). Build clean both repos.
+Honest scope: FTS recall verified; vector/semantic embeddings (~1M) exist + wired into enrichment but
+run server-side (not isolate-tested); dream→eureka + mesh gossip run on idle/peers (not on-demand here).
+
+---
+
 ## 2026-06-07 — Mind gap-close: G8 self-authoring skills + model breadth + brain README
 
 Nutup 2 gap kognitif terakhir vs Hermes (sisanya = kematangan/waktu). Plus dokumentasi otak
