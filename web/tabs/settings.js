@@ -401,6 +401,9 @@ async function renderGuardian(panel) {
       <h3>🛡️ ${esc(tk('grd_title'))}</h3>
       <div class="sub">${esc(tk('grd_desc'))}</div>
       <div class="set-row">${badge} &nbsp;·&nbsp; ${esc(tk('grd_protected'))}: <b>${s.protected || 0}</b>${s.sealed_at ? ` &nbsp;·&nbsp; ${esc(tk('grd_sealed'))}: ${esc(s.sealed_at)}` : ''}</div>
+      ${s.armed ? `<div class="set-row" style="font-size:0.8rem">${s.sealed
+        ? `🔒 <span style="color:#22ff88">${esc(tk('grd_seal_os'))}</span> <span style="color:#64748b">(${esc(s.seal_method || '')})</span>`
+        : `🔓 <span style="color:#ffc24d">${esc(tk('grd_seal_detect'))}</span>`}</div>` : ''}
       <div class="set-row" style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
         ${s.armed
           ? `<input type="password" id="grdPw" placeholder="${escAttr(tk('grd_pw_ph'))}" autocomplete="current-password" style="flex:1;min-width:160px">

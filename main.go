@@ -90,7 +90,11 @@ func main() {
 		if err != nil {
 			log.Fatalf("guardian arm: %v", err)
 		}
-		log.Printf("guardian ARMED — %d artefak terlindungi (binary + kernel). Boot berikut akan diverifikasi.", len(v.Baseline))
+		if v.Sealed {
+			log.Printf("guardian ARMED + OS-SEALED (%s) — %d artefak immutable (binary+manifest+vault) + deteksi kernel. Disarm dulu sebelum update.", v.SealMethod, len(v.Baseline))
+		} else {
+			log.Printf("guardian ARMED (detection-only) — %d artefak dijaga via hash. Seal OS gagal/no-root; jalankan `sudo flowork --arm` buat immutability penuh.", len(v.Baseline))
+		}
 		return
 	}
 	if *disarmFlag {

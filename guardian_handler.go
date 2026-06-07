@@ -19,11 +19,13 @@ func guardianStatusHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		v, _ := guardian.Load()
 		tfWriteJSON(w, 0, map[string]any{
-			"armed":     v.Armed,
-			"mode":      v.Mode,
-			"safe_mode": guardian.SafeMode(),
-			"sealed_at": v.SealedAt,
-			"protected": len(v.Baseline),
+			"armed":       v.Armed,
+			"mode":        v.Mode,
+			"safe_mode":   guardian.SafeMode(),
+			"sealed_at":   v.SealedAt,
+			"protected":   len(v.Baseline),
+			"sealed":      v.Sealed,
+			"seal_method": v.SealMethod,
 		})
 	}
 }
@@ -41,7 +43,7 @@ func guardianArmHandler() http.HandlerFunc {
 			tfWriteJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
 			return
 		}
-		tfWriteJSON(w, 0, map[string]any{"ok": true, "armed": true, "protected": len(v.Baseline), "sealed_at": now})
+		tfWriteJSON(w, 0, map[string]any{"ok": true, "armed": true, "protected": len(v.Baseline), "sealed_at": now, "sealed": v.Sealed, "seal_method": v.SealMethod})
 	}
 }
 
