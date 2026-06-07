@@ -1,3 +1,37 @@
+## 2026-06-07 — v2.3.0: KERNEL FREEZE + GUARDIAN (4-lapis, one-click) + AUDIT KEAMANAN
+
+Milestone "produk abadi": kernel inti dibekukan + dijaga otomatis dari tamper. Semua additive,
+nol edit ke file kernel beku.
+
+**Audit keamanan (2 lapis) + fix:**
+- 🔴 **Drive-by-localhost RCE** (CRITICAL, fixed): endpoint sensitif (exec/install/coder) lewat
+  tanpa sesi asal dari 127.0.0.1 — web jahat yang dibuka owner JUGA dari 127.0.0.1 → bisa picu
+  exec tanpa login. Fix: tolak request browser cross-site via `Sec-Fetch-Site` (`internal/floworkauth`).
+- 🟠 **Stored XSS** (fixed): markdown renderer + atribut pakai `esc()` yang ga escape kutip →
+  attribute-breakout. Penting krn XSS same-origin bypass total fix drive-by. (`web/js/utils.js` + tab).
+- 🟠 **Protector evasion** (fixed): substring match diakali `rm\t-rf`/`/etc/./shadow` → hardening
+  normalize whitespace + Clean path di caller (`internal/tools/sandbox_v3.go`).
+- Lapis-2 (7 sub-agent paralel, ~580 file): SQL parameterized, exec gated/no-shell, path contained → CLEAN.
+
+**Kernel FREEZE v1:** 27 file inti (loket ABI, kernel runtime/loader/broker, kernelhost, auth,
+tools sandbox, protector) dibekukan. `freeze_test.go` recompute SHA256 vs manifest → gagal kalau
+file inti berubah tanpa unfreeze sadar. (Manifest disimpan privat di luar repo.)
+
+**GUARDIAN — 4 lapis + one-click auto-protect** (`internal/guardian`, package baru):
+- L2 Boot-gate: hash binary+kernel saat boot → mismatch → SAFE-MODE (blok exec/install via
+  middleware luar) + alert Telegram.
+- L3 OS-immutable: `Sealer` per-OS (Linux `chattr +i` E2E-proven · macOS `chflags uchg` · Windows
+  `icacls` deny-write [perlu test Win] · noop fallback). `sudo flowork --arm` segel binary+manifest+
+  vault → bahkan agent same-user ga bisa nulis.
+- L4 Sentinel: pengawas runtime (re-verify integritas + seal-drift + cap-drift agent) → alert/safe-mode.
+- **One-click:** auto-arm DETEKSI tiap start (no-root, no-friksi); OS-immutable = opt-in `sudo --arm`
+  yang dihormati auto. Akar kepercayaan = OS + owner (no crypto, sesuai filosofi).
+
+**Fitur plug-and-play:**
+- Schedule (⏰) & Trigger (⚡) dipisah jadi 2 menu (Schedule=cron core, Trigger=event plugin).
+- Apps (▦): install/uninstall/hot-reload `.fwpack` ala Android + consent-gate exec + GUI store.
+- Webhook trigger: auth via header `X-Flowork-Key` (ga bocor di URL/log).
+
 ## 2026-06-07 — ROADMAP 4: APPS — platform aplikasi human+AI LINTAS BAHASA (v1 SHIPPED)
 
 Program yang dipakai MANUSIA (GUI) DAN AGENT (tool) di state yang SAMA. Core LINTAS BAHASA —
