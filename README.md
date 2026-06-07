@@ -15,8 +15,9 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Single Binary](https://img.shields.io/badge/deploy-single%20binary-success)]()
 [![Platform](https://img.shields.io/badge/os-Linux%20%7C%20macOS%20%7C%20Windows-blue)]()
+[![Self-Protecting](https://img.shields.io/badge/kernel-frozen%20%2B%20guarded-22ff88)]()
 
-**self-hosted AI agent · local-first AI agent framework · self-improving agent memory · multi-agent orchestration · MCP client & server · Telegram / CLI AI bot · 117 built-in tools · plug-and-play tools / slash / scanners / channels / agents · WASM-sandboxed · built-in security scanner · 100% offline-capable · OpenClaw alternative · Hermes Agent alternative**
+**self-hosted AI agent · local-first AI agent framework · self-improving agent memory · multi-agent orchestration · MCP client & server · Telegram / CLI AI bot · 117 built-in tools · plug-and-play tools / slash / scanners / channels / agents / apps · WASM-sandboxed · built-in security scanner · frozen self-guarding kernel (tamper → safe-mode) · 100% offline-capable · OpenClaw alternative · Hermes Agent alternative**
 
 ```bash
 git clone https://github.com/flowork-os/Flowork_Agent.git && cd Flowork_Agent && ./start.sh
@@ -92,8 +93,9 @@ The whole engine exposes exactly **one primitive**: `call(cap, args) → { ok, r
 - **Grant model.** `auto` (safe: own storage, time, logging), `owner` (high-risk: filesystem outside the folder, exec, raw network → you approve at install), `tier` (the shared corpus is primary-only).
 - **WASM isolation.** Every module runs in a [wazero](https://wazero.io) sandbox scoped to its own folder + its own SQLite DB. It physically cannot see the kernel or another module's data. **Fault in A → contained to A.**
 - **Manifest-driven.** Drop a folder → the kernel auto-wires it. No kernel code per module.
+- **Frozen + self-guarding (v2.3).** The 27 core files are pinned by a SHA256 manifest with an enforcement test — and a built-in **Guardian** verifies the binary + kernel at every boot and at runtime. Tamper with the core and Flowork drops into **SAFE-MODE** (exec/install blocked) and alerts you. Run it as root once and the core becomes **OS-immutable** (`chattr +i` / `chflags` / ACL) — even a rogue same-user process can't touch it. Root of trust is the OS + you, **no crypto/keys.**
 
-This is why Flowork is a **legacy product**: the kernel is written once and never edited; the world is built around it as folders.
+This is why Flowork is a **legacy product**: the kernel is written once, never edited — and now provably so, guarded against tampering automatically.
 
 ---
 
@@ -106,6 +108,7 @@ Love self-hosted agents like **[OpenClaw](https://github.com/openclaw/openclaw)*
 | **Runtime** | Node.js / TypeScript | Python 3.11+ | **one pure-Go binary** · no cgo · multi-OS |
 | **Agent isolation** | Docker / SSH sandbox | container | **per-agent WASM sandbox (wazero)** — built-in, lightweight, no Docker |
 | **🛡️ Security scanner** | — | — | **✅ Threat Radar + ~16K-check arsenal** — guards your code *and* hunts vulns on your own targets. *Neither competitor ships this.* |
+| **🔒 Self-protection** | — | — | **✅ Frozen kernel + Guardian** — boot/runtime integrity + OS-immutability + tamper → SAFE-MODE. *Neither competitor ships this.* |
 | **🔌 MCP** | not highlighted | **client** | **client *and* server** — consume external MCP tools *and* expose your agents to Claude Desktop / Cursor |
 | **Extensibility** | skills (ClawHub) | skills (Markdown) | **microkernel + `.fwpack`** — tools, slash, scanners, channels, agents install/remove at runtime, hot-loaded |
 | **Anti-hallucination** | prompt guidance | prompt guidance | **sacred constitution + immune system** that quarantines poisoned memory — *by design* |
@@ -194,7 +197,7 @@ Your agents edit and run code. Flowork watches it with a live **Threat Radar** �
 
 ## 📦 Plug-and-Play Everything
 
-One uniform `.fwpack` (zip) gate installs **five kinds**, dispatched by `kind`:
+One uniform `.fwpack` (zip) gate installs **six kinds**, dispatched by `kind`:
 
 | Kind | What it adds | Isolation |
 |---|---|---|
@@ -203,6 +206,7 @@ One uniform `.fwpack` (zip) gate installs **five kinds**, dispatched by `kind`:
 | `slash` | a new `/command` | own wasm |
 | `scanner` | a bundle of security checks | each `nuclei -validate`'d |
 | `channel` | a connector | own folder + token |
+| `app` | a cross-language program (used by **you AND your agents**, one shared state) | own folder + process core; exec needs your consent |
 
 Install validates the manifest, asks you to consent to any dangerous capability, extracts atomically, and **hot-loads** via `fsnotify` — no restart. Drop a `.fwpack` into the dropbox folder and it auto-installs. Uninstall removes the folder, clean.
 
@@ -233,7 +237,7 @@ Tiny prompts mean **small / local models can run each ant** → **sovereignty.**
 
 A single web app on `127.0.0.1:1987` (single-owner login). Sidebar tabs:
 
-🛡️ **Threat Radar** (scan/findings/arsenal) · 🤖 **AI Agent** (gallery + per-agent settings: prompt, doctrine, tools catalog, **MCP checklist**, skills, schedule, brain/mistakes/decisions diagnostics) · 👥 **Group** (build ant-colony crews) · 🔌 **Connections** (Channels + MCP) · 🧬 **AI Studio** (Coder/Verifier/Reaper) · 💰 **Finance** · 🛡️ **Protector** · 🗺️ **Codemap** · 📋 **Audit Log** · ⚙️ **Settings**.
+🛡️ **Threat Radar** (scan/findings/arsenal) · 🤖 **AI Agent** (gallery + per-agent settings: prompt, doctrine, tools catalog, **MCP checklist**, skills, brain/mistakes/decisions diagnostics) · 👥 **Group** (build ant-colony crews) · 🔌 **Connections** (Channels + MCP) · ⏰ **Schedule** (cron → agent → Telegram) · ⚡ **Trigger** (event plugins: webhook / file-watch / …) · ▦ **App** (install/launch cross-language apps) · 🧬 **AI Studio** (Coder/Verifier/Reaper) · 📋 **Audit Log** · ⚙️ **Settings** (incl. 🛡️ **Guardian** arm/status).
 
 ---
 
@@ -308,10 +312,12 @@ Flowork Agent runs **fully standalone** (local brain + your own LLM keys). For m
 - ✅ MCP — **client** (external servers as agent tools) **and server** (expose agents)
 - ✅ Security Radar — auditors + Nuclei arsenal + distillation + body scan
 - ✅ AI Studio — Coder → Verifier → Reaper
+- ✅ Schedule (cron) + Trigger (event plugins) + Apps (cross-language, install/uninstall)
+- ✅ **Kernel FREEZE + Guardian** — frozen 27-file core + boot/runtime integrity + OS-immutability (Linux/macOS; Windows pending real-machine test)
 - ⏳ More channels (Discord / WhatsApp / email via the same WASM+HTTP pattern)
-- ⏳ Kernel FREEZE + OS-level guardian (per-OS immutability)
+- ⏳ Runtime-pluggable trigger types (`.fwpack` wasm) + remote app store
 
-*Every architectural decision is documented in the in-repo `ROADMAP_*.md` files — so the work can be audited without guesswork.*
+*Every shipped milestone is recorded in `CHANGELOG.md`, and each subsystem carries its rationale in-code (locked-file headers + module doc comments) — so the work can be audited without guesswork.*
 
 ---
 
