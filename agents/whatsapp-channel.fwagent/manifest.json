@@ -1,0 +1,41 @@
+{
+  "id": "whatsapp-channel",
+  "version": "0.1.0",
+  "kind": "agent",
+  "display_name": "WhatsApp Channel",
+  "description": "Loket-native WhatsApp channel adapter (Meta Cloud API) — a dumb pipe that forwards each message to a target agent over the loket bus and relays the reply. WhatsApp Cloud API has NO polling: inbound arrives via webhook. This connector is webhook-driven — it self-provisions its webhook secret on boot so the host intake (/api/kernel/webhook/whatsapp-channel) accepts Meta's POST, then parses + forwards + replies via the Cloud API. Idle (no send) until a token is set.",
+  "min_kernel_version": "0.1.0",
+  "abi_version": 1,
+  "author": "@flowork-os",
+  "license": "MIT",
+  "entry": "agent.wasm",
+  "memory_max_mb": 16,
+  "timeout_call_ms": 300000,
+  "capabilities_required": [
+    "net:fetch:http://127.0.0.1:1987/api/kernel/call",
+    "net:fetch:https://graph.facebook.com",
+    "state:read",
+    "state:write"
+  ],
+  "exposes_rpc": [
+    {
+      "name": "boot",
+      "description": "Self-provision the webhook secret into own store (so the host webhook intake accepts Meta's POST), then exit clean. WhatsApp is webhook-driven, so there is no polling loop. Idle when no secret is configured.",
+      "input_schema": { "type": "object", "properties": {} }
+    },
+    {
+      "name": "handle_webhook",
+      "description": "Parse ONE Meta WhatsApp webhook payload: for each text message, forward {text,from} to the target agent over the bus and reply via the Cloud API. This is what the host intake invokes for each delivery.",
+      "input_schema": { "type": "object" }
+    },
+    {
+      "name": "handle_update",
+      "description": "Process ONE synthetic update (testable core): forward {text,from,target} to the agent over the bus and return the reply. send:true relays to WhatsApp when a token is set.",
+      "input_schema": {
+        "type": "object",
+        "properties": { "text": { "type": "string" }, "target": { "type": "string" } },
+        "required": ["text"]
+      }
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "id": "whatsapp-channel",
+  "kind": "channel",
+  "name": "WhatsApp Channel",
+  "version": "0.1.0",
+  "abi_version": "1",
+  "entry": "handle",
+  "tier": "extension",
+  "consumes": [
+    "bus.request",
+    "store.kv.get",
+    "store.kv.set"
+  ],
+  "config": [
+    { "key": "WHATSAPP_TOKEN", "label": "Access Token", "type": "secret", "help": "Meta WhatsApp Cloud API access token (Bearer). System User token recommended (long-lived)." },
+    { "key": "WHATSAPP_PHONE_NUMBER_ID", "label": "Phone Number ID", "type": "text", "help": "Cloud API sender Phone Number ID (Meta App → WhatsApp → API Setup)." },
+    { "key": "WHATSAPP_WEBHOOK_SECRET", "label": "Webhook Secret", "type": "secret", "help": "A secret you choose. Set Meta callback URL to: https://<your-public-host>/api/kernel/webhook/whatsapp-channel?secret=<this>. The connector self-provisions it on boot so the host intake accepts Meta's POST." },
+    { "key": "TARGET_AGENT", "label": "Target agent", "type": "text", "default": "mr-flow-next", "help": "which agent this connector feeds" }
+  ]
+}

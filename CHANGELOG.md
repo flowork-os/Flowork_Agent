@@ -1,3 +1,31 @@
+## 2026-06-07 — G3: WhatsApp Channel (Meta Cloud API, webhook-driven) (gap-closing)
+
+Roadmap **G3** (TIER 1 gap-closing): channel keempat. Beda dari G1/G2 — WhatsApp Cloud API **ga
+punya polling**, inbound via webhook. Dikerjain TANPA sentuh auth/kernel beku.
+
+**Baru: `agents/whatsapp-channel.fwagent`** — connector loket-native dumb-pipe, webhook-driven:
+- **Inbound lewat intake host yang SUDAH ADA (non-frozen):** Meta POST ke
+  `/api/kernel/webhook/whatsapp-channel?secret=<webhook_secret>` → host cek secret dari store
+  connector SENDIRI → invoke wasm via bus (payload = JSON Meta mentah). NOL host edit, NOL kernel edit.
+- **Self-provision:** `boot` nulis `webhook_secret` ke store sendiri via `store.kv.set` (cap auto) =
+  store yang sama dibaca intake → enabling = murni config. Idle kalau no secret.
+- **Outbound:** Cloud API `POST graph.facebook.com/v21.0/{phone_number_id}/messages`, token di
+  Bearer header. Parse payload Meta nested (`entry→changes→value→messages`), skip non-text,
+  sesi per-kontak via FNV hash nomor HP.
+- **Keamanan:** cap minimal (`net:fetch:https://graph.facebook.com` + loket + store.kv + state),
+  SSRF guard socket-layer, no exec/shell. Build wasip1 bersih.
+- **TEST jalur-identik (2 jalur):** (1) `handle_update` synthetic → bus→`mr-flow-next`→reply OK
+  `sent:false`; (2) `handle_webhook` dgn payload Meta ASLI → `handled:1` (parsing nested OK) →
+  reply dari agent, `sent:0` (no token). Parsing webhook + forwarding TERBUKTI.
+- **Go-live (butuh infra owner):** set config (token, phone_number_id, webhook_secret) + arahkan
+  Meta callback URL ke endpoint publik `/api/kernel/webhook/whatsapp-channel?secret=…`. CATATAN
+  JUJUR: verifikasi GET satu-kali Meta (hub.challenge) belum ditangani intake POST-only — perlu
+  langkah manual/tunnel saat setup; runtime message-flow (POST) jalan penuh. (Auto GET-verify =
+  perlu host route baru → ditunda biar ga nyentuh auth beku.)
+- Isolasi penuh (folder+DB+secret sendiri), connector swappable (TIDAK di-lock).
+
+---
+
 ## 2026-06-07 — G2: Slack Channel (gap-closing vs OpenClaw/Hermes)
 
 Roadmap **G2** (TIER 1 gap-closing): channel ketiga, pola sama persis `telegram`/`discord`.
