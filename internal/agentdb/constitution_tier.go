@@ -1,3 +1,7 @@
+// === LOCKED FILE ===
+// Status: STABLE — brain/intelligence subsystem, audited working 2026-06-07. Tier-aware constitution tuning (extension agents use local brain only).
+// Do not edit without owner approval.
+
 // constitution_tier.go — penyesuaian konstitusi PER-TIER.
 //
 // EXTEND constitution.go (yg LOCKED: "extend via file baru, JANGAN modify ini")
