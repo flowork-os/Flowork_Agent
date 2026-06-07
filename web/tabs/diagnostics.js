@@ -5,7 +5,7 @@
 // Locked at: 2026-05-30
 // Reason: Diagnostics tab (custom 604 LOC, vertical pills layout). Audit pass — esc() on all 8 section renderers, agent_id hardcoded mr-flow, encodeURIComponent on query..
 
-import { esc, fetchJSON, loadStyle } from '../js/utils.js';
+import { esc, escAttr, fetchJSON, loadStyle } from '../js/utils.js';
 
 // Agent Diagnostics — vertical-pills + content panel. Now PER-AGENT: opened from
 // each agent's card (sidebar tab removed), render(root, agentId) scopes every
@@ -496,7 +496,7 @@ export async function render(root, agentId) {
   loadStyle('diagnostics', CSS);
 
   const pillsHTML = SECTIONS.map((s, i) => `
-    <button class="dg-pill${i === 0 ? ' active' : ''}" data-key="${s.key}" title="${esc(s.label)}">
+    <button class="dg-pill${i === 0 ? ' active' : ''}" data-key="${s.key}" title="${escAttr(s.label)}">
       <span class="dg-pill-icon">${s.icon}</span>
       <span class="dg-pill-label">${esc(s.label)}</span>
       <span class="dg-pill-count" data-count="${s.key}">·</span>

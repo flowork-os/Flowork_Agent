@@ -6,7 +6,7 @@
 // reuse installPluginPack · GUI additive (tab baru, ga sentuh yang lama).
 // Tampilan: HUD "Jarvis" — neon cyan, glass, scanline, corner-bracket.
 
-import { esc, fetchJSON, loadStyle } from '../js/utils.js';
+import { esc, escAttr, fetchJSON, loadStyle } from '../js/utils.js';
 import { t } from '/js/i18n.js';
 
 // i18n: semua label GUI lewat dictionary (en base + id) — NO hardcode.
@@ -36,7 +36,7 @@ export async function render(mainEl) {
 
       <div class="cd-gen cd-panel">
         <div class="cd-prompt">⟢ ${esc(T('design_request')).toUpperCase()}</div>
-        <textarea id="cd-task" rows="2" placeholder="${esc(T('task_placeholder'))}"></textarea>
+        <textarea id="cd-task" rows="2" placeholder="${escAttr(T('task_placeholder'))}"></textarea>
         <div class="cd-genrow">
           <select id="cd-model">
             <option value="">◇ ${esc(T('model_opus'))}</option>
@@ -123,7 +123,7 @@ async function loadReaper(mainEl) {
       <span class="cd-hname">${esc(c.category_id)}</span>
       <span class="cd-hstat"><b class="ok">✓${c.done}</b> <b class="bad">✕${c.error}</b> · ${(c.error_rate * 100).toFixed(0)}% ${esc(T('err'))} · ${esc(T('smoke'))} <b>${esc(c.smoke)}</b></span>
       <span class="cd-hreason">${esc(reason)}</span>
-      ${c.flagged ? `<button class="cd-btn danger sm" data-reap="${esc(c.category_id)}">⊘ ${esc(T('reap')).toUpperCase()}</button>` : ''}
+      ${c.flagged ? `<button class="cd-btn danger sm" data-reap="${escAttr(c.category_id)}">⊘ ${esc(T('reap')).toUpperCase()}</button>` : ''}
     </div>`;
   }).join('');
   wrap.querySelectorAll('[data-reap]').forEach((b) => {
@@ -200,8 +200,8 @@ function cardHTML(p) {
       </details>
       <details class="cd-cchecks"><summary>${esc(T('checks'))} · ${(v.checks || []).length}</summary><ul>${checks}</ul></details>
       <div class="cd-cact">
-        <button class="cd-btn ok" data-approve="${esc(p.id)}" data-blocked="${v.status === 'blocked' ? '1' : ''}">⏍ ${esc(T('approve')).toUpperCase()}</button>
-        <button class="cd-btn ghost" data-reject="${esc(p.id)}">⊗ ${esc(T('reject')).toUpperCase()}</button>
+        <button class="cd-btn ok" data-approve="${escAttr(p.id)}" data-blocked="${v.status === 'blocked' ? '1' : ''}">⏍ ${esc(T('approve')).toUpperCase()}</button>
+        <button class="cd-btn ghost" data-reject="${escAttr(p.id)}">⊗ ${esc(T('reject')).toUpperCase()}</button>
       </div>
     </div>`;
 }

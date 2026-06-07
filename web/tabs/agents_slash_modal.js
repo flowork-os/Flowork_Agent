@@ -22,6 +22,7 @@ function esc(s) {
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
 }
+const escAttr = esc; // esc lokal sudah escape kutip → attribute-safe
 
 export function openSlashModal(agentId) {
   const root = document.createElement('div');
@@ -66,7 +67,7 @@ export function openSlashModal(agentId) {
   // Common slash hint chips (clickable).
   const hints = ['/help', '/version', '/tools', '/stats', '/now', '/tool_search '];
   $('#sl-hints').innerHTML = hints.map((h) => `
-    <button class="ag-btn" data-hint="${esc(h)}" style="font-size:11px;padding:3px 8px;margin:2px">${esc(h)}</button>
+    <button class="ag-btn" data-hint="${escAttr(h)}" style="font-size:11px;padding:3px 8px;margin:2px">${esc(h)}</button>
   `).join('');
   $('#sl-hints').querySelectorAll('button[data-hint]').forEach((b) => {
     b.onclick = () => {

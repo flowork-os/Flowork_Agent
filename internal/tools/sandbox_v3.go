@@ -11,6 +11,8 @@
 //   3. args hash (SHA256) for replay protection + approval matching
 //   Locked V2 ngga di-modify. Caller (agentmgr ToolRunHandler) panggil
 //   V3. Phase 4+ (cryptographic chain, multi-signer) → tambah file baru.
+//   2026-06-07 pre-freeze: normalizeForMatch di protectorBlockHit (collapse
+//   whitespace + Clean path) nutup evasi substring baseline (rm\t-rf, /etc/./x).
 //
 // sandbox_v3.go — Section 12 phase 3: audit + approval workflow.
 
@@ -24,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"flowork-gui/internal/agentdb"
@@ -68,6 +71,7 @@ func isSensitiveTool(name string) bool {
 // genuinely commands / paths / hosts (by key name). Returns the blocking rule.
 func protectorBlockHit(args map[string]any) (bool, string) {
 	hit := func(ruleType, val string) (bool, string) {
+		val = normalizeForMatch(ruleType, val) // tutup evasi trivial sebelum substring-match
 		if strings.TrimSpace(val) == "" {
 			return false, ""
 		}
@@ -99,6 +103,19 @@ func protectorBlockHit(args map[string]any) (bool, string) {
 		}
 	}
 	return false, ""
+}
+
+// normalizeForMatch canonicalizes a candidate before the substring baseline match
+// so trivial evasions don't slip past the immutable protector rules: collapse any
+// whitespace run to a single space (defeats "rm  -rf", "rm\t-rf", "sudo\t…") and
+// filepath.Clean a path candidate (defeats "/etc/./shadow", "/etc//shadow").
+// Defense-in-depth only — the primary gate stays caps/ARM/caller-binding.
+func normalizeForMatch(ruleType, val string) string {
+	val = strings.Join(strings.Fields(val), " ")
+	if ruleType == protector.TypeFilePath && val != "" {
+		val = filepath.Clean(val)
+	}
+	return val
 }
 
 // ErrPendingApprove — sentinel buat caller (handler) branch ke approval

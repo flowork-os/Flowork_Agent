@@ -270,7 +270,10 @@ export function mdToHtml(s) {
       i++; // skip closing ```
       
       if (lang.toLowerCase() === 'mermaid') {
-        out.push('<div class="mermaid" style="background:var(--panel-bg);border:1px solid var(--glass-border);border-radius:8px;padding:16px;margin:16px 0;display:flex;justify-content:center;">\n' + codeLines.join('\n') + '\n</div>');
+        // esc() the source: entities decode back to literal chars in textContent
+        // (which mermaid reads), but <script>/<img onerror> become inert text →
+        // no XSS from agent-authored mermaid fences. Mermaid syntax (-->) survives.
+        out.push('<div class="mermaid" style="background:var(--panel-bg);border:1px solid var(--glass-border);border-radius:8px;padding:16px;margin:16px 0;display:flex;justify-content:center;">\n' + esc(codeLines.join('\n')) + '\n</div>');
         continue;
       }
       
@@ -391,11 +394,16 @@ function sanitizeURL(url) {
 // Inline markdown: images, links, bold, italic, inline code
 function inlinemd(s) {
   let h = esc(s);
+  // esc() above already neutralized <>& for the whole string, but it does NOT
+  // escape quotes. url/alt get injected into double-quoted attributes (src/href/
+  // alt), so a `"` in agent/brain markdown would break out → onerror=/onfocus=
+  // XSS. Escape the quote in attribute-bound captures (don't re-escape & → dobel).
+  const aq = (x) => String(x).replace(/"/g, '&quot;');
   h = h.replace(/!\[(.*?)\]\((.*?)\)/g, (_, alt, url) => {
-    return '<img src="' + sanitizeURL(url) + '" alt="' + alt + '" class="md-img" />';
+    return '<img src="' + aq(sanitizeURL(url)) + '" alt="' + aq(alt) + '" class="md-img" />';
   });
   h = h.replace(/\[(.*?)\]\((.*?)\)/g, (_, text, url) => {
-    return '<a href="' + sanitizeURL(url) + '" target="_blank" rel="noopener">' + text + '</a>';
+    return '<a href="' + aq(sanitizeURL(url)) + '" target="_blank" rel="noopener">' + text + '</a>';
   });
   h = h.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   h = h.replace(/\*(.+?)\*/g, '<em>$1</em>');

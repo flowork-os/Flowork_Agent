@@ -21,7 +21,7 @@
 // scanner.js — Mr.Flow "Threat Radar". Layout: radar gede (kiri) + scan log
 // stream & findings detail (kanan). Background codescan engine isi log otomatis.
 
-import { esc, fetchJSON, loadStyle, openModal } from '../js/utils.js';
+import { esc, escAttr, fetchJSON, loadStyle, openModal } from '../js/utils.js';
 import { t } from '/js/i18n.js';
 const L = new Proxy({}, { get: (_, k) => t('scanner.' + String(k).replace(/[A-Z]/g, (c) => '_' + c.toLowerCase())) });
 
@@ -285,7 +285,7 @@ function renderLog(root, runs) {
       <span class="rx-id">#${r.id}</span>
       <span class="rx-tag ${r.status === 'fail' ? 'fail' : 'pass'}">${esc(r.status || '·')}</span>
       <span class="rx-tag ${auto ? 'auto' : 'manual'}">${esc((r.scan_type || 'manual').replace('auto:', ''))}</span>
-      <span class="rx-path" title="${esc(r.target_path || '')}">${esc(r.target_path || '—')}</span>
+      <span class="rx-path" title="${escAttr(r.target_path || '')}">${esc(r.target_path || '—')}</span>
       <span class="rx-hits">${esc(String(r.total_findings || 0))} hit</span>
     </div>`;
   }).join('');
@@ -401,13 +401,13 @@ async function openScanModal(root) {
   box.innerHTML = `
     <label class="rx-fl">${esc(L.fTool)}</label>
     ${execList.length
-      ? `<select class="rx-in" id="scBin">${execList.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join('')}</select>`
+      ? `<select class="rx-in" id="scBin">${execList.map((v) => `<option value="${escAttr(v)}">${esc(v)}</option>`).join('')}</select>`
       : `<div class="rx-warn">${esc(L.noExec)}</div>`}
     <label class="rx-fl">${esc(L.fTarget)}</label>
-    <input class="rx-in" id="scTarget" list="scTgtList" placeholder="${esc(L.fTargetHint)}" autocomplete="off">
-    <datalist id="scTgtList">${targetList.map((v) => `<option value="${esc(v)}"></option>`).join('')}</datalist>
+    <input class="rx-in" id="scTarget" list="scTgtList" placeholder="${escAttr(L.fTargetHint)}" autocomplete="off">
+    <datalist id="scTgtList">${targetList.map((v) => `<option value="${escAttr(v)}"></option>`).join('')}</datalist>
     <label class="rx-fl">${esc(L.fArgs)}</label>
-    <input class="rx-in" id="scArgs" placeholder="${esc(L.fArgsHint)}" autocomplete="off">
+    <input class="rx-in" id="scArgs" placeholder="${escAttr(L.fArgsHint)}" autocomplete="off">
     <label class="rx-fl">${esc(L.fCategory)}</label>
     <select class="rx-in" id="scCat">
       <option value="immune">${esc(L.catImmune)}</option>
@@ -471,7 +471,7 @@ async function openArsenalModal() {
   box.className = 'rx-arsenal';
   box.innerHTML = `
     <div class="rx-ars-head">
-      <input class="rx-in" id="arsSearch" placeholder="${esc(L.arsenalSearch)}" autocomplete="off">
+      <input class="rx-in" id="arsSearch" placeholder="${escAttr(L.arsenalSearch)}" autocomplete="off">
       <span class="rx-ars-total" id="arsTotal">…</span>
     </div>
     <div class="rx-ars-list" id="arsList"><div class="rx-empty">loading…</div></div>`;
@@ -509,9 +509,9 @@ function renderArsenal(box, planes) {
 function arsenalRow(pl, it) {
   const cnt = it.count > 1 ? `<span class="rx-ars-cnt">${Number(it.count).toLocaleString()} ${esc(L.checksWord)}</span>` : '';
   const ctrl = pl.removable
-    ? `<button class="rx-ars-toggle ${it.installed ? 'on' : 'off'}" data-id="${esc(it.id)}" data-installed="${it.installed ? 1 : 0}">${it.installed ? esc(L.uninstall) : esc(L.install)}</button>`
+    ? `<button class="rx-ars-toggle ${it.installed ? 'on' : 'off'}" data-id="${escAttr(it.id)}" data-installed="${it.installed ? 1 : 0}">${it.installed ? esc(L.uninstall) : esc(L.install)}</button>`
     : `<span class="rx-ars-core">${esc(L.coreBadge)}</span>`;
-  return `<div class="rx-ars-row${it.installed ? '' : ' dim'}" data-name="${esc(String(it.name || '').toLowerCase())}">
+  return `<div class="rx-ars-row${it.installed ? '' : ' dim'}" data-name="${escAttr(String(it.name || '').toLowerCase())}">
     <span class="rx-ars-name">${esc(it.name)}</span>${cnt}${ctrl}</div>`;
 }
 

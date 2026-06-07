@@ -31,6 +31,7 @@ function esc(s) {
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
 }
+const escAttr = esc; // esc lokal sudah escape kutip → attribute-safe
 
 // fillTpl — replace {count} {total} placeholder dengan nilai actual.
 function fillTpl(s, vars) {
@@ -45,7 +46,7 @@ export function openRouterSkillBrowser(agentId, onChoose) {
   root.innerHTML = `
     <div class="ag-modal" style="max-width:680px;width:100%;max-height:80vh;display:flex;flex-direction:column;background:#0f172a;border:1px solid #334155;border-radius:12px;padding:18px;overflow:hidden">
       <h3 style="margin:0 0 12px 0;color:#f1f5f9">${esc(t('menu.tab.agents.skills_router_modal_h'))}</h3>
-      <input id="rsb-search" placeholder="${esc(t('menu.tab.agents.skills_router_search_ph'))}"
+      <input id="rsb-search" placeholder="${escAttr(t('menu.tab.agents.skills_router_search_ph'))}"
              style="padding:8px 12px;background:#1e293b;border:1px solid #475569;border-radius:6px;color:#f1f5f9;margin-bottom:10px">
       <div id="rsb-status" style="color:#94a3b8;font-size:13px;margin-bottom:8px"></div>
       <div id="rsb-list" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:6px"></div>
@@ -78,7 +79,7 @@ export function openRouterSkillBrowser(agentId, onChoose) {
           <div style="color:#f1f5f9;font-weight:600;font-family:ui-monospace,monospace;font-size:13px">${esc(it.name)}</div>
           <div style="color:#94a3b8;font-size:12px;margin-top:4px">${esc(it.description)}</div>
         </div>
-        <button class="ag-btn primary" data-name="${esc(it.name)}" style="flex-shrink:0">${esc(t('menu.tab.agents.skills_router_use_btn'))}</button>
+        <button class="ag-btn primary" data-name="${escAttr(it.name)}" style="flex-shrink:0">${esc(t('menu.tab.agents.skills_router_use_btn'))}</button>
       </div>
     `).join('');
     listEl.querySelectorAll('button[data-name]').forEach((b) => {
