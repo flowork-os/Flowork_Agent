@@ -3,9 +3,16 @@
   "sub": "Programs used by you AND your agents — any language. Open them inside Flowork.",
   "installed": "INSTALLED",
   "store": "APP STORE",
-  "store_intro": "Install apps here (like an app store).",
-  "store_local": "Local install (v1): drop a folder at",
+  "store_intro": "Install an app from a .fwpack bundle. Apps install live — no restart.",
+  "store_local": "Manual install: drop a folder at",
   "store_remote": "Remote catalog (browse & install community apps) — coming soon.",
+  "store_pick": "⬆ Install .fwpack",
+  "store_exec_warn": "This app runs a program on your computer (its core, any language). Only install apps you trust. Continue?",
+  "installing": "Installing…",
+  "install_ok": "Installed",
+  "install_fail": "Install failed",
+  "uninstall": "Uninstall",
+  "uninstall_confirm": "Uninstall app \"{name}\"? Its folder and state are removed.",
   "empty": "No apps yet. The bundled 'Shared Notepad' (Python) proves it: you and an agent edit the same note.",
   "close": "Close"
 }

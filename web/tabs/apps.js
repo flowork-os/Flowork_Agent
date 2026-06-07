@@ -69,8 +69,14 @@ function renderBody(mainEl) {
   const body = mainEl.querySelector('#apBody');
   if (seg === 'store') {
     body.innerHTML = `<div class="ap-store">${esc(L.store_intro)}<br><br>
+      <button class="ap-segbtn on" id="apPick">${esc(L.store_pick)}</button>
+      <input type="file" id="apFile" accept=".fwpack,.zip" style="display:none">
+      <span class="ap-msg" id="apMsg" style="margin-left:10px"></span><br><br>
       ${esc(L.store_local)} <code>apps/&lt;id&gt;/</code> (manifest.json + core + ui/).<br>
       ${esc(L.store_remote)}</div>`;
+    const file = body.querySelector('#apFile');
+    body.querySelector('#apPick').onclick = () => file.click();
+    file.onchange = () => { if (file.files[0]) installPack(mainEl, file.files[0]); };
     return;
   }
   if (!apps.length) { body.innerHTML = `<div class="ap-empty">${esc(L.empty)}</div>`; return; }
@@ -78,18 +84,47 @@ function renderBody(mainEl) {
   apps.forEach(a => {
     const el = body.querySelector(`[data-app="${a.id}"]`); // id = slug server-validated, aman di selector
     el.querySelector('.open').onclick = () => openApp(a);
+    el.querySelector('.x').onclick = (e) => { e.stopPropagation(); uninstallApp(mainEl, a); };
   });
 }
 
 function iconHTML(a) {
   const native = a.runtime === 'process' || a.runtime === 'http';
   return `<div class="ap-icon" data-app="${escAttr(a.id)}">
+    <span class="x" title="${escAttr(L.uninstall)}">✕</span>
     <div class="open">
       <img src="/api/apps/${escAttr(a.id)}/${escAttr(a.icon || 'ui/icon.svg')}" alt="" onerror="this.style.opacity=.3">
       <div class="nm">${esc(a.name || a.id)}</div>
       <div class="rt">${native ? '🔓 native' : '🔒 sandbox'} · ${esc(a.runtime || 'wasm')}</div>
     </div>
   </div>`;
+}
+
+// installPack — upload .fwpack → /api/apps/install. Consent exec: app jalanin program di komputer.
+async function installPack(mainEl, f) {
+  const msg = mainEl.querySelector('#apMsg');
+  if (!confirm(L.store_exec_warn)) return;
+  msg.textContent = '⟳ ' + L.installing;
+  const fd = new FormData(); fd.append('file', f);
+  try {
+    // raw fetch: FormData butuh boundary multipart sendiri (fetchJSON maksa JSON content-type).
+    const resp = await fetch('/api/apps/install?approve_exec=1', { method: 'POST', body: fd });
+    const r = await resp.json();
+    if (!resp.ok || r.error) throw new Error(r.error || ('HTTP ' + resp.status));
+    msg.textContent = '✓ ' + L.install_ok + (r.app ? ' — ' + r.app : '');
+    apps = (await fetchJSON('/api/apps')).apps || [];
+    seg = 'installed'; render(mainEl);
+  } catch (e) { msg.textContent = '✕ ' + L.install_fail + ': ' + (e.message || e); }
+}
+
+// uninstallApp — copot app (stop core + unregister tool + hapus folder), lalu refresh grid.
+async function uninstallApp(mainEl, a) {
+  if (!confirm(L.uninstall_confirm.replace('{name}', a.name || a.id))) return;
+  try {
+    await fetchJSON('/api/apps/uninstall?id=' + encodeURIComponent(a.id), { method: 'POST' });
+    apps = (await fetchJSON('/api/apps')).apps || [];
+    render(mainEl);
+  } catch (e) { alert((L.install_fail || 'failed') + ': ' + (e.message || e)); }
 }
 
 // openApp — buka GUI app di iframe ter-sandbox + pasang bridge postMessage + poll state.
