@@ -1,3 +1,10 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Locked: 2026-06-07 (pre-freeze audit pass).
+// Reason: manifest Validate() = the install-time gate. Rejects unknown caps
+//   (LookupCap) + enforces the tier rule (GrantTier cap → primary-only) + id/kind/
+//   abi checks. GrantOwner caps allowed (owner approves at install).
 package loket
 
 import (

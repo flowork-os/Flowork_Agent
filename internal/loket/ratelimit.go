@@ -1,3 +1,9 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Locked: 2026-06-07 (pre-freeze audit pass).
+// Reason: opt-in per-module fixed-window cap (runaway/spend containment). nil-safe
+//   receiver (off by default). Safety cap, not a security boundary.
 package loket
 
 import (
