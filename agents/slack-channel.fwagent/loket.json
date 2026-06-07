@@ -1,0 +1,17 @@
+{
+  "id": "slack-channel",
+  "kind": "channel",
+  "name": "Slack Channel",
+  "version": "0.1.0",
+  "abi_version": "1",
+  "entry": "handle",
+  "tier": "extension",
+  "consumes": [
+    "bus.request"
+  ],
+  "config": [
+    { "key": "SLACK_BOT_TOKEN", "label": "Bot Token", "type": "secret", "help": "Slack app → OAuth & Permissions → Bot User OAuth Token (xoxb-…). Scopes: channels:history, groups:history, chat:write. Invite the bot into each channel." },
+    { "key": "SLACK_CHANNELS", "label": "Channel IDs", "type": "text", "help": "comma-separated channel IDs (e.g. C0123ABCD) — open the channel → details → copy the ID at the bottom" },
+    { "key": "TARGET_AGENT", "label": "Target agent", "type": "text", "default": "mr-flow-next", "help": "which agent this connector feeds" }
+  ]
+}
