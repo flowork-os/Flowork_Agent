@@ -58,3 +58,9 @@ secret.yaml
 
 # Local env override (power arm, dll) — JANGAN push
 flowork.local.env
+
+# Doc/manifest privat — disimpan di luar repo (owner), JANGAN upload
+KERNEL_FREEZE.md
+BUILDING.md
+ROADMAP_CONNECTIONS.md
+ROADMAP_MCP_CONNECTORS.md

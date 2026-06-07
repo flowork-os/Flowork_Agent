@@ -240,9 +240,12 @@ var manifestPathRe = regexp.MustCompile(`(internal/[^\s]+\.go)`)
 // CoreFilesFromManifest — baca daftar file inti dari KERNEL_FREEZE.md (kalau ada di cwd).
 // Deploy binary-only (tanpa source) → balik kosong → guardian cuma jaga @self (binary).
 func CoreFilesFromManifest() []string {
+	// Manifest bisa di repo ATAU parent (owner simpan privat di luar repo agar tak ter-upload).
 	f, err := os.Open("KERNEL_FREEZE.md")
 	if err != nil {
-		return nil
+		if f, err = os.Open("../KERNEL_FREEZE.md"); err != nil {
+			return nil
+		}
 	}
 	defer f.Close()
 	seen := map[string]bool{}
