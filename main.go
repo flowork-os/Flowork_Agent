@@ -87,7 +87,7 @@ func main() {
 	// Guardian CLI (FASE 1): arm/disarm dari shell lokal (sudah trusted). Jalan lalu exit.
 	if *armFlag {
 		now := time.Now().UTC().Format(time.RFC3339)
-		v, err := guardian.Arm(guardian.CoreFilesFromManifest(), now)
+		v, err := guardian.Arm(guardian.CoreFilesFromManifest(), now, true)
 		if err != nil {
 			log.Fatalf("guardian arm: %v", err)
 		}
@@ -746,6 +746,7 @@ func main() {
 	// GUARDIAN boot gate (FASE 1): kalau armed & integritas binary/kernel gagal → SAFE-MODE
 	// + alert owner. SafeModeMiddleware = lapis paling LUAR (blok exec/install saat safe-mode),
 	// di atas auth — nol perubahan ke kernel beku.
+	guardianAutoArm() // ONE-CLICK: auto-jaga (detection) pas start, kecuali sudah OS-lock eksplisit
 	guardianBootCheck()
 	// GUARDIAN sentinel (FASE 3): pengawas runtime — tiap 5 mnt cek integritas + seal-drift +
 	// cap-drift (agent dapet cap berbahaya baru → eskalasi). Pasif kalau belum di-arm.

@@ -30,6 +30,7 @@ func guardianStatusHandler() http.HandlerFunc {
 			"protected":   len(v.Baseline),
 			"sealed":      v.Sealed,
 			"seal_method": v.SealMethod,
+			"auto":        os.Getenv("FLOWORK_GUARDIAN_AUTO") != "0",
 		})
 	}
 }
@@ -42,7 +43,7 @@ func guardianArmHandler() http.HandlerFunc {
 			return
 		}
 		now := time.Now().UTC().Format(time.RFC3339)
-		v, err := guardian.Arm(guardian.CoreFilesFromManifest(), now)
+		v, err := guardian.Arm(guardian.CoreFilesFromManifest(), now, true)
 		if err != nil {
 			tfWriteJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
 			return
@@ -76,6 +77,26 @@ func guardianDisarmHandler(authMgr *floworkauth.Manager) http.HandlerFunc {
 		}
 		tfWriteJSON(w, 0, map[string]any{"ok": true, "armed": false})
 	}
+}
+
+// guardianAutoArm — ONE-CLICK: guardian otomatis jaga pas start, TANPA owner ngetik perintah.
+// Default ON (opt-out FLOWORK_GUARDIAN_AUTO=0). Mode DETEKSI-saja (no-root, no friksi): rekam
+// baseline fresh tiap boot → sentinel jaga runtime. KALAU owner udah OS-lock eksplisit (sudo
+// --arm → Sealed), auto MENGHORMATI: ga nyentuh, biar boot-gate verifikasi baseline immutable-nya.
+func guardianAutoArm() {
+	if os.Getenv("FLOWORK_GUARDIAN_AUTO") == "0" {
+		return // owner opt-out
+	}
+	v, _ := guardian.Load()
+	if v.Sealed {
+		return // sudah OS-lock eksplisit → jangan auto- utak-atik (update lewat `sudo --disarm`)
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	if _, err := guardian.Arm(guardian.CoreFilesFromManifest(), now, false); err != nil {
+		log.Printf("guardian auto-arm: %v", err)
+		return
+	}
+	log.Printf("guardian: AUTO-ARMED (detection) — runtime dijaga sentinel. Jalankan `sudo flowork --arm` sekali utk OS-immutable penuh.")
 }
 
 // guardianBootCheck — dipanggil saat boot dari main. Kalau armed & integritas gagal → SAFE-MODE

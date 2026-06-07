@@ -44,7 +44,7 @@ func TestArmVerifyTamper(t *testing.T) {
 	}
 
 	// arm: rekam baseline (binary test @self + core).
-	v, err := Arm([]string{core}, "2026-06-07T00:00:00Z")
+	v, err := Arm([]string{core}, "2026-06-07T00:00:00Z", true)
 	if err != nil {
 		t.Fatalf("arm: %v", err)
 	}
@@ -90,7 +90,7 @@ func TestSealOrchestration(t *testing.T) {
 	// sukses: arm → Sealed=true, vault + binary ke-seal; disarm → ke-unseal.
 	fake := newFake()
 	restore := setSealerForTest(fake)
-	v, err := Arm(nil, "t0")
+	v, err := Arm(nil, "t0", true)
 	if err != nil {
 		t.Fatalf("arm: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestSealOrchestration(t *testing.T) {
 		}
 	}
 	defer setSealerForTest(fail)()
-	v2, err := Arm(nil, "t1")
+	v2, err := Arm(nil, "t1", true)
 	if err != nil {
 		t.Fatalf("arm degrade: %v", err)
 	}
@@ -129,6 +129,25 @@ func TestSealOrchestration(t *testing.T) {
 	}
 	if len(fail.sealed) != 0 {
 		t.Fatalf("rollback: ga boleh ada sisa ke-seal, dapat: %v", fail.sealed)
+	}
+}
+
+func TestArmDetectionOnly(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	fake := newFake()
+	defer setSealerForTest(fake)() // sealer JALAN, tapi attemptSeal=false → ga boleh dipanggil
+	v, err := Arm(nil, "t0", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !v.Armed {
+		t.Fatal("auto/detection harus tetap armed")
+	}
+	if v.Sealed {
+		t.Fatal("detection-only ga boleh Sealed")
+	}
+	if len(fake.sealed) != 0 {
+		t.Fatalf("attemptSeal=false → Seal ga boleh kepanggil, dapat: %v", fake.sealed)
 	}
 }
 
@@ -149,7 +168,7 @@ func TestSentinelCapDrift(t *testing.T) {
 	if err := os.WriteFile(core, []byte("v1"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Arm([]string{core}, "t0"); err != nil {
+	if _, err := Arm([]string{core}, "t0", true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -180,7 +199,7 @@ func TestSentinelIntegrityRuntime(t *testing.T) {
 	defer setSealerForTest(newFake())()
 	core := filepath.Join(t.TempDir(), "k.go")
 	os.WriteFile(core, []byte("v1"), 0o644)
-	if _, err := Arm([]string{core}, "t0"); err != nil {
+	if _, err := Arm([]string{core}, "t0", true); err != nil {
 		t.Fatal(err)
 	}
 	os.WriteFile(core, []byte("HACKED-at-runtime"), 0o644) // tamper PASCA-arm

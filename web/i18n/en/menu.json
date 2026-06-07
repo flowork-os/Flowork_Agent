@@ -183,7 +183,7 @@
       "yt_open_auth": "If the browser did not open, click here",
       "seg_guardian": "Guardian",
       "grd_title": "Kernel Guardian",
-      "grd_desc": "Verifies the binary + frozen kernel are untampered at boot. If they change, Flowork enters SAFE-MODE (exec/install blocked) and alerts you. Detection only — no root needed.",
+      "grd_desc": "Auto-protects at every start (zero-config): records a fresh baseline and the sentinel guards the runtime. If a kernel file/cap is tampered, Flowork enters SAFE-MODE + alerts you. For OS-level immutability (binary can't be replaced at all), run `sudo flowork --arm` once.",
       "grd_armed": "ARMED",
       "grd_disarmed": "disarmed",
       "grd_safemode": "SAFE-MODE (tamper detected)",
