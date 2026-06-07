@@ -1,3 +1,7 @@
+// === FROZEN (kernel inti) — DO NOT MODIFY. Kernel FREEZE v1 (2026-06-07). ===
+// Owner: Aola Sahidin (Mr.Dev). Bagian microkernel "papan kosong" abadi; checksum
+// dipin di KERNEL_FREEZE.md. Ubah = unfreeze eksplisit owner + update manifest.
+
 package loket
 
 import (
