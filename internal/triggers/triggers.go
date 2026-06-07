@@ -93,9 +93,19 @@ func parseConfig(cfg string) map[string]string {
 
 var tmplRe = regexp.MustCompile(`\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}`)
 
+// maxValLen — batas panjang SATU nilai payload yang disuntik ke prompt. Payload
+// webhook bersumber EKSTERNAL (≤1MB) → tanpa cap, body gede membanjiri prompt LLM
+// (bakar token) + perbesar permukaan prompt-injection. 8KB cukup utk konteks nyata.
+const maxValLen = 8000
+
 // renderTemplate — ganti {{key}} dgn payload[key] (Variable ala GTM). Key tak ada → kosong.
+// Nilai dipotong di maxValLen (anti banjir token dari payload eksternal).
 func renderTemplate(tmpl string, payload map[string]string) string {
 	return tmplRe.ReplaceAllStringFunc(tmpl, func(m string) string {
-		return payload[tmplRe.FindStringSubmatch(m)[1]]
+		v := payload[tmplRe.FindStringSubmatch(m)[1]]
+		if len(v) > maxValLen {
+			v = v[:maxValLen] + "…"
+		}
+		return v
 	})
 }

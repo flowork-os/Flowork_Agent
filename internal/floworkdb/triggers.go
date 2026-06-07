@@ -151,7 +151,10 @@ func (s *Store) UpsertTrigger(t Trigger) error {
 		  name=excluded.name, type_id=excluded.type_id, config=excluded.config,
 		  target=excluded.target, target_kind=excluded.target_kind, prompt=excluded.prompt,
 		  deliver=excluded.deliver, enabled=excluded.enabled,
-		  webhook_secret=CASE WHEN excluded.webhook_secret<>'' THEN excluded.webhook_secret ELSE trigger_rules.webhook_secret END`,
+		  webhook_secret=CASE WHEN excluded.webhook_secret<>'' THEN excluded.webhook_secret ELSE trigger_rules.webhook_secret END,
+		  -- ganti TIPE = reset state opaque: state tipe lama (mis. "menit" dari time)
+		  -- kalau dibaca tipe baru (mis. file-watch) bisa salah-tafsir → fire massal.
+		  state=CASE WHEN excluded.type_id<>trigger_rules.type_id THEN '' ELSE trigger_rules.state END`,
 		t.ID, t.Name, t.TypeID, t.Config, t.Target, t.TargetKind, t.Prompt, t.Deliver, en, t.WebhookSecret)
 	return err
 }
