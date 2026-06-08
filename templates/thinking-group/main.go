@@ -317,8 +317,8 @@ func runThink(argsJSON string) {
 		}
 		if len(cast) > 0 {
 			lenses = cast
-			if len(lenses) > 3 { // cap: keep the pipeline inside the call deadline
-				lenses = lenses[:3]
+			if len(lenses) > 2 { // cap at 2: keeps the 7-stage pipeline well inside the
+				lenses = lenses[:2] // call deadline (~65s) while still multi-lens + bridge
 			}
 		}
 	}
