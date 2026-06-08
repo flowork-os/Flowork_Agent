@@ -437,8 +437,12 @@ func runInvest(argsJSON string) {
 	brief, ticker := gatherBrief(subject)
 
 	// PHASE 2 — each organ analyzes the subject using ONLY the brief's facts.
+	// langNote forces the output language to match the user's request (the SUBJECT),
+	// so an Indonesian question gets an Indonesian answer — the brief/labels are
+	// English scaffolding, not the user's language.
+	langNote := "\n\nIMPORTANT: write your answer in the SAME LANGUAGE as the SUBJECT above (if the subject is in Indonesian, answer in Indonesian)."
 	organTask := "SUBJECT:\n" + subject + "\n\nVERIFIED DATA BRIEF (use these numbers; do NOT invent figures beyond them):\n" + brief +
-		"\n\nAnalyze the subject through your specialist lens. Be concrete, cite the figures above, and flag any data gap honestly."
+		"\n\nAnalyze the subject through your specialist lens. Be concrete, cite the figures above, and flag any data gap honestly." + langNote
 
 	sections := []string{}
 	organOut := map[string]string{}
@@ -460,7 +464,7 @@ func runInvest(argsJSON string) {
 	synthInput := "SUBJECT:\n" + subject + "\n\nVERIFIED DATA BRIEF:\n" + brief +
 		"\n\nANALYST FINDINGS:\n\n" + combined +
 		"\n\nFuse these into ONE investment decision: a clear final call (INVEST / WATCH / PASS) + brief reasoning + " +
-		"suggested position sizing + the kill-criteria that would change your mind. End with: this is analysis, not financial advice."
+		"suggested position sizing + the kill-criteria that would change your mind. End with: this is analysis, not financial advice." + langNote
 	final := askMember(rs.Synthesizer, synthInput)
 	if final == "" {
 		emit(map[string]any{"group": selfID(), "reply": combined, "ticker": ticker, "organs": organOut, "synth_error": "synthesizer no reply"})
