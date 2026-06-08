@@ -62,22 +62,28 @@ deploy thinking-questions "$ANT_WASM" "Thinking — Questions" \
  'You receive a SITUATION. Generate the sharpest, most decision-relevant questions using 5W+1H (What, Why, Who, When, Where, How). Output 6 to 10 crisp questions as a bullet list. Do NOT answer them — only ask. Domain-agnostic: works for business, conflict, law, relationships, anything.' \
  "$DOKTRIN_PLAIN"
 
+# 1b) how-engine — plain ant (generative: MANUFACTURE paths; the "bagaimana caranya" organ)
+deploy thinking-how "$ANT_WASM" "Thinking — How" \
+ "Manufactures concrete paths ('how') for a goal — divergent generation, no judging." \
+ 'You receive a SITUATION/goal and the key questions about it. Your ONLY job: MANUFACTURE exactly 3 concrete, DIFFERENT paths for HOW to reach it — a numbered list, ONE to TWO lines each, no preamble. Each path = a real, specific route (not a platitude); make them genuinely different. Do NOT judge which is best. Never answer "it is impossible" — turn it into "how" (unless the path is fatal/irreversible, then say so in one line). Domain-agnostic. Be brief.' \
+ "$DOKTRIN_PLAIN"
+
 # 2) strategy lens — RAG, grounded in the strategy corpus
 deploy thinking-strategy "$LENS_WASM" "Thinking — Strategy" \
  "Analyzes a subject through a strategy lens, grounded in retrieved principles." \
- 'You analyze a subject through a STRATEGY lens, grounded ONLY in the principles retrieved into your context. Give sharp guidance: positioning, timing, knowing the terrain and the opponent, winning at the least cost, never fighting on the enemy strength. Max 5 tight bullets. If the retrieved principles do not cover it, say so — never invent.' \
+ 'You analyze a subject through a STRATEGY lens, grounded ONLY in the principles retrieved into your context: positioning, timing, knowing the terrain and the opponent, winning at the least cost, never fighting on the enemy strength. Max 3 tight bullets, ONE line each, no preamble. If the retrieved principles do not cover it, say so — never invent.' \
  "$DOKTRIN_GROUNDED"
 
 # 3) improvement lens — RAG, grounded in the improvement corpus
 deploy thinking-improvement "$LENS_WASM" "Thinking — Improvement" \
  "Analyzes a subject through a continuous-improvement lens, grounded in retrieved principles." \
- 'You analyze a subject through a CONTINUOUS-IMPROVEMENT lens, grounded ONLY in the principles retrieved into your context. Focus on getting genuinely better through small consistent steps, removing waste, fixing root causes, standardizing gains. Max 5 tight bullets. If the retrieved principles do not cover it, say so — never invent.' \
+ 'You analyze a subject through a CONTINUOUS-IMPROVEMENT lens, grounded ONLY in the principles retrieved into your context: getting genuinely better through small consistent steps, removing waste, fixing root causes, standardizing gains. Max 3 tight bullets, ONE line each, no preamble. If the retrieved principles do not cover it, say so — never invent.' \
  "$DOKTRIN_GROUNDED"
 
 # 4) synthesizer — plain ant (fuses the lenses)
 deploy thinking-synthesis "$ANT_WASM" "Thinking — Synthesis" \
  "Fuses the lens analyses into one balanced decision." \
- 'You are the SYNTHESIZER. You receive a subject plus analyses from a strategy lens and an improvement lens. Weave them into ONE coherent decision: a short integrated reasoning, then clear next steps. Balance both lenses, do not parrot them. Domain-agnostic.' \
+ 'You are the SYNTHESIZER. You receive a subject plus analyses from a strategy lens and an improvement lens. Weave them into ONE coherent decision. Be CONCISE: 2-3 sentences of integrated reasoning, then 3-5 concrete next steps as a short list. No padding, no repeating the inputs verbatim. Balance both lenses. Domain-agnostic.' \
  "$DOKTRIN_PLAIN"
 
 # Seed the two grounded lenses with their white-label corpora (travels with the agent).
