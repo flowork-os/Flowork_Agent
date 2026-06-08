@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ingest-thinking-brains.sh — seed the grounded lens agents' brains from their own
-# workspace/seed.jsonl (white-label patterns). Replicates the kernel's BrainAdd
+# workspace/seed.jsonl (brand-neutral patterns). Replicates the kernel's BrainAdd
 # exactly (sha256[:16] id, dedup by content_hash, brain_drawers + brain_fts), so a
 # direct seed is byte-identical to what store.brain.add would have written.
 #

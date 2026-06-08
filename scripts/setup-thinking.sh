@@ -8,8 +8,8 @@
 #   thinking-improvement  — answers through a CONTINUOUS-IMPROVEMENT lens, grounded (RAG)
 #   thinking-synthesis    — fuses the lenses into one decision
 #
-# WHITE-LABEL: ids/personas carry NO brand names — only the pattern. The strategy
-# & improvement lenses are GROUNDED: their brains are seeded from white-label
+# BRAND-NEUTRAL: ids/personas carry NO brand names — only the pattern. The strategy
+# & improvement lenses are GROUNDED: their brains are seeded from brand-neutral
 # corpora (workspace/seed.jsonl) and the lens wasm injects retrieved principles
 # into the prompt, so they speak from ingested patterns, not free imagination.
 #
@@ -113,7 +113,7 @@ deploy thinking-caster "$ANT_WASM" "Thinking — Caster" \
  'You receive a SITUATION and a list of available thinking lenses (each as "id: what it is good for"). Choose the 2 or 3 lenses MOST relevant to THIS situation. Output ONLY their ids separated by commas (e.g. "thinking-strategy,thinking-influence"), nothing else — no explanation, no extra text.' \
  "$DOKTRIN_PLAIN"
 
-# Seed the grounded lenses with their white-label corpora (travels with the agent).
+# Seed the grounded lenses with their brand-neutral corpora (travels with the agent).
 if [ -f "$SEEDS/influence.jsonl" ]; then
   cp "$SEEDS/influence.jsonl" "$AGENTS/thinking-influence.fwagent/workspace/seed.jsonl"
   echo "→ seeded thinking-influence ($(wc -l < "$SEEDS/influence.jsonl") patterns staged)"

@@ -24,7 +24,7 @@ warga lain ikut kebawa. Itu yang harus dicegah.
 | **Nano modular** | Satu agent = satu fungsi jelas. Jangan campur tugas. Mau tambah fungsi baru → bikin agent baru, jangan tempel ke yang lama. |
 | **Plug and play** | User taruh agent baru → kernel pickup otomatis (hot-reload). User cabut agent → bersih total, ngga ada sisa. |
 | **Multi-OS** | Code harus jalan di Windows, Linux, macOS. Path pakai `filepath.Join`, jangan hardcode `/`. Hindari shell-specific tool. |
-| **White label** | Branding bukan domain agent. Semua label/icon/copy bisa diganti tanpa nyentuh logic. |
+| **Brand-neutral** | Branding bukan domain agent. Semua label/icon/copy bisa diganti tanpa nyentuh logic. |
 | **Deterministik dulu** | Logika kritis (routing, kategori, gating) di KODE, bukan LLM. "deterministik = kuat, LLM lemah = rapuh." Detail: **section 12.0**. |
 | **Belajar, jangan diapalin** | Knowledge & koreksi di brain (INGEST, updatable), bukan hardcode/over-prompt/di-train. Agent makin pinter dari mistakes+karma (sistem imun), bukan dari prompt makin gemuk. Detail: **section 12**. |
 | **Anti-halu by design** | Tiap agent yang mikir/dispatch ke-cover antibody injection di gateway (mistakes karma-ranked, MAX 3, di-inject deterministik). Detail: **section 12.4**. |
@@ -446,10 +446,10 @@ Status implementasi sampai 2026-05-29 (post-hardcode refactor):
 | 9 | Privileged agent class | ❌ belum (broker policy belum ada review-manual) |
 | - | Multi-OS path | ⚠️ pakai `filepath.Join`, belum test Windows |
 | - | Plug-and-play (hot-reload) | ✅ implement via fsnotify + `host.ReloadAgent` |
-| - | White label | ⚠️ branding "Flowork" masih di code, belum theme-able |
+| - | Brand-neutral | ⚠️ branding "Flowork" masih di code, belum theme-able |
 
 Prioritas urut: **8** (popup custom + switch + download lengkap dari source) >
-**2** (scheduler runtime) > **9** (tool gen + privileged) > white label.
+**2** (scheduler runtime) > **9** (tool gen + privileged) > brand-neutral.
 
 ---
 
