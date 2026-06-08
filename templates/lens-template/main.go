@@ -1,7 +1,9 @@
 // === LOCKED FILE ===
-// Status: STABLE — `thinking` group lens (RAG ant). Tested end-to-end 2026-06-08:
-//   grounded retrieval (recalled>0) bilingual EN/ID, anti-halu refusal verified.
-// Do not edit without owner approval. Rebuild: GOOS=wasip1 GOARCH=wasm go build -o agent.wasm .
+// Status: STABLE — `thinking` group lens (RAG ant). Tested 2026-06-08: grounded retrieval
+//   bilingual EN/ID + anti-halu refusal; PATTERN self-wiring (item 12/14/15): recalled
+//   patterns wire on success (kv adjacency, pruned), recall pulls strong neighbors
+//   (spreading-activation). Do not edit without owner approval.
+//   Rebuild: GOOS=wasip1 GOARCH=wasm go build -o agent.wasm .
 //
 // Package main is the Flowork "lens" template — a grounded (RAG) ant.
 //
@@ -24,10 +26,13 @@
 package main
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"unsafe"
 )
@@ -161,6 +166,81 @@ func loadConfig() agentConfig {
 	return c
 }
 
+// --- pattern self-wiring (ROADMAP_THINKING.md item 12/14/15) ---
+// Edges between PATTERNS, stored in kv adjacency lists (the loket brain store is frozen,
+// so we wire on top of kv). "Firing creates wiring": patterns recalled together for a
+// real answer get a stronger edge; a later recall pulls a pattern's strongest neighbors
+// into the grounding (spreading-activation). Bounded (top-3 core) + pruned (top-6 keep).
+
+func kvGet(k string) string {
+	r, err := loketCall("store.kv.get", map[string]any{"k": k})
+	if err != nil {
+		return ""
+	}
+	var s struct {
+		Value string `json:"value"`
+	}
+	if json.Unmarshal(r, &s) != nil {
+		return ""
+	}
+	return s.Value
+}
+func kvSet(k, v string) { _, _ = loketCall("store.kv.set", map[string]any{"k": k, "v": v}) }
+
+// patternID is a stable id for a pattern's text (keys its adjacency list).
+func patternID(s string) string {
+	h := sha256.Sum256([]byte(strings.TrimSpace(s)))
+	return hex.EncodeToString(h[:])[:16]
+}
+
+type neighbor struct {
+	ID      string `json:"id"`
+	Content string `json:"c"`
+	Weight  int    `json:"w"`
+}
+
+func neighbors(id string) []neighbor {
+	raw := kvGet("adj:" + id)
+	if raw == "" {
+		return nil
+	}
+	var ns []neighbor
+	_ = json.Unmarshal([]byte(raw), &ns)
+	return ns
+}
+
+// writeNeighbors prunes to the strongest 6 (item 14: decay/prune) before storing.
+func writeNeighbors(id string, ns []neighbor) {
+	sort.Slice(ns, func(i, j int) bool { return ns[i].Weight > ns[j].Weight })
+	if len(ns) > 6 {
+		ns = ns[:6]
+	}
+	b, _ := json.Marshal(ns)
+	kvSet("adj:"+id, string(b))
+}
+
+func upsertNeighbor(ns []neighbor, id, content string) []neighbor {
+	for i := range ns {
+		if ns[i].ID == id {
+			ns[i].Weight++
+			return ns
+		}
+	}
+	if len(content) > 200 {
+		content = content[:200]
+	}
+	return append(ns, neighbor{ID: id, Content: content, Weight: 1})
+}
+
+// addEdge strengthens the undirected edge between two patterns (both adjacency lists).
+func addEdge(aID, aContent, bID, bContent string) {
+	if aID == bID {
+		return
+	}
+	writeNeighbors(aID, upsertNeighbor(neighbors(aID), bID, bContent))
+	writeNeighbors(bID, upsertNeighbor(neighbors(bID), aID, aContent))
+}
+
 // handleMessage is the lens's single job: RETRIEVE matching principles from its
 // own brain, then answer the subject grounded ONLY in those principles.
 func handleMessage(argsJSON string) {
@@ -176,7 +256,9 @@ func handleMessage(argsJSON string) {
 
 	// 1. Retrieve grounded principles from this lens's OWN isolated brain.
 	var recalled []string
-	if r, err := loketCall("store.brain.search", map[string]any{"query": in.Text, "k": 8}); err == nil {
+	var core []string // top originally-recalled patterns (used for wiring on success)
+	seen := map[string]bool{}
+	if r, err := loketCall("store.brain.search", map[string]any{"query": in.Text, "k": 6}); err == nil {
 		var s struct {
 			Hits []struct {
 				Content string `json:"content"`
@@ -184,10 +266,37 @@ func handleMessage(argsJSON string) {
 		}
 		if json.Unmarshal(r, &s) == nil {
 			for _, h := range s.Hits {
-				if c := strings.TrimSpace(h.Content); c != "" {
-					recalled = append(recalled, c)
+				c := strings.TrimSpace(h.Content)
+				if c == "" || seen[c] {
+					continue
+				}
+				seen[c] = true
+				recalled = append(recalled, c)
+				if len(core) < 3 {
+					core = append(core, c)
 				}
 			}
+		}
+	}
+
+	// 1b. SPREADING-ACTIVATION (item 15): pull each core pattern's strongest wired
+	//     neighbors into the grounding, so the lens reasons "in connections" (firing
+	//     spreads through synapses), not just in isolated drawers. Capped to +3.
+	spread := 0
+	for _, c := range core {
+		if spread >= 3 {
+			break
+		}
+		for _, nb := range neighbors(patternID(c)) {
+			if spread >= 3 {
+				break
+			}
+			if nb.Content == "" || seen[nb.Content] {
+				continue
+			}
+			seen[nb.Content] = true
+			recalled = append(recalled, nb.Content)
+			spread++
 		}
 	}
 
@@ -230,5 +339,15 @@ func handleMessage(argsJSON string) {
 		reply = "[lens] LLM offline: " + err.Error()
 	}
 
-	emit(map[string]any{"reply": reply, "agent": selfID(), "recalled": len(recalled)})
+	// WIRE ON SUCCESS (item 11/13): a real grounded answer means the core patterns
+	// co-activated usefully → strengthen their pairwise edges (bounded to the top-3 core,
+	// pruned in writeNeighbors). Edges from a real answer, never from a guess.
+	if strings.TrimSpace(reply) != "" && !strings.HasPrefix(reply, "[lens] LLM offline") && len(core) >= 2 {
+		for i := 0; i < len(core); i++ {
+			for j := i + 1; j < len(core); j++ {
+				addEdge(patternID(core[i]), core[i], patternID(core[j]), core[j])
+			}
+		}
+	}
+	emit(map[string]any{"reply": reply, "agent": selfID(), "recalled": len(recalled), "spread": spread, "wired": len(core)})
 }
