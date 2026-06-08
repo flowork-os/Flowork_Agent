@@ -1,3 +1,19 @@
+## 2026-06-09 — P1: shell hardening via command semantics (new tool, lock-respecting)
+
+The locked `bash` tool blocks danger by substring, which leaks (`rm  -rf  /`, `${IFS}`,
+path-prefixed program) and false-trips (`echo "rm -rf /"`). New, lock-respecting (shell.go is
+owner-LOCKED → new files only):
+
+- `cmdsem.go` — a structural classifier: normalize (defuse $IFS) → split on operators → tokenize
+  → judge program+args. Blocks recursive deletes of system/home roots, power ops (→ system_power),
+  dd-to-device, mkfs*, chmod 777, privilege escalation, fork bombs, curl|sh. Reports read_only too.
+- `shell` tool (`shell_guard.go`) uses it, reusing the locked tool's exec helpers (scrubEnv,
+  capWriter, rlimit) — no duplication of sensitive bits, no edit to the locked file.
+- `cmdsem_test.go` — offline unit tests prove the bypass cases are caught and legit/quoted
+  commands pass. Runs in `go test`, cannot regress silently.
+- mr-flow swapped bash→shell; `bash` removed from the always-on core (opt-in subscription now),
+  so a capable agent gets the safer exec and the ants get no shell at all.
+
 ## 2026-06-09 — fold computer-control into mr-flow; trim redundant group
 
 Two-tier follow-through: mr-flow now holds system_power / app_open / system_health as

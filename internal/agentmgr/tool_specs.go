@@ -27,8 +27,12 @@ import (
 
 // coreExposedTools — SELALU di-expose ke LLM (cover kebutuhan umum). Kecil =
 // prompt kecil. Sisanya via tool_search.
+// Note: exec is NOT in the always-on core — an agent that needs a shell subscribes
+// to `shell` (the hardened, semantics-classified exec tool, P1). The old `bash`
+// (substring denylist) stays registered for back-compat but is opt-in only, so a
+// capable agent gets the safer one and the ants (no subscriptions) get no shell.
 var coreExposedTools = []string{
-	"file_read", "file_write", "file_list", "bash", "grep", "glob",
+	"file_read", "file_write", "file_list", "grep", "glob",
 	"webfetch", "brain_search", "memory_get", "memory_set",
 	"telegram_send", "tool_search", "now",
 }

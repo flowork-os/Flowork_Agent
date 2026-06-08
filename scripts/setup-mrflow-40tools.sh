@@ -10,7 +10,7 @@ DB="$AGENTS/mr-flow-next.fwagent/workspace/state.db"
 [ -f "$DB" ] || { echo "mr-flow state.db not found at $DB — boot mr-flow first"; exit 1; }
 TOOLS=(
   file_read file_write edit file_list glob grep codemap_search
-  bash git system_power app_open system_health
+  shell git system_power app_open system_health
   web_search webfetch web_archive html_extract pdf_read
   brain_search brain_add memory_get memory_set fact_recall fact_write kv_get kv_set
   todo plan_read plan_write goal_done scheduler_schedule_add scheduler_list
