@@ -339,6 +339,8 @@ func handleMessage(argsJSON string) {
 		}
 		if strings.TrimSpace(reply) == "" {
 			reply = "tim thinking ga ngasih jawaban."
+		} else {
+			reply = plainify(reply) // strip markdown → clean Telegram text
 		}
 		emit(map[string]any{"reply": reply, "agent": selfID()})
 		return
@@ -613,7 +615,9 @@ func askGroup(argsRaw json.RawMessage) string {
 		Reply string `json:"reply"`
 	}
 	if json.Unmarshal(outer.Reply, &inner) == nil && inner.Reply != "" {
-		return `{"group_result":"` + jsonEsc(inner.Reply) + `"}`
+		// jsonStr (proper JSON marshal) preserves newlines as \n — using jsonEsc here
+		// flattened them to spaces, turning a formatted answer into one wall of text.
+		return `{"group_result":` + jsonStr(inner.Reply) + `}`
 	}
 	return string(r)
 }
@@ -706,6 +710,40 @@ func jsonEsc(s string) string {
 
 // jsonStr marshals a string to a JSON string literal (with quotes).
 func jsonStr(s string) string { b, _ := json.Marshal(s); return string(b) }
+
+// plainify strips markdown to clean chat text (Telegram renders no markdown, so
+// "##" / "**" / "---" would show raw). Done in code because the model keeps using
+// markdown even when told not to. Preserves newlines + simple "-" bullets.
+func plainify(s string) string {
+	s = strings.ReplaceAll(s, "**", "")
+	s = strings.ReplaceAll(s, "__", "")
+	s = strings.ReplaceAll(s, "`", "")
+	lines := strings.Split(s, "\n")
+	out := make([]string, 0, len(lines))
+	for _, ln := range lines {
+		t := strings.TrimRight(ln, " \t")
+		trimmed := strings.TrimSpace(t)
+		// drop horizontal rules (---, ***, ___ of any length)
+		if len(trimmed) >= 3 && (strings.Trim(trimmed, "-") == "" || strings.Trim(trimmed, "*") == "" || strings.Trim(trimmed, "_") == "") {
+			out = append(out, "")
+			continue
+		}
+		// header lines (#, ##, …) → plain line
+		ls := strings.TrimLeft(t, " ")
+		if strings.HasPrefix(ls, "#") {
+			t = strings.TrimSpace(strings.TrimLeft(ls, "#"))
+		} else if strings.HasPrefix(ls, "* ") || strings.HasPrefix(ls, "+ ") {
+			indent := t[:len(t)-len(ls)]
+			t = indent + "- " + ls[2:]
+		}
+		out = append(out, t)
+	}
+	res := strings.Join(out, "\n")
+	for strings.Contains(res, "\n\n\n") {
+		res = strings.ReplaceAll(res, "\n\n\n", "\n\n")
+	}
+	return strings.TrimSpace(res)
+}
 
 // isComputerCommand deterministically detects a host power/app control request, so
 // mr-flow routes it straight to the operasi-komputer-grup GROUP instead of letting

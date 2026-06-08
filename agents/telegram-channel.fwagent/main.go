@@ -352,15 +352,42 @@ func getUpdates(token string, offset int64, timeoutSec int) ([]tgUpdate, error) 
 }
 
 func sendMessage(token string, chatID int64, text string) error {
-	if len(text) > 3900 {
-		text = text[:3900] + "\n…(truncated)"
-	}
-	body, _ := json.Marshal(map[string]any{"chat_id": chatID, "text": text, "disable_web_page_preview": true})
-	st, _ := hostFetch("POST", fmt.Sprintf("%s/bot%s/sendMessage", tgBase(), token), map[string]string{"Content-Type": "application/json"}, body)
-	if st == 0 || st >= 400 {
-		return fmt.Errorf("telegram sendMessage status=%d", st)
+	// Telegram caps a message at 4096 chars; a long answer must be SPLIT into
+	// several messages (not truncated). Send each chunk in order.
+	for _, chunk := range chunkText(text, 3900) {
+		if strings.TrimSpace(chunk) == "" {
+			continue
+		}
+		body, _ := json.Marshal(map[string]any{"chat_id": chatID, "text": chunk, "disable_web_page_preview": true})
+		st, _ := hostFetch("POST", fmt.Sprintf("%s/bot%s/sendMessage", tgBase(), token), map[string]string{"Content-Type": "application/json"}, body)
+		if st == 0 || st >= 400 {
+			return fmt.Errorf("telegram sendMessage status=%d", st)
+		}
 	}
 	return nil
+}
+
+// chunkText splits text into pieces of at most max bytes, breaking on a newline
+// (then a space) near the limit so multi-message replies stay readable.
+func chunkText(text string, max int) []string {
+	if len(text) <= max {
+		return []string{text}
+	}
+	var chunks []string
+	for len(text) > max {
+		cut := max
+		if i := strings.LastIndex(text[:max], "\n"); i > max/2 {
+			cut = i
+		} else if i := strings.LastIndex(text[:max], " "); i > max/2 {
+			cut = i
+		}
+		chunks = append(chunks, strings.TrimRight(text[:cut], " \n"))
+		text = strings.TrimLeft(text[cut:], " \n")
+	}
+	if len(text) > 0 {
+		chunks = append(chunks, text)
+	}
+	return chunks
 }
 
 func parseAllowed(s string) map[int64]bool {
