@@ -2,8 +2,8 @@
   "id": "analis-minus",
   "version": "1.0.0",
   "kind": "agent",
-  "display_name": "Analis Risiko",
-  "description": "Semut analis: argumen sisi RISIKO/negatif dari sebuah subjek.",
+  "display_name": "Investment — Risk",
+  "description": "Investment risk analyst: the sharp case for the downside and red flags.",
   "min_kernel_version": "0.1.0",
   "abi_version": 1,
   "author": "@flowork-os",
@@ -18,6 +18,13 @@
     "time:read"
   ],
   "exposes_rpc": [
-    { "name": "handle_message", "description": "Handle one task message through the loket.", "input_schema": { "type": "object", "properties": {} } }
+    {
+      "name": "handle_message",
+      "description": "Handle one task message through the loket.",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    }
   ]
 }

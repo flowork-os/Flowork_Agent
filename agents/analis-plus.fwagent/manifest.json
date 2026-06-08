@@ -2,8 +2,8 @@
   "id": "analis-plus",
   "version": "1.0.0",
   "kind": "agent",
-  "display_name": "Analis Peluang",
-  "description": "Semut analis: argumen sisi POSITIF/peluang dari sebuah subjek.",
+  "display_name": "Investment — Upside",
+  "description": "Investment upside analyst: the sharp case for why a subject is attractive.",
   "min_kernel_version": "0.1.0",
   "abi_version": 1,
   "author": "@flowork-os",
@@ -18,6 +18,13 @@
     "time:read"
   ],
   "exposes_rpc": [
-    { "name": "handle_message", "description": "Handle one task message through the loket.", "input_schema": { "type": "object", "properties": {} } }
+    {
+      "name": "handle_message",
+      "description": "Handle one task message through the loket.",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    }
   ]
 }

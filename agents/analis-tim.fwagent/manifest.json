@@ -2,8 +2,8 @@
   "id": "analis-tim",
   "version": "1.0.0",
   "kind": "agent",
-  "display_name": "Group Analisa",
-  "description": "GROUP (koloni semut): sebar tugas analisa ke anggota lewat bus, lalu synthesizer gabungin jadi 1 jawaban.",
+  "display_name": "Investment Team",
+  "description": "Investment team: weighs upside and risk, returns a balanced invest/watch/pass decision.",
   "min_kernel_version": "0.1.0",
   "abi_version": 1,
   "author": "@flowork-os",
@@ -18,6 +18,13 @@
     "time:read"
   ],
   "exposes_rpc": [
-    { "name": "handle_message", "description": "Handle one task message through the loket.", "input_schema": { "type": "object", "properties": {} } }
+    {
+      "name": "handle_message",
+      "description": "Handle one task message through the loket.",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    }
   ]
 }
