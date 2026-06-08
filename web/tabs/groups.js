@@ -18,8 +18,11 @@ const L = new Proxy({}, { get: (_, k) => t('groups.' + String(k)) });
 const fmt = (k, vars) => Object.entries(vars || {}).reduce((s, [n, v]) => s.replaceAll('{' + n + '}', v), L[k]);
 
 const CSS = `
-.gr-wrap{position:relative;max-width:1000px;padding:6px 2px 40px;
+.gr-wrap{position:relative;max-width:1400px;padding:6px 2px 40px;
   --cy:#36e6ff;--cy2:#26ffd0;--ink:#06121a;--line:rgba(54,230,255,.22);--bad:#ff476f;--warn:#ffc24d}
+/* group cards laid out 2-up; a 3rd+ wraps to the next row. 1 column when narrow. */
+#grList{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start}
+@media(max-width:900px){#grList{grid-template-columns:1fr}}
 .gr-wrap::before{content:'';position:absolute;inset:0;z-index:0;pointer-events:none;opacity:.30;
   background:linear-gradient(rgba(54,230,255,.5),transparent);height:40px;animation:grscan 6s linear infinite}
 @keyframes grscan{0%{transform:translateY(-40px);opacity:0}30%{opacity:1}100%{transform:translateY(640px);opacity:0}}
