@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"unsafe"
 )
@@ -324,7 +325,20 @@ func handleMessage(argsJSON string) {
 	// answer verbatim — no LLM hedging (so it reliably delegates) and no final LLM
 	// wrap (so the long multi-lens pipeline never trips mr-flow's response deadline).
 	if isThinkingCommand(in.Text) {
-		res := askGroup(json.RawMessage(`{"group":"thinking","subject":` + jsonStr(in.Text) + `}`))
+		// MEMORY: keep a short rolling conversation per chat so the colony can CONTINUE
+		// a diagnosis (multi-turn) instead of starting from zero every message.
+		histKey := "think_hist:" + strconv.FormatInt(in.ChatID, 10)
+		low := strings.ToLower(in.Text)
+		if strings.Contains(low, "topik baru") || strings.Contains(low, "mulai baru") || strings.Contains(low, "reset") {
+			tkvSet(histKey, "") // explicit fresh start
+		}
+		hist := tkvGet(histKey)
+		subject := in.Text
+		if strings.TrimSpace(hist) != "" {
+			subject = "Konteks percakapan thinking sebelumnya (LANJUTKAN dari sini, jangan ulang dari nol):\n" +
+				hist + "=== Pesan terbaru user ===\n" + in.Text
+		}
+		res := askGroup(json.RawMessage(`{"group":"thinking","subject":` + jsonStr(subject) + `}`))
 		reply := ""
 		var gr struct {
 			GroupResult string `json:"group_result"`
@@ -341,6 +355,18 @@ func handleMessage(argsJSON string) {
 			reply = "tim thinking ga ngasih jawaban."
 		} else {
 			reply = plainify(reply) // strip markdown → clean Telegram text
+		}
+		// Append this turn to the rolling history (bounded — keep the tail).
+		if !strings.HasPrefix(reply, "tim thinking error") && !strings.HasPrefix(reply, "tim thinking ga") {
+			ans := reply
+			if len(ans) > 700 {
+				ans = ans[:700] + " …"
+			}
+			newHist := hist + "User: " + in.Text + "\nTim: " + ans + "\n\n"
+			if len(newHist) > 2400 {
+				newHist = newHist[len(newHist)-2400:]
+			}
+			tkvSet(histKey, newHist)
 		}
 		emit(map[string]any{"reply": reply, "agent": selfID()})
 		return
@@ -744,6 +770,22 @@ func plainify(s string) string {
 	}
 	return strings.TrimSpace(res)
 }
+
+// tkvGet/tkvSet — small kv helpers for the thinking conversation memory (own store).
+func tkvGet(k string) string {
+	r, err := loketCall("store.kv.get", map[string]any{"k": k})
+	if err != nil {
+		return ""
+	}
+	var s struct {
+		Value string `json:"value"`
+	}
+	if json.Unmarshal(r, &s) != nil {
+		return ""
+	}
+	return s.Value
+}
+func tkvSet(k, v string) { _, _ = loketCall("store.kv.set", map[string]any{"k": k, "v": v}) }
 
 // isComputerCommand deterministically detects a host power/app control request, so
 // mr-flow routes it straight to the operasi-komputer-grup GROUP instead of letting

@@ -1,3 +1,16 @@
+## 2026-06-08 — thinking memory: multi-turn conversation
+
+The thinking colony was single-shot (it forgot the previous message), so when the owner answered the
+team's follow-up questions it started from zero. Added a short ROLLING conversation memory in
+mr-flow's thinking pre-router, keyed by chat_id (its own loket kv): each turn (user msg + a trimmed
+team reply) is appended, bounded to ~2400 chars (keep the tail), and prepended to the next subject so
+the colony CONTINUES the diagnosis. An explicit "topik baru" / "reset" clears it.
+
+TESTED multi-turn: turn 1 = "yakinin investor tanpa overclaim?" -> team asks for data; turn 2 = just
+the data ("MVP + 40 signups, angel, OpenClaw") with NO repeated context -> the team continued the
+investor-pitch diagnosis (activation rate, don't overclaim PMF, one-line moat vs OpenClaw), proving it
+remembered turn 1. Bounded + per-chat so no unbounded growth.
+
 ## 2026-06-08 — thinking display fixes (clean Telegram output)
 
 Three fixes so the colony's answer reads cleanly in a chat app:
