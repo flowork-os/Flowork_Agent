@@ -1,3 +1,18 @@
+## 2026-06-08 — thinking ROADMAP item 4-5: planner + deterministic todo-store
+
+Roadmap: `ROADMAP_THINKING.md` items 4-5 — the PLAN half of disciplined execution, as a reusable
+plug-and-play module (`templates/planner-template`, deployed by `scripts/setup-planner.sh` as
+`thinking-planner`). Split by design: the PLANNER reasons (LLM: frame with 5W+1H, generate steps
+with "how"); the LIST is a DETERMINISTIC loket kv store, never the model — so progress can't be
+hallucinated. Functions: `plan {goal}` drafts steps and writes each to kv (status=pending);
+`status {}` reads the list back from the store (ground truth); `done {n}` marks a step complete
+MECHANICALLY (no LLM). This is the fix for "an LLM tracking its own todo lies about progress" — the
+planner only DRAFTS, the store is the truth. For dynamic colonies (e.g. mr-flow); the thinking
+group's FIXED pipeline does not need it.
+
+TESTED end-to-end via rpc: plan → 6 concrete steps stored · status → 0/6 (read from kv) · done 2 →
+1/6 mechanical · status → step 2 still done (persisted from the STORE, not memory). LOCKED after test.
+
 ## 2026-06-08 — thinking ROADMAP item 3: the "how" doctrine + safety guard
 
 Roadmap: `ROADMAP_THINKING.md` item 3. A SACRED doctrine on the LLM organs (thinking-how,
