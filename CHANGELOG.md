@@ -1,3 +1,25 @@
+## 2026-06-08 — thinking ROADMAP item 10-15 COMPLETE: pattern-level self-wiring + spreading
+
+Roadmap: `ROADMAP_THINKING.md` items 10-15 — the deep self-wiring, now done at the PATTERN level in
+the RAG lens (`templates/lens-template`), on top of kv adjacency lists (the loket brain store is
+frozen — no kernel change):
+
+- **edges (item 10)** — each pattern keeps an adjacency list in kv (`adj:<patternId>` = neighbors
+  with content + weight). Stable id = sha256(content)[:16].
+- **hebbian wire-on-success (item 11/13)** — when a lens produces a real grounded answer, the top-3
+  co-activated patterns get their pairwise edges strengthened. Edges form from REAL answers, never
+  from a guess.
+- **prune (item 14)** — each adjacency list is capped at its 6 strongest neighbors (weak/old edges
+  fall off).
+- **spreading-activation (item 15)** — on recall, each core pattern's strongest wired neighbors are
+  pulled into the grounding, so the lens reasons "in connections", not isolated drawers — the first
+  real step toward "brain > LLM in our niche".
+
+Bounded (top-3 core, +3 spread) so it never blows the prompt or the latency budget. TESTED: edges
+accumulate on success (3 → 20 adj nodes over several calls) with content+weight stored; a later
+strategy query recalled 6 and SPREAD pulled 2 wired neighbors (recalled 6 → grounded on 8); the
+grounded lenses still answer correctly (items 1-9 untouched). Lens re-locked.
+
 ## 2026-06-08 — thinking ROADMAP item 10-15: self-wiring SEED (firing creates wiring)
 
 Roadmap: `ROADMAP_THINKING.md` items 10-15 (the "self-wiring" Horizon — which the roadmap itself says
