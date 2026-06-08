@@ -1,3 +1,13 @@
+## 2026-06-09 — P3: brain dream consolidation (lock-respecting, no unlock)
+
+New `brain_dream` tool: consolidates an agent's local brain like sleep — gently decays the
+importance of memories never recalled (amplitude 0) so unused ones fade and reinforced ones
+stay. Exact-duplicate consolidation is already done at write time (AddBrainDrawer dedups by
+content_hash), so dream only forgets. SAFE: importance-only UPDATE — never deletes, never
+touches the FTS index, so no brain_fts desync and NO unlock of the locked brain storage
+needed (a new tool + a column UPDATE suffices). Offline unit-tested (brain_dream_test.go).
+Auto-scheduling the dream pass is a follow-up (the mechanism is here + tested).
+
 ## 2026-06-09 — P4: context compaction for mr-flow's rolling memory
 
 mr-flow's group-chat buffer used a blind mid-content char cut at 2400 chars (could slice a
