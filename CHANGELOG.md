@@ -1,3 +1,28 @@
+## 2026-06-08 — Computer Operator: control your PC from chat (GROUP path)
+
+Roadmap: operate the host computer from a phone via Telegram. Architecture (owner-directed):
+**mr-flow → ask_group(operasi-komputer-grup) → member operator-komputer (executor) → system_power / app_open.**
+
+- **operator-komputer** rewritten as a SIMPLE deterministic executor ant (no LLM, no classifier): parses
+  intent and runs the privileged tool over the loket. Needs its own `loket.json` (consumes `tool.run`,
+  `time.now`); host caps (`exec:power`, `exec:app`, state) in the manifest. Exposes `handle` (the fn
+  `bus.broadcast` calls on group members).
+- **app_open** (new builtin tool, `exec:app`): launch a WHITELISTED desktop app (chrome, vscode) — owner
+  picks an allowlist KEY, never a raw command → no injection. Multi-OS (Linux tested; win/mac best-effort).
+  Owner-extensible via `~/.flowork/operator-apps.json`.
+- **mr-flow** deterministic PRE-ROUTER: `isComputerCommand(text)` → straight to ask_group, bypassing the
+  LLM's reluctance to shut a PC down. Normal chat still flows to the LLM (router is specific).
+- **setup-operator-group.sh**: reproducibly scaffold the group + roster (in the loket store) + register it
+  in mr-flow's kv "groups". Note: roster + group registry live in the LOKET store (loket.db), not state.db.
+- Fixed skill_author gate false-positive (bare "shutdown"/"reboot" words no longer blocked).
+
+TESTED end-to-end (Telegram → … → executor): "matiin pc 10 menit" → "✅ PC bakal mati 10 menit lagi —
+ketik 'batal'…" (scheduled + cancellable) · "restart komputer" ✅ · "buka chrome"/"buka vscode" → app
+opens ✅ · "kunci layar" ✅ · normal chat un-hijacked ✅. Safety: exec:power needs the privileged grant +
+FLOWORK_POWER_ARMED + a cancel window; only the owner's chat reaches it.
+
+---
+
 ## 2026-06-07 — Brain/intelligence AUDIT (all subsystems verified working) + lock
 
 Audited the whole "mind" via real paths (router `/api/brain/*`, agent `/api/agents/tools/run`).

@@ -1,0 +1,13 @@
+{
+  "id": "operator-komputer",
+  "kind": "agent",
+  "name": "Operator Komputer (executor)",
+  "version": "1.0.0",
+  "abi_version": "1",
+  "entry": "handle",
+  "tier": "extension",
+  "consumes": [
+    "tool.run",
+    "time.now"
+  ]
+}
