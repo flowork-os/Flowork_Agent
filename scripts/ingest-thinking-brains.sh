@@ -44,4 +44,5 @@ PY
 echo "→ ingest grounded lenses"
 ingest thinking-strategy
 ingest thinking-improvement
+ingest thinking-influence
 echo "✅ ingest done"
