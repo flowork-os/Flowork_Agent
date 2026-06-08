@@ -74,6 +74,65 @@ func TestListGroupsAndAvailable(t *testing.T) {
 	}
 }
 
+// TestPickerExcludesChannelsAndClaimsAuxRoles guards the tidy-picker fix: channels
+// (kind "agent" but id "*-channel") and the Mr.Flow router are kept OUT of the
+// member pool, and a pipeline group's Claims span its aux roles (questioner/how),
+// not just "members" — so those organs are hidden from other groups' pickers.
+func TestPickerExcludesChannelsAndClaimsAuxRoles(t *testing.T) {
+	dir := t.TempDir()
+	seed(t, dir, "thinking", map[string]string{
+		"group": "1", "members": "thinking-strategy,thinking-improvement",
+		"synthesizer": "thinking-synthesis", "questioner": "thinking-questions", "how_agent": "thinking-how",
+	})
+	ids := []string{"thinking", "thinking-strategy", "thinking-improvement", "thinking-synthesis",
+		"thinking-questions", "thinking-how", "telegram-channel", "free-agent", "mr-flow-next"}
+	for _, id := range ids[1:] {
+		seed(t, dir, id, map[string]string{"prompt": "x"})
+	}
+	h := newHandler(dir, ids)
+
+	rec := httptest.NewRecorder()
+	h.ListHandler(rec, httptest.NewRequest(http.MethodGet, "/api/groups", nil))
+	var out struct {
+		Groups []struct {
+			ID     string   `json:"id"`
+			Claims []string `json:"claims"`
+		} `json:"groups"`
+		Available []struct {
+			ID string `json:"id"`
+		} `json:"available_agents"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	avail := map[string]bool{}
+	for _, a := range out.Available {
+		avail[a.ID] = true
+	}
+	if avail["telegram-channel"] {
+		t.Fatal("channel leaked into the member pool")
+	}
+	if avail["mr-flow-next"] {
+		t.Fatal("mr-flow router leaked into the member pool")
+	}
+	if !avail["free-agent"] {
+		t.Fatal("a genuinely free agent must stay available")
+	}
+	claims := map[string]bool{}
+	for _, g := range out.Groups {
+		if g.ID == "thinking" {
+			for _, c := range g.Claims {
+				claims[c] = true
+			}
+		}
+	}
+	for _, want := range []string{"thinking-strategy", "thinking-synthesis", "thinking-questions", "thinking-how"} {
+		if !claims[want] {
+			t.Fatalf("claims missing %s (aux-role organ not scoped): %+v", want, claims)
+		}
+	}
+}
+
 func TestConfigWritesRosterLive(t *testing.T) {
 	dir := t.TempDir()
 	h := newHandler(dir, []string{"g1"})
