@@ -1,3 +1,12 @@
+## 2026-06-08 — thinking ROADMAP item 2: sharper questioner (not a monotone checklist)
+
+Roadmap: `ROADMAP_THINKING.md` item 2. The questioner (`thinking-questions`) no longer dumps a
+generic 6–10 slot 5W+1H checklist. It now finds the **3–4 questions that matter MOST** — the ones
+that, if answered, collapse the uncertainty — situation-specific, ordered so the most decisive comes
+first. The question is the steering wheel; a sharper wheel = a sharper colony. Persona-only change
+(live-read from prompt.md, no rebuild). TESTED: direct → 3 tight case-specific questions with the
+"why it matters" note; chat path → full pipeline ~48s, no timeout.
+
 ## 2026-06-08 — thinking ROADMAP item 1: the "how" engine + reliable chat path
 
 Roadmap: `ROADMAP_THINKING.md` item 1 — give the thinking colony a generator organ.
