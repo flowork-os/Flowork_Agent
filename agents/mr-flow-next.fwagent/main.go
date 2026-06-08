@@ -339,24 +339,14 @@ func handleMessage(argsJSON string) {
 		return
 	}
 
-	// Thinking PRE-ROUTER (deterministic, before the LLM): when the owner explicitly
-	// asks to think a problem through ("pikirin pake tim thinking", "cara berpikir",
-	// "pikir mateng"), route straight to the `thinking` GROUP and return its SYNTH
-	// answer verbatim — no LLM hedging (so it reliably delegates) and no final LLM
-	// wrap (so the long multi-lens pipeline never trips mr-flow's response deadline).
-	if isThinkingCommand(in.Text) {
-		handleGroupChat("thinking", in.Text, in.ChatID)
-		return
-	}
-
-	// Stock/investment PRE-ROUTER (deterministic, before the LLM): "analisa saham
-	// BBCA" must go to the `investment` GROUP (which HAS data eyes via market_quote),
-	// not to mr-flow's own webfetch (no net:fetch grant → blocked → the LLM stalls
-	// and asks permission instead of delegating). Route straight there.
-	if isStockCommand(in.Text) {
-		handleGroupChat("investment", in.Text, in.ChatID)
-		return
-	}
+	// NOTE: group routing for analysis (stock → investment, deep-thinking → thinking,
+	// and anything else) is INTENTIONALLY left to the LLM, which picks the right group
+	// via the ask_group tool — that is the orchestrator's intelligence, not a hardcoded
+	// keyword table. ask_group is terminal (relayGroup), so picking a group costs ONE
+	// LLM turn, not two. The computer-control pre-router ABOVE is the one deliberate
+	// exception: it is an accessibility lifeline (the owner controls his PC from his
+	// phone) that must fire even if the chat model is throttled or down — so it stays
+	// deterministic. Everything else: the model decides.
 
 	// Doctrine is SACRED and injected FIRST — the always-on anti-halu layer.
 	doktrin := readWS("doktrin.md")
@@ -538,7 +528,7 @@ func toolSpecs() []json.RawMessage {
 					"type": "object",
 					"properties": map[string]any{
 						"group":   map[string]any{"type": "string", "description": "target group id (one from the list)"},
-						"subject": map[string]any{"type": "string", "description": "the subject / question for the group to analyze"},
+						"subject": map[string]any{"type": "string", "description": "the user's request, kept VERBATIM in their original language (do not translate) — the group answers in that language"},
 					},
 					"required": []string{"group", "subject"},
 				},
@@ -735,20 +725,49 @@ func runToolLoop(msgs []any, specs []json.RawMessage) (string, int) {
 		if strings.TrimSpace(tc.Function.Arguments) != "" {
 			argsRaw = json.RawMessage(tc.Function.Arguments)
 		}
-		// ask_group is loket-native (orchestration), handled locally; every other
-		// tool goes through the engine bridge (tool.run).
-		var result string
+		// ask_group is a TERMINAL delegation: the LLM PICKS the right group (that is
+		// the intelligence — no hardcoded keyword routing), but the group's synthesizer
+		// has already produced a complete, user-facing answer IN THE USER'S LANGUAGE, so
+		// we relay it DIRECTLY instead of paying a second LLM turn to rewrite it. That
+		// second turn would also risk the response deadline on a long multi-organ
+		// pipeline (the reason the old deterministic pre-routers existed). LLM-as-router,
+		// group-as-answer. Every other tool loops back so the LLM can use its result.
 		if tc.Function.Name == "ask_group" {
-			result = askGroup(argsRaw)
-		} else {
-			result = toolRun(tc.Function.Name, argsRaw)
+			toolsUsed++
+			return relayGroup(askGroup(argsRaw)), toolsUsed
 		}
+		result := toolRun(tc.Function.Name, argsRaw)
 		toolsUsed++
 		msgs = append(msgs, map[string]any{
 			"role": "tool", "tool_call_id": id, "content": result,
 		})
 	}
 	return "(batas loop tool kena — coba perjelas permintaan lo)", toolsUsed
+}
+
+// relayGroup turns an ask_group result envelope into the final user-facing reply:
+// the group's synthesized answer, markdown-stripped for Telegram. A single-executor
+// group (no synthesizer) labels its one section "### <id> …" — strip that noise.
+func relayGroup(raw string) string {
+	var gr struct {
+		GroupResult string `json:"group_result"`
+		Error       string `json:"error"`
+	}
+	_ = json.Unmarshal([]byte(raw), &gr)
+	reply := strings.TrimSpace(gr.GroupResult)
+	if reply == "" {
+		if gr.Error != "" {
+			return "Grup error: " + gr.Error
+		}
+		return "Grup belum ngasih jawaban — coba lagi bentar ya."
+	}
+	if strings.HasPrefix(reply, "### ") {
+		rest := reply[len("### "):]
+		if i := strings.IndexAny(rest, " \n"); i >= 0 {
+			reply = strings.TrimSpace(rest[i+1:])
+		}
+	}
+	return plainify(reply)
 }
 
 // toolRun executes one tool by name via the loket bridge (tool.run) and returns
@@ -943,53 +962,6 @@ func isComputerCommand(text string) bool {
 		"logout", "log out",
 		"buka chrome", "buka vscode", "buka vs code", "buka code", "open chrome", "open vscode",
 		"batal matiin", "batal shutdown", "cancel shutdown",
-	}
-	for _, k := range kw {
-		if strings.Contains(s, k) {
-			return true
-		}
-	}
-	return false
-}
-
-// isThinkingCommand deterministically detects an explicit request to reason a
-// problem through with the `thinking` GROUP, so mr-flow delegates reliably instead
-// of the LLM choosing to answer (or ask back) on its own. Kept specific so it never
-// hijacks ordinary chat.
-func isThinkingCommand(text string) bool {
-	s := strings.ToLower(text)
-	kw := []string{
-		"tim thinking", "grup thinking", "group thinking", "thinking group",
-		"pake thinking", "pakai thinking", "lewat thinking", "minta thinking",
-		"cara berpikir", "pikirin mateng", "pikirin mateng", "pikir mateng",
-		"pikirkan matang", "pikir matang", "pikirin mendalam",
-	}
-	for _, k := range kw {
-		if strings.Contains(s, k) {
-			return true
-		}
-	}
-	return false
-}
-
-// isStockCommand deterministically detects a stock/investment-analysis request so
-// mr-flow delegates to the `investment` GROUP (which has data eyes), instead of
-// trying its own blocked webfetch and then hedging. Kept specific (always paired
-// with "saham"/"stock"/"invest") so it never hijacks ordinary chat.
-func isStockCommand(text string) bool {
-	s := strings.ToLower(text)
-	kw := []string{
-		// "saham" / "emiten" with any common verb or framing — generous on purpose so
-		// casual phrasings ("analis saham bbca donk", "cek saham X") all route here.
-		"analis saham", "analisa saham", "analisis saham", "analisa emiten", "analisa investasi",
-		"cek saham", "liat saham", "lihat saham", "pantau saham", "review saham",
-		"prospek saham", "valuasi saham", "rekomendasi saham", "saham bagus",
-		"beli saham", "jual saham", "investasi saham", "invest saham", "invest di saham",
-		"main saham", "soal saham", "tentang saham", "gimana saham", "harga saham",
-		"analisa emiten", "cek emiten",
-		// English
-		"analyze stock", "analyse stock", "stock analysis", "analyze a stock",
-		"layak invest", "worth investing", "should i invest",
 	}
 	for _, k := range kw {
 		if strings.Contains(s, k) {
