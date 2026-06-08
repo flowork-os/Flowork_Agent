@@ -70,13 +70,20 @@ const loketURL = "http://127.0.0.1:1987/api/kernel/call"
 // the outbound request, so the kernel always knows it is us — un-forgeable.
 // Returns the raw "result" on success, or an error if the kernel refused.
 func loketCall(capName string, args any) (json.RawMessage, error) {
+	return loketCallT(capName, args, 120000)
+}
+
+// loketCallT is loketCall with an explicit host-fetch timeout (ms). The LLM call
+// uses a SHORTER bound than the response deadline so the orchestrator can fall back
+// to a cheaper model instead of hanging when the premium tier is rate-limited.
+func loketCallT(capName string, args any, timeoutMs int) (json.RawMessage, error) {
 	argsJSON, _ := json.Marshal(args)
 	body, _ := json.Marshal(map[string]any{"cap": capName, "args": json.RawMessage(argsJSON)})
 
 	reqJSON, _ := json.Marshal(map[string]any{
 		"method":         "POST",
 		"url":            loketURL,
-		"timeout_ms":     120000,
+		"timeout_ms":     timeoutMs,
 		"max_resp_bytes": 4 << 20,
 		"headers":        map[string]string{"Content-Type": "application/json"},
 		"body_base64":    base64.StdEncoding.EncodeToString(body),
@@ -640,6 +647,31 @@ func askGroup(argsRaw json.RawMessage) string {
 	return string(r)
 }
 
+// fallbackTierModel — the cheap, high-rate-limit tier the orchestrator drops to
+// when its primary (premium) model is throttled, so an interactive chat still gets
+// a reply instead of a deadline hang. The router's fleet-wide 429 backoff is
+// owner-locked and untouched; this only softens the INTERACTIVE path.
+const fallbackTierModel = "claude-haiku-4-5"
+
+// llmComplete runs llm.complete with rate-limit resilience: the primary model first,
+// bounded SHORT of the response deadline; on any failure (throttle/timeout/5xx) it
+// falls back ONCE to the cheap tier (rarely rate-limited). Both attempts are time-
+// bounded so the pair fits inside the deadline (≈45s + ≈35s < the 90s kernel limit).
+func llmComplete(llmArgs map[string]any) (json.RawMessage, error) {
+	primary := model()
+	llmArgs["model"] = primary
+	if r, err := loketCallT("llm.complete", llmArgs, 45000); err == nil {
+		return r, nil
+	}
+	if fallbackTierModel != "" && fallbackTierModel != primary {
+		llmArgs["model"] = fallbackTierModel
+		if r, err := loketCallT("llm.complete", llmArgs, 35000); err == nil {
+			return r, nil
+		}
+	}
+	return nil, fmt.Errorf("rate-limited (primary + fallback both failed)")
+}
+
 // runToolLoop is Mr.Flow's tool-calling loop, every hop through the loket: offer
 // tools → the model asks for one → tool.run executes it → feed the result back →
 // repeat until the model answers in plain text. Returns the final reply + how
@@ -652,14 +684,16 @@ func askGroup(argsRaw json.RawMessage) string {
 func runToolLoop(msgs []any, specs []json.RawMessage) (string, int) {
 	toolsUsed := 0
 	for iter := 0; iter < maxToolIters; iter++ {
-		llmArgs := map[string]any{"model": model(), "messages": msgs}
+		llmArgs := map[string]any{"messages": msgs}
 		if len(specs) > 0 {
 			llmArgs["tools"] = specs
 			llmArgs["parallel_tool_calls"] = false
 		}
-		r, err := loketCall("llm.complete", llmArgs)
+		r, err := llmComplete(llmArgs)
 		if err != nil {
-			return "[mr-flow-next] LLM error: " + err.Error(), toolsUsed
+			// Rate-limit / timeout even after the cheap-tier fallback → fail SOFT with a
+			// clean message, never a raw error or (worse) a silent deadline hang.
+			return "⏳ Modelnya lagi penuh/limit bro, coba lagi sebentar ya 🙏", toolsUsed
 		}
 		var resp struct {
 			Content   string `json:"content"`

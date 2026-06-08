@@ -1,3 +1,18 @@
+## 2026-06-09 — rate-limit resilience: mr-flow falls back instead of hanging (P0)
+
+When the premium model is throttled (429), mr-flow used to hang ~90s on the router's
+fleet-wide backoff and then return a raw error / nothing. The INTERACTIVE chat path now
+fails SOFT, isolated to mr-flow (the router's owner-locked 429 backoff is untouched):
+
+- mr-flow bounds its LLM call short of the deadline and, on throttle/timeout, falls back
+  ONCE to a cheap high-limit tier so a reply still lands (~45s primary + ~35s fallback,
+  inside the 90s kernel deadline). New `llmComplete` + `loketCallT` in mr-flow only.
+- On total failure it returns a clean "model busy, retry" message — never a silent hang.
+
+Proven live (real handle_message path): with the premium tier 429-throttled, mr-flow
+replied in 47s via the fallback tier (router log: premium 429 → fallback dispatch) instead
+of timing out. Other agents + the router are untouched.
+
 ## 2026-06-09 — mr-flow becomes a capable 40-tool agent (two-tier principle)
 
 Owner principle: mr-flow is now a capable single agent holding 40 mature, first-class tools;
