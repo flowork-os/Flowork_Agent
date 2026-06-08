@@ -653,20 +653,42 @@ func askGroup(argsRaw json.RawMessage) string {
 // owner-locked and untouched; this only softens the INTERACTIVE path.
 const fallbackTierModel = "claude-haiku-4-5"
 
-// llmComplete runs llm.complete with rate-limit resilience: the primary model first,
-// bounded SHORT of the response deadline; on any failure (throttle/timeout/5xx) it
-// falls back ONCE to the cheap tier (rarely rate-limited). Both attempts are time-
-// bounded so the pair fits inside the deadline (≈45s + ≈35s < the 90s kernel limit).
+// primaryBudgetMs / fallbackBudgetMs — interactive LLM-call budgets (ms). The primary
+// budget is deliberately SHORT so a rate-limited primary fails over fast instead of
+// hanging out the router's retry storm; the fallback tier is fast so its budget is
+// generous. Both env-overridable (no hardcode): FLOWORK_PRIMARY_BUDGET_MS /
+// FLOWORK_FALLBACK_BUDGET_MS.
+var primaryBudgetMs = envInt("FLOWORK_PRIMARY_BUDGET_MS", 3000)
+var fallbackBudgetMs = envInt("FLOWORK_FALLBACK_BUDGET_MS", 15000)
+
+// envInt reads an int env var, falling back to def when unset/invalid.
+func envInt(key string, def int) int {
+	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	return def
+}
+
+// llmComplete runs llm.complete with rate-limit resilience tuned for INTERACTIVE chat.
+// The primary model (opus) is the preferred answerer, but it gets a SHORT budget: if it
+// answers in time (budget free) the user gets opus; if it's rate-limited (e.g. the
+// subscription throttles opus+tools — confirmed: opus alone is fast, opus+tools 429s)
+// we DON'T wait out the router's ~90s retry storm — we fail over FAST to the high-limit
+// fallback tier so Telegram stays snappy instead of hanging ~47s. So: opus when it can,
+// fast fallback when it can't, never a long hang. primaryBudgetMs is intentionally small
+// (an interactive deadline), NOT the old 45s — that 45s was the whole UX problem.
 func llmComplete(llmArgs map[string]any) (json.RawMessage, error) {
 	primary := model()
 	llmArgs["model"] = primary
-	r, lastErr := loketCallT("llm.complete", llmArgs, 45000)
+	r, lastErr := loketCallT("llm.complete", llmArgs, primaryBudgetMs)
 	if lastErr == nil {
 		return r, nil
 	}
 	if fallbackTierModel != "" && fallbackTierModel != primary {
 		llmArgs["model"] = fallbackTierModel
-		r2, err2 := loketCallT("llm.complete", llmArgs, 35000)
+		r2, err2 := loketCallT("llm.complete", llmArgs, fallbackBudgetMs)
 		if err2 == nil {
 			return r2, nil
 		}

@@ -1,3 +1,22 @@
+## 2026-06-09 — Fix slow Telegram (47s → ~4.5s): interactive LLM budget
+
+ROOT CAUSE (measured, not guessed): mr-flow's primary model (opus) + tool schemas hits the
+Anthropic subscription's rate limit (429) — confirmed: opus ALONE is 2s, opus + even 3 tiny
+tools 429s, haiku + tools is 1.4s. The router then retried the 429 six times (~90s backoff),
+and mr-flow's 45s primary budget meant EVERY message hung ~47s before falling back. (opus+tools
+is an upstream entitlement limit on the shared subscription, not a code bug — REF gets higher
+first-party opus limits.)
+
+FIX (isolated to the mr-flow agent, no router unlock, env-tunable — no hardcode):
+- llmComplete now uses a SHORT interactive primary budget (primaryBudgetMs, default 3000ms,
+  FLOWORK_PRIMARY_BUDGET_MS) instead of 45s. opus answers when the budget is free; when it's
+  rate-limited we fail over FAST to the high-limit tier (haiku, fast + handles tools) instead of
+  hanging out the router's retry storm. fallbackBudgetMs default 15000 (FLOWORK_FALLBACK_BUDGET_MS).
+- Measured end-to-end via the real handle_message pipeline: "hai" 4.5s, a tool call ("jam
+  berapa") 4.3s — was ~47s. ~10x faster, replies correct (incl. tool use).
+- Raise FLOWORK_PRIMARY_BUDGET_MS to give opus more headroom to win the reply when the
+  subscription budget is free.
+
 ## 2026-06-09 — v2.6.0: P5 coordination/lifecycle + honest gateway-down message
 
 Release of the P5 maturity milestone + a fix for a misleading failure message.
