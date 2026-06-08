@@ -221,6 +221,16 @@ Flowork doesn't just learn facts; it manages its own population of agents:
 | **Reaper** | **Apoptosis.** Flags broken/failing agents by real task stats (error-rate, smoke-test) so dead weight gets pruned. |
 | **Death Letter** | A retired agent seals a **handover letter** — knowledge continuity across generations. The colony outlives any one member. |
 
+### 🧯 Educational Errors — mistakes become lessons *(a flag we're planting — dated 8 Jun 2026)*
+
+Almost every AI system treats an error as something to **hide**: suppress it, retrain it away, pretend it didn't happen. **Flowork treats an error as EDUCATION.**
+
+When an agent gets something wrong, the mistake is **captured, explained, and kept** as a lesson it carries forward — **quarantined, not deleted; recalled, not punished.** A failure becomes a node the brain can learn from, so the same wall isn't hit twice. (It's why the immune system *quarantines* instead of deleting, and why every agent keeps a `mistakes` + `educational_errors` memory.)
+
+We call this principle **Educational Errors** — and, *as far as we have seen, no other AI system has made it a first-class, named, **redemptive** design principle*: errors as growth, not shame.
+
+**We're documenting it here — in the open, dated, on purpose.** We believe error-as-education will become common as AI agents grow persistent and autonomous: an agent that can't retrain its whole model still has to learn from its own mistakes *at runtime*, and this is the mechanism. When that day comes, this record — and the git history behind it — marks that **Flowork was building it early, from first principles: ahead of the trend, not following it.**
+
 ### 🆚 The mind vs OpenClaw / Hermes
 
 | Faculty | OpenClaw | Hermes | **⚡ Flowork** |
