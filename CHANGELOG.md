@@ -1,3 +1,41 @@
+## 2026-06-08 — `thinking` group: the owner's way of thinking, as a colony (agents ready)
+
+Roadmap (owner-directed, part of Flowork's "ruh"/soul): a GROUP `thinking` that encodes a way of
+reasoning, domain-agnostic (strategy, conflict, law, relationships — not just business). Members are
+tiny "ant" specialists, each one lens; a synthesizer fuses them. White-label + anti-hallucination.
+
+- **lens-template** (new, `templates/lens-template/`): a GROUNDED (RAG) variant of the ant. Before it
+  answers it RETRIEVES matching principles from its OWN brain (`store.brain.search`) and injects them as
+  the only allowed ground — so it speaks from ingested patterns, not free imagination. Read-only over its
+  doctrine brain (does not write the question back), so the corpus stays pure. (The plain ant searched the
+  brain but discarded the hits — that gap is why grounding needed this variant.) LOCKED after test.
+- **4 member agents deployed** (`scripts/setup-thinking.sh`, white-label ids by function):
+  `thinking-questions` (frames a situation into 5W+1H), `thinking-strategy` + `thinking-improvement`
+  (grounded lenses), `thinking-synthesis` (fuses). Same wasm, different persona — the "copas" recipe.
+- **White-label corpus** (`seeds/thinking/`, BILINGUAL EN+ID): 379 strategy patterns (from a public-domain
+  classic, per-verse, author/citations stripped) + 30 improvement patterns (distilled in our own words
+  from open process-improvement knowledge — no copyrighted book). NO brand names in the ingest data, only
+  the pattern. Provenance kept separately in `seeds/thinking/PROVENANCE.md` (not ingested).
+- **Bilingual fix**: FTS is lexical, so an Indonesian query missed an English-only corpus (recalled 0 →
+  ungrounded). Translated the corpus to Indonesian (faithful) and ingested both → Indonesian queries now
+  recall the right principles. `scripts/ingest-thinking-brains.sh` (idempotent, dedup by content hash,
+  byte-identical to the kernel's BrainAdd).
+
+- **`thinking` group orchestrator** (new, `templates/thinking-group/`): a SEQUENTIAL colony (the generic
+  group template is parallel-only + locked, untouched). Pipeline: questioner frames the 5W+1H → each lens
+  answers the subject + those questions → synthesizer fuses one decision. Reaches members only via the
+  loket bus. Reads its roster from its OWN loket store (the SAME store the Group Colony menu writes), so it
+  shows up in the colony AND is menu-editable: `members` = the editable lenses, `questioner`/`synthesizer`
+  are pipeline-role keys. Marked `group=1`. Deployed + registered in mr-flow's allowlist by
+  `scripts/setup-thinking-group.sh`.
+
+TESTED per-agent + end-to-end via the real loket (rpc → handle_message): strategy lens on an Indonesian
+dilemma → recalled 8, grounded (quotes real principles) · improvement lens → recalled 7, grounded ·
+anti-halu: asked for a live stock price + a recipe → it refused to fabricate and said it had no basis ·
+questioner → clean 5W+1H. Full GROUP pipeline (direct + via mr-flow chat path) verified: questioner →
+strategy + improvement → synthesis returns one grounded decision; proven by the members' stored
+last_message matching the chat subject (real chat path, not a direct call). Telegram routes to mr-flow-next.
+
 ## 2026-06-08 — Computer Operator: control your PC from chat (GROUP path)
 
 Roadmap: operate the host computer from a phone via Telegram. Architecture (owner-directed):
