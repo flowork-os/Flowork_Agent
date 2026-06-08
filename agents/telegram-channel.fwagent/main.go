@@ -351,6 +351,37 @@ func getUpdates(token string, offset int64, timeoutSec int) ([]tgUpdate, error) 
 	return env.Result, nil
 }
 
+// registerCommands auto-syncs the Telegram slash-command menu with the owner's
+// groups: it asks the target agent (Mr.Flow) for the group→command list over the
+// bus (the dumb pipe never needs to know the groups itself — isolation holds) and
+// forwards that list to Telegram's setMyCommands. So adding a group makes its slash
+// command appear automatically on the next boot.
+// registerCommands tries ONCE to sync the Telegram slash menu with Mr.Flow's groups.
+// Returns true on success. Called from the poll loop until it succeeds, so it never
+// blocks boot and naturally retries once Mr.Flow is reachable.
+func registerCommands(token, target string) bool {
+	r, err := loketCall("bus.request", map[string]any{"to": target, "payload": map[string]any{"text": "/__groupcmds__"}})
+	if err != nil {
+		return false
+	}
+	var outer struct {
+		Reply json.RawMessage `json:"reply"`
+	}
+	if json.Unmarshal(r, &outer) != nil || len(outer.Reply) == 0 {
+		return false
+	}
+	var inner struct {
+		Reply string `json:"reply"`
+	}
+	if json.Unmarshal(outer.Reply, &inner) != nil || !strings.HasPrefix(strings.TrimSpace(inner.Reply), "{") {
+		return false
+	}
+	// inner.Reply is already a setMyCommands body: {"commands":[…]}.
+	st, _ := hostFetch("POST", fmt.Sprintf("%s/bot%s/setMyCommands", tgBase(), token), map[string]string{"Content-Type": "application/json"}, []byte(inner.Reply))
+	fmt.Fprintf(os.Stderr, "[%s] setMyCommands status=%d\n", selfID(), st)
+	return st >= 200 && st < 300
+}
+
 func sendMessage(token string, chatID int64, text string) error {
 	// Telegram caps a message at 4096 chars; a long answer must be SPLIT into
 	// several messages (not truncated). Send each chunk in order.
@@ -431,7 +462,11 @@ func boot() {
 	fmt.Fprintf(os.Stderr, "[%s] live: target=%s allowed=%d\n", selfID(), target, len(allowed))
 	waitLoketReady()
 	var offset int64
+	registered := false
 	for {
+		if !registered { // sync the Telegram slash menu once Mr.Flow is reachable
+			registered = registerCommands(token, target)
+		}
 		updates, err := getUpdates(token, offset, pollTimeout)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "[%s] getUpdates: %v\n", selfID(), err)
