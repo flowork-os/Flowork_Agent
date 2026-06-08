@@ -176,7 +176,7 @@ func main() {
 	agentmgr.AgentIDsFunc = host.AgentIDs
 	agentmgr.Reload = host.ReloadAgent
 	// agent_command delegation tool: let router agent (Mr.Flow) invoke a
-	// specialist agent (operator-komputer) and relay the reply.
+	// specialist agent and relay the reply (power control is direct now, not delegated).
 	builtins.InvokeAgentFunc = host.InvokeAgentMessage
 	agentmgr.RetentionSweep = func(agentID string) (any, error) {
 		return host.RunRetentionForAgent(agentID)

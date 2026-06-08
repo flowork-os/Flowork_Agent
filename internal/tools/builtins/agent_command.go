@@ -15,9 +15,12 @@
 // synthesize a BUY/HOLD/AVOID decision). It does NOT fit ACTION dispatch like
 // "operate my computer". This tool is the action-dispatch counterpart: Mr.Flow
 // stays the single front-door (Telegram/GUI), recognizes an operation request,
-// and delegates it to the right operator agent (e.g. operator-komputer for
-// power control). The operator runs its OWN engine — its persona, its tools
-// (system_power), its safety prompts — and returns a reply Mr.Flow relays back.
+// and delegates it to a specialist agent that owns the right persona/tools. The
+// specialist runs its OWN engine — its persona, its tools, its safety prompts —
+// and returns a reply Mr.Flow relays back. NOTE: computer power/control is no
+// longer delegated — it is a FIRST-CLASS Mr.Flow tool now (system_power), so the
+// operator-komputer agent was retired. This tool remains for genuine specialist
+// delegation, not power control.
 //
 // SECURITY: capability `rpc:agent-invoke` — only granted to the router agent.
 // A normal agent can't invoke others. Self-invoke is rejected (no trivial
@@ -44,9 +47,9 @@ func (agentCommandTool) Name() string       { return "agent_command" }
 func (agentCommandTool) Capability() string { return "rpc:agent-invoke" }
 func (agentCommandTool) Schema() tools.Schema {
 	return tools.Schema{
-		Description: "Delegate a natural-language command to a specialist agent and get its reply back. Use this to ROUTE a request to an agent that owns the right tools/persona instead of doing it yourself. For any computer power/control request — shutdown, restart/reboot, sleep/suspend, lock screen, logout — delegate to agent_id=\"operator-komputer\" (it holds the power tool). Pass the user's request through as text; the operator will confirm and act. Relay the reply to the user verbatim.",
+		Description: "Delegate a natural-language command to a specialist agent and get its reply back. Use this to ROUTE a request to an agent that owns the right tools/persona instead of doing it yourself. NOTE: computer power/control (shutdown, restart, sleep, lock, logout) and opening apps are FIRST-CLASS tools now — use system_power / app_open directly, do NOT delegate those. This tool is for genuine specialist delegation. Pass the request through as text; relay the reply to the user verbatim.",
 		Params: []tools.Param{
-			{Name: "agent_id", Type: tools.ParamString, Description: "target agent id (e.g. operator-komputer)", Required: true},
+			{Name: "agent_id", Type: tools.ParamString, Description: "target specialist agent id", Required: true},
 			{Name: "text", Type: tools.ParamString, Description: "the command / request in natural language", Required: true},
 		},
 		Returns: "{agent_id, reply}",
