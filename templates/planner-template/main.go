@@ -94,6 +94,20 @@ func loketCall(capName string, args any) (json.RawMessage, error) {
 }
 
 func kvSet(k, v string) { _, _ = loketCall("store.kv.set", map[string]any{"k": k, "v": v}) }
+func kvDel(k string)    { _, _ = loketCall("store.kv.delete", map[string]any{"k": k}) }
+func kvList(prefix string) []string {
+	r, err := loketCall("store.kv.list", map[string]any{"prefix": prefix})
+	if err != nil {
+		return nil
+	}
+	var s struct {
+		Keys []string `json:"keys"`
+	}
+	if json.Unmarshal(r, &s) != nil {
+		return nil
+	}
+	return s.Keys
+}
 func kvGet(k string) string {
 	r, err := loketCall("store.kv.get", map[string]any{"k": k})
 	if err != nil {
@@ -168,6 +182,11 @@ func plan(goal string) {
 	}
 	if len(steps) == 0 { // model didn't number them → keep the raw draft as one step
 		steps = append(steps, step{N: 1, Text: strings.TrimSpace(draft), Status: "pending"})
+	}
+	// Clear ALL previous step keys (by prefix), so a new plan never leaves orphans.
+	// (Count-based clearing missed steps beyond the last plan's count — audit fix.)
+	for _, k := range kvList("step:") {
+		kvDel(k)
 	}
 	kvSet("plan_goal", goal)
 	kvSet("plan_count", strconv.Itoa(len(steps)))
