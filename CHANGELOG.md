@@ -1,3 +1,20 @@
+## 2026-06-09 — P2: plug-and-play approval policy (read-only exemption) + re-lock
+
+The approval gate is now EXTENSIBLE without unlocking the core. Owner unlocked sandbox_v3
+once, added two plug-and-play hooks, re-locked (freeze manifest updated, TestKernelFreeze
+passes: 27 core files match). Future permission policy = register a hook from a non-frozen
+file; never unlock again (documented in the locked file's header).
+
+- `requiresApproval()` is now the single approval chokepoint. Order: sensitive args
+  (state.db/passwd/sudoers) gate even reads (NOT loosened) → a provably read-only call is
+  exempt (keeps the approval prompt meaningful) → built-in sensitive tools → registered
+  ExtraGatePolicy. Hooks nil → exact legacy behaviour.
+- Hooks `tools.ReadOnlyClassifier` + `tools.ExtraGatePolicy` (set from non-frozen init).
+- `builtins/permission_policy.go` registers the read-only classifier: shell/bash via the
+  cmdsem structural parser (per-call), plus a conservative read-only tool list.
+- Tests: `sandbox_v3_policy_test.go` proves read-only exempt, sensitive-args gated even for
+  reads, non-sensitive mutations un-gated (legacy), and ExtraGatePolicy can add a gate.
+
 ## 2026-06-09 — P1: shell hardening via command semantics (new tool, lock-respecting)
 
 The locked `bash` tool blocks danger by substring, which leaks (`rm  -rf  /`, `${IFS}`,

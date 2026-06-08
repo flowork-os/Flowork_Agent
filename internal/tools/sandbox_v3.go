@@ -14,6 +14,24 @@
 //   2026-06-07 pre-freeze: normalizeForMatch di protectorBlockHit (collapse
 //   whitespace + Clean path) nutup evasi substring baseline (rm\t-rf, /etc/./x).
 //
+// === PLUG-AND-PLAY EXTENSION POINTS (added 2026-06-09, P2) — JANGAN UNLOCK LAGI ===
+//   File ini SEKARANG bisa di-extend TANPA di-unlock. Owner (Mr.Dev) buka lock SEKALI
+//   buat pasang 2 colokan, lalu di-lock lagi. AI MANAPUN ke depan: kalau mau ubah
+//   policy izin, REGISTER hook dari FILE NON-FROZEN (mis. builtins/permission_policy.go) —
+//   JANGAN modify file ini. Itu inti "Flowork plug-and-play".
+//
+//   1. `ReadOnlyClassifier func(toolName, args) bool` — set dari non-frozen init.
+//      Kalau sebuah call cuma BACA (read-only), dia GAK PERNAH butuh approval — biar
+//      prompt approval tetep bermakna (cuma mutasi nyata yang nginterupsi). Konservatif:
+//      kalau ragu → anggap mutasi. TIDAK melonggarkan sensitiveArgs (state.db/passwd/
+//      sudoers TETEP di-gate walau read).
+//   2. `ExtraGatePolicy func(toolName, args) bool` — set dari non-frozen init. Return
+//      true → call WAJIB lewat approval-queue. Buat nambah aturan "tool/op X butuh
+//      approval owner" tanpa nyentuh file beku ini.
+//   Keputusan approval terpusat di requiresApproval() di bawah — itu satu-satunya
+//   chokepoint; dua hook di atas ngasih extensibility-nya. Default (hook nil) =
+//   perilaku lama persis.
+//
 // sandbox_v3.go — Section 12 phase 3: audit + approval workflow.
 
 package tools
@@ -62,6 +80,34 @@ func isSensitiveTool(name string) bool {
 		return os.Getenv("FLOWORK_POWER_REQUIRE_APPROVAL") == "1"
 	}
 	return true
+}
+
+// ReadOnlyClassifier + ExtraGatePolicy — plug-and-play extension points (see header).
+// Set from NON-FROZEN init code; nil → exact legacy behaviour. Do NOT unlock this file
+// to change permission policy — register these instead.
+var (
+	ReadOnlyClassifier func(toolName string, args map[string]any) bool
+	ExtraGatePolicy    func(toolName string, args map[string]any) bool
+)
+
+// requiresApproval is the SINGLE chokepoint for "does this call need owner approval".
+// Order matters: sensitive ARGS (state.db/passwd/sudoers) are gated even for reads;
+// a provably read-only call is otherwise exempt (keeps the approval prompt meaningful);
+// then the built-in sensitive-tool list; then any registered extra policy.
+func requiresApproval(toolName string, args map[string]any) bool {
+	if isSensitiveArgs(args) {
+		return true // sensitive content is gated regardless of read/write
+	}
+	if ReadOnlyClassifier != nil && ReadOnlyClassifier(toolName, args) {
+		return false // provably read-only + no sensitive args → never gate
+	}
+	if isSensitiveTool(toolName) {
+		return true
+	}
+	if ExtraGatePolicy != nil {
+		return ExtraGatePolicy(toolName, args)
+	}
+	return false
 }
 
 // protectorBlockHit applies the IMMUTABLE Host Protection Gate baseline
@@ -165,8 +211,9 @@ func SandboxRunV3(ctx context.Context, t Tool, args map[string]any, opts Sandbox
 		return Result{}, fmt.Errorf("sandbox: blocked by host protection gate (%s)", rule)
 	}
 
-	// Sensitive pattern check (sensitive tool name OR sensitive args).
-	if isSensitiveTool(toolName) || isSensitiveArgs(args) {
+	// Approval gate — single chokepoint (read-only exempt, sensitive args/tools +
+	// any registered policy gated). Extensible via the plug-and-play hooks (header).
+	if requiresApproval(toolName, args) {
 		// Check approval queue.
 		approved, err := store.CheckApprovalByHash(toolName, argsHash)
 		if err == nil && approved {
