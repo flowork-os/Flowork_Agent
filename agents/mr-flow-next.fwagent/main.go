@@ -942,10 +942,59 @@ func handleGroupChat(groupID, userMsg string, chatID int64) {
 			ans = ans[:700] + " …"
 		}
 		newHist := hist + "User: " + userMsg + "\nTim: " + ans + "\n\n"
-		if len(newHist) > 2400 {
-			newHist = newHist[len(newHist)-2400:]
-		}
+		newHist = compactHist(newHist)
 		tkvSet(histKey, newHist)
 	}
 	emit(map[string]any{"reply": reply, "agent": selfID()})
+}
+
+// compactHist (P4 — context compaction): keep the rolling group-chat buffer bounded
+// WITHOUT a blind mid-content char cut. When it overflows, keep the newest turns
+// verbatim (on clean "\n\n" turn boundaries) and fold the older turns into a one-line
+// summary memo, so continuity survives. Only fires on overflow; the summary uses the
+// resilient llmComplete and degrades to a clean boundary drop if the model is busy.
+func compactHist(history string) string {
+	const capChars, keepChars = 2400, 1600
+	if len(history) <= capChars {
+		return history
+	}
+	turns := strings.Split(strings.TrimRight(history, "\n"), "\n\n")
+	keep := []string{}
+	total := 0
+	for i := len(turns) - 1; i >= 0; i-- {
+		if total+len(turns[i]) > keepChars && len(keep) > 0 {
+			old := strings.Join(turns[:i+1], "\n\n")
+			head := ""
+			if s := summarizeHist(old); s != "" {
+				head = "[ringkasan percakapan awal: " + s + "]\n\n"
+			}
+			return head + strings.Join(keep, "\n\n") + "\n\n"
+		}
+		keep = append([]string{turns[i]}, keep...) // prepend → chronological
+		total += len(turns[i])
+	}
+	return history
+}
+
+// summarizeHist compresses older turns into ONE memo line via the resilient LLM path.
+// "" on failure → caller degrades to a clean-boundary drop (never blocks the reply).
+func summarizeHist(old string) string {
+	r, err := llmComplete(map[string]any{"messages": []any{
+		map[string]any{"role": "system", "content": "Ringkas percakapan ini jadi SATU kalimat memo — fakta + keputusan penting saja, tanpa basa-basi. Bahasa ikut percakapan."},
+		map[string]any{"role": "user", "content": old},
+	}})
+	if err != nil {
+		return ""
+	}
+	var resp struct {
+		Content string `json:"content"`
+	}
+	if json.Unmarshal(r, &resp) != nil {
+		return ""
+	}
+	s := strings.TrimSpace(resp.Content)
+	if len(s) > 300 {
+		s = s[:300]
+	}
+	return s
 }

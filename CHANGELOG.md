@@ -1,3 +1,11 @@
+## 2026-06-09 — P4: context compaction for mr-flow's rolling memory
+
+mr-flow's group-chat buffer used a blind mid-content char cut at 2400 chars (could slice a
+turn in half). Now `compactHist`: on overflow, keep the newest turns verbatim on clean
+"\n\n" boundaries and fold the older turns into a one-line summary memo (via the resilient
+llmComplete), so continuity survives. Degrades to a clean-boundary drop if the model is busy
+— never blocks the reply. Isolated to mr-flow (its own folder).
+
 ## 2026-06-09 — P2: plug-and-play approval policy (read-only exemption) + re-lock
 
 The approval gate is now EXTENSIBLE without unlocking the core. Owner unlocked sandbox_v3
