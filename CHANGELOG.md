@@ -1,3 +1,17 @@
+## 2026-06-09 — P5 (cont.): bounded coordination lifecycle (stop-stuck + collect-partial)
+
+Completes the coordinator lifecycle on top of the FanoutStrategy hook — no further kernel
+unlock (new NON-FROZEN file in the loket package; freeze manifest unchanged, 27 files intact).
+
+- internal/loket/fanout_parallel.go — `ParallelFanout(budget, targets, invoke)`: runs members
+  concurrently and returns when all finish OR a budget elapses; a member that hangs is reported
+  as a budget-exceeded timeout while the rest still complete. This is the coordinator's
+  "stop / collect-partial" lifecycle — a council is never held hostage by one stuck member.
+- loket_wire.go registers it as the fan-out strategy; budget defaults to 120s, overridable via
+  FLOWORK_FANOUT_BUDGET (e.g. "90s") — plug-and-play, no recompile.
+- Tests (fanout_parallel_test.go): all-finish happy path + bounded path (fast member returns,
+  stuck member becomes a timeout). Build/vet clean, freeze intact, boot healthy.
+
 ## 2026-06-09 — P5: plug-and-play parallel coordination (bus.broadcast fan-out hook) + re-lock
 
 The kernel's bus.broadcast fanned out to colony members SERIALLY (hardcoded loop in a frozen

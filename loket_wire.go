@@ -17,7 +17,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 
 	"flowork-gui/internal/agentdb"
@@ -31,25 +30,19 @@ import (
 // init registers the PLUG-AND-PLAY parallel fan-out for bus.broadcast (P5). The
 // runtime instantiates a FRESH module per Call (unique name via atomic counter), so
 // invoking distinct colony members concurrently is safe — a council/group fans out in
-// parallel instead of one-at-a-time. Registered here (non-frozen) so the frozen kernel
+// parallel instead of one-at-a-time. It is also BOUNDED: a member that hangs is capped
+// by a budget and reported as a timeout while the rest still complete (the coordinator's
+// "stop / collect-partial" lifecycle). Registered here (non-frozen) so the frozen kernel
 // (internal/loket/providers.go) never needs editing again to change coordination.
 func init() {
-	loket.FanoutStrategy = func(targets []string, invoke func(string) (json.RawMessage, error)) []loket.FanoutBroadcastReply {
-		out := make([]loket.FanoutBroadcastReply, len(targets))
-		var wg sync.WaitGroup
-		for i, t := range targets {
-			wg.Add(1)
-			go func(idx int, target string) {
-				defer wg.Done()
-				r, err := invoke(target)
-				out[idx] = loket.FanoutBroadcastReply{Target: target, Reply: r}
-				if err != nil {
-					out[idx].Error = err.Error()
-				}
-			}(i, t)
+	budget := 120 * time.Second
+	if v := strings.TrimSpace(os.Getenv("FLOWORK_FANOUT_BUDGET")); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			budget = d
 		}
-		wg.Wait()
-		return out
+	}
+	loket.FanoutStrategy = func(targets []string, invoke func(string) (json.RawMessage, error)) []loket.FanoutBroadcastReply {
+		return loket.ParallelFanout(budget, targets, invoke)
 	}
 }
 
