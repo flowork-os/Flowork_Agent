@@ -1,3 +1,19 @@
+## 2026-06-09 — mr-flow becomes a capable 40-tool agent (two-tier principle)
+
+Owner principle: mr-flow is now a capable single agent holding 40 mature, first-class tools;
+groups (pasukan semut) stay reserved for special multi-viewpoint tasks (investment, thinking).
+
+- Exposed the curated 40 to mr-flow via per-agent tool **subscriptions in its OWN state.db**
+  (`scripts/setup-mrflow-40tools.sh`, source=curated40) — ISOLATED: other agents keep the 13-tool
+  core set (verified: thinking-strategy / investment-financials still expose 13).
+- Granted mr-flow the caps the 40 need, in its **own manifest**: `net:fetch` (web tools,
+  SSRF-guarded at the tool), `exec:power` (computer control, ARM + cancel-window), `exec:app`.
+  Execution is still gated per-tool by SandboxRunV3 + guardian — exposure is not a bypass.
+- Raised `maxExposedTools` 25→50 (a ceiling only; ants with no subscriptions stay at 13).
+- Tested via the real path (handle_message, identical to Telegram): mr-flow autonomously called
+  web_search — exercising the new net:fetch grant — and returned live results. tool.specs now
+  lists 41 (the 40 + core `now`).
+
 ## 2026-06-08 — groups get auto slash commands in Telegram
 
 Every group now gets a discoverable Telegram slash command automatically — no per-group code, no

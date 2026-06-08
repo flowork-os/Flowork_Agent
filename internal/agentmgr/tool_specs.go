@@ -33,7 +33,11 @@ var coreExposedTools = []string{
 	"telegram_send", "tool_search", "now",
 }
 
-const maxExposedTools = 25
+// maxExposedTools caps how many tool schemas an agent offers its LLM at once. A
+// capable agent (mr-flow holds ~40 first-class tools via subscriptions) needs the
+// higher ceiling; ants stay tiny because they have no subscriptions (core set only),
+// so raising the ceiling never bloats them.
+const maxExposedTools = 50
 
 // ToolSpecsHandler — GET /api/agents/tools/specs?id=<agent>
 // Return {tools: [<openai function schema>...], count}. Loopback-only (dipanggil

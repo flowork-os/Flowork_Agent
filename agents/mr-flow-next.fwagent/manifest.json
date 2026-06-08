@@ -12,7 +12,6 @@
   "memory_max_mb": 32,
   "timeout_call_ms": 300000,
   "capabilities_required": [
-    "net:fetch:http://127.0.0.1:1987/api/kernel/call",
     "state:read",
     "state:write",
     "time:read",
@@ -23,7 +22,10 @@
     "rpc:router:skill",
     "rpc:router:brain",
     "rpc:taskflow",
-    "rpc:agent-invoke"
+    "rpc:agent-invoke",
+    "net:fetch",
+    "exec:power",
+    "exec:app"
   ],
   "exposes_rpc": [
     {
@@ -31,18 +33,31 @@
       "description": "Handle one chat message through the loket: recall brain, inject doctrine + persona + real time, complete via the LLM service, remember the exchange.",
       "input_schema": {
         "type": "object",
-        "properties": { "text": { "type": "string" } },
-        "required": ["text"]
+        "properties": {
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ]
       },
       "output_schema": {
         "type": "object",
-        "properties": { "reply": { "type": "string" } }
+        "properties": {
+          "reply": {
+            "type": "string"
+          }
+        }
       }
     },
     {
       "name": "boot",
       "description": "No-op for now (no daemon). Telegram will arrive via a separate channel module in a later migration phase.",
-      "input_schema": { "type": "object", "properties": {} }
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
     }
   ]
 }
