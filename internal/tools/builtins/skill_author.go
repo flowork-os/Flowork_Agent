@@ -30,7 +30,11 @@ import (
 
 // skillDangerRe — dangerous syscall / exfil patterns (mirrors the pack Verifier's
 // red-flag set). A learned skill must never carry these.
-var skillDangerRe = regexp.MustCompile(`(?i)\b(rm\s+-rf|mkfs|:\(\)\s*\{|dd\s+if=|shutdown|reboot|chmod\s+\+?s|setuid|/etc/(passwd|shadow)|169\.254\.169\.254|curl\s+[^|]*\|\s*(sh|bash)|wget\s+[^|]*\|\s*(sh|bash))\b`)
+// NOTE: matches dangerous COMMAND patterns, not bare English words. (Bare
+// "shutdown"/"reboot" are intentionally NOT here — a skill describing computer
+// control legitimately mentions them, and real power execution is separately
+// gated by exec:power + FLOWORK_POWER_ARMED, not by a skill's text.)
+var skillDangerRe = regexp.MustCompile(`(?i)(\brm\s+-rf|\bmkfs\b|:\(\)\s*\{|\bdd\s+if=|\bchmod\s+\+?s\b|\bsetuid\b|/etc/(passwd|shadow)|169\.254\.169\.254|\bcurl\s+[^|]*\|\s*(sh|bash)|\bwget\s+[^|]*\|\s*(sh|bash))`)
 
 // skillInjectRe — prompt-injection / jailbreak phrasing (immune gate). A skill is
 // data the model reads every turn, so injection baked into one is a poisoning vector.

@@ -102,6 +102,8 @@ func Init() {
 	tools.Register(&codemapStatsTool{})
 	// Operator: host power control (system_power.go) — cap exec:power, ARM-gated.
 	tools.Register(&systemPowerTool{})
+	// Operator: launch whitelisted desktop apps (app_open.go) — cap exec:app.
+	tools.Register(&appOpenTool{})
 	// Router delegation (agent_command.go) — cap rpc:agent-invoke, Mr.Flow only.
 	tools.Register(&agentCommandTool{})
 }

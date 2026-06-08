@@ -54,6 +54,7 @@ m["capabilities_required"] = [
     "time:read",
     "rpc:router:brain",
     "exec:power",
+    "exec:app",
 ]
 json.dump(m, open(p, "w"), indent=2, ensure_ascii=False)
 open(p, "a").write("\n")
