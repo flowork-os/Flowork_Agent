@@ -1,3 +1,11 @@
+## 2026-06-08 — thinking reliability: cap caster at 2 lenses
+
+A complex subject made the caster pick 3 lenses -> 7 sequential LLM calls -> ~90s, tripping the
+kernel call deadline on the rpc path. Capped the cast to 2 lenses: the pipeline now finishes in
+~55s (well inside both the 90s rpc and 120s chat budgets) while still multi-lens + connector-bridge.
+Verified live: "launch vs a big competitor" -> 54s, no timeout, synth produced an explicit insight
+bridge + 5 concrete steps.
+
 ## 2026-06-08 — thinking audit pass: bug fix (planner orphan keys)
 
 Re-audit of the thinking-engine work. Result: frozen kernel intact (freeze_test passes, zero kernel/
