@@ -979,10 +979,16 @@ func isThinkingCommand(text string) bool {
 func isStockCommand(text string) bool {
 	s := strings.ToLower(text)
 	kw := []string{
-		"analisa saham", "analisis saham", "analisa emiten", "analisa investasi",
+		// "saham" / "emiten" with any common verb or framing — generous on purpose so
+		// casual phrasings ("analis saham bbca donk", "cek saham X") all route here.
+		"analis saham", "analisa saham", "analisis saham", "analisa emiten", "analisa investasi",
+		"cek saham", "liat saham", "lihat saham", "pantau saham", "review saham",
+		"prospek saham", "valuasi saham", "rekomendasi saham", "saham bagus",
+		"beli saham", "jual saham", "investasi saham", "invest saham", "invest di saham",
+		"main saham", "soal saham", "tentang saham", "gimana saham", "harga saham",
+		"analisa emiten", "cek emiten",
+		// English
 		"analyze stock", "analyse stock", "stock analysis", "analyze a stock",
-		"beli saham", "jual saham", "prospek saham", "valuasi saham", "rekomendasi saham",
-		"saham bagus", "investasi saham", "invest saham", "invest di saham",
 		"layak invest", "worth investing", "should i invest",
 	}
 	for _, k := range kw {
