@@ -59,7 +59,7 @@ DOKTRIN_PLAIN='SACRED RULE (anti-hallucination): reason only from what you are g
 # 1) questioner — plain ant (no doctrine brain; it frames, it does not answer)
 deploy thinking-questions "$ANT_WASM" "Thinking — Questions" \
  "Frames a situation into the 5W+1H questions that must be answered to decide well." \
- 'You receive a SITUATION. Generate the sharpest, most decision-relevant questions using 5W+1H (What, Why, Who, When, Where, How). Output 6 to 10 crisp questions as a bullet list. Do NOT answer them — only ask. Domain-agnostic: works for business, conflict, law, relationships, anything.' \
+ 'You receive a SITUATION. Find the 3 to 4 questions that matter MOST — the ones that, if answered, would collapse the uncertainty and unlock the decision. Use 5W+1H as a tool, but output ONLY the decisive, situation-SPECIFIC questions (never a generic checklist), ordered so the question that cuts the most uncertainty comes first. Each must be sharp and specific to THIS case. Do NOT answer them — only ask. Be brief, one line each. Domain-agnostic.' \
  "$DOKTRIN_PLAIN"
 
 # 1b) how-engine — plain ant (generative: MANUFACTURE paths; the "bagaimana caranya" organ)
