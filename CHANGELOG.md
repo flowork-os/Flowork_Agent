@@ -1,3 +1,22 @@
+## 2026-06-09 — Audit fix (P5): restore ant isolation + correct stop semantics
+
+Re-audit of the P5 lifecycle work found two defects I introduced; both fixed:
+
+1. ISOLATION REGRESSION: agent_run was added to coreExposedTools, leaking it to EVERY ant
+   (violates "ants stay tiny" + the explicit roadmap rule "don't edit global coreExposedTools").
+   Fix: removed from core; subscribed to mr-flow ONLY (scripts/setup-mrflow-40tools.sh + live db).
+   Verified: ant investment 13→12 tools (agent_run gone), mr-flow still 42 (via subscription).
+
+2. OVERCLAIM: changelog/docs said agent_run "stop is enforceable end-to-end, a colony member
+   checks its own status and aborts". FALSE — tools.WithStore is per-agent, so coordinator and
+   members have SEPARATE agent_runs tables; a stop in one store is invisible to another. Corrected
+   the header + schema: agent_run is durable lifecycle scoped to the CALLING agent's own store (an
+   agent resumes its OWN task; a coordinator keeps its OWN run ledger). In the synchronous kernel a
+   member runs to completion per Call (no mid-run polling), so a coordinator enforces stop via the
+   bounded fan-out (loket.ParallelFanout) + not re-invoking — NOT via members reading shared state.
+
+Re-audit clean: build/vet, all tests (loket/builtins/agentmgr), freeze 27 files, boot healthy.
+
 ## 2026-06-09 — P5 FINAL: durable agent lifecycle (stop + resume) — nothing deferred
 
 The last missing lifecycle piece: a durable record a long task / colony member can be

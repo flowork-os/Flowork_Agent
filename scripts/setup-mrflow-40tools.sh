@@ -17,6 +17,7 @@ TOOLS=(
   skill skill_search tool_search capabilities_list
   market_quote scanner_quick_scan code_scan
   telegram_send askuser
+  agent_run
 )
 sqlite3 "$DB" "CREATE TABLE IF NOT EXISTS tool_subscriptions(tool_name TEXT PRIMARY KEY, subscribed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, source TEXT NOT NULL DEFAULT 'manual', config TEXT NOT NULL DEFAULT '{}');" >/dev/null
 for t in "${TOOLS[@]}"; do

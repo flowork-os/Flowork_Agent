@@ -34,7 +34,7 @@ import (
 var coreExposedTools = []string{
 	"file_read", "file_write", "file_list", "grep", "glob",
 	"webfetch", "brain_search", "memory_get", "memory_set",
-	"telegram_send", "tool_search", "now", "agent_run",
+	"telegram_send", "tool_search", "now",
 }
 
 // maxExposedTools caps how many tool schemas an agent offers its LLM at once. A

@@ -1,17 +1,27 @@
-// agent_run.go — P5 final lifecycle: durable run state (stop + resume).
+// agent_run.go — P5 final lifecycle: durable run state (checkpoint / pause / resume / stop).
 //
 // The coordinator substrate already does parallel + bounded fan-out (loket). What was
-// missing for a real agent lifecycle is a DURABLE record a long task can be stopped and
-// RESUMED against:
+// missing for a real lifecycle is a DURABLE record a long task can be paused and RESUMED
+// against:
 //
-//   - stop  → an enforceable signal: a worker checks its run's state and aborts if
-//     it is "stopped" (the coordinator can halt a colony member that's no longer needed).
 //   - resume → a paused/interrupted task persists a checkpoint; resume hands that
 //     checkpoint back so the agent continues from where it left off instead of restarting.
+//   - stop → marks a run terminal so it is NOT resumed (resume on a stopped run returns
+//     "stopped" instead of reviving it).
+//
+// SCOPE (important — no overclaim): the registry lives in the CALLING agent's own store
+// (tools.FromStore). Stores are per-agent, so this is durable lifecycle for an agent's
+// OWN long task, and for a COORDINATOR (e.g. mr-flow) it is the coordinator's run ledger.
+// In the kernel's SYNCHRONOUS invoke model a colony member runs to completion within one
+// Call — it does not poll a shared table mid-run. So a coordinator enforces "stop" by (1)
+// the bounded fan-out abandoning a stuck member (loket.ParallelFanout) and (2) simply not
+// re-invoking a stopped run — NOT by members reading each other's stores. (A future shared
+// cross-agent registry, if ever needed, would be a separate coordination store, not this.)
 //
 // Plug-and-play + lock-respecting: a NEW builtin tool with its OWN table (agent_runs) on
 // the agent's own store — no kernel unlock, no change to any frozen/locked file. State
-// machine: pending → running → (paused ⇄ running) → done | stopped.
+// machine: pending → running → (paused ⇄ running) → done | stopped. Subscribed to mr-flow
+// (the coordinator) only — NOT in coreExposedTools, so ants stay tiny (isolation intact).
 package builtins
 
 import (
@@ -32,7 +42,7 @@ func (agentRunTool) Name() string       { return "agent_run" }
 func (agentRunTool) Capability() string { return "state:write" }
 func (agentRunTool) Schema() tools.Schema {
 	return tools.Schema{
-		Description: "Durable lifecycle for a long task or colony member so it can be STOPPED and RESUMED. Actions: create|start|checkpoint|pause|resume|stop|complete|status|list. 'resume' returns the saved checkpoint so the agent continues where it left off; 'stop' is an enforceable signal a worker checks to abort. Offline, per-agent (own table).",
+		Description: "Durable lifecycle for YOUR long task: checkpoint progress, then pause/resume/stop so it survives across turns. Actions: create|start|checkpoint|pause|resume|stop|complete|status|list. 'resume' returns the saved checkpoint so you continue where you left off; 'stop' marks the run terminal so it is not resumed. Offline, scoped to this agent's own store (a coordinator's run ledger).",
 		Params: []tools.Param{
 			{Name: "action", Type: tools.ParamString, Description: "create|start|checkpoint|pause|resume|stop|complete|status|list", Required: true},
 			{Name: "id", Type: tools.ParamString, Description: "run id (required for all but list)"},
