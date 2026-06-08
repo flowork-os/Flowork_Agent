@@ -1,3 +1,16 @@
+## 2026-06-09 — fold computer-control into mr-flow; trim redundant group
+
+Two-tier follow-through: mr-flow now holds system_power / app_open / system_health as
+first-class tools, so a single computer-control action no longer needs a colony.
+
+- Removed operasi-komputer-grup from mr-flow's delegation allowlist; deleted the redundant
+  group + operator-komputer executor agent (superseded — the safety lives in the
+  system_power TOOL itself: ARM switch + dry-run default + cancel-window + audit + argv
+  exec, not in the agent wrapper, so nothing is lost).
+- Persona updated: computer control → call the tool directly (app_open / system_power with
+  delay_seconds cancel-window / system_health), never a group. Groups now reserved strictly
+  for multi-viewpoint work (investment, thinking).
+
 ## 2026-06-09 — rate-limit resilience: mr-flow falls back instead of hanging (P0)
 
 When the premium model is throttled (429), mr-flow used to hang ~90s on the router's
