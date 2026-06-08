@@ -1,3 +1,10 @@
+// === LOCKED FILE ===
+// Status: STABLE — `thinking` group sequential orchestrator. ITEM 1 (how-stage)
+// done + tested end-to-end via chat path 2026-06-08 (questioner→how→lenses→synth,
+// ~50s, no timeout). Members run ONE AT A TIME (synchronous askMember = done-detector).
+// Unlock only with owner intent for ITEM 6-9 (bench/caster/connector reshape).
+// Rebuild: GOOS=wasip1 GOARCH=wasm go build -o agent.wasm .
+//
 // Package main is the Flowork "thinking" group — a SEQUENTIAL colony.
 //
 // Unlike the generic group template (which broadcasts one task to all members in
@@ -131,6 +138,7 @@ func askMember(to, subject string) string {
 // editable, no hardcoding). Defaults keep a fresh copy useful out of the box.
 type roster struct {
 	Questioner  string   `json:"questioner"`
+	How         string   `json:"how"`
 	Lenses      []string `json:"lenses"`
 	Synthesizer string   `json:"synthesizer"`
 }
@@ -142,11 +150,15 @@ type roster struct {
 func loadRoster() roster {
 	rs := roster{
 		Questioner:  "thinking-questions",
+		How:         "thinking-how",
 		Lenses:      []string{"thinking-strategy", "thinking-improvement"},
 		Synthesizer: "thinking-synthesis",
 	}
 	if q := kvGet("questioner"); q != "" {
 		rs.Questioner = q
+	}
+	if h := kvGet("how_agent"); h != "" {
+		rs.How = h
 	}
 	if s := kvGet("synthesizer"); s != "" {
 		rs.Synthesizer = s
@@ -211,20 +223,42 @@ func runThink(argsJSON string) {
 		questions = askMember(rs.Questioner, "Situasi:\n"+subject)
 	}
 
-	// Stage 2 — every lens answers the subject AND the questions, through its lens.
+	// Stage 1b — MANUFACTURE candidate paths ("bagaimana caranya") from subject + questions.
+	// This is the generator organ: it turns the framed problem into concrete routes, so the
+	// lenses below have real options to EVALUATE (not just the bare subject).
+	paths := ""
+	if rs.How != "" {
+		howTask := "Situasi/goal:\n" + subject
+		if questions != "" {
+			howTask += "\n\nPertanyaan kunci:\n" + questions
+		}
+		howTask += "\n\nManufaktur 3-5 jalan konkret yang BERBEDA untuk mencapai ini."
+		paths = askMember(rs.How, howTask)
+	}
+
+	// Stage 2 — every lens EVALUATES the subject, the questions, AND the candidate paths.
 	lensTask := "Subjek:\n" + subject
 	if questions != "" {
 		lensTask += "\n\nPertanyaan kunci yang perlu dijawab:\n" + questions
 	}
-	lensTask += "\n\nAnalisa subjek ini lewat lensa kamu, dan jawab pertanyaan-pertanyaan kunci di atas dari sudut pandang lensamu."
+	if paths != "" {
+		lensTask += "\n\nKandidat jalan yang diusulkan:\n" + paths
+	}
+	lensTask += "\n\nAnalisa subjek ini lewat lensa kamu, jawab pertanyaan kunci, dan nilai kandidat jalan di atas dari sudut pandang lensamu."
 
 	sections := []string{}
 	if questions != "" {
 		sections = append(sections, "### Pertanyaan kunci\n"+questions)
 	}
+	if paths != "" {
+		sections = append(sections, "### Kandidat jalan\n"+paths)
+	}
+	// Lenses run ONE AT A TIME (owner directive): askMember is synchronous — it returns
+	// only AFTER the member finished, so the call itself is the "done detector"; the
+	// next lens starts only once the previous one is complete. No concurrent members.
 	lensOut := map[string]string{}
 	for _, lens := range rs.Lenses {
-		ans := askMember(lens, lensTask)
+		ans := askMember(lens, lensTask) // blocks until this lens is DONE, then continue
 		if ans == "" {
 			ans = "(tidak ada jawaban)"
 		}

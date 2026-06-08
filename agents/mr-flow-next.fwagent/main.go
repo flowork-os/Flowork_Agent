@@ -318,6 +318,32 @@ func handleMessage(argsJSON string) {
 		return
 	}
 
+	// Thinking PRE-ROUTER (deterministic, before the LLM): when the owner explicitly
+	// asks to think a problem through ("pikirin pake tim thinking", "cara berpikir",
+	// "pikir mateng"), route straight to the `thinking` GROUP and return its SYNTH
+	// answer verbatim — no LLM hedging (so it reliably delegates) and no final LLM
+	// wrap (so the long multi-lens pipeline never trips mr-flow's response deadline).
+	if isThinkingCommand(in.Text) {
+		res := askGroup(json.RawMessage(`{"group":"thinking","subject":` + jsonStr(in.Text) + `}`))
+		reply := ""
+		var gr struct {
+			GroupResult string `json:"group_result"`
+			Error       string `json:"error"`
+		}
+		if json.Unmarshal([]byte(res), &gr) == nil {
+			if gr.GroupResult != "" {
+				reply = gr.GroupResult
+			} else if gr.Error != "" {
+				reply = "tim thinking error: " + gr.Error
+			}
+		}
+		if strings.TrimSpace(reply) == "" {
+			reply = "tim thinking ga ngasih jawaban."
+		}
+		emit(map[string]any{"reply": reply, "agent": selfID()})
+		return
+	}
+
 	// Doctrine is SACRED and injected FIRST — the always-on anti-halu layer.
 	doktrin := readWS("doktrin.md")
 	persona := readWS("prompt.md")
@@ -694,6 +720,26 @@ func isComputerCommand(text string) bool {
 		"logout", "log out",
 		"buka chrome", "buka vscode", "buka vs code", "buka code", "open chrome", "open vscode",
 		"batal matiin", "batal shutdown", "cancel shutdown",
+	}
+	for _, k := range kw {
+		if strings.Contains(s, k) {
+			return true
+		}
+	}
+	return false
+}
+
+// isThinkingCommand deterministically detects an explicit request to reason a
+// problem through with the `thinking` GROUP, so mr-flow delegates reliably instead
+// of the LLM choosing to answer (or ask back) on its own. Kept specific so it never
+// hijacks ordinary chat.
+func isThinkingCommand(text string) bool {
+	s := strings.ToLower(text)
+	kw := []string{
+		"tim thinking", "grup thinking", "group thinking", "thinking group",
+		"pake thinking", "pakai thinking", "lewat thinking", "minta thinking",
+		"cara berpikir", "pikirin mateng", "pikirin mateng", "pikir mateng",
+		"pikirkan matang", "pikir matang", "pikirin mendalam",
 	}
 	for _, k := range kw {
 		if strings.Contains(s, k) {

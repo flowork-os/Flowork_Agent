@@ -1,3 +1,30 @@
+## 2026-06-08 — thinking ROADMAP item 1: the "how" engine + reliable chat path
+
+Roadmap: `ROADMAP_THINKING.md` item 1 — give the thinking colony a generator organ.
+
+- **thinking-how agent** (new member, `scripts/setup-thinking.sh`): a tiny generative ant whose
+  only job is to MANUFACTURE 3 concrete, different paths ("bagaimana caranya") for a goal — it
+  generates options, it does not judge. The pipeline is now **questioner → HOW → lenses → synth**:
+  the lenses evaluate real candidate paths, not just the bare subject.
+- **Sequential, one-at-a-time** (owner directive): members run strictly one after another;
+  `askMember` is synchronous, so the call itself is the "done detector" — the next member starts
+  only after the previous one finished. (Briefly tried bus.broadcast/parallel — reverted; the
+  kernel broadcast is serial anyway and the owner wants one-at-a-time.)
+- **Deterministic thinking PRE-ROUTER in mr-flow** (`mr-flow-next/main.go`, mirrors the operator
+  pre-router): when the owner says "pikirin pake tim thinking" / "cara berpikir" / "pikir mateng",
+  mr-flow routes straight to the `thinking` group and returns its SYNTH answer verbatim — no LLM
+  hedging (so it reliably delegates) and no final LLM wrap (so the multi-lens pipeline never trips
+  mr-flow's response deadline).
+- **Latency fix**: the multi-lens pipeline was hitting the kernel's 90s call deadline (~90s of
+  serial LLM calls bloated by accumulated context). Tightened each member's OUTPUT (how=3 brief
+  paths, lenses=3 one-line bullets, synth=concise) → pipeline dropped **90s → ~42-50s**, well
+  inside budget. No kernel edit (frozen) — fixed purely in personas (live-read from prompt.md).
+
+TESTED end-to-end via the chat path (mr-flow handle, the Telegram-equivalent entry): "pikirin pake
+tim thinking: …" → full pipeline ran in ~50s, no timeout; thinking-how's stored last_message = the
+subject and the synthesizer received the candidate paths (hard proof it flowed through the colony,
+not a direct call). LOCKED thinking-group orchestrator after test.
+
 ## 2026-06-08 — `thinking` group: the owner's way of thinking, as a colony (agents ready)
 
 Roadmap (owner-directed, part of Flowork's "ruh"/soul): a GROUP `thinking` that encodes a way of
