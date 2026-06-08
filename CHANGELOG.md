@@ -1,3 +1,15 @@
+## 2026-06-08 — thinking ROADMAP item 3: the "how" doctrine + safety guard
+
+Roadmap: `ROADMAP_THINKING.md` item 3. A SACRED doctrine on the LLM organs (thinking-how,
+thinking-synthesis via a new `DOKTRIN_HOW`; mr-flow's `doktrin.md` point 4): never accept
+"impossible" as the final answer — convert it to "BAGAIMANA caranya?" and produce paths. Only two
+things let it stop and admit it honestly can't be done: (a) PROVEN impossible (a real math/physics
+wall), or (b) the only path is FATAL/irreversible (destroys the person, their conscience, or
+others). And every "how" must be TESTABLE (pay rent) — no wishful steps. This makes the colony
+structurally unable to surrender, while the guard keeps it an inventor, not a crank. Doctrine-only
+(live-read). TESTED: how-agent given "1M subs in 30 days, impossible right?" → replied "TIDAK 'ga
+mungkin' — ini CARANYA:" + concrete testable paths (did not surrender).
+
 ## 2026-06-08 — thinking ROADMAP item 2: sharper questioner (not a monotone checklist)
 
 Roadmap: `ROADMAP_THINKING.md` item 2. The questioner (`thinking-questions`) no longer dumps a
