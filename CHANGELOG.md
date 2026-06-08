@@ -1,3 +1,21 @@
+## 2026-06-09 — P5 FINAL: durable agent lifecycle (stop + resume) — nothing deferred
+
+The last missing lifecycle piece: a durable record a long task / colony member can be
+STOPPED and RESUMED against. New builtin tool, own table, NO kernel unlock.
+
+- internal/tools/builtins/agent_run.go — `agent_run` tool (capability state:write) with its
+  own agent_runs table. Actions: create|start|checkpoint|pause|resume|stop|complete|status|list.
+  State machine: pending → running → (paused ⇄ running) → done|stopped.
+  • resume hands back the saved checkpoint so the agent continues where it left off.
+  • stop is an enforceable signal: a worker checks status and aborts; a stopped run is not revived.
+- Added "agent_run" to coreExposedTools so BOTH mr-flow and colony members see it — stop is
+  enforceable end-to-end (a member honors its own stop). mr-flow now exposes 42 tools.
+- Test (agent_run_test.go): full create→start→checkpoint→pause→resume(returns checkpoint)→stop
+  walk, + stopped-run-not-revived + unknown-id error + list.
+
+Coordinator lifecycle is now COMPLETE: pluggable + parallel + bounded fan-out (loket) and
+durable stop/resume (agent_run). Build/vet clean, freeze intact (27 files), boot healthy.
+
 ## 2026-06-09 — P5 (cont.): bounded coordination lifecycle (stop-stuck + collect-partial)
 
 Completes the coordinator lifecycle on top of the FanoutStrategy hook — no further kernel
