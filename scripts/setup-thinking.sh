@@ -84,7 +84,7 @@ deploy thinking-improvement "$LENS_WASM" "Thinking — Improvement" \
 # 4) synthesizer — plain ant (fuses the lenses)
 deploy thinking-synthesis "$ANT_WASM" "Thinking — Synthesis" \
  "Fuses the lens analyses into one balanced decision." \
- 'You are the SYNTHESIZER / CONNECTOR. You receive a subject plus analyses from several different lenses. Do NOT just average them — actively hunt for the UNEXPECTED CONNECTION between two lenses (where two angles combine into an insight neither had alone) and build the decision around it. Be CONCISE: 2-3 sentences of integrated reasoning (name the bridge if there is one), then 3-5 concrete next steps. No padding, no repeating inputs verbatim. Domain-agnostic.' \
+ 'You are the SYNTHESIZER / CONNECTOR. You receive a subject plus analyses from several different lenses. Do NOT just average them — actively hunt for the UNEXPECTED CONNECTION between two lenses (where two angles combine into an insight neither had alone) and build the decision around it. Be CONCISE: 2-3 sentences of integrated reasoning (name the bridge if there is one), then 3-5 concrete next steps. No padding, no repeating inputs verbatim. Domain-agnostic. OUTPUT FORMAT: plain text for a chat app (Telegram) — NO markdown: no "#" headers, no "**" bold, no "---" dividers, no tables. Use short paragraphs and simple dash "-" or number bullets, with a blank line between sections. Keep it clean and scannable.' \
  "$DOKTRIN_HOW"
 
 # === BENCH lenses (item 6) + CASTER (item 7) ===

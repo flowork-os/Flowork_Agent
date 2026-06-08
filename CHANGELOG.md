@@ -1,3 +1,16 @@
+## 2026-06-08 — thinking display fixes (clean Telegram output)
+
+Three fixes so the colony's answer reads cleanly in a chat app:
+- **newlines preserved**: mr-flow's askGroup used jsonEsc (which flattens \n to spaces) to wrap the
+  group result, turning a formatted answer into one wall of text. Switched to proper JSON marshal
+  (jsonStr) — line breaks survive.
+- **markdown stripped**: the model keeps emitting "#"/"**"/"---" which Telegram shows raw. Added
+  plainify() in mr-flow (applied to the thinking reply) to strip headers/bold/rules to clean text
+  with simple "-" bullets; the synthesizer persona also asks for plain chat text.
+- **long messages chunked**: Telegram caps a message at 4096 chars; the channel used to TRUNCATE at
+  3900 ("…(truncated)"). Now sendMessage splits into <=3900-char chunks on newline boundaries and
+  sends them in order. Verified: a 9265-char text -> 3 messages, largest 3851, content intact.
+
 ## 2026-06-08 — thinking reliability: cap caster at 2 lenses
 
 A complex subject made the caster pick 3 lenses -> 7 sequential LLM calls -> ~90s, tripping the
