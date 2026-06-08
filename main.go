@@ -60,6 +60,7 @@ import (
 	"flowork-gui/internal/httpx"
 	"flowork-gui/internal/kernel/loader"
 	"flowork-gui/internal/kernelhost"
+	"flowork-gui/internal/marketdata"
 	"flowork-gui/internal/mcphub"
 	"flowork-gui/internal/scanapi"
 	"flowork-gui/internal/scheduler"
@@ -642,6 +643,9 @@ func main() {
 	mux.HandleFunc("/api/scanner/packs/install", scanapi.ScannerPackInstallHandler())            // kind:scanner .fwpack plug-and-play
 	mux.HandleFunc("/api/scanner/packs/uninstall", scanapi.ScannerPackUninstallHandler())
 	mux.HandleFunc("/api/scanner/packs/installed", scanapi.ScannerPacksInstalledHandler())
+	// MARKET DATA (investment team "eyes"): read-through Yahoo proxy (cookie+crumb
+	// server-side) so WASM analyst agents just GET this on localhost. Non-frozen.
+	mux.HandleFunc("/api/market/quote", marketdata.QuoteHandler())
 	// TRIGGER (ROADMAP 3): otomasi event→aksi (plug-and-play, agnostic). Schedule = tipe `time`.
 	mux.HandleFunc("/api/triggers", triggersHandler(trigEngine))
 	mux.HandleFunc("/api/triggers/delete", triggersDeleteHandler(trigEngine))
