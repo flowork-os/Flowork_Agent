@@ -1,3 +1,16 @@
+## 2026-06-08 — thinking audit pass: bug fix (planner orphan keys)
+
+Re-audit of the thinking-engine work. Result: frozen kernel intact (freeze_test passes, zero kernel/
+loket/floworkauth/sandbox files touched), all wasm builds + `go vet` clean, every new agent has only
+minimal GrantAuto caps (brain/kv/llm/bus — no exec/tool.run/privileged), caster output validated
+against the bench ids (no arbitrary-agent injection), pattern-wiring kv is bounded (≤6 neighbors,
+≤200-char content), and the full chat path still works end-to-end.
+
+One real bug found + fixed: the planner left **orphan `step:N` keys** when a new plan had fewer steps
+than a previous one (count-based clearing only removed up to the last plan's count). Fixed to clear
+ALL `step:` keys by prefix (`store.kv.list` + `store.kv.delete`) before writing a new plan —
+verified: step keys now always equal plan_count, no orphans.
+
 ## 2026-06-08 — thinking ROADMAP item 10-15 COMPLETE: pattern-level self-wiring + spreading
 
 Roadmap: `ROADMAP_THINKING.md` items 10-15 — the deep self-wiring, now done at the PATTERN level in
