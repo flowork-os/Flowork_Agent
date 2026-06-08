@@ -6,7 +6,9 @@
 
 ### The self-hosted **operating system for AI agents** you actually own.
 
-*Sandboxed AI agents with a **brain that never forgets**, a **conscience that never lies**, and a body that runs **offline on your hardware**. Plug-and-play tools, scanners, channels & MCP servers. One Go binary. No SaaS. No telemetry. No lock-in.*
+*Sandboxed AI agents with a **brain that never forgets**, a **conscience that never lies**, a memory that turns **mistakes into lessons** (not shame), and a body that runs **offline on your hardware**. Plug-and-play tools, scanners, channels & MCP servers. One Go binary. No SaaS. No telemetry. No lock-in.*
+
+### 🧯 *Errors become **education**, not failure to hide — a redemptive, second-chance brain.* — [read the blueprint →](EDUCATIONAL_ERRORS.md)
 
 [![Go](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go&logoColor=white)](https://go.dev)
 [![WASM](https://img.shields.io/badge/runtime-WASM%20(wazero)-654FF0)](https://wazero.io)
@@ -16,8 +18,9 @@
 [![Single Binary](https://img.shields.io/badge/deploy-single%20binary-success)]()
 [![Platform](https://img.shields.io/badge/os-Linux%20%7C%20macOS%20%7C%20Windows-blue)]()
 [![Self-Protecting](https://img.shields.io/badge/kernel-frozen%20%2B%20guarded-22ff88)]()
+[![Educational Errors](https://img.shields.io/badge/errors-%E2%86%92%20education-ff7a45)](EDUCATIONAL_ERRORS.md)
 
-**self-hosted AI agent · local-first AI agent framework · self-improving agent memory · multi-agent orchestration · MCP client & server · Telegram / Discord / Slack / WhatsApp / CLI AI bot · sovereign voice (offline STT + free TTS) · 117 built-in tools · plug-and-play tools / slash / scanners / channels / agents / apps · WASM-sandboxed · built-in security scanner · frozen self-guarding kernel (tamper → safe-mode) · 100% offline-capable · OpenClaw alternative · Hermes Agent alternative**
+**self-hosted AI agent · local-first AI agent framework · self-improving agent memory · multi-agent orchestration · MCP client & server · Telegram / Discord / Slack / WhatsApp / CLI AI bot · sovereign voice (offline STT + free TTS) · 117 built-in tools · plug-and-play tools / slash / scanners / channels / agents / apps · WASM-sandboxed · built-in security scanner · frozen self-guarding kernel (tamper → safe-mode) · educational errors (mistakes → lessons, redemptive) · learns from its own mistakes at runtime · 100% offline-capable · OpenClaw alternative · Hermes Agent alternative**
 
 ```bash
 git clone https://github.com/flowork-os/Flowork_Agent.git && cd Flowork_Agent && ./start.sh
