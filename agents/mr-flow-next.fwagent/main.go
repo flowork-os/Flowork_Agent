@@ -283,6 +283,17 @@ func handleMessage(argsJSON string) {
 
 	// Slash commands (/cmd …) are dispatched by the engine slash registry, NOT the
 	// LLM — deterministic, reliable, independent of the model.
+	// Thinking SLASH command (/thinking <problem>) — discoverable in Telegram's menu,
+	// so users never have to memorize a magic keyword. Checked before the generic
+	// slash handler so it isn't swallowed.
+	if subj, ok := stripThinkingSlash(in.Text); ok {
+		if subj == "" {
+			emit(map[string]any{"reply": "Kasih gw masalahnya, bro 🙂\nContoh:\n/thinking gimana caranya naikin omzet warung kopi 2x dalam 3 bulan tanpa modal?", "agent": selfID()})
+			return
+		}
+		handleThinking(subj, in.ChatID)
+		return
+	}
 	if strings.HasPrefix(in.Text, "/") {
 		emit(map[string]any{"reply": slashRun(in.Text), "agent": selfID()})
 		return
@@ -325,50 +336,7 @@ func handleMessage(argsJSON string) {
 	// answer verbatim — no LLM hedging (so it reliably delegates) and no final LLM
 	// wrap (so the long multi-lens pipeline never trips mr-flow's response deadline).
 	if isThinkingCommand(in.Text) {
-		// MEMORY: keep a short rolling conversation per chat so the colony can CONTINUE
-		// a diagnosis (multi-turn) instead of starting from zero every message.
-		histKey := "think_hist:" + strconv.FormatInt(in.ChatID, 10)
-		low := strings.ToLower(in.Text)
-		if strings.Contains(low, "topik baru") || strings.Contains(low, "mulai baru") || strings.Contains(low, "reset") {
-			tkvSet(histKey, "") // explicit fresh start
-		}
-		hist := tkvGet(histKey)
-		subject := in.Text
-		if strings.TrimSpace(hist) != "" {
-			subject = "Konteks percakapan thinking sebelumnya (LANJUTKAN dari sini, jangan ulang dari nol):\n" +
-				hist + "=== Pesan terbaru user ===\n" + in.Text
-		}
-		res := askGroup(json.RawMessage(`{"group":"thinking","subject":` + jsonStr(subject) + `}`))
-		reply := ""
-		var gr struct {
-			GroupResult string `json:"group_result"`
-			Error       string `json:"error"`
-		}
-		if json.Unmarshal([]byte(res), &gr) == nil {
-			if gr.GroupResult != "" {
-				reply = gr.GroupResult
-			} else if gr.Error != "" {
-				reply = "tim thinking error: " + gr.Error
-			}
-		}
-		if strings.TrimSpace(reply) == "" {
-			reply = "tim thinking ga ngasih jawaban."
-		} else {
-			reply = plainify(reply) // strip markdown → clean Telegram text
-		}
-		// Append this turn to the rolling history (bounded — keep the tail).
-		if !strings.HasPrefix(reply, "tim thinking error") && !strings.HasPrefix(reply, "tim thinking ga") {
-			ans := reply
-			if len(ans) > 700 {
-				ans = ans[:700] + " …"
-			}
-			newHist := hist + "User: " + in.Text + "\nTim: " + ans + "\n\n"
-			if len(newHist) > 2400 {
-				newHist = newHist[len(newHist)-2400:]
-			}
-			tkvSet(histKey, newHist)
-		}
-		emit(map[string]any{"reply": reply, "agent": selfID()})
+		handleThinking(in.Text, in.ChatID)
 		return
 	}
 
@@ -786,6 +754,76 @@ func tkvGet(k string) string {
 	return s.Value
 }
 func tkvSet(k, v string) { _, _ = loketCall("store.kv.set", map[string]any{"k": k, "v": v}) }
+
+// stripThinkingSlash recognizes the discoverable Telegram slash command
+// (/thinking <problem>, also /think /pikir /mikir, with optional @botname) and
+// returns the problem text. So users don't have to memorize a magic phrase.
+func stripThinkingSlash(text string) (string, bool) {
+	t := strings.TrimSpace(text)
+	if !strings.HasPrefix(t, "/") {
+		return "", false
+	}
+	cmd, rest := t, ""
+	if i := strings.IndexAny(t, " \n"); i >= 0 {
+		cmd, rest = t[:i], strings.TrimSpace(t[i+1:])
+	}
+	if i := strings.Index(cmd, "@"); i >= 0 { // strip @botname (groups)
+		cmd = cmd[:i]
+	}
+	switch strings.ToLower(cmd) {
+	case "/thinking", "/think", "/pikir", "/mikir":
+		return rest, true
+	}
+	return "", false
+}
+
+// handleThinking runs the thinking colony for one user message, with per-chat
+// rolling memory so it can continue a multi-turn diagnosis. Used by BOTH the slash
+// command and the legacy keyword trigger.
+func handleThinking(userMsg string, chatID int64) {
+	userMsg = strings.TrimSpace(userMsg)
+	histKey := "think_hist:" + strconv.FormatInt(chatID, 10)
+	low := strings.ToLower(userMsg)
+	if strings.Contains(low, "topik baru") || strings.Contains(low, "mulai baru") || strings.Contains(low, "reset") {
+		tkvSet(histKey, "") // explicit fresh start
+	}
+	hist := tkvGet(histKey)
+	subject := userMsg
+	if strings.TrimSpace(hist) != "" {
+		subject = "Konteks percakapan thinking sebelumnya (LANJUTKAN dari sini, jangan ulang dari nol):\n" +
+			hist + "=== Pesan terbaru user ===\n" + userMsg
+	}
+	res := askGroup(json.RawMessage(`{"group":"thinking","subject":` + jsonStr(subject) + `}`))
+	reply := ""
+	var gr struct {
+		GroupResult string `json:"group_result"`
+		Error       string `json:"error"`
+	}
+	if json.Unmarshal([]byte(res), &gr) == nil {
+		if gr.GroupResult != "" {
+			reply = gr.GroupResult
+		} else if gr.Error != "" {
+			reply = "tim thinking error: " + gr.Error
+		}
+	}
+	if strings.TrimSpace(reply) == "" {
+		reply = "tim thinking ga ngasih jawaban."
+	} else {
+		reply = plainify(reply)
+	}
+	if !strings.HasPrefix(reply, "tim thinking error") && !strings.HasPrefix(reply, "tim thinking ga") {
+		ans := reply
+		if len(ans) > 700 {
+			ans = ans[:700] + " …"
+		}
+		newHist := hist + "User: " + userMsg + "\nTim: " + ans + "\n\n"
+		if len(newHist) > 2400 {
+			newHist = newHist[len(newHist)-2400:]
+		}
+		tkvSet(histKey, newHist)
+	}
+	emit(map[string]any{"reply": reply, "agent": selfID()})
+}
 
 // isComputerCommand deterministically detects a host power/app control request, so
 // mr-flow routes it straight to the operasi-komputer-grup GROUP instead of letting
