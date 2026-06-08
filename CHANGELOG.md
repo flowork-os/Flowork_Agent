@@ -1,3 +1,18 @@
+## 2026-06-08 — thinking ROADMAP item 10-15: self-wiring SEED (firing creates wiring)
+
+Roadmap: `ROADMAP_THINKING.md` items 10-15 (the "self-wiring" Horizon — which the roadmap itself says
+to START SMALL, after the base is solid). Seed delivered: the thinking group now LEARNS from use.
+On a SUCCESSFUL session (a real final answer), it strengthens the co-activation edge between the
+lenses that fired together — "firing creates wiring", grounded by success — stored in the group's
+loket kv (`wire:<a>|<b>` = weight). No kernel change (frozen), no lens change (the working RAG lenses
+are untouched), so zero risk to items 1-9. TESTED: same subject run twice → caster picked
+[influence, first-principles] both times → the edge weight went 1 → 2 (it strengthens with repeated
+successful co-activation).
+
+This is the start-small seed of items 10/11/13 at the LENS level. The deeper Horizon remains: pattern
+/drawer-level brain edges, connector bridges stored as edges (12), pruning/decay (14), and
+spreading-activation retrieval (15) — those need lens-brain changes and are the next Horizon step.
+
 ## 2026-06-08 — thinking ROADMAP item 6-9: bench of lenses + caster + connector + influence
 
 Roadmap: `ROADMAP_THINKING.md` items 6-9 — the thinking group becomes a real "invention machine".

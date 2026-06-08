@@ -1,8 +1,9 @@
 // === LOCKED FILE ===
-// Status: STABLE — `thinking` group sequential orchestrator. ITEM 1 + 6-7-8 done +
-// tested 2026-06-08. Pipeline: questioner → how → CASTER (picks 2-3 bench lenses for
-// the subject) → chosen lenses (ONE AT A TIME, synchronous askMember = done-detector) →
-// CONNECTOR-synth. Bench/caster/lenses default in loadRoster, overridable via loket kv.
+// Status: STABLE — `thinking` group sequential orchestrator. ITEM 1 + 6-7-8 + 10-11/13
+// seed done + tested 2026-06-08. Pipeline: questioner → how → CASTER (picks ≤3 bench
+// lenses) → chosen lenses (ONE AT A TIME, synchronous askMember = done-detector) →
+// CONNECTOR-synth → recordWiring (lens co-activation edge, success-gated, kv). Bench/
+// caster/lenses default in loadRoster, overridable via loket kv.
 // Do not edit without owner approval. Rebuild: GOOS=wasip1 GOARCH=wasm go build -o agent.wasm .
 //
 // Package main is the Flowork "thinking" group — a SEQUENTIAL colony.
@@ -29,6 +30,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"unsafe"
 )
@@ -47,6 +49,28 @@ func kvGet(k string) string {
 		return ""
 	}
 	return strings.TrimSpace(s.Value)
+}
+
+func kvSet(k, v string) { _, _ = loketCall("store.kv.set", map[string]any{"k": k, "v": v}) }
+
+// recordWiring is the self-wiring SEED (ROADMAP_THINKING.md item 10-11/13, start-small):
+// "firing creates wiring." On a SUCCESSFUL session (we got a real final answer), strengthen
+// the co-activation edge between every pair of lenses that fired together. Grounded by
+// success (only on a real answer), stored in kv (no kernel change, no lens change). The
+// caster/connector can later read these edges to pick + bridge faster. Pattern-level brain
+// edges + spreading-activation retrieval remain the deeper Horizon.
+func recordWiring(lenses []string) {
+	for i := 0; i < len(lenses); i++ {
+		for j := i + 1; j < len(lenses); j++ {
+			a, b := lenses[i], lenses[j]
+			if a > b {
+				a, b = b, a
+			}
+			key := "wire:" + a + "|" + b
+			n, _ := strconv.Atoi(strings.TrimSpace(kvGet(key)))
+			kvSet(key, strconv.Itoa(n+1))
+		}
+	}
 }
 
 //go:wasmimport flowork host_net_fetch
@@ -293,8 +317,8 @@ func runThink(argsJSON string) {
 		}
 		if len(cast) > 0 {
 			lenses = cast
-			if len(lenses) > 4 {
-				lenses = lenses[:4]
+			if len(lenses) > 3 { // cap: keep the pipeline inside the call deadline
+				lenses = lenses[:3]
 			}
 		}
 	}
@@ -342,6 +366,10 @@ func runThink(argsJSON string) {
 		// Synthesizer down → degrade to the gathered sections.
 		emit(map[string]any{"group": selfID(), "reply": combined, "questions": questions, "lenses": lensOut, "synth_error": "synthesizer no reply"})
 		return
+	}
+	// Success (real final answer) → wire the lenses that fired together (item 10-11/13).
+	if len(lenses) >= 2 {
+		recordWiring(lenses)
 	}
 	emit(map[string]any{"group": selfID(), "synthesizer": rs.Synthesizer, "reply": final, "questions": questions, "cast": lenses, "lenses": lensOut})
 }
