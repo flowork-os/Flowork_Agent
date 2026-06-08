@@ -84,10 +84,40 @@ deploy thinking-improvement "$LENS_WASM" "Thinking — Improvement" \
 # 4) synthesizer — plain ant (fuses the lenses)
 deploy thinking-synthesis "$ANT_WASM" "Thinking — Synthesis" \
  "Fuses the lens analyses into one balanced decision." \
- 'You are the SYNTHESIZER. You receive a subject plus analyses from a strategy lens and an improvement lens. Weave them into ONE coherent decision. Be CONCISE: 2-3 sentences of integrated reasoning, then 3-5 concrete next steps as a short list. No padding, no repeating the inputs verbatim. Balance both lenses. Domain-agnostic.' \
+ 'You are the SYNTHESIZER / CONNECTOR. You receive a subject plus analyses from several different lenses. Do NOT just average them — actively hunt for the UNEXPECTED CONNECTION between two lenses (where two angles combine into an insight neither had alone) and build the decision around it. Be CONCISE: 2-3 sentences of integrated reasoning (name the bridge if there is one), then 3-5 concrete next steps. No padding, no repeating inputs verbatim. Domain-agnostic.' \
  "$DOKTRIN_HOW"
 
-# Seed the two grounded lenses with their white-label corpora (travels with the agent).
+# === BENCH lenses (item 6) + CASTER (item 7) ===
+
+# influence lens — RAG, grounded in the persuasion corpus (truthful persuasion; gate = honesty)
+deploy thinking-influence "$LENS_WASM" "Thinking — Influence" \
+ "How to persuade/move people, grounded in persuasion principles. Gate: every claim must be TRUE." \
+ 'You analyze a subject through an INFLUENCE/persuasion lens, grounded ONLY in the principles retrieved into your context (reciprocity, framing/anchoring, social proof, scarcity, liking, commitment, loss-aversion). Give sharp, ethical persuasion guidance: how to present the TRUTH so it lands and moves people. Max 3 tight bullets, one line each. HARD GATE: never suggest a false claim or over-promise — persuasion yes, lying no. If the principles do not cover it, say so — never invent.' \
+ "$DOKTRIN_GROUNDED"
+
+# inversion lens — method ant (no corpus): what makes this FAIL?
+deploy thinking-inversion "$ANT_WASM" "Thinking — Inversion" \
+ "Looks at a subject backwards: what would make it fail, and how to avoid that." \
+ 'You analyze a subject by INVERSION: instead of how to succeed, ask what would make it FAIL, then how to avoid those failures. Give the top 2-3 failure modes and the one move that defuses each. Max 3 tight bullets, one line each, specific to THIS subject. Domain-agnostic.' \
+ "$DOKTRIN_PLAIN"
+
+# first-principles lens — method ant: strip to fundamentals
+deploy thinking-firstprinciples "$ANT_WASM" "Thinking — First Principles" \
+ "Strips a subject to undeniable fundamentals and rebuilds from there." \
+ 'You analyze a subject from FIRST PRINCIPLES: strip away every assumption until only what is undeniably true remains, then reason UP from those fundamentals. State the 2-3 bedrock truths, then the conclusion they force. Max 3 tight bullets, one line each. Domain-agnostic.' \
+ "$DOKTRIN_PLAIN"
+
+# caster — method ant (item 7): pick which lenses are relevant for THIS subject
+deploy thinking-caster "$ANT_WASM" "Thinking — Caster" \
+ "Given a subject + the bench of lenses, picks the 2-3 most relevant ids." \
+ 'You receive a SITUATION and a list of available thinking lenses (each as "id: what it is good for"). Choose the 2 or 3 lenses MOST relevant to THIS situation. Output ONLY their ids separated by commas (e.g. "thinking-strategy,thinking-influence"), nothing else — no explanation, no extra text.' \
+ "$DOKTRIN_PLAIN"
+
+# Seed the grounded lenses with their white-label corpora (travels with the agent).
+if [ -f "$SEEDS/influence.jsonl" ]; then
+  cp "$SEEDS/influence.jsonl" "$AGENTS/thinking-influence.fwagent/workspace/seed.jsonl"
+  echo "→ seeded thinking-influence ($(wc -l < "$SEEDS/influence.jsonl") patterns staged)"
+fi
 if [ -f "$SEEDS/strategy.jsonl" ]; then
   cp "$SEEDS/strategy.jsonl"    "$AGENTS/thinking-strategy.fwagent/workspace/seed.jsonl"
   echo "→ seeded thinking-strategy ($(wc -l < "$SEEDS/strategy.jsonl") patterns staged)"

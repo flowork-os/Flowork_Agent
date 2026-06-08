@@ -1,3 +1,25 @@
+## 2026-06-08 — thinking ROADMAP item 6-9: bench of lenses + caster + connector + influence
+
+Roadmap: `ROADMAP_THINKING.md` items 6-9 — the thinking group becomes a real "invention machine".
+
+- **ITEM 6 — bench of lenses**: the colony now has a growing roster of lenses (strategy, improvement,
+  influence, inversion, first-principles), each a tiny ant; adding one is just a new persona.
+- **ITEM 7 — CASTER** (`thinking-caster`): given the subject + the bench (id: what each is good for),
+  it picks the 2-3 MOST relevant lenses, and only those run. So the bench can grow without every
+  question paying for every lens (big bench, small council). Falls back to fixed lenses if unset.
+- **ITEM 8 — CONNECTOR**: the synthesizer no longer averages — it hunts for the UNEXPECTED bridge
+  between two lenses (where two angles combine into an insight neither had alone) and builds the
+  decision around it. (Persona upgrade on thinking-synthesis.)
+- **ITEM 9 — influence lens** (`thinking-influence`, grounded): a persuasion lens seeded from a
+  white-label bilingual corpus (reciprocity, framing/anchoring, social proof, scarcity, liking,
+  commitment, loss-aversion, …). HARD GATE = honesty: persuade freely, but every claim must be TRUE —
+  never over-promise or fabricate. ("Highlight strength without over-promise.")
+
+Pipeline now: questioner → how → CASTER → 2-3 chosen lenses (one at a time) → CONNECTOR-synth.
+TESTED: a closing/persuasion subject → caster picked [influence, inversion], synth produced an
+explicit "Insight Bridge" connecting the two lenses (not an average); a competitor-price subject via
+the chat path → ran ~63s, no timeout. Group orchestrator updated + re-locked.
+
 ## 2026-06-08 — thinking ROADMAP item 4-5: planner + deterministic todo-store
 
 Roadmap: `ROADMAP_THINKING.md` items 4-5 — the PLAN half of disciplined execution, as a reusable

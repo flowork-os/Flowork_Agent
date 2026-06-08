@@ -1,9 +1,9 @@
 // === LOCKED FILE ===
-// Status: STABLE — `thinking` group sequential orchestrator. ITEM 1 (how-stage)
-// done + tested end-to-end via chat path 2026-06-08 (questioner→how→lenses→synth,
-// ~50s, no timeout). Members run ONE AT A TIME (synchronous askMember = done-detector).
-// Unlock only with owner intent for ITEM 6-9 (bench/caster/connector reshape).
-// Rebuild: GOOS=wasip1 GOARCH=wasm go build -o agent.wasm .
+// Status: STABLE — `thinking` group sequential orchestrator. ITEM 1 + 6-7-8 done +
+// tested 2026-06-08. Pipeline: questioner → how → CASTER (picks 2-3 bench lenses for
+// the subject) → chosen lenses (ONE AT A TIME, synchronous askMember = done-detector) →
+// CONNECTOR-synth. Bench/caster/lenses default in loadRoster, overridable via loket kv.
+// Do not edit without owner approval. Rebuild: GOOS=wasip1 GOARCH=wasm go build -o agent.wasm .
 //
 // Package main is the Flowork "thinking" group — a SEQUENTIAL colony.
 //
@@ -136,11 +136,20 @@ func askMember(to, subject string) string {
 
 // roster is who plays which role — read from workspace/roster.json (transparent,
 // editable, no hardcoding). Defaults keep a fresh copy useful out of the box.
+// benchLens is one lens available on the bench: its id + a short note on what it is
+// good for, so the caster can pick the relevant ones for a given subject.
+type benchLens struct {
+	ID   string
+	Desc string
+}
+
 type roster struct {
-	Questioner  string   `json:"questioner"`
-	How         string   `json:"how"`
-	Lenses      []string `json:"lenses"`
-	Synthesizer string   `json:"synthesizer"`
+	Questioner  string
+	How         string
+	Caster      string      // picks which bench lenses run for THIS subject (item 7)
+	Bench       []benchLens // the full set of available lenses (item 6)
+	Lenses      []string    // fallback fixed lenses if no caster/bench
+	Synthesizer string
 }
 
 // loadRoster reads who plays which role from this group's OWN loket store — the
@@ -151,6 +160,14 @@ func loadRoster() roster {
 	rs := roster{
 		Questioner:  "thinking-questions",
 		How:         "thinking-how",
+		Caster:      "thinking-caster",
+		Bench: []benchLens{
+			{"thinking-strategy", "strategi: posisi & taktik melawan saingan, menang dengan biaya minimal"},
+			{"thinking-improvement", "perbaikan bertahap: jadi lebih baik lewat langkah kecil konsisten"},
+			{"thinking-influence", "pengaruh/persuasi: cara meyakinkan & menggerakkan orang (jujur)"},
+			{"thinking-inversion", "inversi: apa yang bikin gagal, lalu cara menghindarinya"},
+			{"thinking-firstprinciples", "prinsip dasar: kupas ke fundamental, bangun ulang dari situ"},
+		},
 		Lenses:      []string{"thinking-strategy", "thinking-improvement"},
 		Synthesizer: "thinking-synthesis",
 	}
@@ -159,6 +176,24 @@ func loadRoster() roster {
 	}
 	if h := kvGet("how_agent"); h != "" {
 		rs.How = h
+	}
+	if c := kvGet("caster"); c != "" {
+		rs.Caster = c
+	}
+	if b := kvGet("bench"); b != "" {
+		bench := []benchLens{}
+		for _, part := range strings.Split(b, ";") {
+			if part = strings.TrimSpace(part); part == "" {
+				continue
+			}
+			id, desc, _ := strings.Cut(part, ":")
+			if id = strings.TrimSpace(id); id != "" {
+				bench = append(bench, benchLens{ID: id, Desc: strings.TrimSpace(desc)})
+			}
+		}
+		if len(bench) > 0 {
+			rs.Bench = bench
+		}
 	}
 	if s := kvGet("synthesizer"); s != "" {
 		rs.Synthesizer = s
@@ -236,6 +271,34 @@ func runThink(argsJSON string) {
 		paths = askMember(rs.How, howTask)
 	}
 
+	// Stage 1c — CASTER picks which bench lenses are relevant for THIS subject (item 7):
+	// run 2-3 relevant lenses instead of the whole bench, so the bench can grow without
+	// every question paying for every lens. Falls back to the fixed lenses if no caster.
+	lenses := rs.Lenses
+	cast := []string{}
+	if rs.Caster != "" && len(rs.Bench) > 0 {
+		var bl strings.Builder
+		ids := map[string]bool{}
+		for _, b := range rs.Bench {
+			bl.WriteString(b.ID + ": " + b.Desc + "\n")
+			ids[b.ID] = true
+		}
+		pick := askMember(rs.Caster, "Situasi:\n"+subject+"\n\nLensa tersedia:\n"+bl.String()+"\nPilih 2-3 id paling relevan.")
+		for _, raw := range strings.FieldsFunc(pick, func(r rune) bool {
+			return r == ',' || r == '\n' || r == ' ' || r == ';' || r == '"' || r == '`'
+		}) {
+			if id := strings.TrimSpace(raw); ids[id] {
+				cast = append(cast, id)
+			}
+		}
+		if len(cast) > 0 {
+			lenses = cast
+			if len(lenses) > 4 {
+				lenses = lenses[:4]
+			}
+		}
+	}
+
 	// Stage 2 — every lens EVALUATES the subject, the questions, AND the candidate paths.
 	lensTask := "Subjek:\n" + subject
 	if questions != "" {
@@ -257,7 +320,7 @@ func runThink(argsJSON string) {
 	// only AFTER the member finished, so the call itself is the "done detector"; the
 	// next lens starts only once the previous one is complete. No concurrent members.
 	lensOut := map[string]string{}
-	for _, lens := range rs.Lenses {
+	for _, lens := range lenses {
 		ans := askMember(lens, lensTask) // blocks until this lens is DONE, then continue
 		if ans == "" {
 			ans = "(tidak ada jawaban)"
@@ -280,5 +343,5 @@ func runThink(argsJSON string) {
 		emit(map[string]any{"group": selfID(), "reply": combined, "questions": questions, "lenses": lensOut, "synth_error": "synthesizer no reply"})
 		return
 	}
-	emit(map[string]any{"group": selfID(), "synthesizer": rs.Synthesizer, "reply": final, "questions": questions, "lenses": lensOut})
+	emit(map[string]any{"group": selfID(), "synthesizer": rs.Synthesizer, "reply": final, "questions": questions, "cast": lenses, "lenses": lensOut})
 }
