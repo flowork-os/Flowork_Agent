@@ -186,13 +186,13 @@ func loadRoster() roster {
 		How:         "thinking-how",
 		Caster:      "thinking-caster",
 		Bench: []benchLens{
-			{"thinking-strategy", "strategi: posisi & taktik melawan saingan, menang dengan biaya minimal"},
-			{"thinking-improvement", "perbaikan bertahap: jadi lebih baik lewat langkah kecil konsisten"},
-			{"thinking-influence", "pengaruh/persuasi: cara meyakinkan & menggerakkan orang (jujur)"},
-			{"thinking-inversion", "inversi: apa yang bikin gagal, lalu cara menghindarinya"},
-			{"thinking-firstprinciples", "prinsip dasar: kupas ke fundamental, bangun ulang dari situ"},
+			{"thinking-strategy", "strategy: positioning & tactics vs rivals, win at least cost"},
+			{"thinking-improvement", "continuous improvement: get better via small consistent steps"},
+			{"thinking-influence", "influence/persuasion: how to convince & move people (honestly)"},
+			{"thinking-inversion", "inversion: what would make this fail, and how to avoid it"},
+			{"thinking-firstprinciples", "first principles: strip to fundamentals, rebuild from there"},
 		},
-		Lenses:      []string{"thinking-strategy", "thinking-improvement"},
+		Lenses: []string{"thinking-strategy", "thinking-improvement", "thinking-influence", "thinking-inversion", "thinking-firstprinciples"},
 		Synthesizer: "thinking-synthesis",
 	}
 	if q := kvGet("questioner"); q != "" {
@@ -279,7 +279,7 @@ func runThink(argsJSON string) {
 	// Stage 1 — frame the subject into the key questions.
 	questions := ""
 	if rs.Questioner != "" {
-		questions = askMember(rs.Questioner, "Situasi:\n"+subject)
+		questions = askMember(rs.Questioner, "Situation:\n"+subject)
 	}
 
 	// Stage 1b — MANUFACTURE candidate paths ("bagaimana caranya") from subject + questions.
@@ -287,11 +287,11 @@ func runThink(argsJSON string) {
 	// lenses below have real options to EVALUATE (not just the bare subject).
 	paths := ""
 	if rs.How != "" {
-		howTask := "Situasi/goal:\n" + subject
+		howTask := "Situation/goal:\n" + subject
 		if questions != "" {
-			howTask += "\n\nPertanyaan kunci:\n" + questions
+			howTask += "\n\nKey questions:\n" + questions
 		}
-		howTask += "\n\nManufaktur 3-5 jalan konkret yang BERBEDA untuk mencapai ini."
+		howTask += "\n\nManufacture 3 to 5 concrete, DIFFERENT paths to reach this."
 		paths = askMember(rs.How, howTask)
 	}
 
@@ -307,7 +307,7 @@ func runThink(argsJSON string) {
 			bl.WriteString(b.ID + ": " + b.Desc + "\n")
 			ids[b.ID] = true
 		}
-		pick := askMember(rs.Caster, "Situasi:\n"+subject+"\n\nLensa tersedia:\n"+bl.String()+"\nPilih 2-3 id paling relevan.")
+		pick := askMember(rs.Caster, "Situation:\n"+subject+"\n\nAvailable lenses:\n"+bl.String()+"\nPick the 2-3 most relevant ids.")
 		for _, raw := range strings.FieldsFunc(pick, func(r rune) bool {
 			return r == ',' || r == '\n' || r == ' ' || r == ';' || r == '"' || r == '`'
 		}) {
@@ -324,21 +324,21 @@ func runThink(argsJSON string) {
 	}
 
 	// Stage 2 — every lens EVALUATES the subject, the questions, AND the candidate paths.
-	lensTask := "Subjek:\n" + subject
+	lensTask := "Subject:\n" + subject
 	if questions != "" {
-		lensTask += "\n\nPertanyaan kunci yang perlu dijawab:\n" + questions
+		lensTask += "\n\nKey questions to address:\n" + questions
 	}
 	if paths != "" {
-		lensTask += "\n\nKandidat jalan yang diusulkan:\n" + paths
+		lensTask += "\n\nProposed candidate paths:\n" + paths
 	}
-	lensTask += "\n\nAnalisa subjek ini lewat lensa kamu, jawab pertanyaan kunci, dan nilai kandidat jalan di atas dari sudut pandang lensamu."
+	lensTask += "\n\nAnalyze this subject through your lens, answer the key questions, and evaluate the candidate paths above from your lens point of view."
 
 	sections := []string{}
 	if questions != "" {
-		sections = append(sections, "### Pertanyaan kunci\n"+questions)
+		sections = append(sections, "### Key questions\n"+questions)
 	}
 	if paths != "" {
-		sections = append(sections, "### Kandidat jalan\n"+paths)
+		sections = append(sections, "### Candidate paths\n"+paths)
 	}
 	// Lenses run ONE AT A TIME (owner directive): askMember is synchronous — it returns
 	// only AFTER the member finished, so the call itself is the "done detector"; the
@@ -347,7 +347,7 @@ func runThink(argsJSON string) {
 	for _, lens := range lenses {
 		ans := askMember(lens, lensTask) // blocks until this lens is DONE, then continue
 		if ans == "" {
-			ans = "(tidak ada jawaban)"
+			ans = "(no answer)"
 		}
 		lensOut[lens] = ans
 		sections = append(sections, "### "+lens+"\n"+ans)
@@ -359,8 +359,8 @@ func runThink(argsJSON string) {
 		emit(map[string]any{"group": selfID(), "reply": combined, "questions": questions, "lenses": lensOut})
 		return
 	}
-	synthInput := "Subjek:\n" + subject + "\n\nHasil tiap sudut pandang:\n\n" + combined +
-		"\n\nGabungkan jadi SATU keputusan utuh: alasan ringkas + langkah konkret."
+	synthInput := "Subject:\n" + subject + "\n\nFindings from each lens:\n\n" + combined +
+		"\n\nFuse these into ONE coherent decision: brief reasoning + concrete next steps."
 	final := askMember(rs.Synthesizer, synthInput)
 	if final == "" {
 		// Synthesizer down → degrade to the gathered sections.

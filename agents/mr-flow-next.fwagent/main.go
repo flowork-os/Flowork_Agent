@@ -277,7 +277,7 @@ func handleMessage(argsJSON string) {
 	_ = json.Unmarshal([]byte(argsJSON), &in)
 	in.Text = strings.TrimSpace(in.Text)
 	if in.Text == "" {
-		emit(map[string]any{"reply": "(pesan kosong)", "agent": selfID()})
+		emit(map[string]any{"reply": "(empty message)", "agent": selfID()})
 		return
 	}
 
@@ -297,7 +297,7 @@ func handleMessage(argsJSON string) {
 			if i := strings.IndexAny(c, " \n"); i >= 0 {
 				c = c[:i]
 			}
-			emit(map[string]any{"reply": "Kasih gw masalahnya, bro 🙂\nContoh:\n" + c + " gimana caranya naikin omzet 2x dalam 3 bulan tanpa modal?", "agent": selfID()})
+			emit(map[string]any{"reply": "Send me the problem 🙂\nExample:\n" + c + " how do I double revenue in 3 months with no capital?", "agent": selfID()})
 			return
 		}
 		handleGroupChat(gid, subj, in.ChatID)
@@ -369,7 +369,7 @@ func handleMessage(argsJSON string) {
 	if mem != "" {
 		msgs = append(msgs, map[string]any{
 			"role":    "system",
-			"content": "[INGATAN terkait dari brain lo — pakai kalau relevan, jangan ngarang di luar ini]:\n" + mem,
+			"content": "[Relevant MEMORY from your brain — use if relevant, do not invent beyond this]:\n" + mem,
 		})
 	}
 	// PRIMARY privilege: pull grounding from the 5M shared corpus. Refused (and
@@ -378,7 +378,7 @@ func handleMessage(argsJSON string) {
 	if shared != "" {
 		msgs = append(msgs, map[string]any{
 			"role":    "system",
-			"content": "[REFERENSI dari korpus bersama 5jt — bahan grounding, WAJIB verifikasi sebelum diklaim sebagai fakta, jangan telan mentah]:\n" + shared,
+			"content": "[REFERENCE from the shared 5M corpus — grounding material, MUST verify before claiming as fact, do not swallow raw]:\n" + shared,
 		})
 	}
 	// Multi-turn: replay the recent conversation turns so the agent is NOT stateless
@@ -524,12 +524,12 @@ func toolSpecs() []json.RawMessage {
 			"type": "function",
 			"function": map[string]any{
 				"name":        "ask_group",
-				"description": "Delegasikan analisa MENDALAM ke sebuah GROUP (koloni agent yang ngerjain banyak sudut pandang lalu digabung synthesizer). Pakai kalau user minta analisa yang cocok salah satu group ini:\n" + strings.Join(lines, "\n"),
+				"description": "Delegate DEEP analysis to a GROUP (a colony of agents that work multiple viewpoints, then merged by a synthesizer). Use when the user asks for analysis that fits one of these groups:\n" + strings.Join(lines, "\n"),
 				"parameters": map[string]any{
 					"type": "object",
 					"properties": map[string]any{
-						"group":   map[string]any{"type": "string", "description": "id group tujuan (salah satu dari daftar)"},
-						"subject": map[string]any{"type": "string", "description": "subjek / pertanyaan yang mau dianalisa group"},
+						"group":   map[string]any{"type": "string", "description": "target group id (one from the list)"},
+						"subject": map[string]any{"type": "string", "description": "the subject / question for the group to analyze"},
 					},
 					"required": []string{"group", "subject"},
 				},
@@ -886,8 +886,8 @@ func handleGroupChat(groupID, userMsg string, chatID int64) {
 	}
 	subject := userMsg
 	if mem && strings.TrimSpace(hist) != "" {
-		subject = "Konteks percakapan sebelumnya (LANJUTKAN dari sini, jangan ulang dari nol):\n" +
-			hist + "=== Pesan terbaru user ===\n" + userMsg
+		subject = "Earlier conversation context (CONTINUE from here, do not start over):\n" +
+			hist + "=== Latest user message ===\n" + userMsg
 	}
 	res := askGroup(json.RawMessage(`{"group":` + jsonStr(groupID) + `,"subject":` + jsonStr(subject) + `}`))
 	reply := ""
@@ -899,15 +899,15 @@ func handleGroupChat(groupID, userMsg string, chatID int64) {
 		if gr.GroupResult != "" {
 			reply = gr.GroupResult
 		} else if gr.Error != "" {
-			reply = "grup error: " + gr.Error
+			reply = "group error: " + gr.Error
 		}
 	}
 	if strings.TrimSpace(reply) == "" {
-		reply = "grup ga ngasih jawaban."
+		reply = "The group returned no answer."
 	} else {
 		reply = plainify(reply)
 	}
-	if mem && !strings.HasPrefix(reply, "grup error") && !strings.HasPrefix(reply, "grup ga") {
+	if mem && !strings.HasPrefix(reply, "group error") && !strings.HasPrefix(reply, "The group returned no answer") {
 		ans := reply
 		if len(ans) > 700 {
 			ans = ans[:700] + " …"

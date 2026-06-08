@@ -46,11 +46,11 @@ set_kv() { sqlite3 "$1" "PRAGMA busy_timeout=30000;
   INSERT INTO kv(k,v) VALUES('$2','$3') ON CONFLICT(k) DO UPDATE SET v=excluded.v;" >/dev/null; }
 set_kv "$GLOKET" group "1"
 set_kv "$GLOKET" display_name "Thinking"
-set_kv "$GLOKET" members "thinking-strategy,thinking-improvement"
+set_kv "$GLOKET" members "thinking-strategy,thinking-improvement,thinking-influence,thinking-inversion,thinking-firstprinciples"
 set_kv "$GLOKET" questioner "thinking-questions"
 set_kv "$GLOKET" how_agent "thinking-how"
 set_kv "$GLOKET" synthesizer "thinking-synthesis"
-set_kv "$GLOKET" task "Rumuskan pertanyaan kunci, tinjau lewat tiap lensa, lalu sintesis jadi satu keputusan."
+set_kv "$GLOKET" task "Frame the key questions, view the subject through each grounded lens, then synthesize one decision."
 echo "→ marked group=1 + roster in loket store (menu-visible + menu-editable)"
 
 # Register the group in Mr.Flow's OWN allowlist (kv "groups" = "id|command|desc;…").
@@ -58,7 +58,7 @@ echo "→ marked group=1 + roster in loket store (menu-visible + menu-editable)"
 # to this group, and telegram-channel auto-registers it in the slash menu on boot.
 MFLOKET="$AGENTS/mr-flow-next.fwagent/workspace/loket.db"
 COMMAND="thinking"
-DESC="Mikir bareng tim thinking (strategi, perbaikan, persuasi) — multi-turn"
+DESC="Think with the thinking team (strategy, improvement, influence) — multi-turn"
 ENTRY="$GID|$COMMAND|$DESC"
 if [ -f "$MFLOKET" ]; then
   cur=$(sqlite3 "$MFLOKET" "SELECT v FROM kv WHERE k='groups';" 2>/dev/null || true)
