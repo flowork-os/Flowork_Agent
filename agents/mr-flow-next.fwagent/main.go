@@ -283,15 +283,24 @@ func handleMessage(argsJSON string) {
 
 	// Slash commands (/cmd …) are dispatched by the engine slash registry, NOT the
 	// LLM — deterministic, reliable, independent of the model.
-	// Thinking SLASH command (/thinking <problem>) — discoverable in Telegram's menu,
-	// so users never have to memorize a magic keyword. Checked before the generic
-	// slash handler so it isn't swallowed.
-	if subj, ok := stripThinkingSlash(in.Text); ok {
+	// Internal: telegram-channel fetches the group→command list here (over the bus)
+	// to auto-sync the Telegram slash menu. Not user-facing.
+	if strings.TrimSpace(in.Text) == "/__groupcmds__" {
+		emit(map[string]any{"reply": groupCommandsJSON(), "agent": selfID()})
+		return
+	}
+	// GROUP SLASH command (/<cmd> <problem>) — discoverable in Telegram's menu, for ANY
+	// owner-listed group. Checked before the generic slash handler so it isn't swallowed.
+	if gid, subj, ok := stripGroupSlash(in.Text); ok {
 		if subj == "" {
-			emit(map[string]any{"reply": "Kasih gw masalahnya, bro 🙂\nContoh:\n/thinking gimana caranya naikin omzet warung kopi 2x dalam 3 bulan tanpa modal?", "agent": selfID()})
+			c := in.Text
+			if i := strings.IndexAny(c, " \n"); i >= 0 {
+				c = c[:i]
+			}
+			emit(map[string]any{"reply": "Kasih gw masalahnya, bro 🙂\nContoh:\n" + c + " gimana caranya naikin omzet 2x dalam 3 bulan tanpa modal?", "agent": selfID()})
 			return
 		}
-		handleThinking(subj, in.ChatID)
+		handleGroupChat(gid, subj, in.ChatID)
 		return
 	}
 	if strings.HasPrefix(in.Text, "/") {
@@ -336,7 +345,7 @@ func handleMessage(argsJSON string) {
 	// answer verbatim — no LLM hedging (so it reliably delegates) and no final LLM
 	// wrap (so the long multi-lens pipeline never trips mr-flow's response deadline).
 	if isThinkingCommand(in.Text) {
-		handleThinking(in.Text, in.ChatID)
+		handleGroupChat("thinking", in.Text, in.ChatID)
 		return
 	}
 
@@ -534,12 +543,38 @@ func toolSpecs() []json.RawMessage {
 }
 
 // groupRef is one delegable GROUP: its id + a short description for the LLM.
-type groupRef struct{ ID, Desc string }
+type groupRef struct {
+	ID, Command, Desc string
+	Memory            bool // conversational memory on by default; "nomem" groups (executors) skip it
+}
 
-// availableGroups reads which GROUPs this orchestrator may delegate to from its
-// OWN config (store.kv "groups" = "id:desc;id:desc"). Config-driven: adding a
-// group is owner config, never a code change, and Mr.Flow can reach ONLY the
-// groups the owner listed.
+// deriveCommand turns a group id into a clean Telegram slash command (a-z0-9_, the
+// first segment) when the allowlist entry doesn't declare one explicitly.
+func deriveCommand(id string) string {
+	seg := id
+	if i := strings.Index(seg, "-"); i > 0 {
+		seg = seg[:i]
+	}
+	var b strings.Builder
+	for _, r := range strings.ToLower(seg) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' {
+			b.WriteRune(r)
+		}
+	}
+	cmd := b.String()
+	if cmd == "" {
+		cmd = "group"
+	}
+	if len(cmd) > 32 {
+		cmd = cmd[:32]
+	}
+	return cmd
+}
+
+// availableGroups reads which GROUPs this orchestrator may delegate to from its OWN
+// config (store.kv "groups"). Each entry is "id|command|desc" (or legacy "id:desc",
+// where the command is derived from the id). Config-driven: adding a group is owner
+// config, never a code change, and Mr.Flow reaches ONLY the groups the owner listed.
 func availableGroups() []groupRef {
 	r, err := loketCall("store.kv.get", map[string]any{"k": "groups"})
 	if err != nil {
@@ -557,12 +592,35 @@ func availableGroups() []groupRef {
 		if part == "" {
 			continue
 		}
-		id, desc := part, ""
-		if i := strings.Index(part, ":"); i > 0 {
-			id = strings.TrimSpace(part[:i])
-			desc = strings.TrimSpace(part[i+1:])
+		g := groupRef{Memory: true}
+		if strings.Contains(part, "|") {
+			f := strings.SplitN(part, "|", 4)
+			g.ID = strings.TrimSpace(f[0])
+			if len(f) > 1 {
+				g.Command = strings.TrimSpace(f[1])
+			}
+			if len(f) > 2 {
+				g.Desc = strings.TrimSpace(f[2])
+			}
+			if len(f) > 3 {
+				if flag := strings.ToLower(strings.TrimSpace(f[3])); flag == "nomem" || flag == "raw" {
+					g.Memory = false
+				}
+			}
+		} else { // legacy "id:desc"
+			g.ID = part
+			if i := strings.Index(part, ":"); i > 0 {
+				g.ID = strings.TrimSpace(part[:i])
+				g.Desc = strings.TrimSpace(part[i+1:])
+			}
 		}
-		out = append(out, groupRef{ID: id, Desc: desc})
+		if g.ID == "" {
+			continue
+		}
+		if g.Command == "" {
+			g.Command = deriveCommand(g.ID)
+		}
+		out = append(out, g)
 	}
 	return out
 }
@@ -755,13 +813,14 @@ func tkvGet(k string) string {
 }
 func tkvSet(k, v string) { _, _ = loketCall("store.kv.set", map[string]any{"k": k, "v": v}) }
 
-// stripThinkingSlash recognizes the discoverable Telegram slash command
-// (/thinking <problem>, also /think /pikir /mikir, with optional @botname) and
-// returns the problem text. So users don't have to memorize a magic phrase.
-func stripThinkingSlash(text string) (string, bool) {
+// stripGroupSlash recognizes a GROUP slash command (/<command> <problem>, with the
+// optional @botname form in groups) and maps it to the group id — for ANY group the
+// owner listed. So every group gets a discoverable command automatically; no per-group
+// code. Returns (groupID, problem, ok).
+func stripGroupSlash(text string) (groupID, subject string, ok bool) {
 	t := strings.TrimSpace(text)
 	if !strings.HasPrefix(t, "/") {
-		return "", false
+		return "", "", false
 	}
 	cmd, rest := t, ""
 	if i := strings.IndexAny(t, " \n"); i >= 0 {
@@ -770,30 +829,67 @@ func stripThinkingSlash(text string) (string, bool) {
 	if i := strings.Index(cmd, "@"); i >= 0 { // strip @botname (groups)
 		cmd = cmd[:i]
 	}
-	switch strings.ToLower(cmd) {
-	case "/thinking", "/think", "/pikir", "/mikir":
-		return rest, true
+	c := strings.ToLower(strings.TrimPrefix(cmd, "/"))
+	if c == "think" || c == "pikir" || c == "mikir" { // friendly aliases for thinking
+		c = "thinking"
 	}
-	return "", false
+	for _, g := range availableGroups() {
+		if strings.ToLower(g.Command) == c {
+			return g.ID, rest, true
+		}
+	}
+	return "", "", false
+}
+
+// groupCommandsJSON returns the owner's groups as a Telegram setMyCommands payload —
+// fetched by the telegram-channel (over the bus) so the slash menu auto-syncs with
+// whatever groups exist. No shared store needed (respects isolation).
+func groupCommandsJSON() string {
+	type cmd struct {
+		Command     string `json:"command"`
+		Description string `json:"description"`
+	}
+	cs := []cmd{}
+	for _, g := range availableGroups() {
+		d := strings.TrimSpace(g.Desc)
+		if d == "" {
+			d = "Group " + g.ID
+		}
+		if len(d) > 240 {
+			d = d[:240]
+		}
+		cs = append(cs, cmd{Command: g.Command, Description: d})
+	}
+	b, _ := json.Marshal(map[string]any{"commands": cs})
+	return string(b)
 }
 
 // handleThinking runs the thinking colony for one user message, with per-chat
 // rolling memory so it can continue a multi-turn diagnosis. Used by BOTH the slash
 // command and the legacy keyword trigger.
-func handleThinking(userMsg string, chatID int64) {
+func handleGroupChat(groupID, userMsg string, chatID int64) {
 	userMsg = strings.TrimSpace(userMsg)
-	histKey := "think_hist:" + strconv.FormatInt(chatID, 10)
-	low := strings.ToLower(userMsg)
-	if strings.Contains(low, "topik baru") || strings.Contains(low, "mulai baru") || strings.Contains(low, "reset") {
-		tkvSet(histKey, "") // explicit fresh start
+	mem := true
+	for _, g := range availableGroups() {
+		if g.ID == groupID {
+			mem = g.Memory
+			break
+		}
 	}
-	hist := tkvGet(histKey)
+	histKey := "ghist:" + groupID + ":" + strconv.FormatInt(chatID, 10)
+	hist := ""
+	if mem {
+		if low := strings.ToLower(userMsg); strings.Contains(low, "topik baru") || strings.Contains(low, "mulai baru") || strings.Contains(low, "reset") {
+			tkvSet(histKey, "") // explicit fresh start
+		}
+		hist = tkvGet(histKey)
+	}
 	subject := userMsg
-	if strings.TrimSpace(hist) != "" {
-		subject = "Konteks percakapan thinking sebelumnya (LANJUTKAN dari sini, jangan ulang dari nol):\n" +
+	if mem && strings.TrimSpace(hist) != "" {
+		subject = "Konteks percakapan sebelumnya (LANJUTKAN dari sini, jangan ulang dari nol):\n" +
 			hist + "=== Pesan terbaru user ===\n" + userMsg
 	}
-	res := askGroup(json.RawMessage(`{"group":"thinking","subject":` + jsonStr(subject) + `}`))
+	res := askGroup(json.RawMessage(`{"group":` + jsonStr(groupID) + `,"subject":` + jsonStr(subject) + `}`))
 	reply := ""
 	var gr struct {
 		GroupResult string `json:"group_result"`
@@ -803,15 +899,15 @@ func handleThinking(userMsg string, chatID int64) {
 		if gr.GroupResult != "" {
 			reply = gr.GroupResult
 		} else if gr.Error != "" {
-			reply = "tim thinking error: " + gr.Error
+			reply = "grup error: " + gr.Error
 		}
 	}
 	if strings.TrimSpace(reply) == "" {
-		reply = "tim thinking ga ngasih jawaban."
+		reply = "grup ga ngasih jawaban."
 	} else {
 		reply = plainify(reply)
 	}
-	if !strings.HasPrefix(reply, "tim thinking error") && !strings.HasPrefix(reply, "tim thinking ga") {
+	if mem && !strings.HasPrefix(reply, "grup error") && !strings.HasPrefix(reply, "grup ga") {
 		ans := reply
 		if len(ans) > 700 {
 			ans = ans[:700] + " …"

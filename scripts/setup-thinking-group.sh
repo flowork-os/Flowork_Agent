@@ -53,18 +53,21 @@ set_kv "$GLOKET" synthesizer "thinking-synthesis"
 set_kv "$GLOKET" task "Rumuskan pertanyaan kunci, tinjau lewat tiap lensa, lalu sintesis jadi satu keputusan."
 echo "→ marked group=1 + roster in loket store (menu-visible + menu-editable)"
 
-# Register the group in Mr.Flow's OWN allowlist (kv "groups" = "id:desc;id:desc")
-# so ask_group can delegate to it. Same proven path as the operator group.
+# Register the group in Mr.Flow's OWN allowlist (kv "groups" = "id|command|desc;…").
+# The command is the auto Telegram slash command (/thinking); mr-flow routes /<command>
+# to this group, and telegram-channel auto-registers it in the slash menu on boot.
 MFLOKET="$AGENTS/mr-flow-next.fwagent/workspace/loket.db"
-DESC="Cara berpikir: rumuskan pertanyaan kunci, tinjau lewat lensa strategi & perbaikan, lalu sintesis jadi satu keputusan (domain-agnostik)"
+COMMAND="thinking"
+DESC="Mikir bareng tim thinking (strategi, perbaikan, persuasi) — multi-turn"
+ENTRY="$GID|$COMMAND|$DESC"
 if [ -f "$MFLOKET" ]; then
   cur=$(sqlite3 "$MFLOKET" "SELECT v FROM kv WHERE k='groups';" 2>/dev/null || true)
   case "$cur" in
-    *"$GID:"*) echo "→ mr-flow already knows group $GID";;
+    *"$GID|"*|*"$GID:"*) echo "→ mr-flow already knows group $GID";;
     *) sqlite3 "$MFLOKET" "CREATE TABLE IF NOT EXISTS kv(k TEXT PRIMARY KEY, v TEXT NOT NULL DEFAULT '');
-                           INSERT INTO kv(k,v) VALUES('groups','${cur:+$cur; }$GID:$DESC')
+                           INSERT INTO kv(k,v) VALUES('groups','${cur:+$cur; }$ENTRY')
                            ON CONFLICT(k) DO UPDATE SET v=excluded.v;"
-       echo "→ registered group $GID in mr-flow allowlist";;
+       echo "→ registered group $GID (/$COMMAND) in mr-flow allowlist";;
   esac
 else
   echo "ⓘ mr-flow loket store belum ada — boot mr-flow dulu lalu ulangi."

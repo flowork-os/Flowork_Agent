@@ -1,3 +1,25 @@
+## 2026-06-08 — groups get auto slash commands in Telegram
+
+Every group now gets a discoverable Telegram slash command automatically — no per-group code, no
+magic keyword.
+
+- **Generic routing (mr-flow):** the group allowlist format is now `id|command|desc` (legacy `id:desc`
+  still parsed; command derived from the id if omitted). `/<command> <problem>` routes to the matching
+  group for ANY owner-listed group. Replaces the hardcoded `/thinking` with a generic handler.
+- **Per-group memory + `nomem` flag:** conversational groups (thinking, analis) keep a rolling per-chat
+  memory (multi-turn); a 4th allowlist field `nomem` marks executor groups (the operator) as raw
+  passthrough, so accumulated context never confuses a deterministic agent. Memory key is now
+  per-group (`ghist:<group>:<chat>`).
+- **Auto-register (telegram-channel):** on boot the channel asks Mr.Flow over the bus for the
+  group→command list (`/__groupcmds__`) and pushes it to Telegram `setMyCommands` — so adding a group
+  makes its slash command appear in the menu on the next boot. Respects isolation (the dumb pipe never
+  needs to know the groups); retries in the poll loop until Mr.Flow is reachable.
+
+Tested: `/__groupcmds__` returns analis+operasi+thinking; `/analis <subject>` routes (with memory);
+`/operasi <cmd>` routes to the operator (no memory — verified no `ghist:operasi` key); the Telegram
+menu auto-synced to [analis, operasi, thinking] (setMyCommands status=200). Old static command script
+removed (the auto-sync supersedes it).
+
 ## 2026-06-08 — thinking: /thinking slash command (discoverable, no magic keyword)
 
 Forcing users to type the exact phrase "pikirin pake tim thinking" was bad UX (nobody knows the magic
