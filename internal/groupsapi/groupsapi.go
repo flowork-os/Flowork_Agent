@@ -81,6 +81,36 @@ func (h *Handler) displayName(id string) string {
 	return id
 }
 
+// manifestKind reads a module's manifest.json kind ("" if unreadable).
+func (h *Handler) manifestKind(id string) string {
+	raw, err := os.ReadFile(filepath.Join(h.d.AgentsDir, id+".fwagent", "manifest.json"))
+	if err != nil {
+		return ""
+	}
+	var m struct {
+		Kind string `json:"kind"`
+	}
+	if json.Unmarshal(raw, &m) == nil {
+		return strings.TrimSpace(m.Kind)
+	}
+	return ""
+}
+
+// eligibleMember decides whether a module may appear in the member pool at all.
+// A group's roster is analyst-type AGENTS; channels (telegram/discord/…), the
+// Mr.Flow router/orchestrator, scanners and services are NOT members — listing
+// them was just clutter ("pajangan"), so they are filtered out here.
+func (h *Handler) eligibleMember(id string) bool {
+	if strings.HasPrefix(id, "mr-flow") {
+		return false
+	}
+	switch h.manifestKind(id) {
+	case "channel", "group", "scanner", "service":
+		return false
+	}
+	return true
+}
+
 func splitCSV(s string) []string {
 	out := []string{}
 	for _, p := range strings.Split(s, ",") {
@@ -106,8 +136,10 @@ func (h *Handler) ListHandler(w http.ResponseWriter, _ *http.Request) {
 		}
 		st, err := loket.OpenStore(path)
 		if err != nil {
-			// No loket store yet → not a group; still a candidate member.
-			avail = append(avail, agentRef{ID: id, DisplayName: h.displayName(id)})
+			// No loket store yet → not a group; a candidate member if eligible.
+			if h.eligibleMember(id) {
+				avail = append(avail, agentRef{ID: id, DisplayName: h.displayName(id)})
+			}
 			continue
 		}
 		marker, _, _ := st.KVGet("group")
@@ -125,7 +157,7 @@ func (h *Handler) ListHandler(w http.ResponseWriter, _ *http.Request) {
 				ID: id, DisplayName: name,
 				Members: splitCSV(members), Synthesizer: strings.TrimSpace(synth), Task: strings.TrimSpace(task),
 			})
-		} else {
+		} else if h.eligibleMember(id) {
 			avail = append(avail, agentRef{ID: id, DisplayName: h.displayName(id)})
 		}
 		_ = st.Close()

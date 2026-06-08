@@ -135,20 +135,31 @@ async function load(mainEl) {
     list.innerHTML = `<div class="gr-panel"><div class="gr-empty">${esc(L.empty)}</div></div>`;
     return;
   }
+  // claimedBy maps an agent id → the group that already uses it (member or
+  // synthesizer). A card then shows only ITS OWN organs + agents no other group
+  // has claimed — so an agent that is not checked into this group is genuinely
+  // free to add, never a leftover from another team cluttering the picker.
+  const claimedBy = {};
+  for (const g of groups) {
+    for (const m of g.members || []) claimedBy[m] = g.id;
+    if (g.synthesizer) claimedBy[g.synthesizer] = g.id;
+  }
   list.innerHTML = '';
-  for (const g of groups) list.appendChild(card(g, avail, mainEl));
+  for (const g of groups) list.appendChild(card(g, avail, claimedBy, mainEl));
 }
 
-function card(g, avail, mainEl) {
+function card(g, avail, claimedBy, mainEl) {
   const el = document.createElement('div');
   el.className = 'gr-panel gr-card';
   const members = new Set(g.members || []);
-  const chips = avail.map((a) => `
+  // Show an agent only if it belongs to THIS group or is unclaimed by any other.
+  const pool = avail.filter((a) => members.has(a.id) || g.synthesizer === a.id || !claimedBy[a.id] || claimedBy[a.id] === g.id);
+  const chips = pool.map((a) => `
     <label class="gr-chip ${members.has(a.id) ? 'on' : ''}" data-id="${escAttr(a.id)}">
       <input type="checkbox" ${members.has(a.id) ? 'checked' : ''}> ${esc(a.display_name || a.id)}
     </label>`).join('');
   const synthOpts = [`<option value="">${esc(L.synth_none)}</option>`]
-    .concat(avail.map((a) => `<option value="${escAttr(a.id)}" ${g.synthesizer === a.id ? 'selected' : ''}>${esc(a.display_name || a.id)}</option>`))
+    .concat(pool.map((a) => `<option value="${escAttr(a.id)}" ${g.synthesizer === a.id ? 'selected' : ''}>${esc(a.display_name || a.id)}</option>`))
     .join('');
   el.innerHTML = `
     <h3>
