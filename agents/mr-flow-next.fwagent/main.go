@@ -660,16 +660,44 @@ const fallbackTierModel = "claude-haiku-4-5"
 func llmComplete(llmArgs map[string]any) (json.RawMessage, error) {
 	primary := model()
 	llmArgs["model"] = primary
-	if r, err := loketCallT("llm.complete", llmArgs, 45000); err == nil {
+	r, lastErr := loketCallT("llm.complete", llmArgs, 45000)
+	if lastErr == nil {
 		return r, nil
 	}
 	if fallbackTierModel != "" && fallbackTierModel != primary {
 		llmArgs["model"] = fallbackTierModel
-		if r, err := loketCallT("llm.complete", llmArgs, 35000); err == nil {
-			return r, nil
+		r2, err2 := loketCallT("llm.complete", llmArgs, 35000)
+		if err2 == nil {
+			return r2, nil
 		}
+		lastErr = err2
 	}
-	return nil, fmt.Errorf("rate-limited (primary + fallback both failed)")
+	// Propagate the REAL underlying error (not a generic "rate-limited") so the caller
+	// can tell a dead gateway apart from an actual throttle — see llmFailMessage.
+	return nil, lastErr
+}
+
+// llmFailMessage turns an LLM-call failure into an honest user-facing line. It must
+// NOT cry "penuh/limit" for a dead gateway (connection refused) — that mislabel cost
+// hours of false "rate-limit" debugging. The error propagates from the host as
+// "loket refused: llm router: ...connection refused" (gateway down) vs "llm: ...429..."
+// (real throttle); classify on that text.
+func llmFailMessage(err error) string {
+	if err == nil {
+		return "⏳ Lagi ada kendala bro, coba lagi sebentar ya 🙏"
+	}
+	e := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(e, "connection refused"), strings.Contains(e, "dial tcp"),
+		strings.Contains(e, "no such host"), strings.Contains(e, "connect: connection"),
+		strings.Contains(e, "no response after retries"):
+		return "⚠️ Gateway-nya kayaknya lagi mati bro (koneksi ke service gagal, bukan limit) — coba cek service-nya jalan dulu."
+	case strings.Contains(e, "429"), strings.Contains(e, "rate"), strings.Contains(e, "too many"),
+		strings.Contains(e, "overloaded"), strings.Contains(e, "quota"), strings.Contains(e, "throttl"):
+		return "⏳ Modelnya lagi penuh/limit bro, coba lagi sebentar ya 🙏"
+	default:
+		return "⏳ Lagi ada kendala manggil model bro, coba lagi sebentar ya 🙏"
+	}
 }
 
 // runToolLoop is Mr.Flow's tool-calling loop, every hop through the loket: offer
@@ -693,7 +721,7 @@ func runToolLoop(msgs []any, specs []json.RawMessage) (string, int) {
 		if err != nil {
 			// Rate-limit / timeout even after the cheap-tier fallback → fail SOFT with a
 			// clean message, never a raw error or (worse) a silent deadline hang.
-			return "⏳ Modelnya lagi penuh/limit bro, coba lagi sebentar ya 🙏", toolsUsed
+			return llmFailMessage(err), toolsUsed
 		}
 		var resp struct {
 			Content   string `json:"content"`

@@ -1,3 +1,18 @@
+## 2026-06-09 — v2.6.0: P5 coordination/lifecycle + honest gateway-down message
+
+Release of the P5 maturity milestone + a fix for a misleading failure message.
+
+- Coordination (P5): plug-and-play parallel + BOUNDED fan-out hook in the kernel bus
+  (loket FanoutStrategy / ParallelFanout) + durable run lifecycle tool (agent_run:
+  create/start/checkpoint/pause/resume/stop). mr-flow holds 42 first-class tools via
+  subscription; ants stay tiny (isolation intact).
+- Gateway-vs-throttle fix: mr-flow's llmComplete used to cry "Modelnya penuh/limit" for
+  ANY LLM failure — including a DEAD gateway (connection refused). That mislabel cost real
+  debugging hours (a down router read as a rate-limit). llmComplete now propagates the real
+  error and llmFailMessage classifies it: connection-refused/dial → "gateway lagi mati (bukan
+  limit)", 429/overloaded → "penuh/limit", else generic. Tested end-to-end both paths (router
+  up → tool runs; router down → the honest gateway message).
+
 ## 2026-06-09 — Audit fix (P5): restore ant isolation + correct stop semantics
 
 Re-audit of the P5 lifecycle work found two defects I introduced; both fixed:

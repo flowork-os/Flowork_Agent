@@ -77,7 +77,7 @@ import (
 //go:embed web
 var webFS embed.FS
 
-const version = "2.3.0"
+const version = "2.6.0"
 
 func main() {
 	addr := flag.String("addr", "127.0.0.1:1987", "listen address")
