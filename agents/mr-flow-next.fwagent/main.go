@@ -308,45 +308,12 @@ func handleMessage(argsJSON string) {
 		return
 	}
 
-	// Computer-control PRE-ROUTER (deterministic, before the LLM): a clear power/
-	// app command MUST act, not be second-guessed by the model. If the text looks
-	// like one, route it straight to the operasi-komputer-grup GROUP (whose member
-	// is the operator executor) and return its reply — no LLM hedging on shutdown.
-	if isComputerCommand(in.Text) {
-		res := askGroup(json.RawMessage(`{"group":"operasi-komputer-grup","subject":` + jsonStr(in.Text) + `}`))
-		reply := in.Text
-		var gr struct {
-			GroupResult string `json:"group_result"`
-			Error       string `json:"error"`
-		}
-		if json.Unmarshal([]byte(res), &gr) == nil {
-			if gr.GroupResult != "" {
-				reply = gr.GroupResult
-			} else if gr.Error != "" {
-				reply = "kontrol komputer error: " + gr.Error
-			}
-		}
-		// The group (no synth) labels member sections "### <id> …"; for a single
-		// executor that's noise — strip the leading "### <id>" token (the section
-		// separator may be a newline OR a space, since jsonEsc flattens newlines).
-		if strings.HasPrefix(reply, "### ") {
-			rest := reply[len("### "):]
-			if i := strings.IndexAny(rest, " \n"); i >= 0 {
-				reply = strings.TrimSpace(rest[i+1:])
-			}
-		}
-		emit(map[string]any{"reply": reply, "agent": selfID()})
-		return
-	}
-
-	// NOTE: group routing for analysis (stock → investment, deep-thinking → thinking,
-	// and anything else) is INTENTIONALLY left to the LLM, which picks the right group
-	// via the ask_group tool — that is the orchestrator's intelligence, not a hardcoded
-	// keyword table. ask_group is terminal (relayGroup), so picking a group costs ONE
-	// LLM turn, not two. The computer-control pre-router ABOVE is the one deliberate
-	// exception: it is an accessibility lifeline (the owner controls his PC from his
-	// phone) that must fire even if the chat model is throttled or down — so it stays
-	// deterministic. Everything else: the model decides.
+	// ALL group routing is the LLM's job — it reads the request (in ANY language) and
+	// picks the right group via the ask_group tool: stock → investment, deep analysis
+	// → thinking, computer control → operasi-komputer-grup. No hardcoded keyword table
+	// (those were Indonesian-only and broke for global users). ask_group is terminal
+	// (relayGroup), so picking a group costs ONE LLM turn and the group's answer goes
+	// straight to the user, in the user's language.
 
 	// Doctrine is SACRED and injected FIRST — the always-on anti-halu layer.
 	doktrin := readWS("doktrin.md")
@@ -947,26 +914,4 @@ func handleGroupChat(groupID, userMsg string, chatID int64) {
 		tkvSet(histKey, newHist)
 	}
 	emit(map[string]any{"reply": reply, "agent": selfID()})
-}
-
-// isComputerCommand deterministically detects a host power/app control request, so
-// mr-flow routes it straight to the operasi-komputer-grup GROUP instead of letting
-// the LLM second-guess a shutdown. Keep it specific (avoid hijacking normal chat).
-func isComputerCommand(text string) bool {
-	s := strings.ToLower(text)
-	kw := []string{
-		"matiin pc", "matikan pc", "matiin komputer", "matikan komputer", "shutdown", "shut down",
-		"restart pc", "restart komputer", "reboot", "mulai ulang",
-		"suspend", "sleep pc", "tidurin pc", "hibernate",
-		"kunci layar", "lock screen", "lock pc",
-		"logout", "log out",
-		"buka chrome", "buka vscode", "buka vs code", "buka code", "open chrome", "open vscode",
-		"batal matiin", "batal shutdown", "cancel shutdown",
-	}
-	for _, k := range kw {
-		if strings.Contains(s, k) {
-			return true
-		}
-	}
-	return false
 }
