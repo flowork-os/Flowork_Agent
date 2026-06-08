@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"flowork-gui/internal/agentdb"
@@ -26,6 +27,31 @@ import (
 	"flowork-gui/internal/loket"
 	"flowork-gui/internal/routerclient"
 )
+
+// init registers the PLUG-AND-PLAY parallel fan-out for bus.broadcast (P5). The
+// runtime instantiates a FRESH module per Call (unique name via atomic counter), so
+// invoking distinct colony members concurrently is safe — a council/group fans out in
+// parallel instead of one-at-a-time. Registered here (non-frozen) so the frozen kernel
+// (internal/loket/providers.go) never needs editing again to change coordination.
+func init() {
+	loket.FanoutStrategy = func(targets []string, invoke func(string) (json.RawMessage, error)) []loket.FanoutBroadcastReply {
+		out := make([]loket.FanoutBroadcastReply, len(targets))
+		var wg sync.WaitGroup
+		for i, t := range targets {
+			wg.Add(1)
+			go func(idx int, target string) {
+				defer wg.Done()
+				r, err := invoke(target)
+				out[idx] = loket.FanoutBroadcastReply{Target: target, Reply: r}
+				if err != nil {
+					out[idx].Error = err.Error()
+				}
+			}(i, t)
+		}
+		wg.Wait()
+		return out
+	}
+}
 
 // wireLoket builds the loket Service with real, host-backed dependencies.
 func wireLoket(host *kernelhost.Host) *loket.Service {

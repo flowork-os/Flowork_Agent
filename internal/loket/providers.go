@@ -1,6 +1,14 @@
 // === FROZEN (kernel inti) — DO NOT MODIFY. Kernel FREEZE v1 (2026-06-07). ===
 // Owner: Aola Sahidin (Mr.Dev). Bagian microkernel "papan kosong" abadi; checksum
 // dipin di KERNEL_FREEZE.md. Ubah = unfreeze eksplisit owner + update manifest.
+//
+// === PLUG-AND-PLAY EXTENSION (added 2026-06-09, P5) — JANGAN UNLOCK LAGI ===
+//   bus.broadcast fan-out STRATEGY sekarang pluggable via `FanoutStrategy` (var di
+//   bawah, set dari FILE NON-FROZEN — lihat loket_wire.go). Default (nil) = SERIAL
+//   persis perilaku lama (zero regression). Strategy ke-register bisa jalanin target
+//   PARALEL (runtime instantiate module FRESH per Call → concurrent invoke beda member
+//   AMAN). Mau ubah koordinasi (paralel/voting/staged) → REGISTER hook, JANGAN modify
+//   file beku ini. Owner unlock SEKALI buat pasang colokan + re-lock.
 
 package loket
 
@@ -425,6 +433,20 @@ func (bp *busProviders) request(ctx context.Context, module string, args json.Ra
 // broadcast fans out to each target and collects replies. Sequential for now —
 // a group with many members is correct either way; parallelism is an additive
 // optimisation that does not change the contract.
+// FanoutBroadcastReply is one bus.broadcast reply row. Exported so a plug-and-play
+// fan-out strategy (registered from non-frozen code) can build the result set.
+type FanoutBroadcastReply struct {
+	Target string          `json:"target"`
+	Reply  json.RawMessage `json:"reply,omitempty"`
+	Error  string          `json:"error,omitempty"`
+}
+
+// FanoutStrategy — PLUG-AND-PLAY coordination hook (set from NON-FROZEN code). When
+// set, bus.broadcast delegates per-target invocation to it (e.g. to run targets in
+// PARALLEL); nil → the serial default. See the FROZEN header: register this, never
+// unlock this file to change fan-out behaviour.
+var FanoutStrategy func(targets []string, invoke func(target string) (json.RawMessage, error)) []FanoutBroadcastReply
+
 func (bp *busProviders) broadcast(ctx context.Context, module string, args json.RawMessage) (json.RawMessage, error) {
 	var a struct {
 		To      []string        `json:"to"`
@@ -437,19 +459,22 @@ func (bp *busProviders) broadcast(ctx context.Context, module string, args json.
 	if bp.deps.Invoke == nil {
 		return nil, fmt.Errorf("bus not wired")
 	}
-	type replyEntry struct {
-		Target string          `json:"target"`
-		Reply  json.RawMessage `json:"reply,omitempty"`
-		Error  string          `json:"error,omitempty"`
+	invoke := func(target string) (json.RawMessage, error) {
+		return bp.deps.Invoke(ctx, target, bp.stampMsg(module, a.Type, a.Payload))
 	}
-	replies := make([]replyEntry, 0, len(a.To))
-	for _, target := range a.To {
-		r, err := bp.deps.Invoke(ctx, target, bp.stampMsg(module, a.Type, a.Payload))
-		e := replyEntry{Target: target, Reply: r}
-		if err != nil {
-			e.Error = err.Error()
+	var replies []FanoutBroadcastReply
+	if FanoutStrategy != nil {
+		replies = FanoutStrategy(a.To, invoke) // pluggable (e.g. parallel)
+	} else {
+		replies = make([]FanoutBroadcastReply, 0, len(a.To)) // serial default
+		for _, target := range a.To {
+			r, err := invoke(target)
+			e := FanoutBroadcastReply{Target: target, Reply: r}
+			if err != nil {
+				e.Error = err.Error()
+			}
+			replies = append(replies, e)
 		}
-		replies = append(replies, e)
 	}
 	return mustJSON(map[string]any{"replies": replies}), nil
 }

@@ -1,3 +1,20 @@
+## 2026-06-09 — P5: plug-and-play parallel coordination (bus.broadcast fan-out hook) + re-lock
+
+The kernel's bus.broadcast fanned out to colony members SERIALLY (hardcoded loop in a frozen
+file, no hook). Owner unlocked internal/loket/providers.go once to add a plug-and-play
+coordination hook, then re-locked (freeze manifest updated; TestKernelFreeze passes, 27 files).
+
+- `FanoutStrategy` hook (exported) + `FanoutBroadcastReply` type. nil → exact serial default
+  (zero regression); a registered strategy handles per-target invocation (e.g. in PARALLEL).
+  The frozen header documents "register the hook, never unlock again".
+- loket_wire.go (NON-FROZEN) registers a PARALLEL fan-out: the runtime instantiates a fresh
+  module per Call (unique name via atomic counter), so invoking distinct members concurrently
+  is safe — a council/group fans out at once instead of one-at-a-time.
+- Test (providers_fanout_test.go): serial default + pluggable/parallel strategy both collect all
+  replies; the hook is verified used.
+- Substrate for the owner's council/voting vision; full agent lifecycle (resume/stop) builds on
+  this hook next, without touching the frozen kernel again.
+
 ## 2026-06-09 — P3: brain dream consolidation (lock-respecting, no unlock)
 
 New `brain_dream` tool: consolidates an agent's local brain like sleep — gently decays the
