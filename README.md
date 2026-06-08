@@ -231,6 +231,8 @@ We call this principle **Educational Errors** — and, *as far as we have seen, 
 
 **We're documenting it here — in the open, dated, on purpose.** We believe error-as-education will become common as AI agents grow persistent and autonomous: an agent that can't retrain its whole model still has to learn from its own mistakes *at runtime*, and this is the mechanism. When that day comes, this record — and the git history behind it — marks that **Flowork was building it early, from first principles: ahead of the trend, not following it.**
 
+> 📄 **Full blueprint:** [`EDUCATIONAL_ERRORS.md`](EDUCATIONAL_ERRORS.md) — the dated design declaration, including an honest prior-art section (what's adjacent, and exactly what's new).
+
 ### 🆚 The mind vs OpenClaw / Hermes
 
 | Faculty | OpenClaw | Hermes | **⚡ Flowork** |
