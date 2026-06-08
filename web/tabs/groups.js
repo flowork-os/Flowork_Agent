@@ -140,9 +140,18 @@ async function load(mainEl) {
   // has claimed — so an agent that is not checked into this group is genuinely
   // free to add, never a leftover from another team cluttering the picker.
   const claimedBy = {};
+  // 1) explicit: every organ in a group's roster (members + synth + aux roles).
   for (const g of groups) {
-    for (const m of g.members || []) claimedBy[m] = g.id;
+    for (const c of g.claims || g.members || []) claimedBy[c] = g.id;
     if (g.synthesizer) claimedBy[g.synthesizer] = g.id;
+  }
+  // 2) backstop: an organ named with a group's id prefix (e.g. thinking-caster)
+  //    belongs to that group even if it isn't wired into the roster yet.
+  for (const a of avail) {
+    if (claimedBy[a.id]) continue;
+    for (const g of groups) {
+      if (a.id.startsWith(g.id + '-')) { claimedBy[a.id] = g.id; break; }
+    }
   }
   list.innerHTML = '';
   for (const g of groups) list.appendChild(card(g, avail, claimedBy, mainEl));

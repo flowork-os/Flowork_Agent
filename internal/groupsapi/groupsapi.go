@@ -59,6 +59,11 @@ type groupView struct {
 	Members     []string `json:"members"`
 	Synthesizer string   `json:"synthesizer"`
 	Task        string   `json:"task"`
+	// Claims = every agent this group uses across ALL its roster roles (members,
+	// synthesizer, and auxiliary roles like questioner/how/caster), so the picker
+	// can hide an organ that already belongs to another group — not just its
+	// "members". Display still uses Members; Claims is only for scoping the pool.
+	Claims []string `json:"claims"`
 }
 
 type agentRef struct {
@@ -102,6 +107,11 @@ func (h *Handler) manifestKind(id string) string {
 // them was just clutter ("pajangan"), so they are filtered out here.
 func (h *Handler) eligibleMember(id string) bool {
 	if strings.HasPrefix(id, "mr-flow") {
+		return false
+	}
+	// Channels are deployed as kind "agent" (dumb pipes) but are I/O endpoints, not
+	// analyst members — exclude by the "-channel" id convention they all follow.
+	if strings.HasSuffix(id, "-channel") {
 		return false
 	}
 	switch h.manifestKind(id) {
@@ -153,9 +163,19 @@ func (h *Handler) ListHandler(w http.ResponseWriter, _ *http.Request) {
 			if dn, ok, _ := st.KVGet("display_name"); ok && strings.TrimSpace(dn) != "" {
 				name = strings.TrimSpace(dn)
 			}
+			// Claims span every roster role, not just "members": members + synthesizer
+			// + auxiliary roles a pipeline group uses (questioner/how/caster). An organ
+			// referenced by ANY of these belongs to this group and is hidden elsewhere.
+			claims := splitCSV(members)
+			for _, role := range []string{"synthesizer", "questioner", "how_agent", "caster"} {
+				if v, _, _ := st.KVGet(role); strings.TrimSpace(v) != "" {
+					claims = append(claims, strings.TrimSpace(v))
+				}
+			}
 			groups = append(groups, groupView{
 				ID: id, DisplayName: name,
 				Members: splitCSV(members), Synthesizer: strings.TrimSpace(synth), Task: strings.TrimSpace(task),
+				Claims: claims,
 			})
 		} else if h.eligibleMember(id) {
 			avail = append(avail, agentRef{ID: id, DisplayName: h.displayName(id)})
