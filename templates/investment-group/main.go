@@ -225,12 +225,20 @@ var stopWords = map[string]bool{
 	"STOCK": true, "SHARE": true, "PRICE": true, "BUY": true, "SELL": true, "HOLD": true,
 	"APAKAH": true, "SAHAM": true, "HARGA": true, "BELI": true, "JUAL": true, "LAYAK": true,
 	"INVEST": true, "ANALYZE": true, "ANALISA": true, "REVIEW": true, "CURRENT": true,
+	// common words that can follow a "saham"/"stock" anchor but are not symbols
+	"BAGUS": true, "APA": true, "YANG": true, "MANA": true, "BAIK": true, "INI": true,
+	"ITU": true, "LAGI": true, "MURAH": true, "MAHAL": true, "NAIK": true, "TURUN": true,
 }
 
+// anchorRe finds a ticker typed right after a "saham/stock/emiten/ticker/kode"
+// cue — this catches a CASUAL, lower-case symbol ("analisa saham bbca") that the
+// upper-case pass would miss.
+var anchorRe = regexp.MustCompile(`(?i)\b(?:saham|stock|emiten|ticker|kode)\s+([A-Za-z]{2,6})\b`)
+
 // extractTicker pulls the most likely ticker out of free text. Preference order:
-// an explicit suffixed symbol (BBCA.JK) wins; otherwise the first plausible all-caps
-// or capitalized token that is not a stop word, defaulted to the IDX .JK suffix
-// (local-first). Returns "" if nothing plausible is found.
+// (1) an explicit suffixed symbol (BBCA.JK); (2) the word right after a stock cue,
+// even lower-case; (3) the first plausible all-caps token. Non-symbols are filtered
+// by stopWords; the IDX ".JK" suffix is the local-first default. "" if none found.
 func extractTicker(s string) string {
 	matches := tickerRe.FindAllStringSubmatch(s, -1)
 	// First pass: a symbol that ALREADY carries a market suffix is unambiguous.
@@ -239,7 +247,14 @@ func extractTicker(s string) string {
 			return strings.ToUpper(m[1]) + strings.ToUpper(m[2])
 		}
 	}
-	// Second pass: an explicitly UPPER-CASE token the user typed as a symbol.
+	// Second pass: the token right after a stock cue word (handles lower-case input).
+	if m := anchorRe.FindStringSubmatch(s); m != nil {
+		raw := strings.ToUpper(m[1])
+		if len(raw) >= 3 && !stopWords[raw] {
+			return raw + ".JK"
+		}
+	}
+	// Third pass: an explicitly UPPER-CASE token the user typed as a symbol.
 	for _, m := range matches {
 		raw := m[1]
 		if raw == strings.ToUpper(raw) && !stopWords[strings.ToUpper(raw)] && len(raw) >= 3 {

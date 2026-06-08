@@ -349,6 +349,15 @@ func handleMessage(argsJSON string) {
 		return
 	}
 
+	// Stock/investment PRE-ROUTER (deterministic, before the LLM): "analisa saham
+	// BBCA" must go to the `investment` GROUP (which HAS data eyes via market_quote),
+	// not to mr-flow's own webfetch (no net:fetch grant → blocked → the LLM stalls
+	// and asks permission instead of delegating). Route straight there.
+	if isStockCommand(in.Text) {
+		handleGroupChat("investment", in.Text, in.ChatID)
+		return
+	}
+
 	// Doctrine is SACRED and injected FIRST — the always-on anti-halu layer.
 	doktrin := readWS("doktrin.md")
 	persona := readWS("prompt.md")
@@ -954,6 +963,27 @@ func isThinkingCommand(text string) bool {
 		"pake thinking", "pakai thinking", "lewat thinking", "minta thinking",
 		"cara berpikir", "pikirin mateng", "pikirin mateng", "pikir mateng",
 		"pikirkan matang", "pikir matang", "pikirin mendalam",
+	}
+	for _, k := range kw {
+		if strings.Contains(s, k) {
+			return true
+		}
+	}
+	return false
+}
+
+// isStockCommand deterministically detects a stock/investment-analysis request so
+// mr-flow delegates to the `investment` GROUP (which has data eyes), instead of
+// trying its own blocked webfetch and then hedging. Kept specific (always paired
+// with "saham"/"stock"/"invest") so it never hijacks ordinary chat.
+func isStockCommand(text string) bool {
+	s := strings.ToLower(text)
+	kw := []string{
+		"analisa saham", "analisis saham", "analisa emiten", "analisa investasi",
+		"analyze stock", "analyse stock", "stock analysis", "analyze a stock",
+		"beli saham", "jual saham", "prospek saham", "valuasi saham", "rekomendasi saham",
+		"saham bagus", "investasi saham", "invest saham", "invest di saham",
+		"layak invest", "worth investing", "should i invest",
 	}
 	for _, k := range kw {
 		if strings.Contains(s, k) {
