@@ -1,3 +1,13 @@
+## 2026-06-08 — thinking: /thinking slash command (discoverable, no magic keyword)
+
+Forcing users to type the exact phrase "pikirin pake tim thinking" was bad UX (nobody knows the magic
+words). Added a proper Telegram slash command: /thinking <problem> (also /think /pikir /mikir, and the
+@botname form in groups). It's detected in mr-flow before the generic slash handler, strips the
+command, and runs the same thinking colony (with the multi-turn memory). Empty /thinking returns a
+short help/example. The legacy keyword still works. Registered in Telegram's command menu via
+setMyCommands (scripts/register-telegram-commands.sh, token read from the channel store) so it shows
+in the "/" menu with autocomplete. Tested: /thinking <q> -> full answer ~40s; /thinking -> help.
+
 ## 2026-06-08 — thinking memory: multi-turn conversation
 
 The thinking colony was single-shot (it forgot the previous message), so when the owner answered the
