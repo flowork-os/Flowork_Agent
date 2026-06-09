@@ -131,6 +131,17 @@
     <div id="wltbl"></div>
     <div id="altbl"></div>
   </div>
+
+  <div class="card">
+    <div class="row">
+      <label>PAPER BOTS</label><input id="botsym" class="sym" placeholder="symbol" autocomplete="off">
+      <select id="botstrat"></select><input id="botq" type="number" value="1000" style="width:90px">
+      <button id="botadd" class="ghost">+ BOT</button>
+      <span class="st" id="botst" style="margin-left:auto"></span>
+    </div>
+    <div class="sub">A strategy that runs continuously on the PAPER portfolio (auto entry/exit each step, every 15s). No real money.</div>
+    <div id="bottbl"></div>
+  </div>
 </div>
 <script>
   let rq = 0; const pending = {};
@@ -264,7 +275,7 @@
     if (tickTimer) clearInterval(tickTimer); if (refreshTimer) clearInterval(refreshTimer);
     tickTimer = setInterval(tick, 2000);              // per-tick price update
     refreshTimer = setInterval(loadChart, 60000);     // full candle refresh
-    wlTimer = setInterval(() => { loadWatchlist(); checkAlerts(); loadDashboard(); }, 12000); // watchlist + alerts + dashboard
+    wlTimer = setInterval(() => { loadWatchlist(); checkAlerts(); loadDashboard(); botStep(); }, 12000); // watchlist + alerts + dashboard + bots
   }
 
   // ── backtest + optimize ────────────────────────────────────────────────────
@@ -317,7 +328,23 @@
   async function doBuy() { const st = $('pst'); st.textContent = '…'; const r = await call('paper_buy', { symbol: ($('pbsym').value.trim() || sym()).toUpperCase(), quote_amount: +$('pbamt').value || 0 }); st.textContent = r.ok ? '✓ bought' : ('✕ ' + (r.error || '')); loadPortfolio(); }
   async function doSell() { const st = $('pst'); st.textContent = '…'; const r = await call('paper_sell', { symbol: ($('pbsym').value.trim() || sym()).toUpperCase() }); st.textContent = r.ok ? ('✓ sold · realized $' + r.result.realized) : ('✕ ' + (r.error || '')); loadPortfolio(); }
   async function doReset() { await call('paper_reset'); $('pst').textContent = '✓ reset'; loadPortfolio(); }
-  async function initStrategies() { const r = await call('list_strategies'); if (r.ok && r.result) r.result.strategies.forEach(s => { const o = document.createElement('option'); o.value = s.name; o.textContent = s.name; $('strat').appendChild(o); }); }
+  async function initStrategies() { const r = await call('list_strategies'); if (r.ok && r.result) r.result.strategies.forEach(s => { for (const id of ['strat', 'botstrat']) { const o = document.createElement('option'); o.value = s.name; o.textContent = s.name; $(id).appendChild(o); } }); }
+  // ── paper bots ──────────────────────────────────────────────────────────────
+  async function loadBots() {
+    const r = await call('bot_list'); if (!r.ok || !r.result) return; const bots = r.result.bots;
+    if (!bots.length) { $('bottbl').innerHTML = '<div class="sub">no bots — add one to run a strategy on paper</div>'; return; }
+    $('bottbl').innerHTML = '<table><tr><th>BOT</th><th>QUOTE</th><th>STATUS</th><th></th></tr>' + bots.map(b =>
+      '<tr><td>' + b.symbol + ' · ' + b.strategy + '</td><td>$' + b.quote + '</td><td><a href="#" data-t="' + b.id + '" class="bottog ' + (b.enabled ? 'pos' : 'neg') + '" style="text-decoration:none">' + (b.enabled ? '● running' : '○ paused') + '</a></td>' +
+      '<td><a href="#" data-r="' + b.id + '" class="botrm" style="color:#ff6b6b;text-decoration:none">×</a></td></tr>').join('') + '</table>';
+    document.querySelectorAll('.bottog').forEach(a => a.onclick = async (e) => { e.preventDefault(); await call('bot_toggle', { id: +a.dataset.t }); loadBots(); });
+    document.querySelectorAll('.botrm').forEach(a => a.onclick = async (e) => { e.preventDefault(); await call('bot_remove', { id: +a.dataset.r }); loadBots(); });
+  }
+  async function botStep() {
+    const r = await call('bot_step'); if (!r.ok || !r.result) return;
+    if (r.result.actions.length) { $('botst').textContent = '⚡ ' + r.result.actions.map(x => x.action + ' ' + x.symbol).join(', ') + ' · ' + new Date().toLocaleTimeString(); loadPortfolio(); loadDashboard(); }
+    else if (r.result.enabled) $('botst').textContent = r.result.enabled + ' running · ' + new Date().toLocaleTimeString();
+  }
+  $('botadd').onclick = async () => { const s = $('botsym').value.trim(); if (!s) return; await call('bot_add', { symbol: s.toUpperCase(), strategy: $('botstrat').value, quote: +$('botq').value || 1000 }); $('botsym').value = ''; loadBots(); };
   async function loadLiveStatus() { const r = await call('live_status'); if (r.ok && r.result) $('livebadge').textContent = r.result.live_enabled ? '● LIVE ARMED (owner)' : '○ paper-only · live is owner-gated'; }
 
   // hover crosshair + OHLC readout
@@ -403,7 +430,7 @@
   $('load').onclick = () => { CUSTOM = null; loadChart(); };
   $('run').onclick = runBacktest; $('opt').onclick = optimize; $('cmp').onclick = compareStrats; $('ai').onclick = aiAnalyze;
   $('pbuy').onclick = doBuy; $('psell').onclick = doSell; $('preset').onclick = doReset;
-  (async () => { await initStrategies(); await loadChart(); startLoops(); loadBacktest(); loadPortfolio(); loadLiveStatus(); loadWatchlist(); loadAlerts(); checkAlerts(); loadDashboard(); })();
+  (async () => { await initStrategies(); await loadChart(); startLoops(); loadBacktest(); loadPortfolio(); loadLiveStatus(); loadWatchlist(); loadAlerts(); checkAlerts(); loadDashboard(); loadBots(); })();
 </script>
 </body>
 </html>

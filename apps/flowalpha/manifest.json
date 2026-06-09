@@ -4,7 +4,7 @@
   "name": "FlowAlpha",
   "description": "FlowAlpha — a sovereign quant desk: live market data, indicators, rule strategies, server-side backtests, and parameter optimization with full metrics. One engine driven by both you (GUI) and agents (tools). White-label, no API key, no database, public market data. The closed loop: data → indicator → strategy → backtest → optimize → metrics.",
   "icon": "ui/icon.svg",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "runtime": "process",
   "core_entry": "python3 core.py",
   "gui_entry": "ui/index.html",
@@ -68,6 +68,16 @@
     { "name": "alert_remove", "description": "Remove a price alert by id.", "tool": true, "gui": true, "mutates": true,
       "input_schema": { "type": "object", "properties": { "id": { "type": "integer" } }, "required": ["id"] } },
     { "name": "alert_check", "description": "Check all un-triggered alerts against live prices; mark + return any that fired. The GUI polls this; an agent can poll it too to watch the market.", "tool": true, "gui": true, "mutates": false,
+      "input_schema": { "type": "object", "properties": {} } },
+    { "name": "bot_add", "description": "Add a PAPER trading bot: a strategy that runs continuously on the paper portfolio for a symbol. No real money.", "tool": true, "gui": true, "mutates": true,
+      "input_schema": { "type": "object", "properties": { "symbol": { "type": "string" }, "strategy": { "type": "string" }, "interval": { "type": "string" }, "quote": { "type": "number", "description": "USDT per entry" } }, "required": ["symbol"] } },
+    { "name": "bot_list", "description": "List paper bots + last run time.", "tool": true, "gui": true, "mutates": false,
+      "input_schema": { "type": "object", "properties": {} } },
+    { "name": "bot_remove", "description": "Remove a paper bot by id.", "tool": true, "gui": true, "mutates": true,
+      "input_schema": { "type": "object", "properties": { "id": { "type": "integer" } }, "required": ["id"] } },
+    { "name": "bot_toggle", "description": "Enable/disable a paper bot by id.", "tool": true, "gui": true, "mutates": true,
+      "input_schema": { "type": "object", "properties": { "id": { "type": "integer" } }, "required": ["id"] } },
+    { "name": "bot_step", "description": "Run ONE step for all enabled paper bots: evaluate each bot's strategy signal and buy/sell on the paper portfolio accordingly. The GUI/agent calls this on a timer so strategies run live on paper. Returns the actions taken.", "tool": true, "gui": true, "mutates": true,
       "input_schema": { "type": "object", "properties": {} } }
   ]
 }

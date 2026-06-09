@@ -1045,6 +1045,74 @@ def op_alert_check(a):
     return {"result": {"triggered": triggered}}
 
 
+# ── ops: paper bots (a strategy that runs continuously on the paper portfolio) ──
+# A bot = {symbol, strategy, interval, quote, enabled}. bot_step evaluates each enabled bot's
+# current signal and acts on the PAPER portfolio (buy when bullish + flat, sell when bearish +
+# in-position). The GUI (or an agent) calls bot_step on a timer → the strategy "runs live" on
+# paper. No real money — it just drives paper_buy/paper_sell.
+def op_bot_add(a):
+    sym = str(a.get("symbol", "")).upper().strip()
+    strat = str(a.get("strategy") or "sma_cross")
+    if not sym or strat not in STRATEGIES:
+        return {"error": "symbol and valid strategy required"}
+    bot = {"id": int(time.time() * 1000), "symbol": sym, "strategy": strat,
+           "interval": str(a.get("interval") or "1h"), "quote": float(a.get("quote") or 1000), "enabled": True}
+    bots = _load_state().get("bots") or []
+    bots.append(bot)
+    _patch_state({"bots": bots})
+    return {"result": {"bot": bot}}
+
+
+def op_bot_list(a):
+    return {"result": {"bots": _load_state().get("bots") or [], "last_run": _load_state().get("last_bot_run")}}
+
+
+def op_bot_remove(a):
+    aid = a.get("id")
+    bots = [b for b in (_load_state().get("bots") or []) if b.get("id") != aid]
+    _patch_state({"bots": bots})
+    return {"result": {"bots": bots}}
+
+
+def op_bot_toggle(a):
+    aid = a.get("id")
+    bots = _load_state().get("bots") or []
+    for b in bots:
+        if b.get("id") == aid:
+            b["enabled"] = not b.get("enabled")
+    _patch_state({"bots": bots})
+    return {"result": {"bots": bots}}
+
+
+def op_bot_step(a):
+    bots = _load_state().get("bots") or []
+    actions = []
+    for bot in bots:
+        if not bot.get("enabled"):
+            continue
+        sym, strat = bot["symbol"], bot["strategy"]
+        try:
+            closes = [c["c"] for c in _klines(sym, bot.get("interval", "1h"), 200)]
+        except Exception:  # noqa
+            continue
+        pos = _positions(closes, strat, dict(STRATEGIES[strat]["params"]))
+        sig = next((v for v in reversed(pos) if v is not None), None)
+        if sig is None:
+            continue
+        p = _portfolio()
+        held = sym in p["positions"] and p["positions"][sym]["qty"] > 0
+        if sig == 1 and not held:
+            r = op_paper_buy({"symbol": sym, "quote_amount": bot.get("quote", 1000)})
+            if "result" in r:
+                actions.append({"symbol": sym, "strategy": strat, "action": "buy"})
+        elif sig == 0 and held:
+            r = op_paper_sell({"symbol": sym})
+            if "result" in r:
+                actions.append({"symbol": sym, "strategy": strat, "action": "sell", "realized": r["result"].get("realized")})
+    _patch_state({"last_bot_run": int(time.time())})
+    return {"result": {"actions": actions, "bots": len(bots), "enabled": sum(1 for b in bots if b.get("enabled"))}}
+
+
 # ── shared state ────────────────────────────────────────────────────────────
 def _patch_state(updates):
     st = _load_state()
@@ -1085,6 +1153,7 @@ HANDLERS = {
     "get_ticker_24h": op_get_ticker_24h, "top_movers": op_top_movers,
     "watchlist_get": op_watchlist_get, "watchlist_add": op_watchlist_add, "watchlist_remove": op_watchlist_remove,
     "alert_add": op_alert_add, "alert_list": op_alert_list, "alert_remove": op_alert_remove, "alert_check": op_alert_check,
+    "bot_add": op_bot_add, "bot_list": op_bot_list, "bot_remove": op_bot_remove, "bot_toggle": op_bot_toggle, "bot_step": op_bot_step,
 }
 
 

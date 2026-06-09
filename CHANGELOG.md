@@ -1,3 +1,14 @@
+## 2026-06-09 — FlowAlpha v0.17.0: paper trading bots (the continuous "operate" layer, gap #4)
+
+- Paper bots: a strategy that runs CONTINUOUSLY on the paper portfolio. bot_add (symbol +
+  strategy + quote), bot_list, bot_remove, bot_toggle (enable/pause), bot_step (evaluate every
+  enabled bot's current signal and buy/sell on paper — bullish+flat → buy, bearish+held → sell).
+  Idempotent: only acts on signal change. No real money — drives paper_buy/paper_sell.
+- GUI: PAPER BOTS panel (add bot, list with running/paused toggle + remove); the 12-15s loop
+  calls bot_step so strategies run live on paper and the dashboard/portfolio reflect it.
+- Tested standalone (add → step buys on signal → idempotent) + verified visually in headless
+  Chrome. Closes gap #4 (continuous operate layer). 35 Ops.
+
 ## 2026-06-09 — FlowAlpha v0.16.0: dashboard (one-glance command center)
 
 - Dashboard strip at the top aggregating existing ops into glanceable tiles: live price, market
