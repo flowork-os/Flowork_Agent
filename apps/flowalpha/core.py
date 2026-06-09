@@ -170,6 +170,62 @@ def macd(xs, fast, slow, signal):
     return line, sig, hist
 
 
+def stdev(xs, period):
+    out = []
+    for i in range(len(xs)):
+        if i < period - 1:
+            out.append(None)
+            continue
+        w = xs[i - period + 1:i + 1]
+        m = sum(w) / period
+        out.append(math.sqrt(sum((x - m) ** 2 for x in w) / period))
+    return out
+
+
+def bollinger(closes, period, k):
+    mid, sd = sma(closes, period), stdev(closes, period)
+    up = [(mid[i] + k * sd[i]) if (mid[i] is not None and sd[i] is not None) else None for i in range(len(closes))]
+    lo = [(mid[i] - k * sd[i]) if (mid[i] is not None and sd[i] is not None) else None for i in range(len(closes))]
+    return mid, up, lo
+
+
+def atr(highs, lows, closes, period):
+    n = len(closes)
+    tr = [highs[0] - lows[0]] + [max(highs[i] - lows[i], abs(highs[i] - closes[i - 1]), abs(lows[i] - closes[i - 1])) for i in range(1, n)]
+    out = [None] * n
+    if n <= period:
+        return out
+    a = sum(tr[1:period + 1]) / period
+    out[period] = a
+    for i in range(period + 1, n):
+        a = (a * (period - 1) + tr[i]) / period
+        out[i] = a
+    return out
+
+
+def obv(closes, volumes):
+    out = [0.0] * len(closes)
+    for i in range(1, len(closes)):
+        out[i] = out[i - 1] + (volumes[i] if closes[i] > closes[i - 1] else -volumes[i] if closes[i] < closes[i - 1] else 0)
+    return out
+
+
+def stoch(highs, lows, closes, period, d_period):
+    n = len(closes)
+    k = [None] * n
+    for i in range(period - 1, n):
+        hh, ll = max(highs[i - period + 1:i + 1]), min(lows[i - period + 1:i + 1])
+        k[i] = 100 * (closes[i] - ll) / (hh - ll) if hh != ll else 50.0
+    kvals = [v for v in k if v is not None]
+    dsma = sma(kvals, d_period)
+    d, j = [None] * n, 0
+    for i in range(n):
+        if k[i] is not None:
+            d[i] = dsma[j]
+            j += 1
+    return k, d
+
+
 # ── strategies → a target-position series (0 flat / 1 long; None during warm-up) ──
 # Each strategy is a pure function of closes + params. The simulator turns position
 # transitions into trades, so adding a strategy never touches the backtest engine.
@@ -254,17 +310,33 @@ def _max_drawdown(eq):
 def _metrics(equity, closes, eq_curve, trades, rets, interval):
     closed = [t for t in trades if not t.get("open")]
     wins = [t for t in closed if t["ret_pct"] > 0]
+    losses = [t for t in closed if t["ret_pct"] <= 0]
     eqs = [p["eq"] for p in eq_curve]
+    ann = _ANN.get(interval, 8760)
     mean = sum(rets) / len(rets) if rets else 0.0
     var = sum((r - mean) ** 2 for r in rets) / len(rets) if rets else 0.0
     std = math.sqrt(var)
-    sharpe = (mean / std * math.sqrt(_ANN.get(interval, 8760))) if std > 0 else 0.0
+    sharpe = (mean / std * math.sqrt(ann)) if std > 0 else 0.0
+    dvar = sum(min(r, 0) ** 2 for r in rets) / len(rets) if rets else 0.0
+    dstd = math.sqrt(dvar)
+    sortino = (mean / dstd * math.sqrt(ann)) if dstd > 0 else 0.0
+    mdd = _max_drawdown(eqs)
+    ann_ret = ((equity ** (ann / max(1, len(rets)))) - 1) * 100 if rets else 0.0
+    calmar = (ann_ret / abs(mdd)) if mdd != 0 else 0.0
+    gw = sum(t["ret_pct"] for t in wins)
+    gl = abs(sum(t["ret_pct"] for t in losses))
+    pf = (gw / gl) if gl > 0 else (gw if gw > 0 else 0.0)
     return {
         "total_return_pct": round((equity - 1) * 100, 2),
         "buy_hold_pct": round((closes[-1] / closes[0] - 1) * 100, 2),
         "win_rate_pct": round(len(wins) / len(closed) * 100, 1) if closed else 0.0,
-        "max_drawdown_pct": round(_max_drawdown(eqs), 2),
+        "max_drawdown_pct": round(mdd, 2),
         "sharpe": round(sharpe, 2),
+        "sortino": round(sortino, 2),
+        "calmar": round(calmar, 2),
+        "profit_factor": round(pf, 2),
+        "avg_win_pct": round(sum(t["ret_pct"] for t in wins) / len(wins), 2) if wins else 0.0,
+        "avg_loss_pct": round(sum(t["ret_pct"] for t in losses) / len(losses), 2) if losses else 0.0,
         "trades": len(closed) + (1 if (trades and trades[-1].get("open")) else 0),
         "candles": len(closes),
     }
@@ -303,6 +375,10 @@ def op_list_indicators(a):
         {"name": "ema", "params": {"period": 20}, "desc": "Exponential moving average"},
         {"name": "rsi", "params": {"period": 14}, "desc": "Relative strength index (0..100)"},
         {"name": "macd", "params": {"fast": 12, "slow": 26, "signal": 9}, "desc": "MACD line/signal/histogram"},
+        {"name": "bollinger", "params": {"period": 20, "k": 2}, "desc": "Bollinger Bands (middle/upper/lower)"},
+        {"name": "atr", "params": {"period": 14}, "desc": "Average True Range (volatility)"},
+        {"name": "obv", "params": {}, "desc": "On-Balance Volume"},
+        {"name": "stoch", "params": {"period": 14, "d_period": 3}, "desc": "Stochastic %K/%D (0..100)"},
     ]}}
 
 
@@ -315,7 +391,29 @@ def op_compute_indicator(a):
     limit = max(1, min(int(a.get("limit") or 200), 500))
     candles = _klines(sym, interval, limit)
     closes = [c["c"] for c in candles]
+    highs = [c["h"] for c in candles]
+    lows = [c["l"] for c in candles]
+    vols = [c["v"] for c in candles]
     times = [c["t"] for c in candles]
+    if ind == "bollinger":
+        period, kk = int(a.get("period") or 20), float(a.get("k") or 2)
+        mid, up, lo = bollinger(closes, period, kk)
+        return {"result": {"symbol": sym, "indicator": "bollinger", "period": period, "k": kk,
+                           "series": [{"t": times[i], "mid": mid[i], "upper": up[i], "lower": lo[i]} for i in range(len(mid))]}}
+    if ind == "atr":
+        period = int(a.get("period") or 14)
+        series = atr(highs, lows, closes, period)
+        return {"result": {"symbol": sym, "indicator": "atr", "period": period,
+                           "series": [{"t": times[i], "v": series[i]} for i in range(len(series))]}}
+    if ind == "obv":
+        series = obv(closes, vols)
+        return {"result": {"symbol": sym, "indicator": "obv",
+                           "series": [{"t": times[i], "v": series[i]} for i in range(len(series))]}}
+    if ind == "stoch":
+        period, dp = int(a.get("period") or 14), int(a.get("d_period") or 3)
+        kk, dd = stoch(highs, lows, closes, period, dp)
+        return {"result": {"symbol": sym, "indicator": "stoch", "period": period, "d_period": dp,
+                           "series": [{"t": times[i], "k": kk[i], "d": dd[i]} for i in range(len(kk))]}}
     if ind in ("sma", "ema"):
         period = int(a.get("period") or 20)
         series = (sma if ind == "sma" else ema)(closes, period)
@@ -331,7 +429,7 @@ def op_compute_indicator(a):
         line, sig, hist = macd(closes, fast, slow, signal)
         return {"result": {"symbol": sym, "indicator": "macd", "fast": fast, "slow": slow, "signal": signal,
                            "series": [{"t": times[i], "macd": line[i], "signal": sig[i], "hist": hist[i]} for i in range(len(line))]}}
-    return {"error": "unknown indicator: " + ind + " (sma|ema|rsi|macd)"}
+    return {"error": "unknown indicator: " + ind + " (sma|ema|rsi|macd|bollinger|atr|obv|stoch)"}
 
 
 # ── ops: custom indicator (SAFE formula — AST whitelist, NOT exec/eval) ─────────
@@ -357,6 +455,7 @@ def _vec1(fn):
 
 _FORMULA_FUNCS = {
     "sma": lambda x, p: sma(x, int(p)), "ema": lambda x, p: ema(x, int(p)), "rsi": lambda x, p: rsi(x, int(p)),
+    "stdev": lambda x, p: stdev(x, int(p)), "atr": lambda h, l, c, p: atr(h, l, c, int(p)), "obv": lambda c, v: obv(c, v),
     "abs": _vec1(abs), "log": _vec1(math.log), "sqrt": _vec1(math.sqrt),
 }
 _BINOPS = {ast.Add: lambda a, b: a + b, ast.Sub: lambda a, b: a - b, ast.Mult: lambda a, b: a * b,

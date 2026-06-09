@@ -1,3 +1,13 @@
+## 2026-06-09 — FlowAlpha v0.13.0: more indicators + richer backtest metrics (gap-close #2,#3)
+
+- Indicators: added Bollinger Bands, ATR, OBV, Stochastic (%K/%D) to compute_indicator +
+  list_indicators; atr/obv/stdev are now usable in the custom-indicator formula IDE too.
+- Backtest metrics expanded: Sortino (downside-risk), Calmar (return/maxDD), Profit Factor,
+  avg win/avg loss — alongside Sharpe, win rate, max drawdown. Shown in the GUI (9 metric cards).
+- GUI: BOLL toggle overlays Bollinger Bands on the price pane.
+- Tested (all new indicators + metrics + a custom atr formula) + verified visually in headless
+  Chrome (BB overlay + new metric cards). Closes gap #2 (indicators) and #3 (metrics).
+
 ## 2026-06-09 — FlowAlpha v0.12.0: strategy comparison + chart drawing tools
 
 - compare_strategies Op: backtests ALL built-in strategies on a symbol and returns metrics

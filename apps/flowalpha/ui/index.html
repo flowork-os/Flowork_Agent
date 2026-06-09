@@ -57,7 +57,7 @@
       <label>SYMBOL</label><input id="sym" class="sym" value="BTCUSDT" autocomplete="off">
       <span id="tfs" class="tfs"></span>
       <button id="load">LOAD</button>
-      <button id="draw" class="ghost">DRAW LINE</button><button id="clrline" class="ghost">CLR</button>
+      <button id="bb" class="ghost">BOLL</button><button id="draw" class="ghost">DRAW LINE</button><button id="clrline" class="ghost">CLR</button>
       <span class="price" id="price">—</span><span class="tick" id="tickst">● live</span>
     </div>
     <div id="ohlc" class="ohlc">hover the chart for OHLC</div>
@@ -77,7 +77,7 @@
       <button id="ciplot" class="ghost">PLOT</button><button id="ciclear" class="ghost">CLEAR</button>
       <span class="st" id="cist"></span>
     </div>
-    <div class="sub">Safe formula (AST whitelist, no code execution): close/open/high/low/volume · sma/ema/rsi/abs/log/sqrt · + - * /</div>
+    <div class="sub">Safe formula (AST whitelist, no code execution): close/open/high/low/volume · sma/ema/rsi/stdev/atr/obv/abs/log/sqrt · + - * /</div>
   </div>
 
   <div class="card">
@@ -137,7 +137,8 @@
   let curTF = '1h';
   const iv = () => curTF;
   let CANDLES = [], TRADES = [], CUSTOM = null, lastPx = 0, hoverIdx = -1;
-  let LINES = [], drawMode = false, drawPt = null, chartScale = null;
+  let LINES = [], drawMode = false, drawPt = null, chartScale = null, bbOn = false;
+  function stdevJS(cl, p) { const o = []; for (let i = 0; i < cl.length; i++) { if (i < p - 1) { o.push(null); continue; } const w = cl.slice(i - p + 1, i + 1), m = w.reduce((a, b) => a + b, 0) / p; o.push(Math.sqrt(w.reduce((a, b) => a + (b - m) ** 2, 0) / p)); } return o; }
   // timeframe buttons
   ['1m', '5m', '15m', '1h', '4h', '1d'].forEach(tf => {
     const b = document.createElement('button'); b.className = 'tf' + (tf === curTF ? ' on' : ''); b.textContent = tf;
@@ -177,6 +178,11 @@
       ctx.beginPath(); ctx.moveTo(cx, y(k.h)); ctx.lineTo(cx, y(k.l)); ctx.stroke();
       const bw = Math.max(1, cw * 0.62), yo = y(k.o), yc = y(k.c); ctx.fillRect(cx - bw / 2, Math.min(yo, yc), bw, Math.max(1, Math.abs(yc - yo))); });
     line(ctx, sf, '#22ff88', x, y); line(ctx, ss, '#ffd166', x, y);
+    if (bbOn) {
+      const bm = smaJS(closes, 20), bs = stdevJS(closes, 20);
+      const bu = bm.map((v, i) => (v != null && bs[i] != null) ? v + 2 * bs[i] : null), bl = bm.map((v, i) => (v != null && bs[i] != null) ? v - 2 * bs[i] : null);
+      line(ctx, bu, 'rgba(54,230,255,.55)', x, y, 1); line(ctx, bl, 'rgba(54,230,255,.55)', x, y, 1); line(ctx, bm, 'rgba(54,230,255,.3)', x, y, 1);
+    }
     // live price dashed line
     const lp = closes[n - 1]; ctx.strokeStyle = 'rgba(54,230,255,.5)'; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(pad, y(lp)); ctx.lineTo(W - pad, y(lp)); ctx.stroke(); ctx.setLineDash([]);
     // trade markers (from last backtest), matched by time into the visible window
@@ -263,7 +269,9 @@
     if (!r || !r.metrics) { $('metrics').innerHTML = '<div class="m"><div class="k">NO RUN YET</div></div>'; return; }
     const m = r.metrics, cls = (v) => v >= 0 ? 'pos' : 'neg', pct = (v) => (v >= 0 ? '+' : '') + v + '%';
     $('metrics').innerHTML = card('RETURN', pct(m.total_return_pct), cls(m.total_return_pct)) + card('BUY & HOLD', pct(m.buy_hold_pct), cls(m.buy_hold_pct)) +
-      card('WIN RATE', m.win_rate_pct + '%') + card('MAX DD', pct(m.max_drawdown_pct), 'neg') + card('SHARPE', m.sharpe, cls(m.sharpe)) + card('TRADES', m.trades);
+      card('WIN RATE', m.win_rate_pct + '%') + card('MAX DD', pct(m.max_drawdown_pct), 'neg') + card('SHARPE', m.sharpe, cls(m.sharpe)) +
+      card('SORTINO', m.sortino != null ? m.sortino : '–', cls(m.sortino || 0)) + card('CALMAR', m.calmar != null ? m.calmar : '–', cls(m.calmar || 0)) +
+      card('PROFIT F.', m.profit_factor != null ? m.profit_factor : '–', cls((m.profit_factor || 0) - 1)) + card('TRADES', m.trades);
     plotEq($('eq'), r.equity.map(p => p.eq));
     TRADES = r.trades || []; drawAll(); // show entry/exit markers on the chart
   }
@@ -355,6 +363,7 @@
     st.textContent = '✓ compared all 4 · buy&hold ' + res.buy_hold_pct + '%';
   }
   // drawing tools (trendlines)
+  $('bb').onclick = () => { bbOn = !bbOn; $('bb').classList.toggle('on', bbOn); drawAll(); };
   $('draw').onclick = () => { drawMode = !drawMode; drawPt = null; $('draw').classList.toggle('on', drawMode); $('cst').textContent = drawMode ? 'DRAW: click two points on the chart' : ''; };
   $('clrline').onclick = () => { LINES = []; drawPt = null; drawAll(); $('cst').textContent = 'lines cleared'; };
   $('chartwrap').addEventListener('click', (e) => {
