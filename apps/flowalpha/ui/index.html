@@ -53,6 +53,10 @@
   <div class="sub">Sovereign quant desk — crypto (BTCUSDT), stocks (AAPL), forex (EURUSD=X), indices (^GSPC). Driven by you AND agents. Try: "optimize an sma_cross backtest on AAPL".</div>
 
   <div class="card">
+    <div class="metrics" id="dash"></div>
+  </div>
+
+  <div class="card">
     <div class="row">
       <label>SYMBOL</label><input id="sym" class="sym" value="BTCUSDT" autocomplete="off">
       <span id="tfs" class="tfs"></span>
@@ -260,7 +264,7 @@
     if (tickTimer) clearInterval(tickTimer); if (refreshTimer) clearInterval(refreshTimer);
     tickTimer = setInterval(tick, 2000);              // per-tick price update
     refreshTimer = setInterval(loadChart, 60000);     // full candle refresh
-    wlTimer = setInterval(() => { loadWatchlist(); checkAlerts(); }, 12000); // watchlist + alerts
+    wlTimer = setInterval(() => { loadWatchlist(); checkAlerts(); loadDashboard(); }, 12000); // watchlist + alerts + dashboard
   }
 
   // ── backtest + optimize ────────────────────────────────────────────────────
@@ -326,6 +330,19 @@
   }
   $('chartwrap').addEventListener('mousemove', (e) => { const n = CANDLES.length; if (!n) return; const rect = $('chart').getBoundingClientRect(); const rel = (e.clientX - rect.left) / rect.width; hoverIdx = Math.max(0, Math.min(n - 1, Math.floor(rel * n))); drawAll(); updateOHLC(); });
   $('chartwrap').addEventListener('mouseleave', () => { hoverIdx = -1; drawAll(); updateOHLC(); });
+  // ── dashboard (one-glance summary, aggregates existing ops) ─────────────────
+  async function loadDashboard() {
+    const [reg, pf, bt, al] = await Promise.all([
+      call('regime_detection', { symbol: sym(), interval: iv() }), call('portfolio_get'), call('get_last_backtest'), call('alert_list')]);
+    const t = [];
+    t.push(card('PRICE ' + sym(), lastPx ? lastPx.toLocaleString('en-US', { maximumFractionDigits: 8 }) : '—'));
+    if (reg.ok && reg.result) { const r = reg.result, c = r.regime.includes('up') ? 'pos' : r.regime.includes('down') ? 'neg' : ''; t.push('<div class="m"><div class="k">REGIME · ADX ' + r.adx + '</div><div class="v ' + c + '" style="font-size:15px">' + r.regime + '</div></div>'); }
+    if (pf.ok && pf.result) { const p = pf.result; t.push(card('PORTFOLIO', '$' + p.equity)); t.push(card('P&L', (p.total_return_pct >= 0 ? '+' : '') + p.total_return_pct + '%', p.total_return_pct >= 0 ? 'pos' : 'neg')); }
+    if (al.ok && al.result) { const tr = al.result.alerts.filter(x => x.triggered).length; t.push(card('ALERTS', al.result.alerts.length + (tr ? ' · ' + tr + '🔔' : ''))); }
+    if (bt.ok && bt.result && bt.result.metrics) { const m = bt.result.metrics; t.push('<div class="m"><div class="k">LAST BACKTEST</div><div class="v ' + (m.total_return_pct >= 0 ? 'pos' : 'neg') + '" style="font-size:15px">' + bt.result.strategy + ' ' + (m.total_return_pct >= 0 ? '+' : '') + m.total_return_pct + '%</div></div>'); }
+    $('dash').innerHTML = t.join('');
+  }
+
   // ── watchlist + alerts ──────────────────────────────────────────────────────
   async function loadWatchlist() {
     const r = await call('watchlist_get'); if (!r.ok || !r.result) return; const wl = r.result.watchlist;
@@ -386,7 +403,7 @@
   $('load').onclick = () => { CUSTOM = null; loadChart(); };
   $('run').onclick = runBacktest; $('opt').onclick = optimize; $('cmp').onclick = compareStrats; $('ai').onclick = aiAnalyze;
   $('pbuy').onclick = doBuy; $('psell').onclick = doSell; $('preset').onclick = doReset;
-  (async () => { await initStrategies(); await loadChart(); startLoops(); loadBacktest(); loadPortfolio(); loadLiveStatus(); loadWatchlist(); loadAlerts(); checkAlerts(); })();
+  (async () => { await initStrategies(); await loadChart(); startLoops(); loadBacktest(); loadPortfolio(); loadLiveStatus(); loadWatchlist(); loadAlerts(); checkAlerts(); loadDashboard(); })();
 </script>
 </body>
 </html>

@@ -1,3 +1,10 @@
+## 2026-06-09 — FlowAlpha v0.16.0: dashboard (one-glance command center)
+
+- Dashboard strip at the top aggregating existing ops into glanceable tiles: live price, market
+  REGIME (+ADX, color-coded), paper PORTFOLIO equity + P&L, ALERTS count (+ triggered), and the
+  LAST BACKTEST (strategy + return). Refreshes every 12s with the watchlist/alert loop.
+- Verified visually in headless Chrome (all 6 tiles render). Closes gap #5 (dashboard).
+
 ## 2026-06-09 — FlowAlpha v0.15.0: more indicators + regime detection + backtest history
 
 - Indicators: VWAP, ADX (+DI/-DI), SuperTrend added to compute_indicator + list_indicators.
