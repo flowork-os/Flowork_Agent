@@ -52,6 +52,27 @@ func TestFlowAlphaApp(t *testing.T) {
 	t.Logf("backtest BTCUSDT sma_cross → return=%v%% sharpe=%v trades=%v",
 		metrics["total_return_pct"], metrics["sharpe"], metrics["trades"])
 
+	// list_strategies + run_optimize (parameter sweep → best params).
+	if ls, err := m.InvokeOp("flowalpha", "list_strategies", nil, "agent"); err == nil {
+		if lm, _ := ls.(map[string]any); lm["strategies"] == nil {
+			t.Fatalf("list_strategies wrong shape: %+v", ls)
+		}
+	}
+	opt, err := m.InvokeOp("flowalpha", "run_optimize",
+		map[string]any{"symbol": "BTCUSDT", "interval": "1h", "limit": 300, "strategy": "sma_cross"}, "agent")
+	if err != nil {
+		if netSkip(err) {
+			t.Skipf("data source unreachable (skip): %v", err)
+		}
+		t.Fatalf("run_optimize: %v", err)
+	}
+	om, _ := opt.(map[string]any)
+	best, _ := om["best"].(map[string]any)
+	if best == nil || best["metrics"] == nil {
+		t.Fatalf("optimize best missing: %+v", opt)
+	}
+	t.Logf("optimize sma_cross tested=%v best=%v", om["tested"], best["params"])
+
 	// Shared state: get_last_backtest (driver = human-gui) sees the run the agent just made.
 	last, err := m.InvokeOp("flowalpha", "get_last_backtest", nil, "human-gui")
 	if err != nil {

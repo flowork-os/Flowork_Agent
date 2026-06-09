@@ -1,3 +1,14 @@
+## 2026-06-09 — FlowAlpha v0.3.0 (Phase 2): strategy registry + parameter optimization
+
+- Strategy registry (core.py): a strategy is now a pure target-position function, so the
+  backtest engine is shared. Built-in: sma_cross, ema_cross, rsi_threshold, macd_cross.
+- run_optimize Op: grid sweep across a strategy's parameters, ranked by total_return/sharpe/
+  win_rate, returns the best params + a ranked results table (capped at 60 combos).
+- list_strategies Op. run_backtest gains a `strategy` param.
+- GUI: full-width (no max-width container, per owner), strategy dropdown, OPTIMIZE button that
+  applies the best params and shows the ranked table.
+- Test extended (optimize + list_strategies) — PASS. 9 Ops, each = GUI button + agent tool.
+
 ## 2026-06-09 — FlowAlpha quant app v0.2.0 (sovereign, white-label, native engine)
 
 New first-class app `apps/flowalpha/` — a sovereign quant desk (white-label, our own brand),

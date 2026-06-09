@@ -2,22 +2,21 @@
 # core.py — FlowAlpha CORE (Flowork apps platform, runtime:process).
 #
 # WHITE-LABEL + SOVEREIGN: 100% ORIGINAL code (no upstream copied → no attribution owed).
-# Market data = a PUBLIC exchange REST mirror (no key, no account). Indicators + backtest
-# are computed here in pure stdlib Python (no numpy, no DB), so FlowAlpha runs anywhere with
-# zero config. The closed loop — data → indicator → strategy → backtest → metrics — lives in
-# THIS process; the last backtest is shared state both the GUI and agents read.
+# Market data = a PUBLIC exchange REST mirror (no key, no account). Indicators, strategies,
+# backtest and parameter optimization run here in pure stdlib Python (no numpy, no DB), so
+# FlowAlpha runs anywhere with zero config. The closed loop — data → indicator → strategy →
+# backtest → optimize → metrics — lives in THIS process; the last backtest is shared state
+# both the GUI and agents read.
 #
 # Protocol: read {"op","args"} per line on stdin, reply {"result", ...} or {"error"} per line.
-import sys, json, os, time, math, urllib.request, urllib.parse, urllib.error
+import sys, json, os, time, math, itertools, urllib.request, urllib.parse, urllib.error
 
-# Public market-data endpoint (Binance public DATA mirror — reachable where api.binance.com is
-# geo-blocked). Same REST shape. Override via env QUANT_DATA_BASE for any other venue.
 DATA_BASE = os.environ.get("QUANT_DATA_BASE", "https://data-api.binance.vision/api/v3")
 HTTP_TIMEOUT = 12
 STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "state.json")
+MAX_OPT_COMBOS = 60
 
 _symbols_cache = {"at": 0.0, "list": []}
-# candles-per-year per interval, for annualising the Sharpe ratio.
 _ANN = {"1m": 525600, "5m": 105120, "15m": 35040, "1h": 8760, "4h": 2190, "1d": 365}
 
 
@@ -26,7 +25,7 @@ def _get(path, params=None):
     url = DATA_BASE.rstrip("/") + path
     if params:
         url += "?" + urllib.parse.urlencode(params)
-    req = urllib.request.Request(url, headers={"User-Agent": "flowalpha/0.2"})
+    req = urllib.request.Request(url, headers={"User-Agent": "flowalpha/0.3"})
     with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as r:
         return json.loads(r.read().decode("utf-8"))
 
@@ -105,7 +104,107 @@ def macd(xs, fast, slow, signal):
     return line, sig, hist
 
 
-# ── ops ─────────────────────────────────────────────────────────────────────
+# ── strategies → a target-position series (0 flat / 1 long; None during warm-up) ──
+# Each strategy is a pure function of closes + params. The simulator turns position
+# transitions into trades, so adding a strategy never touches the backtest engine.
+STRATEGIES = {
+    "sma_cross": {"params": {"fast": 10, "slow": 30}, "desc": "Long when fast SMA > slow SMA"},
+    "ema_cross": {"params": {"fast": 12, "slow": 26}, "desc": "Long when fast EMA > slow EMA"},
+    "rsi_threshold": {"params": {"period": 14, "buy_below": 30, "sell_above": 70}, "desc": "Long when RSI dips below buy_below, exit above sell_above"},
+    "macd_cross": {"params": {"fast": 12, "slow": 26, "signal": 9}, "desc": "Long when MACD line > signal line"},
+}
+
+
+def _positions(closes, strategy, p):
+    n = len(closes)
+    pos = [None] * n
+    if strategy == "sma_cross":
+        fast, slow = int(p.get("fast", 10)), int(p.get("slow", 30))
+        a, b = sma(closes, fast), sma(closes, slow)
+        for i in range(n):
+            pos[i] = None if (a[i] is None or b[i] is None) else (1 if a[i] > b[i] else 0)
+    elif strategy == "ema_cross":
+        fast, slow = int(p.get("fast", 12)), int(p.get("slow", 26))
+        a, b = ema(closes, fast), ema(closes, slow)
+        for i in range(n):
+            pos[i] = None if (a[i] is None or b[i] is None) else (1 if a[i] > b[i] else 0)
+    elif strategy == "rsi_threshold":
+        period = int(p.get("period", 14))
+        buy, sell = float(p.get("buy_below", 30)), float(p.get("sell_above", 70))
+        r, cur = rsi(closes, period), 0
+        for i in range(n):
+            if r[i] is None:
+                pos[i] = None
+                continue
+            if cur == 0 and r[i] < buy:
+                cur = 1
+            elif cur == 1 and r[i] > sell:
+                cur = 0
+            pos[i] = cur
+    elif strategy == "macd_cross":
+        line, sig, _ = macd(closes, int(p.get("fast", 12)), int(p.get("slow", 26)), int(p.get("signal", 9)))
+        for i in range(n):
+            pos[i] = None if (line[i] is None or sig[i] is None) else (1 if line[i] > sig[i] else 0)
+    else:
+        return None
+    return pos
+
+
+# ── backtest engine ─────────────────────────────────────────────────────────
+def _simulate(closes, times, pos, fee):
+    cur, equity, entry_px, entry_t = 0, 1.0, None, None
+    eq_curve, trades, rets = [], [], []
+    for i in range(len(closes)):
+        if cur == 1 and i > 0:
+            r = closes[i] / closes[i - 1] - 1
+            equity *= (1 + r)
+            rets.append(r)
+        t = pos[i]
+        if t is not None and i > 0 and t != cur:
+            if cur == 0 and t == 1:
+                cur, entry_px, entry_t = 1, closes[i], times[i]
+                equity *= (1 - fee / 2)
+            elif cur == 1 and t == 0:
+                cur = 0
+                equity *= (1 - fee / 2)
+                trades.append({"entry_t": entry_t, "entry": entry_px, "exit_t": times[i],
+                               "exit": closes[i], "ret_pct": (closes[i] / entry_px - 1) * 100})
+                entry_px = None
+        eq_curve.append({"t": times[i], "eq": round(equity, 6)})
+    if cur == 1 and entry_px:
+        trades.append({"entry_t": entry_t, "entry": entry_px, "exit_t": times[-1],
+                       "exit": closes[-1], "ret_pct": (closes[-1] / entry_px - 1) * 100, "open": True})
+    return equity, eq_curve, trades, rets
+
+
+def _max_drawdown(eq):
+    peak, mdd = eq[0], 0.0
+    for v in eq:
+        peak = max(peak, v)
+        mdd = min(mdd, v / peak - 1)
+    return mdd * 100
+
+
+def _metrics(equity, closes, eq_curve, trades, rets, interval):
+    closed = [t for t in trades if not t.get("open")]
+    wins = [t for t in closed if t["ret_pct"] > 0]
+    eqs = [p["eq"] for p in eq_curve]
+    mean = sum(rets) / len(rets) if rets else 0.0
+    var = sum((r - mean) ** 2 for r in rets) / len(rets) if rets else 0.0
+    std = math.sqrt(var)
+    sharpe = (mean / std * math.sqrt(_ANN.get(interval, 8760))) if std > 0 else 0.0
+    return {
+        "total_return_pct": round((equity - 1) * 100, 2),
+        "buy_hold_pct": round((closes[-1] / closes[0] - 1) * 100, 2),
+        "win_rate_pct": round(len(wins) / len(closed) * 100, 1) if closed else 0.0,
+        "max_drawdown_pct": round(_max_drawdown(eqs), 2),
+        "sharpe": round(sharpe, 2),
+        "trades": len(closed) + (1 if (trades and trades[-1].get("open")) else 0),
+        "candles": len(closes),
+    }
+
+
+# ── ops: data ─────────────────────────────────────────────────────────────────
 def op_get_price(a):
     sym = str(a.get("symbol", "")).upper().strip()
     if not sym:
@@ -132,6 +231,7 @@ def op_search_symbols(a):
     return {"result": {"query": q, "count": len(hits), "symbols": hits}}
 
 
+# ── ops: indicators ───────────────────────────────────────────────────────────
 def op_list_indicators(a):
     return {"result": {"indicators": [
         {"name": "sma", "params": {"period": 20}, "desc": "Simple moving average"},
@@ -169,85 +269,101 @@ def op_compute_indicator(a):
     return {"error": "unknown indicator: " + ind + " (sma|ema|rsi|macd)"}
 
 
-def _max_drawdown(eq):
-    peak, mdd = eq[0], 0.0
-    for v in eq:
-        peak = max(peak, v)
-        mdd = min(mdd, v / peak - 1)
-    return mdd * 100
+# ── ops: strategies / backtest / optimize ──────────────────────────────────────
+def op_list_strategies(a):
+    return {"result": {"strategies": [{"name": k, "params": v["params"], "desc": v["desc"]} for k, v in STRATEGIES.items()]}}
+
+
+def _run(symbol, interval, limit, strategy, params, fee):
+    candles = _klines(symbol, interval, limit)
+    closes = [c["c"] for c in candles]
+    times = [c["t"] for c in candles]
+    pos = _positions(closes, strategy, params)
+    if pos is None:
+        return None, "unknown strategy: " + strategy
+    equity, eq_curve, trades, rets = _simulate(closes, times, pos, fee)
+    metrics = _metrics(equity, closes, eq_curve, trades, rets, interval)
+    return {"symbol": symbol, "interval": interval, "strategy": strategy, "params": params,
+            "metrics": metrics, "equity": eq_curve, "trades": trades,
+            "candles": [{"t": c["t"], "c": c["c"]} for c in candles]}, None
 
 
 def op_run_backtest(a):
     sym = str(a.get("symbol", "")).upper().strip()
     if not sym:
         return {"error": "symbol required"}
+    strategy = str(a.get("strategy") or "sma_cross")
+    if strategy not in STRATEGIES:
+        return {"error": "unknown strategy: %s (%s)" % (strategy, "|".join(STRATEGIES))}
     interval = str(a.get("interval") or "1h")
     limit = max(50, min(int(a.get("limit") or 300), 500))
-    fast = max(2, int(a.get("fast") or 10))
-    slow = max(fast + 1, int(a.get("slow") or 30))
-    fee = float(a.get("fee_bps") or 10) / 10000.0  # round-trip fraction
+    fee = float(a.get("fee_bps") or 10) / 10000.0
+    params = dict(STRATEGIES[strategy]["params"])
+    for k in params:
+        if a.get(k) is not None:
+            params[k] = a.get(k)
+    res, err = _run(sym, interval, limit, strategy, params, fee)
+    if err:
+        return {"error": err}
+    res["params"]["fee_bps"] = round(fee * 10000, 2)
+    _save_state({"last_backtest": res, "at": int(time.time())})
+    return {"result": res}
+
+
+def _grid(strategy, custom):
+    """Yield param dicts for a sweep. custom = {param: [values]} overrides defaults."""
+    defaults = {
+        "sma_cross": {"fast": [5, 10, 20], "slow": [30, 50, 100]},
+        "ema_cross": {"fast": [8, 12, 20], "slow": [21, 26, 50]},
+        "rsi_threshold": {"period": [14], "buy_below": [20, 30], "sell_above": [70, 80]},
+        "macd_cross": {"fast": [8, 12], "slow": [21, 26], "signal": [9]},
+    }.get(strategy, {})
+    space = custom if isinstance(custom, dict) and custom else defaults
+    keys = list(space.keys())
+    for combo in itertools.product(*[space[k] for k in keys]):
+        p = dict(zip(keys, combo))
+        # skip invalid fast>=slow combos
+        if "fast" in p and "slow" in p and p["fast"] >= p["slow"]:
+            continue
+        yield p
+
+
+def op_run_optimize(a):
+    sym = str(a.get("symbol", "")).upper().strip()
+    if not sym:
+        return {"error": "symbol required"}
+    strategy = str(a.get("strategy") or "sma_cross")
+    if strategy not in STRATEGIES:
+        return {"error": "unknown strategy: %s" % strategy}
+    interval = str(a.get("interval") or "1h")
+    limit = max(50, min(int(a.get("limit") or 300), 500))
+    fee = float(a.get("fee_bps") or 10) / 10000.0
+    rank_by = str(a.get("rank_by") or "total_return_pct")
     candles = _klines(sym, interval, limit)
     closes = [c["c"] for c in candles]
     times = [c["t"] for c in candles]
-    if len(closes) < slow + 2:
-        return {"error": "not enough candles for slow=%d" % slow}
-    fs, ss = sma(closes, fast), sma(closes, slow)
-
-    pos, equity, entry_px, entry_t = 0, 1.0, None, None
-    eq_curve, trades, rets = [], [], []
-    for i in range(len(closes)):
-        if pos == 1 and i > 0:
-            r = closes[i] / closes[i - 1] - 1
-            equity *= (1 + r)
-            rets.append(r)
-        if i > 0 and None not in (fs[i], ss[i], fs[i - 1], ss[i - 1]):
-            up = fs[i - 1] <= ss[i - 1] and fs[i] > ss[i]
-            down = fs[i - 1] >= ss[i - 1] and fs[i] < ss[i]
-            if pos == 0 and up:
-                pos, entry_px, entry_t = 1, closes[i], times[i]
-                equity *= (1 - fee / 2)
-            elif pos == 1 and down:
-                pos = 0
-                equity *= (1 - fee / 2)
-                trades.append({"entry_t": entry_t, "entry": entry_px, "exit_t": times[i],
-                               "exit": closes[i], "ret_pct": (closes[i] / entry_px - 1) * 100})
-                entry_px = None
-        eq_curve.append({"t": times[i], "eq": round(equity, 6)})
-    if pos == 1 and entry_px:
-        trades.append({"entry_t": entry_t, "entry": entry_px, "exit_t": times[-1],
-                       "exit": closes[-1], "ret_pct": (closes[-1] / entry_px - 1) * 100, "open": True})
-
-    closed = [t for t in trades if not t.get("open")]
-    wins = [t for t in closed if t["ret_pct"] > 0]
-    eqs = [p["eq"] for p in eq_curve]
-    mean = sum(rets) / len(rets) if rets else 0.0
-    var = sum((r - mean) ** 2 for r in rets) / len(rets) if rets else 0.0
-    std = math.sqrt(var)
-    ann = _ANN.get(interval, 8760)
-    sharpe = (mean / std * math.sqrt(ann)) if std > 0 else 0.0
-    metrics = {
-        "total_return_pct": round((equity - 1) * 100, 2),
-        "buy_hold_pct": round((closes[-1] / closes[0] - 1) * 100, 2),
-        "win_rate_pct": round(len(wins) / len(closed) * 100, 1) if closed else 0.0,
-        "max_drawdown_pct": round(_max_drawdown(eqs), 2),
-        "sharpe": round(sharpe, 2),
-        "trades": len(closed) + (1 if (trades and trades[-1].get("open")) else 0),
-        "candles": len(closes),
-    }
-    result = {"symbol": sym, "interval": interval, "strategy": "sma_cross",
-              "params": {"fast": fast, "slow": slow, "fee_bps": round(fee * 10000, 2)},
-              "metrics": metrics, "equity": eq_curve, "trades": trades,
-              "candles": [{"t": c["t"], "c": c["c"]} for c in candles]}
-    _save_state({"last_backtest": result, "at": int(time.time())})
-    return {"result": result}
+    results = []
+    for params in itertools.islice(_grid(strategy, a.get("grid")), MAX_OPT_COMBOS):
+        pos = _positions(closes, strategy, params)
+        if pos is None:
+            continue
+        equity, eq, trades, rets = _simulate(closes, times, pos, fee)
+        m = _metrics(equity, closes, eq, trades, rets, interval)
+        results.append({"params": params, "metrics": m})
+    if not results:
+        return {"error": "no valid parameter combos"}
+    results.sort(key=lambda r: r["metrics"].get(rank_by, -1e9), reverse=True)
+    best = results[0]
+    return {"result": {"symbol": sym, "interval": interval, "strategy": strategy, "rank_by": rank_by,
+                       "tested": len(results), "best": best, "buy_hold_pct": round((closes[-1] / closes[0] - 1) * 100, 2),
+                       "results": results[:15]}}
 
 
 def op_get_last_backtest(a):
-    st = _load_state()
-    return {"result": st.get("last_backtest") or {}}
+    return {"result": _load_state().get("last_backtest") or {}}
 
 
-# ── shared state (last backtest) ────────────────────────────────────────────
+# ── shared state ────────────────────────────────────────────────────────────
 def _load_state():
     try:
         with open(STATE_FILE, "r", encoding="utf-8") as f:
@@ -269,7 +385,8 @@ def _save_state(d):
 HANDLERS = {
     "get_price": op_get_price, "get_klines": op_get_klines, "search_symbols": op_search_symbols,
     "list_indicators": op_list_indicators, "compute_indicator": op_compute_indicator,
-    "run_backtest": op_run_backtest, "get_last_backtest": op_get_last_backtest,
+    "list_strategies": op_list_strategies, "run_backtest": op_run_backtest,
+    "run_optimize": op_run_optimize, "get_last_backtest": op_get_last_backtest,
 }
 
 
