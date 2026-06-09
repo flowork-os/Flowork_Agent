@@ -26,6 +26,8 @@
     { "name": "run_optimize", "description": "Parameter sweep: backtest a strategy across a grid of parameters and return the best by `rank_by` (total_return_pct|sharpe|win_rate_pct), plus the ranked results table. Default grid per strategy; pass `grid` to override.", "tool": true, "gui": true, "mutates": false,
       "input_schema": { "type": "object", "properties": { "symbol": { "type": "string" }, "strategy": { "type": "string" }, "interval": { "type": "string" }, "limit": { "type": "integer" }, "rank_by": { "type": "string", "description": "total_return_pct|sharpe|win_rate_pct" }, "fee_bps": { "type": "number" }, "grid": { "type": "object", "description": "optional {param: [values]} overrides" } }, "required": ["symbol"] } },
     { "name": "get_last_backtest", "description": "Get the most recent backtest result (shared state).", "tool": true, "gui": true, "mutates": false,
-      "input_schema": { "type": "object", "properties": {} } }
+      "input_schema": { "type": "object", "properties": {} } },
+    { "name": "ai_analyze", "description": "AI market analysis for a symbol, grounded ONLY on FlowAlpha's own engine output (live price, RSI, an sma_cross backtest) — no invented numbers. Runs through the sovereign Flowork router (no third-party LLM key). Returns a concise neutral analysis.", "tool": true, "gui": true, "mutates": false,
+      "input_schema": { "type": "object", "properties": { "symbol": { "type": "string" }, "interval": { "type": "string" }, "limit": { "type": "integer" } }, "required": ["symbol"] } }
   ]
 }

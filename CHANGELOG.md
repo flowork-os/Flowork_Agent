@@ -1,3 +1,13 @@
+## 2026-06-09 — FlowAlpha v0.4.0 (Phase 3): sovereign AI analysis via the Flowork router
+
+- ai_analyze Op: AI market analysis routed through the Flowork router (OpenAI-compatible,
+  sovereign — NO third-party LLM key). The prompt is grounded ONLY on FlowAlpha's own engine
+  output (live price, RSI, an sma_cross backtest) so the model can't invent numbers. Returns a
+  concise neutral analysis. Model left to the router default (brand-neutral: no vendor model
+  name baked in); override via QUANT_LLM_MODEL / FLOWORK_ROUTER_URL.
+- GUI: AI ANALYSIS card with an analyze button + output.
+- Test extended (ai_analyze, router-tolerant skip) — PASS. 10 Ops.
+
 ## 2026-06-09 — FlowAlpha v0.3.0 (Phase 2): strategy registry + parameter optimization
 
 - Strategy registry (core.py): a strategy is now a pure target-position function, so the

@@ -82,6 +82,18 @@ func TestFlowAlphaApp(t *testing.T) {
 		t.Fatalf("shared state did not return the last backtest: %+v", last)
 	}
 
+	// ai_analyze via the Flowork router (sovereign). Skip if the router is offline.
+	if ai, err := m.InvokeOp("flowalpha", "ai_analyze", map[string]any{"symbol": "BTCUSDT", "interval": "1h", "limit": 200}, "agent"); err == nil {
+		if am, _ := ai.(map[string]any); am["analysis"] == nil {
+			t.Fatalf("ai_analyze wrong shape: %+v", ai)
+		}
+		t.Log("ai_analyze via router: OK")
+	} else if strings.Contains(err.Error(), "router unreachable") || netSkip(err) {
+		t.Log("ai_analyze skipped (router offline)")
+	} else {
+		t.Fatalf("ai_analyze: %v", err)
+	}
+
 	// An unregistered op MUST be rejected (gate validation).
 	if _, e := m.InvokeOp("flowalpha", "rm_rf", nil, "agent"); e == nil {
 		t.Fatal("unregistered op must be rejected")

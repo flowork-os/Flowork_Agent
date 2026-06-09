@@ -73,6 +73,15 @@
     <div class="st" id="bst"></div>
     <div id="opttbl"></div>
   </div>
+
+  <div class="card">
+    <div class="row">
+      <label>AI ANALYSIS</label>
+      <button id="ai" class="ghost">ANALYZE (via Flowork router)</button>
+      <span class="st" id="aist"></span>
+    </div>
+    <div id="aiout" style="margin-top:8px;font-size:13px;line-height:1.6;color:#dffaf0;white-space:pre-wrap"></div>
+  </div>
 </div>
 <script>
   // Bridge to the Flowork host (sandboxed iframe; postMessage {op,args} is the only channel).
@@ -181,9 +190,16 @@
     });
   }
 
+  async function aiAnalyze() {
+    const st = $('aist'); st.textContent = 'thinking…'; $('aiout').textContent = '';
+    const r = await call('ai_analyze', { symbol: sym(), interval: iv() });
+    if (r.ok && r.result) { $('aiout').textContent = r.result.analysis; st.textContent = '✓ ' + new Date().toLocaleTimeString(); }
+    else { st.textContent = '✕ ' + (r.error || 'failed'); }
+  }
   $('load').onclick = loadChart;
   $('run').onclick = runBacktest;
   $('opt').onclick = optimize;
+  $('ai').onclick = aiAnalyze;
   (async () => { await initStrategies(); loadChart(); loadBacktest(); })();
 </script>
 </body>

@@ -13,6 +13,12 @@ import sys, json, os, time, math, itertools, urllib.request, urllib.parse, urlli
 
 DATA_BASE = os.environ.get("QUANT_DATA_BASE", "https://data-api.binance.vision/api/v3")
 HTTP_TIMEOUT = 12
+# AI runs through the Flowork router (sovereign, OpenAI-compatible) — NOT a third-party LLM key.
+# Model is left to the router's default unless QUANT_LLM_MODEL is set (brand-neutral: no vendor
+# model name baked in). Override the endpoint with FLOWORK_ROUTER_URL.
+LLM_URL = os.environ.get("FLOWORK_ROUTER_URL", "http://127.0.0.1:2402/v1/chat/completions")
+LLM_MODEL = os.environ.get("QUANT_LLM_MODEL", "")
+LLM_TIMEOUT = 30
 STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "state.json")
 MAX_OPT_COMBOS = 60
 
@@ -363,6 +369,50 @@ def op_get_last_backtest(a):
     return {"result": _load_state().get("last_backtest") or {}}
 
 
+# ── ops: AI (via the Flowork router — sovereign, no third-party key) ─────────────
+def _llm(prompt, max_tokens=320):
+    body = {"messages": [{"role": "user", "content": prompt}], "max_tokens": max_tokens}
+    if LLM_MODEL:
+        body["model"] = LLM_MODEL
+    req = urllib.request.Request(LLM_URL, data=json.dumps(body).encode("utf-8"),
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=LLM_TIMEOUT) as r:
+        d = json.loads(r.read().decode("utf-8"))
+    return (d.get("choices") or [{}])[0].get("message", {}).get("content", "").strip()
+
+
+def op_ai_analyze(a):
+    sym = str(a.get("symbol", "")).upper().strip()
+    if not sym:
+        return {"error": "symbol required"}
+    interval = str(a.get("interval") or "1h")
+    limit = max(50, min(int(a.get("limit") or 300), 500))
+    # gather neutral, factual context from our own engine (no hallucinated numbers).
+    price = _get("/ticker/price", {"symbol": sym})
+    bt, err = _run(sym, interval, limit, "sma_cross", {"fast": 10, "slow": 30}, 0.001)
+    if err:
+        return {"error": err}
+    closes = [c["c"] for c in _klines(sym, interval, limit)]
+    r = rsi(closes, 14)
+    rsi_last = next((v for v in reversed(r) if v is not None), None)
+    m = bt["metrics"]
+    ctx = {"symbol": sym, "price": float(price["price"]), "rsi14": round(rsi_last, 1) if rsi_last else None,
+           "backtest": {"strategy": "sma_cross(10/30)", **m}}
+    prompt = (
+        "You are a concise, neutral quantitative analyst. Use ONLY the data below — do not invent "
+        "numbers. Give 3-4 short sentences in English covering: trend/momentum read, what the "
+        "backtest implies about this regime, and the key risk. No hype, no disclaimers.\n\n"
+        + json.dumps(ctx, indent=2)
+    )
+    try:
+        text = _llm(prompt)
+    except urllib.error.URLError as e:
+        return {"error": "AI router unreachable (%s) — start the Flowork router or set FLOWORK_ROUTER_URL" % e.reason}
+    if not text:
+        return {"error": "AI router returned no content"}
+    return {"result": {"symbol": sym, "analysis": text, "context": ctx}}
+
+
 # ── shared state ────────────────────────────────────────────────────────────
 def _load_state():
     try:
@@ -387,6 +437,7 @@ HANDLERS = {
     "list_indicators": op_list_indicators, "compute_indicator": op_compute_indicator,
     "list_strategies": op_list_strategies, "run_backtest": op_run_backtest,
     "run_optimize": op_run_optimize, "get_last_backtest": op_get_last_backtest,
+    "ai_analyze": op_ai_analyze,
 }
 
 
