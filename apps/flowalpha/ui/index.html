@@ -18,6 +18,7 @@
   input:focus,select:focus{border-color:var(--mx);box-shadow:0 0 0 1px var(--mx)}
   button{background:linear-gradient(90deg,var(--mx),var(--cy));color:#001a14;border:0;border-radius:5px;padding:8px 16px;font:inherit;font-weight:700;letter-spacing:1px;cursor:pointer}
   button.ghost{background:#02120c;color:var(--mx);border:1px solid var(--line)}
+  button.on{background:var(--mx);color:#001a14;border-color:var(--mx)}
   .price{font-size:26px;color:var(--cy);text-shadow:0 0 14px rgba(54,230,255,.4);transition:color .2s}
   .price small{font-size:12px;color:var(--dim)}
   .tick{font-size:10px;color:var(--dim);margin-left:6px}
@@ -56,6 +57,7 @@
       <label>SYMBOL</label><input id="sym" class="sym" value="BTCUSDT" autocomplete="off">
       <span id="tfs" class="tfs"></span>
       <button id="load">LOAD</button>
+      <button id="draw" class="ghost">DRAW LINE</button><button id="clrline" class="ghost">CLR</button>
       <span class="price" id="price">—</span><span class="tick" id="tickst">● live</span>
     </div>
     <div id="ohlc" class="ohlc">hover the chart for OHLC</div>
@@ -83,7 +85,7 @@
       <label>STRATEGY</label><select id="strat"></select>
       <label>FAST</label><input id="fast" type="number" value="10"><label>SLOW</label><input id="slow" type="number" value="30">
       <label>FEE bps</label><input id="fee" type="number" value="10">
-      <button id="run">RUN BACKTEST</button><button id="opt" class="ghost">OPTIMIZE</button>
+      <button id="run">RUN BACKTEST</button><button id="opt" class="ghost">OPTIMIZE</button><button id="cmp" class="ghost">COMPARE ALL</button>
     </div>
     <div class="metrics" id="metrics"></div>
     <canvas id="eq" class="eq" width="1400" height="200"></canvas>
@@ -135,6 +137,7 @@
   let curTF = '1h';
   const iv = () => curTF;
   let CANDLES = [], TRADES = [], CUSTOM = null, lastPx = 0, hoverIdx = -1;
+  let LINES = [], drawMode = false, drawPt = null, chartScale = null;
   // timeframe buttons
   ['1m', '5m', '15m', '1h', '4h', '1d'].forEach(tf => {
     const b = document.createElement('button'); b.className = 'tf' + (tf === curTF ? ' on' : ''); b.textContent = tf;
@@ -178,6 +181,10 @@
     const lp = closes[n - 1]; ctx.strokeStyle = 'rgba(54,230,255,.5)'; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(pad, y(lp)); ctx.lineTo(W - pad, y(lp)); ctx.stroke(); ctx.setLineDash([]);
     // trade markers (from last backtest), matched by time into the visible window
     TRADES.forEach(t => { const ie = idxByTime(t.entry_t); if (ie >= 0) marker(ctx, x(ie), y(CANDLES[ie].l), '#22ff88', '▲'); const ix = t.exit_t ? idxByTime(t.exit_t) : -1; if (ix >= 0) marker(ctx, x(ix), y(CANDLES[ix].h) - 12, '#ff6b6b', '▼'); });
+
+    chartScale = { lo: lo, hi: hi, pad: pad, H: H, n: n }; // for drawing-tool coordinate inversion
+    // trendlines (user-drawn; anchored to candle index + price so they scale)
+    LINES.forEach(L => { ctx.strokeStyle = '#36e6ff'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(x(L.i1), y(L.p1)); ctx.lineTo(x(L.i2), y(L.p2)); ctx.stroke(); });
 
     // custom indicator overlay (auto-scaled to its own range → always visible)
     if (CUSTOM && CUSTOM.length) {
@@ -338,8 +345,29 @@
   }
   $('ciplot').onclick = plotCustom;
   $('ciclear').onclick = () => { CUSTOM = null; $('cif').value = ''; $('cist').textContent = ''; drawAll(); };
+  async function compareStrats() {
+    const st = $('bst'); st.textContent = 'comparing…';
+    const r = await call('compare_strategies', { symbol: sym(), interval: iv(), fee_bps: +$('fee').value || 10 });
+    if (!r.ok || !r.result) { st.textContent = '✕ ' + (r.error || 'failed'); return; }
+    const res = r.result;
+    let rows = res.results.map((x, i) => '<tr class="' + (i === 0 ? 'best' : '') + '"><td>' + x.strategy + '</td><td>' + x.metrics.total_return_pct + '%</td><td>' + x.metrics.sharpe + '</td><td>' + x.metrics.win_rate_pct + '%</td><td>' + x.metrics.max_drawdown_pct + '%</td><td>' + x.metrics.trades + '</td></tr>').join('');
+    $('opttbl').innerHTML = '<table><tr><th>STRATEGY</th><th>RETURN</th><th>SHARPE</th><th>WIN</th><th>MAX DD</th><th>TRADES</th></tr>' + rows + '</table>';
+    st.textContent = '✓ compared all 4 · buy&hold ' + res.buy_hold_pct + '%';
+  }
+  // drawing tools (trendlines)
+  $('draw').onclick = () => { drawMode = !drawMode; drawPt = null; $('draw').classList.toggle('on', drawMode); $('cst').textContent = drawMode ? 'DRAW: click two points on the chart' : ''; };
+  $('clrline').onclick = () => { LINES = []; drawPt = null; drawAll(); $('cst').textContent = 'lines cleared'; };
+  $('chartwrap').addEventListener('click', (e) => {
+    if (!drawMode || !chartScale || !CANDLES.length) return;
+    const rect = $('chart').getBoundingClientRect();
+    const idx = Math.max(0, Math.min(chartScale.n - 1, Math.floor(((e.clientX - rect.left) / rect.width) * chartScale.n)));
+    const py = ((e.clientY - rect.top) / rect.height) * chartScale.H;
+    const price = chartScale.lo + ((chartScale.H - chartScale.pad - py) / (chartScale.H - 2 * chartScale.pad)) * (chartScale.hi - chartScale.lo);
+    if (!drawPt) { drawPt = { i: idx, p: price }; $('cst').textContent = 'DRAW: click the second point'; }
+    else { LINES.push({ i1: drawPt.i, p1: drawPt.p, i2: idx, p2: price }); drawPt = null; drawAll(); $('cst').textContent = '✓ trendline added (' + LINES.length + ')'; }
+  });
   $('load').onclick = () => { CUSTOM = null; loadChart(); };
-  $('run').onclick = runBacktest; $('opt').onclick = optimize; $('ai').onclick = aiAnalyze;
+  $('run').onclick = runBacktest; $('opt').onclick = optimize; $('cmp').onclick = compareStrats; $('ai').onclick = aiAnalyze;
   $('pbuy').onclick = doBuy; $('psell').onclick = doSell; $('preset').onclick = doReset;
   (async () => { await initStrategies(); await loadChart(); startLoops(); loadBacktest(); loadPortfolio(); loadLiveStatus(); loadWatchlist(); loadAlerts(); checkAlerts(); })();
 </script>

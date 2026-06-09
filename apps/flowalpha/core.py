@@ -500,6 +500,26 @@ def op_get_last_backtest(a):
     return {"result": _load_state().get("last_backtest") or {}}
 
 
+def op_compare_strategies(a):
+    sym = str(a.get("symbol", "")).upper().strip()
+    if not sym:
+        return {"error": "symbol required"}
+    interval = str(a.get("interval") or "1h")
+    limit = max(50, min(int(a.get("limit") or 300), 500))
+    fee = float(a.get("fee_bps") or 10) / 10000.0
+    rows, buy_hold = [], 0.0
+    for name in STRATEGIES:
+        res, err = _run(sym, interval, limit, name, dict(STRATEGIES[name]["params"]), fee)
+        if err:
+            continue
+        rows.append({"strategy": name, "params": STRATEGIES[name]["params"], "metrics": res["metrics"]})
+        buy_hold = res["metrics"]["buy_hold_pct"]
+    if not rows:
+        return {"error": "no strategy produced a result"}
+    rows.sort(key=lambda r: r["metrics"]["total_return_pct"], reverse=True)
+    return {"result": {"symbol": sym, "interval": interval, "buy_hold_pct": buy_hold, "results": rows}}
+
+
 # ── ops: AI (via the Flowork router — sovereign, no third-party key) ─────────────
 def _llm(prompt, max_tokens=320):
     body = {"messages": [{"role": "user", "content": prompt}], "max_tokens": max_tokens}
@@ -786,7 +806,7 @@ HANDLERS = {
     "list_indicators": op_list_indicators, "compute_indicator": op_compute_indicator,
     "custom_indicator": op_custom_indicator,
     "list_strategies": op_list_strategies, "run_backtest": op_run_backtest,
-    "run_optimize": op_run_optimize, "get_last_backtest": op_get_last_backtest,
+    "run_optimize": op_run_optimize, "get_last_backtest": op_get_last_backtest, "compare_strategies": op_compare_strategies,
     "ai_analyze": op_ai_analyze,
     "portfolio_get": op_portfolio_get, "paper_buy": op_paper_buy, "paper_sell": op_paper_sell,
     "paper_reset": op_paper_reset, "list_paper_orders": op_list_paper_orders,

@@ -1,3 +1,14 @@
+## 2026-06-09 — FlowAlpha v0.12.0: strategy comparison + chart drawing tools
+
+- compare_strategies Op: backtests ALL built-in strategies on a symbol and returns metrics
+  ranked by total return vs buy&hold. GUI: COMPARE ALL button → a ranked table (return/sharpe/
+  win/max-dd/trades).
+- Drawing tools: DRAW LINE / CLR — click two points on the chart to add a trendline; lines are
+  anchored to candle-index + price so they scale with the chart. Client-side.
+- Tested (host compare) + verified visually in headless Chrome (trendline drawn + compare).
+  28 Ops. This completes the requested batch (multi-asset data, watchlist+alerts, strategy
+  compare, drawing tools); real broker/live execution remains the owner-gated phase.
+
 ## 2026-06-09 — FlowAlpha v0.11.0: multi-symbol watchlist + price alerts
 
 - Watchlist (shared state, multi-asset): watchlist_get (symbols + live prices), watchlist_add,

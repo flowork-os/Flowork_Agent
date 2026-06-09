@@ -72,6 +72,15 @@ func TestFlowAlphaApp(t *testing.T) {
 		t.Fatalf("custom_indicator: %v", err)
 	}
 
+	// compare_strategies: all strategies backtested + ranked.
+	if cmp, err := m.InvokeOp("flowalpha", "compare_strategies", map[string]any{"symbol": "BTCUSDT", "interval": "1h", "limit": 300}, "agent"); err == nil {
+		if cm, _ := cmp.(map[string]any); cm["results"] == nil {
+			t.Fatalf("compare_strategies shape: %+v", cmp)
+		}
+	} else if !netSkip(err) {
+		t.Fatalf("compare_strategies: %v", err)
+	}
+
 	// list_strategies + run_optimize (parameter sweep → best params).
 	if ls, err := m.InvokeOp("flowalpha", "list_strategies", nil, "agent"); err == nil {
 		if lm, _ := ls.(map[string]any); lm["strategies"] == nil {
