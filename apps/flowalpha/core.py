@@ -226,6 +226,69 @@ def stoch(highs, lows, closes, period, d_period):
     return k, d
 
 
+def vwap(highs, lows, closes, vols):
+    out, cumpv, cumv = [], 0.0, 0.0
+    for i in range(len(closes)):
+        tp = (highs[i] + lows[i] + closes[i]) / 3
+        cumpv += tp * vols[i]
+        cumv += vols[i]
+        out.append(cumpv / cumv if cumv > 0 else None)
+    return out
+
+
+def _wilder(xs, period):
+    out = [None] * len(xs)
+    if len(xs) < period:
+        return out
+    s = sum(xs[:period])
+    out[period - 1] = s / period
+    for i in range(period, len(xs)):
+        s = s - (s / period) + xs[i]
+        out[i] = s / period
+    return out
+
+
+def adx(highs, lows, closes, period):
+    n = len(closes)
+    tr = [highs[0] - lows[0]] + [max(highs[i] - lows[i], abs(highs[i] - closes[i - 1]), abs(lows[i] - closes[i - 1])) for i in range(1, n)]
+    pdm = [0.0] + [max(highs[i] - highs[i - 1], 0) if (highs[i] - highs[i - 1]) > (lows[i - 1] - lows[i]) else 0.0 for i in range(1, n)]
+    ndm = [0.0] + [max(lows[i - 1] - lows[i], 0) if (lows[i - 1] - lows[i]) > (highs[i] - highs[i - 1]) else 0.0 for i in range(1, n)]
+    atrw, pdmw, ndmw = _wilder(tr, period), _wilder(pdm, period), _wilder(ndm, period)
+    pdi = [100 * pdmw[i] / atrw[i] if (atrw[i] and atrw[i] > 0) else None for i in range(n)]
+    ndi = [100 * ndmw[i] / atrw[i] if (atrw[i] and atrw[i] > 0) else None for i in range(n)]
+    dx = [(100 * abs(pdi[i] - ndi[i]) / (pdi[i] + ndi[i])) if (pdi[i] is not None and ndi[i] is not None and (pdi[i] + ndi[i]) > 0) else None for i in range(n)]
+    dxv = [v for v in dx if v is not None]
+    adxw = _wilder(dxv, period)
+    out, j = [None] * n, 0
+    for i in range(n):
+        if dx[i] is not None:
+            out[i] = adxw[j]
+            j += 1
+    return out, pdi, ndi
+
+
+def supertrend(highs, lows, closes, period, mult):
+    n = len(closes)
+    a = atr(highs, lows, closes, period)
+    st, dir_ = [None] * n, [None] * n
+    fub = flb = None
+    for i in range(n):
+        if a[i] is None:
+            continue
+        mid = (highs[i] + lows[i]) / 2
+        bub, blb = mid + mult * a[i], mid - mult * a[i]
+        fub = bub if (fub is None or bub < fub or closes[i - 1] > fub) else fub
+        flb = blb if (flb is None or blb > flb or closes[i - 1] < flb) else flb
+        if st[i - 1] is None:
+            dir_[i] = 1 if closes[i] >= mid else -1
+        elif st[i - 1] == fub:
+            dir_[i] = -1 if closes[i] <= fub else 1
+        else:
+            dir_[i] = 1 if closes[i] >= flb else -1
+        st[i] = flb if dir_[i] == 1 else fub
+    return st, dir_
+
+
 # ── strategies → a target-position series (0 flat / 1 long; None during warm-up) ──
 # Each strategy is a pure function of closes + params. The simulator turns position
 # transitions into trades, so adding a strategy never touches the backtest engine.
@@ -418,6 +481,9 @@ def op_list_indicators(a):
         {"name": "atr", "params": {"period": 14}, "desc": "Average True Range (volatility)"},
         {"name": "obv", "params": {}, "desc": "On-Balance Volume"},
         {"name": "stoch", "params": {"period": 14, "d_period": 3}, "desc": "Stochastic %K/%D (0..100)"},
+        {"name": "vwap", "params": {}, "desc": "Volume Weighted Average Price"},
+        {"name": "adx", "params": {"period": 14}, "desc": "ADX trend strength + +DI/-DI"},
+        {"name": "supertrend", "params": {"period": 10, "mult": 3}, "desc": "SuperTrend (trend + direction)"},
     ]}}
 
 
@@ -468,7 +534,20 @@ def op_compute_indicator(a):
         line, sig, hist = macd(closes, fast, slow, signal)
         return {"result": {"symbol": sym, "indicator": "macd", "fast": fast, "slow": slow, "signal": signal,
                            "series": [{"t": times[i], "macd": line[i], "signal": sig[i], "hist": hist[i]} for i in range(len(line))]}}
-    return {"error": "unknown indicator: " + ind + " (sma|ema|rsi|macd|bollinger|atr|obv|stoch)"}
+    if ind == "vwap":
+        series = vwap(highs, lows, closes, vols)
+        return {"result": {"symbol": sym, "indicator": "vwap", "series": [{"t": times[i], "v": series[i]} for i in range(len(series))]}}
+    if ind == "adx":
+        period = int(a.get("period") or 14)
+        ax, pdi, ndi = adx(highs, lows, closes, period)
+        return {"result": {"symbol": sym, "indicator": "adx", "period": period,
+                           "series": [{"t": times[i], "adx": ax[i], "pdi": pdi[i], "ndi": ndi[i]} for i in range(len(ax))]}}
+    if ind == "supertrend":
+        period, mult = int(a.get("period") or 10), float(a.get("mult") or 3)
+        st, dr = supertrend(highs, lows, closes, period, mult)
+        return {"result": {"symbol": sym, "indicator": "supertrend", "period": period, "mult": mult,
+                           "series": [{"t": times[i], "v": st[i], "dir": dr[i]} for i in range(len(st))]}}
+    return {"error": "unknown indicator: " + ind + " (sma|ema|rsi|macd|bollinger|atr|obv|stoch|vwap|adx|supertrend)"}
 
 
 # ── ops: custom indicator (SAFE formula — AST whitelist, NOT exec/eval) ─────────
@@ -593,8 +672,49 @@ def op_run_backtest(a):
     res["params"]["fee_bps"] = round(fee * 10000, 2)
     res["risk"] = {"direction": res["direction"], "sl_pct": a.get("sl_pct") or 0, "tp_pct": a.get("tp_pct") or 0,
                    "trail_pct": a.get("trail_pct") or 0, "slippage_bps": a.get("slippage_bps") or 0}
-    _patch_state({"last_backtest": res})
+    m = res["metrics"]
+    hist = _load_state().get("bt_history") or []
+    hist.insert(0, {"symbol": sym, "strategy": strategy, "direction": res["direction"], "interval": interval,
+                    "params": dict(res["params"]), "return_pct": m["total_return_pct"], "sharpe": m["sharpe"],
+                    "trades": m["trades"], "at": int(time.time())})
+    _patch_state({"last_backtest": res, "bt_history": hist[:25]})
     return {"result": res}
+
+
+def op_backtest_history(a):
+    return {"result": {"history": _load_state().get("bt_history") or []}}
+
+
+def op_regime_detection(a):
+    sym = str(a.get("symbol", "")).upper().strip()
+    if not sym:
+        return {"error": "symbol required"}
+    interval = str(a.get("interval") or "1h")
+    limit = max(50, min(int(a.get("limit") or 200), 500))
+    candles = _klines(sym, interval, limit)
+    closes = [c["c"] for c in candles]
+    highs = [c["h"] for c in candles]
+    lows = [c["l"] for c in candles]
+    ax, pdi, ndi = adx(highs, lows, closes, 14)
+    a_atr = atr(highs, lows, closes, 14)
+    last_adx = next((v for v in reversed(ax) if v is not None), 0.0)
+    last_atr = next((v for v in reversed(a_atr) if v is not None), 0.0)
+    atr_pct = last_atr / closes[-1] * 100 if closes[-1] else 0.0
+    s = sma(closes, 20)
+    sv = [v for v in s if v is not None]
+    slope_up = len(sv) >= 6 and sv[-1] > sv[-6]
+    p_last = next((v for v in reversed(pdi) if v is not None), 0.0)
+    n_last = next((v for v in reversed(ndi) if v is not None), 0.0)
+    trend = "up" if p_last >= n_last else "down"
+    if last_adx >= 25:
+        regime = "trending_" + trend
+    elif atr_pct >= 4:
+        regime = "volatile"
+    else:
+        regime = "ranging"
+    return {"result": {"symbol": sym, "regime": regime, "adx": round(last_adx, 1), "atr_pct": round(atr_pct, 2),
+                       "plus_di": round(p_last, 1), "minus_di": round(n_last, 1), "sma_slope": "up" if slope_up else "down",
+                       "hint": {"trending_up": "trend-follow long", "trending_down": "trend-follow short", "ranging": "mean-reversion / range", "volatile": "reduce size / widen stops"}.get(regime, "")}}
 
 
 def _grid(strategy, custom):
@@ -957,6 +1077,7 @@ HANDLERS = {
     "custom_indicator": op_custom_indicator,
     "list_strategies": op_list_strategies, "run_backtest": op_run_backtest,
     "run_optimize": op_run_optimize, "get_last_backtest": op_get_last_backtest, "compare_strategies": op_compare_strategies,
+    "backtest_history": op_backtest_history, "regime_detection": op_regime_detection,
     "ai_analyze": op_ai_analyze,
     "portfolio_get": op_portfolio_get, "paper_buy": op_paper_buy, "paper_sell": op_paper_sell,
     "paper_reset": op_paper_reset, "list_paper_orders": op_list_paper_orders,

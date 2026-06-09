@@ -1,3 +1,13 @@
+## 2026-06-09 — FlowAlpha v0.15.0: more indicators + regime detection + backtest history
+
+- Indicators: VWAP, ADX (+DI/-DI), SuperTrend added to compute_indicator + list_indicators.
+- regime_detection Op: classifies the market (trending_up/down, ranging, volatile) from ADX +
+  ATR% + SMA slope, with a strategy hint (trend-follow / mean-revert / reduce-size).
+- backtest_history Op: every run_backtest is saved (last 25) — symbol/strategy/direction/return/
+  Sharpe/trades; backtest_history lists them.
+- Tested standalone (all indicators + regime + history). Closes gaps: more-indicators, regime
+  detection, run-history. 31 Ops.
+
 ## 2026-06-09 — FlowAlpha v0.14.0: backtest realism (gap-close #1, the biggest)
 
 The backtest engine (_simulate) now models real trading, not just long/flat:
