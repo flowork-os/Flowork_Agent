@@ -87,6 +87,13 @@
       <label>FEE bps</label><input id="fee" type="number" value="10">
       <button id="run">RUN BACKTEST</button><button id="opt" class="ghost">OPTIMIZE</button><button id="cmp" class="ghost">COMPARE ALL</button>
     </div>
+    <div class="row" style="margin-top:6px">
+      <label>SIDE</label><select id="dir"><option value="long">long</option><option value="short">short</option><option value="both">both</option></select>
+      <label>SL %</label><input id="sl" type="number" value="0" style="width:70px">
+      <label>TP %</label><input id="tp" type="number" value="0" style="width:70px">
+      <label>TRAIL %</label><input id="trail" type="number" value="0" style="width:70px">
+      <label>SLIP bps</label><input id="slip" type="number" value="0" style="width:70px">
+    </div>
     <div class="metrics" id="metrics"></div>
     <canvas id="eq" class="eq" width="1400" height="200"></canvas>
     <div class="leg"><span class="dot" style="background:var(--cy)"></span>strategy equity (start = 1.0)</div>
@@ -277,7 +284,8 @@
   }
   async function runBacktest() {
     const st = $('bst'); st.textContent = 'running…';
-    const r = await call('run_backtest', { symbol: sym(), interval: iv(), strategy: $('strat').value, fast: +$('fast').value || 10, slow: +$('slow').value || 30, fee_bps: +$('fee').value || 10 });
+    const r = await call('run_backtest', { symbol: sym(), interval: iv(), strategy: $('strat').value, fast: +$('fast').value || 10, slow: +$('slow').value || 30, fee_bps: +$('fee').value || 10,
+      direction: $('dir').value, sl_pct: +$('sl').value || 0, tp_pct: +$('tp').value || 0, trail_pct: +$('trail').value || 0, slippage_bps: +$('slip').value || 0 });
     $('opttbl').innerHTML = '';
     if (r.ok && r.result) { renderBacktest(r.result); st.textContent = '✓ ' + r.result.strategy + ' · ' + new Date().toLocaleTimeString(); } else st.textContent = '✕ ' + (r.error || 'backtest failed');
   }

@@ -1,3 +1,16 @@
+## 2026-06-09 — FlowAlpha v0.14.0: backtest realism (gap-close #1, the biggest)
+
+The backtest engine (_simulate) now models real trading, not just long/flat:
+- direction: long | short | both (short profits in downtrends; both captures either way).
+- stop-loss / take-profit / trailing-stop (% — close-based) with the exit reason recorded per
+  trade (signal/SL/TP/trail).
+- slippage (bps) moves fills against you, on top of fees.
+- Trades carry side (long/short) + reason; equity is position-signed (short gains when price falls).
+- run_backtest exposes direction/sl_pct/tp_pct/trail_pct/slippage_bps; GUI gains a risk row
+  (SIDE + SL/TP/TRAIL/SLIP). Verified: long 1.6% vs short 16.9% vs both 18.8% on a downtrending
+  BTC; trailing stop produced extra exits; slippage reduced return — all sensible.
+- Tested + verified in headless Chrome. Closes the #1 gap (backtest realism).
+
 ## 2026-06-09 — FlowAlpha v0.13.0: more indicators + richer backtest metrics (gap-close #2,#3)
 
 - Indicators: added Bollinger Bands, ATR, OBV, Stochastic (%K/%D) to compute_indicator +

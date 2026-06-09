@@ -273,30 +273,69 @@ def _positions(closes, strategy, p):
 
 
 # ── backtest engine ─────────────────────────────────────────────────────────
-def _simulate(closes, times, pos, fee):
-    cur, equity, entry_px, entry_t = 0, 1.0, None, None
+def _simulate(closes, times, signal, fee, direction="long", sl=0.0, tp=0.0, trail=0.0, slip=0.0):
+    # signal[i] = 1 (bullish) / 0 (bearish) / None (warm-up). direction maps it to a position:
+    # long → long|flat, short → short|flat, both → long|short. SL/TP/trailing are close-based
+    # (an intra-bar refinement is possible later); slippage moves fills against you.
+    def target(s):
+        if s is None:
+            return None
+        if direction == "short":
+            return -1 if s == 0 else 0
+        if direction == "both":
+            return 1 if s == 1 else -1
+        return 1 if s == 1 else 0
+    state = {"pos": 0, "equity": 1.0, "entry": None, "entry_t": None, "best": None}
     eq_curve, trades, rets = [], [], []
+
+    def do_open(p, px, t):
+        state["pos"], state["entry"], state["entry_t"], state["best"] = p, px * (1 + slip * p), t, px
+        state["equity"] *= (1 - fee / 2)
+
+    def do_close(px, t, reason):
+        p = state["pos"]
+        ex = px * (1 - slip * p)
+        state["equity"] *= (1 - fee / 2)
+        trades.append({"entry_t": state["entry_t"], "entry": state["entry"], "exit_t": t, "exit": ex,
+                       "ret_pct": p * (ex / state["entry"] - 1) * 100, "side": "long" if p > 0 else "short", "reason": reason})
+        state["pos"], state["entry"], state["best"] = 0, None, None
+
     for i in range(len(closes)):
-        if cur == 1 and i > 0:
-            r = closes[i] / closes[i - 1] - 1
-            equity *= (1 + r)
+        p = state["pos"]
+        if p != 0 and i > 0:
+            r = p * (closes[i] / closes[i - 1] - 1)
+            state["equity"] *= (1 + r)
             rets.append(r)
-        t = pos[i]
-        if t is not None and i > 0 and t != cur:
-            if cur == 0 and t == 1:
-                cur, entry_px, entry_t = 1, closes[i], times[i]
-                equity *= (1 - fee / 2)
-            elif cur == 1 and t == 0:
-                cur = 0
-                equity *= (1 - fee / 2)
-                trades.append({"entry_t": entry_t, "entry": entry_px, "exit_t": times[i],
-                               "exit": closes[i], "ret_pct": (closes[i] / entry_px - 1) * 100})
-                entry_px = None
-        eq_curve.append({"t": times[i], "eq": round(equity, 6)})
-    if cur == 1 and entry_px:
-        trades.append({"entry_t": entry_t, "entry": entry_px, "exit_t": times[-1],
-                       "exit": closes[-1], "ret_pct": (closes[-1] / entry_px - 1) * 100, "open": True})
-    return equity, eq_curve, trades, rets
+        if p > 0:
+            state["best"] = max(state["best"], closes[i]) if state["best"] is not None else closes[i]
+        elif p < 0:
+            state["best"] = min(state["best"], closes[i]) if state["best"] is not None else closes[i]
+        # SL / TP / trailing (close-based)
+        if state["pos"] != 0 and state["entry"]:
+            cp, e, b, reason = closes[i], state["entry"], state["best"], None
+            if state["pos"] > 0:
+                if sl > 0 and cp <= e * (1 - sl): reason = "SL"
+                elif tp > 0 and cp >= e * (1 + tp): reason = "TP"
+                elif trail > 0 and cp <= b * (1 - trail): reason = "trail"
+            else:
+                if sl > 0 and cp >= e * (1 + sl): reason = "SL"
+                elif tp > 0 and cp <= e * (1 - tp): reason = "TP"
+                elif trail > 0 and cp >= b * (1 + trail): reason = "trail"
+            if reason:
+                do_close(cp, times[i], reason)
+        # signal-driven transitions
+        tg = target(signal[i])
+        if tg is not None and i > 0 and tg != state["pos"]:
+            if state["pos"] != 0:
+                do_close(closes[i], times[i], "signal")
+            if tg != 0:
+                do_open(tg, closes[i], times[i])
+        eq_curve.append({"t": times[i], "eq": round(state["equity"], 6)})
+    if state["pos"] != 0 and state["entry"]:
+        p, ex = state["pos"], closes[-1] * (1 - slip * state["pos"])
+        trades.append({"entry_t": state["entry_t"], "entry": state["entry"], "exit_t": times[-1], "exit": ex,
+                       "ret_pct": p * (ex / state["entry"] - 1) * 100, "side": "long" if p > 0 else "short", "open": True})
+    return state["equity"], eq_curve, trades, rets
 
 
 def _max_drawdown(eq):
@@ -510,17 +549,25 @@ def op_list_strategies(a):
     return {"result": {"strategies": [{"name": k, "params": v["params"], "desc": v["desc"]} for k, v in STRATEGIES.items()]}}
 
 
-def _run(symbol, interval, limit, strategy, params, fee):
+def _run(symbol, interval, limit, strategy, params, fee, risk=None):
+    risk = risk or {}
     candles = _klines(symbol, interval, limit)
     closes = [c["c"] for c in candles]
     times = [c["t"] for c in candles]
     pos = _positions(closes, strategy, params)
     if pos is None:
         return None, "unknown strategy: " + strategy
-    equity, eq_curve, trades, rets = _simulate(closes, times, pos, fee)
+    direction = str(risk.get("direction") or "long").lower()
+    if direction not in ("long", "short", "both"):
+        direction = "long"
+    sl = max(0.0, float(risk.get("sl_pct") or 0)) / 100.0
+    tp = max(0.0, float(risk.get("tp_pct") or 0)) / 100.0
+    trail = max(0.0, float(risk.get("trail_pct") or 0)) / 100.0
+    slip = max(0.0, float(risk.get("slippage_bps") or 0)) / 10000.0
+    equity, eq_curve, trades, rets = _simulate(closes, times, pos, fee, direction, sl, tp, trail, slip)
     metrics = _metrics(equity, closes, eq_curve, trades, rets, interval)
     return {"symbol": symbol, "interval": interval, "strategy": strategy, "params": params,
-            "metrics": metrics, "equity": eq_curve, "trades": trades,
+            "direction": direction, "metrics": metrics, "equity": eq_curve, "trades": trades,
             "candles": [{"t": c["t"], "c": c["c"]} for c in candles]}, None
 
 
@@ -538,10 +585,14 @@ def op_run_backtest(a):
     for k in params:
         if a.get(k) is not None:
             params[k] = a.get(k)
-    res, err = _run(sym, interval, limit, strategy, params, fee)
+    risk = {"direction": a.get("direction"), "sl_pct": a.get("sl_pct"), "tp_pct": a.get("tp_pct"),
+            "trail_pct": a.get("trail_pct"), "slippage_bps": a.get("slippage_bps")}
+    res, err = _run(sym, interval, limit, strategy, params, fee, risk)
     if err:
         return {"error": err}
     res["params"]["fee_bps"] = round(fee * 10000, 2)
+    res["risk"] = {"direction": res["direction"], "sl_pct": a.get("sl_pct") or 0, "tp_pct": a.get("tp_pct") or 0,
+                   "trail_pct": a.get("trail_pct") or 0, "slippage_bps": a.get("slippage_bps") or 0}
     _patch_state({"last_backtest": res})
     return {"result": res}
 
