@@ -29,18 +29,33 @@ PAPER_FEE = float(os.environ.get("QUANT_PAPER_FEE_BPS", "10")) / 10000.0
 # none is bundled, so real money is never at risk by default.
 LIVE_ENABLED = os.environ.get("FLOWALPHA_LIVE_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")
 # Notifications: FlowAlpha does NOT send Telegram itself (the app is sandboxed, holds no token).
-# Instead it EMITS fired alerts/bot-actions to a webhook the owner points at the agent that
-# handles Telegram (telegram-channel / mr-flow). Plug-and-play + sovereign: set QUANT_NOTIFY_URL
-# to that agent's inbound endpoint; empty = notifications off. Payload = {"text": "..."}.
-NOTIFY_URL = os.environ.get("QUANT_NOTIFY_URL", "").strip()
+# It EMITS fired alerts/bot-actions to a webhook that the agent handling Telegram listens on
+# (a Flowork trigger of type "webhook" with deliver=telegram → mr-flow relays → owner). Sovereign
+# + plug-and-play. Config from env (QUANT_NOTIFY_URL + QUANT_NOTIFY_SECRET) OR, if unset, from
+# ~/.flowork/flowalpha-notify.json {"url","secret"}. Empty = notifications off. Payload={"text"}.
+def _notify_config():
+    url = os.environ.get("QUANT_NOTIFY_URL", "").strip()
+    secret = os.environ.get("QUANT_NOTIFY_SECRET", "").strip()
+    if not url:
+        try:
+            with open(os.path.expanduser("~/.flowork/flowalpha-notify.json")) as f:
+                cfg = json.load(f)
+            url = str(cfg.get("url", "")).strip()
+            secret = str(cfg.get("secret", "")).strip()
+        except Exception:  # noqa
+            pass
+    return url, secret
 
 
 def _notify(text):
-    if not NOTIFY_URL:
+    url, secret = _notify_config()
+    if not url:
         return
     try:
-        req = urllib.request.Request(NOTIFY_URL, data=json.dumps({"text": text}).encode("utf-8"),
-                                     headers={"Content-Type": "application/json"})
+        headers = {"Content-Type": "application/json"}
+        if secret:
+            headers["X-Flowork-Key"] = secret
+        req = urllib.request.Request(url, data=json.dumps({"text": text}).encode("utf-8"), headers=headers)
         urllib.request.urlopen(req, timeout=6).read()
     except Exception:  # noqa
         pass

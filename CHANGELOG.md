@@ -1,3 +1,9 @@
+## 2026-06-09 — FlowAlpha v0.23.0: notify config from env OR file (dormant until wired)
+
+- _notify reads QUANT_NOTIFY_URL + QUANT_NOTIFY_SECRET from env, or falls back to
+  ~/.flowork/flowalpha-notify.json {url,secret}, and sends X-Flowork-Key. No config = no-op
+  (safe). Ready to point at the agent that handles Telegram once that relay is approved.
+
 ## 2026-06-09 — FlowAlpha v0.22.0: notification webhook (connect to the Telegram agent)
 
 - FlowAlpha does NOT send Telegram itself (sandboxed app, holds no token). It EMITS fired alerts
