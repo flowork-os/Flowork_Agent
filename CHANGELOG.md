@@ -1,3 +1,9 @@
+## 2026-06-09 — FlowAlpha v0.19.0: multi-timeframe confirmation
+
+- multi_timeframe Op: evaluate a strategy's current signal across multiple timeframes (default
+  1d/4h/1h) and report alignment (all_long / all_flat / mixed) + a hint — higher-timeframe
+  confirmation before acting. Tested. 36 Ops.
+
 ## 2026-06-09 — FlowAlpha v0.18.0: 3 more strategies (7 total)
 
 - New strategies (close-based, plug into the registry → auto-work in backtest/optimize/compare/

@@ -708,6 +708,31 @@ def op_backtest_history(a):
     return {"result": {"history": _load_state().get("bt_history") or []}}
 
 
+def op_multi_timeframe(a):
+    sym = str(a.get("symbol", "")).upper().strip()
+    if not sym:
+        return {"error": "symbol required"}
+    strategy = str(a.get("strategy") or "sma_cross")
+    if strategy not in STRATEGIES:
+        return {"error": "unknown strategy: %s" % strategy}
+    tfs = a.get("timeframes") or ["1d", "4h", "1h"]
+    out = []
+    for tf in tfs:
+        try:
+            closes = [c["c"] for c in _klines(sym, str(tf), 200)]
+        except Exception:  # noqa
+            continue
+        pos = _positions(closes, strategy, dict(STRATEGIES[strategy]["params"]))
+        sig = next((v for v in reversed(pos) if v is not None), None)
+        out.append({"tf": str(tf), "signal": "long" if sig == 1 else "flat"})
+    longs = sum(1 for o in out if o["signal"] == "long")
+    align = "all_long" if (out and longs == len(out)) else "all_flat" if longs == 0 else "mixed"
+    return {"result": {"symbol": sym, "strategy": strategy, "timeframes": out, "alignment": align,
+                       "hint": {"all_long": "strong long confirmation across timeframes",
+                                "all_flat": "no long signal on any timeframe",
+                                "mixed": "timeframes disagree — wait for alignment"}.get(align, "")}}
+
+
 def op_regime_detection(a):
     sym = str(a.get("symbol", "")).upper().strip()
     if not sym:
@@ -1171,7 +1196,7 @@ HANDLERS = {
     "custom_indicator": op_custom_indicator,
     "list_strategies": op_list_strategies, "run_backtest": op_run_backtest,
     "run_optimize": op_run_optimize, "get_last_backtest": op_get_last_backtest, "compare_strategies": op_compare_strategies,
-    "backtest_history": op_backtest_history, "regime_detection": op_regime_detection,
+    "backtest_history": op_backtest_history, "regime_detection": op_regime_detection, "multi_timeframe": op_multi_timeframe,
     "ai_analyze": op_ai_analyze,
     "portfolio_get": op_portfolio_get, "paper_buy": op_paper_buy, "paper_sell": op_paper_sell,
     "paper_reset": op_paper_reset, "list_paper_orders": op_list_paper_orders,
