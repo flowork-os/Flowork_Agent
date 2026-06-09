@@ -1169,8 +1169,22 @@ def op_bot_step(a):
             r = op_paper_sell({"symbol": sym})
             if "result" in r:
                 actions.append({"symbol": sym, "strategy": strat, "action": "sell", "realized": r["result"].get("realized")})
-    _patch_state({"last_bot_run": int(time.time())})
+    # snapshot paper equity over time (the portfolio's own equity curve)
+    pf = _portfolio()
+    eq = pf["cash"]
+    for s, posn in pf["positions"].items():
+        try:
+            eq += posn["qty"] * _price(s)
+        except Exception:  # noqa
+            eq += posn["qty"] * posn["avg"]
+    eh = _load_state().get("equity_history") or []
+    eh.append({"t": int(time.time() * 1000), "eq": round(eq, 2)})
+    _patch_state({"last_bot_run": int(time.time()), "equity_history": eh[-300:]})
     return {"result": {"actions": actions, "bots": len(bots), "enabled": sum(1 for b in bots if b.get("enabled"))}}
+
+
+def op_portfolio_equity(a):
+    return {"result": {"equity_history": _load_state().get("equity_history") or []}}
 
 
 # ── shared state ────────────────────────────────────────────────────────────
@@ -1214,6 +1228,7 @@ HANDLERS = {
     "watchlist_get": op_watchlist_get, "watchlist_add": op_watchlist_add, "watchlist_remove": op_watchlist_remove,
     "alert_add": op_alert_add, "alert_list": op_alert_list, "alert_remove": op_alert_remove, "alert_check": op_alert_check,
     "bot_add": op_bot_add, "bot_list": op_bot_list, "bot_remove": op_bot_remove, "bot_toggle": op_bot_toggle, "bot_step": op_bot_step,
+    "portfolio_equity": op_portfolio_equity,
 }
 
 

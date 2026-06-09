@@ -1,3 +1,9 @@
+## 2026-06-09 — FlowAlpha v0.21.0: paper portfolio equity curve
+
+- bot_step now snapshots the paper portfolio's equity over time (last 300); portfolio_equity Op
+  returns it. GUI: an equity curve under the portfolio metrics (updates as bots trade) — the
+  paper account now has its own equity curve, completing the operate loop. 37 Ops.
+
 ## 2026-06-09 — FlowAlpha v0.20.0: SuperTrend strategy + OHLC-aware engine
 
 - _positions now receives full candles (OHLC), unlocking high/low based strategies. Added the

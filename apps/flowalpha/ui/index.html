@@ -117,7 +117,10 @@
       <span class="st" id="pst"></span><span class="st" id="livebadge" style="margin-left:auto;color:#ffd166"></span>
     </div>
     <div class="sub">Virtual cash — no real money, no broker. Real trading is a separate owner-gated phase.</div>
-    <div class="metrics" id="pmetrics"></div><div id="ptbl"></div>
+    <div class="metrics" id="pmetrics"></div>
+    <canvas id="peq" class="eq" width="1400" height="120" style="height:120px"></canvas>
+    <div class="leg"><span class="dot" style="background:#36e6ff"></span>paper account equity (updates as bots trade)</div>
+    <div id="ptbl"></div>
   </div>
 
   <div class="card">
@@ -280,11 +283,13 @@
 
   // ── backtest + optimize ────────────────────────────────────────────────────
   function card(k, v, c) { return '<div class="m"><div class="k">' + k + '</div><div class="v ' + (c || '') + '">' + v + '</div></div>'; }
-  function plotEq(canvas, eq) {
+  function plotEq(canvas, eq, base) {
     const ctx = canvas.getContext('2d'), W = canvas.width, H = canvas.height, pad = 8; ctx.clearRect(0, 0, W, H);
+    if (!eq.length) return;
     let lo = Infinity, hi = -Infinity; eq.forEach(v => { lo = Math.min(lo, v); hi = Math.max(hi, v); }); if (hi === lo) return;
     const n = eq.length, x = (i) => pad + (i / (n - 1)) * (W - 2 * pad), y = (v) => H - pad - ((v - lo) / (hi - lo)) * (H - 2 * pad);
-    ctx.strokeStyle = 'rgba(127,185,166,.3)'; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(pad, y(1)); ctx.lineTo(W - pad, y(1)); ctx.stroke(); ctx.setLineDash([]);
+    const b = base == null ? 1 : base;
+    if (b >= lo && b <= hi) { ctx.strokeStyle = 'rgba(127,185,166,.3)'; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(pad, y(b)); ctx.lineTo(W - pad, y(b)); ctx.stroke(); ctx.setLineDash([]); }
     line(ctx, eq, '#36e6ff', x, y, 1.6);
   }
   function renderBacktest(r) {
@@ -324,6 +329,8 @@
     if (!p.positions.length) { $('ptbl').innerHTML = ''; return; }
     let rows = p.positions.map(x => '<tr><td>' + x.symbol + '</td><td>' + x.qty + '</td><td>' + x.avg.toFixed(2) + '</td><td>' + x.price.toFixed(2) + '</td><td>$' + x.value + '</td><td class="' + cls(x.unrealized) + '">' + pct(x.unrealized_pct) + '</td></tr>').join('');
     $('ptbl').innerHTML = '<table><tr><th>SYMBOL</th><th>QTY</th><th>AVG</th><th>PRICE</th><th>VALUE</th><th>P&L</th></tr>' + rows + '</table>';
+    const eq = await call('portfolio_equity');
+    if (eq.ok && eq.result && eq.result.equity_history.length > 1) plotEq($('peq'), eq.result.equity_history.map(h => h.eq), p.start_cash);
   }
   async function doBuy() { const st = $('pst'); st.textContent = '…'; const r = await call('paper_buy', { symbol: ($('pbsym').value.trim() || sym()).toUpperCase(), quote_amount: +$('pbamt').value || 0 }); st.textContent = r.ok ? '✓ bought' : ('✕ ' + (r.error || '')); loadPortfolio(); }
   async function doSell() { const st = $('pst'); st.textContent = '…'; const r = await call('paper_sell', { symbol: ($('pbsym').value.trim() || sym()).toUpperCase() }); st.textContent = r.ok ? ('✓ sold · realized $' + r.result.realized) : ('✕ ' + (r.error || '')); loadPortfolio(); }
