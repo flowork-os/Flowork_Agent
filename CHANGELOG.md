@@ -1,3 +1,13 @@
+## 2026-06-09 — FlowAlpha v0.11.0: multi-symbol watchlist + price alerts
+
+- Watchlist (shared state, multi-asset): watchlist_get (symbols + live prices), watchlist_add,
+  watchlist_remove. GUI: a watchlist table with live prices; click a symbol to load it in the
+  chart, × to remove. Polled every 12s.
+- Price alerts (shared state): alert_add (symbol above|below price), alert_list, alert_remove,
+  alert_check (polled by the GUI — and an agent can poll it to watch the market). Triggered
+  alerts are marked + surfaced (🔔). GUI shows alert status (waiting / ✓ fired @price).
+- Tested (host: add→get→alert→check) + verified visually in headless Chrome. 27 Ops.
+
 ## 2026-06-09 — FlowAlpha v0.10.0: multi-asset data (stocks + forex + indices, sovereign)
 
 The whole engine now works on crypto AND stocks/forex/indices — no API key, no broker account.

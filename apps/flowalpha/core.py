@@ -682,6 +682,79 @@ def op_top_movers(a):
                        "losers": [fmt(t) for t in rows[-limit:][::-1]]}}
 
 
+# ── ops: watchlist + price alerts (shared state) ────────────────────────────────
+def op_watchlist_get(a):
+    out = []
+    for s in (_load_state().get("watchlist") or []):
+        try:
+            out.append({"symbol": s, "price": _last_price(s)})
+        except Exception:  # noqa
+            out.append({"symbol": s, "price": None})
+    return {"result": {"watchlist": out}}
+
+
+def op_watchlist_add(a):
+    s = str(a.get("symbol", "")).upper().strip()
+    if not s:
+        return {"error": "symbol required"}
+    wl = _load_state().get("watchlist") or []
+    if s not in wl:
+        wl.append(s)
+    _patch_state({"watchlist": wl})
+    return {"result": {"watchlist": wl}}
+
+
+def op_watchlist_remove(a):
+    s = str(a.get("symbol", "")).upper().strip()
+    wl = [x for x in (_load_state().get("watchlist") or []) if x != s]
+    _patch_state({"watchlist": wl})
+    return {"result": {"watchlist": wl}}
+
+
+def op_alert_add(a):
+    s = str(a.get("symbol", "")).upper().strip()
+    cond = str(a.get("cond", "above")).lower().strip()
+    price = float(a.get("price") or 0)
+    if not s or price <= 0 or cond not in ("above", "below"):
+        return {"error": "symbol, cond (above|below), and positive price required"}
+    al = _load_state().get("alerts") or []
+    alert = {"id": int(time.time() * 1000), "symbol": s, "cond": cond, "price": price, "triggered": False}
+    al.append(alert)
+    _patch_state({"alerts": al})
+    return {"result": {"alert": alert}}
+
+
+def op_alert_list(a):
+    return {"result": {"alerts": _load_state().get("alerts") or []}}
+
+
+def op_alert_remove(a):
+    aid = a.get("id")
+    al = [x for x in (_load_state().get("alerts") or []) if x.get("id") != aid]
+    _patch_state({"alerts": al})
+    return {"result": {"alerts": al}}
+
+
+def op_alert_check(a):
+    al = _load_state().get("alerts") or []
+    triggered, changed = [], False
+    for alert in al:
+        if alert.get("triggered"):
+            continue
+        try:
+            px = _last_price(alert["symbol"])
+        except Exception:  # noqa
+            continue
+        if (alert["cond"] == "above" and px >= alert["price"]) or (alert["cond"] == "below" and px <= alert["price"]):
+            alert["triggered"] = True
+            alert["fired_price"] = px
+            changed = True
+            triggered.append(dict(alert))
+    if changed:
+        _patch_state({"alerts": al})
+    return {"result": {"triggered": triggered}}
+
+
 # ── shared state ────────────────────────────────────────────────────────────
 def _patch_state(updates):
     st = _load_state()
@@ -719,6 +792,8 @@ HANDLERS = {
     "paper_reset": op_paper_reset, "list_paper_orders": op_list_paper_orders,
     "live_status": op_live_status, "live_order": op_live_order,
     "get_ticker_24h": op_get_ticker_24h, "top_movers": op_top_movers,
+    "watchlist_get": op_watchlist_get, "watchlist_add": op_watchlist_add, "watchlist_remove": op_watchlist_remove,
+    "alert_add": op_alert_add, "alert_list": op_alert_list, "alert_remove": op_alert_remove, "alert_check": op_alert_check,
 }
 
 

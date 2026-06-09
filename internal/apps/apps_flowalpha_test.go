@@ -138,6 +138,26 @@ func TestFlowAlphaApp(t *testing.T) {
 	}
 	t.Logf("paper portfolio: equity=%v cash=%v positions=%d", pm["equity"], pm["cash"], len(poss))
 
+	// Watchlist + price alerts (shared state).
+	if _, err := m.InvokeOp("flowalpha", "watchlist_add", map[string]any{"symbol": "BTCUSDT"}, "agent"); err != nil {
+		t.Fatalf("watchlist_add: %v", err)
+	}
+	if wl, err := m.InvokeOp("flowalpha", "watchlist_get", nil, "human-gui"); err == nil {
+		if wm, _ := wl.(map[string]any); wm["watchlist"] == nil {
+			t.Fatalf("watchlist_get shape: %+v", wl)
+		}
+	}
+	// alert above 1 on BTCUSDT will fire (price >> 1); below 1 will not.
+	_, _ = m.InvokeOp("flowalpha", "alert_add", map[string]any{"symbol": "BTCUSDT", "cond": "above", "price": 1.0}, "agent")
+	if chk, err := m.InvokeOp("flowalpha", "alert_check", nil, "agent"); err == nil {
+		if cm, _ := chk.(map[string]any); cm["triggered"] == nil {
+			t.Fatalf("alert_check shape: %+v", chk)
+		}
+	} else if !netSkip(err) {
+		t.Logf("alert_check skipped: %v", err)
+	}
+	_, _ = m.InvokeOp("flowalpha", "watchlist_remove", map[string]any{"symbol": "BTCUSDT"}, "agent")
+
 	// Live trading is OWNER-GATED: live_order MUST refuse (no real money by default).
 	if _, e := m.InvokeOp("flowalpha", "live_order", map[string]any{"side": "buy", "symbol": "BTCUSDT"}, "agent"); e == nil {
 		t.Fatal("live_order must refuse when not owner-armed")

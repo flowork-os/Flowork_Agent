@@ -106,6 +106,18 @@
     <div class="sub">Virtual cash — no real money, no broker. Real trading is a separate owner-gated phase.</div>
     <div class="metrics" id="pmetrics"></div><div id="ptbl"></div>
   </div>
+
+  <div class="card">
+    <div class="row">
+      <label>WATCHLIST</label><input id="wlsym" class="sym" placeholder="symbol" autocomplete="off"><button id="wladd" class="ghost">+ ADD</button>
+      <label style="margin-left:18px">ALERT</label><input id="alsym" class="sym" placeholder="symbol" autocomplete="off">
+      <select id="alcond"><option value="above">above</option><option value="below">below</option></select>
+      <input id="alprice" type="number" placeholder="price" style="width:110px"><button id="aladd" class="ghost">+ ALERT</button>
+      <span class="st" id="alfire" style="margin-left:auto;color:#ffd166"></span>
+    </div>
+    <div id="wltbl"></div>
+    <div id="altbl"></div>
+  </div>
 </div>
 <script>
   let rq = 0; const pending = {};
@@ -216,7 +228,7 @@
     st.textContent = '✓ ' + CANDLES.length + ' candles · ' + iv() + ' · ' + new Date().toLocaleTimeString();
   }
   function showPrice(px, dir) { const el = $('price'); el.innerHTML = px.toLocaleString('en-US', { maximumFractionDigits: 8 }) + ' <small>' + sym() + '</small>'; el.style.color = dir > 0 ? '#22ff88' : dir < 0 ? '#ff6b6b' : '#36e6ff'; }
-  let tickTimer = null, refreshTimer = null;
+  let tickTimer = null, refreshTimer = null, wlTimer = null;
   async function tick() {
     const r = await call('get_price', { symbol: sym() });
     if (!r.ok || !r.result || !CANDLES.length) { $('tickst').textContent = '○ paused'; return; }
@@ -228,6 +240,7 @@
     if (tickTimer) clearInterval(tickTimer); if (refreshTimer) clearInterval(refreshTimer);
     tickTimer = setInterval(tick, 2000);              // per-tick price update
     refreshTimer = setInterval(loadChart, 60000);     // full candle refresh
+    wlTimer = setInterval(() => { loadWatchlist(); checkAlerts(); }, 12000); // watchlist + alerts
   }
 
   // ── backtest + optimize ────────────────────────────────────────────────────
@@ -290,6 +303,33 @@
   }
   $('chartwrap').addEventListener('mousemove', (e) => { const n = CANDLES.length; if (!n) return; const rect = $('chart').getBoundingClientRect(); const rel = (e.clientX - rect.left) / rect.width; hoverIdx = Math.max(0, Math.min(n - 1, Math.floor(rel * n))); drawAll(); updateOHLC(); });
   $('chartwrap').addEventListener('mouseleave', () => { hoverIdx = -1; drawAll(); updateOHLC(); });
+  // ── watchlist + alerts ──────────────────────────────────────────────────────
+  async function loadWatchlist() {
+    const r = await call('watchlist_get'); if (!r.ok || !r.result) return; const wl = r.result.watchlist;
+    if (!wl.length) { $('wltbl').innerHTML = '<div class="sub">watchlist empty — add a symbol</div>'; return; }
+    $('wltbl').innerHTML = '<table><tr><th>SYMBOL</th><th>PRICE</th><th></th></tr>' + wl.map(w =>
+      '<tr><td><a href="#" data-s="' + w.symbol + '" class="wlpick" style="color:#36e6ff;text-decoration:none">' + w.symbol + '</a></td><td>' +
+      (w.price != null ? w.price.toLocaleString('en-US', { maximumFractionDigits: 8 }) : '–') +
+      '</td><td><a href="#" data-r="' + w.symbol + '" class="wlrm" style="color:#ff6b6b;text-decoration:none">×</a></td></tr>').join('') + '</table>';
+    document.querySelectorAll('.wlpick').forEach(a => a.onclick = (e) => { e.preventDefault(); $('sym').value = a.dataset.s; CUSTOM = null; loadChart(); });
+    document.querySelectorAll('.wlrm').forEach(a => a.onclick = async (e) => { e.preventDefault(); await call('watchlist_remove', { symbol: a.dataset.r }); loadWatchlist(); });
+  }
+  async function loadAlerts() {
+    const r = await call('alert_list'); if (!r.ok || !r.result) return; const al = r.result.alerts;
+    if (!al.length) { $('altbl').innerHTML = ''; return; }
+    $('altbl').innerHTML = '<table><tr><th>ALERT</th><th>STATUS</th><th></th></tr>' + al.map(x =>
+      '<tr><td>' + x.symbol + ' ' + x.cond + ' ' + x.price + '</td><td class="' + (x.triggered ? 'pos' : '') + '">' + (x.triggered ? '✓ fired @' + (x.fired_price || '') : 'waiting') +
+      '</td><td><a href="#" data-id="' + x.id + '" class="alrm" style="color:#ff6b6b;text-decoration:none">×</a></td></tr>').join('') + '</table>';
+    document.querySelectorAll('.alrm').forEach(a => a.onclick = async (e) => { e.preventDefault(); await call('alert_remove', { id: +a.dataset.id }); loadAlerts(); });
+  }
+  async function checkAlerts() {
+    const r = await call('alert_check'); if (r.ok && r.result && r.result.triggered.length) {
+      $('alfire').textContent = '🔔 ' + r.result.triggered.map(x => x.symbol + ' ' + x.cond + ' ' + x.price).join(', '); loadAlerts();
+    }
+  }
+  $('wladd').onclick = async () => { const s = $('wlsym').value.trim(); if (!s) return; await call('watchlist_add', { symbol: s.toUpperCase() }); $('wlsym').value = ''; loadWatchlist(); };
+  $('aladd').onclick = async () => { const s = $('alsym').value.trim(), p = +$('alprice').value; if (!s || !p) return; await call('alert_add', { symbol: s.toUpperCase(), cond: $('alcond').value, price: p }); $('alprice').value = ''; loadAlerts(); };
+
   async function plotCustom() {
     const f = $('cif').value.trim(); if (!f) return; const st = $('cist'); st.textContent = '…';
     const r = await call('custom_indicator', { symbol: sym(), interval: iv(), formula: f, limit: 200 });
@@ -301,7 +341,7 @@
   $('load').onclick = () => { CUSTOM = null; loadChart(); };
   $('run').onclick = runBacktest; $('opt').onclick = optimize; $('ai').onclick = aiAnalyze;
   $('pbuy').onclick = doBuy; $('psell').onclick = doSell; $('preset').onclick = doReset;
-  (async () => { await initStrategies(); await loadChart(); startLoops(); loadBacktest(); loadPortfolio(); loadLiveStatus(); })();
+  (async () => { await initStrategies(); await loadChart(); startLoops(); loadBacktest(); loadPortfolio(); loadLiveStatus(); loadWatchlist(); loadAlerts(); checkAlerts(); })();
 </script>
 </body>
 </html>

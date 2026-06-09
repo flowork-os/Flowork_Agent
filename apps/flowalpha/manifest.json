@@ -4,7 +4,7 @@
   "name": "FlowAlpha",
   "description": "FlowAlpha — a sovereign quant desk: live market data, indicators, rule strategies, server-side backtests, and parameter optimization with full metrics. One engine driven by both you (GUI) and agents (tools). White-label, no API key, no database, public market data. The closed loop: data → indicator → strategy → backtest → optimize → metrics.",
   "icon": "ui/icon.svg",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "runtime": "process",
   "core_entry": "python3 core.py",
   "gui_entry": "ui/index.html",
@@ -48,6 +48,20 @@
     { "name": "live_status", "description": "Whether real-money LIVE trading is armed. It is OWNER-GATED: disabled unless the owner sets FLOWALPHA_LIVE_ENABLED=1 on the host AND configures a broker. Agents cannot enable it. Default is paper-only.", "tool": true, "gui": true, "mutates": false,
       "input_schema": { "type": "object", "properties": {} } },
     { "name": "live_order", "description": "Place a REAL-money order. OWNER-GATED: refuses unless the owner armed live trading (FLOWALPHA_LIVE_ENABLED) and configured a broker — an agent can never enable it. Returns a safe refusal otherwise. Use paper_buy/paper_sell for risk-free trading.", "tool": true, "gui": false, "mutates": true,
-      "input_schema": { "type": "object", "properties": { "side": { "type": "string", "description": "buy|sell" }, "symbol": { "type": "string" }, "quote_amount": { "type": "number" }, "qty": { "type": "number" } }, "required": ["side", "symbol"] } }
+      "input_schema": { "type": "object", "properties": { "side": { "type": "string", "description": "buy|sell" }, "symbol": { "type": "string" }, "quote_amount": { "type": "number" }, "qty": { "type": "number" } }, "required": ["side", "symbol"] } },
+    { "name": "watchlist_get", "description": "Get the watchlist symbols with their current live prices (multi-asset).", "tool": true, "gui": true, "mutates": false,
+      "input_schema": { "type": "object", "properties": {} } },
+    { "name": "watchlist_add", "description": "Add a symbol to the watchlist (crypto/stock/forex).", "tool": true, "gui": true, "mutates": true,
+      "input_schema": { "type": "object", "properties": { "symbol": { "type": "string" } }, "required": ["symbol"] } },
+    { "name": "watchlist_remove", "description": "Remove a symbol from the watchlist.", "tool": true, "gui": true, "mutates": true,
+      "input_schema": { "type": "object", "properties": { "symbol": { "type": "string" } }, "required": ["symbol"] } },
+    { "name": "alert_add", "description": "Add a price alert: fire when `symbol` goes above|below `price`. Multi-asset.", "tool": true, "gui": true, "mutates": true,
+      "input_schema": { "type": "object", "properties": { "symbol": { "type": "string" }, "cond": { "type": "string", "description": "above|below" }, "price": { "type": "number" } }, "required": ["symbol", "cond", "price"] } },
+    { "name": "alert_list", "description": "List all price alerts (with triggered status).", "tool": true, "gui": true, "mutates": false,
+      "input_schema": { "type": "object", "properties": {} } },
+    { "name": "alert_remove", "description": "Remove a price alert by id.", "tool": true, "gui": true, "mutates": true,
+      "input_schema": { "type": "object", "properties": { "id": { "type": "integer" } }, "required": ["id"] } },
+    { "name": "alert_check", "description": "Check all un-triggered alerts against live prices; mark + return any that fired. The GUI polls this; an agent can poll it too to watch the market.", "tool": true, "gui": true, "mutates": false,
+      "input_schema": { "type": "object", "properties": {} } }
   ]
 }
