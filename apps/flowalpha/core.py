@@ -55,10 +55,61 @@ def _load_symbols():
     return syms
 
 
-def _klines(symbol, interval, limit):
+# ── multi-asset routing: crypto → Binance public mirror, stocks/forex/index → Yahoo ──
+# Sovereign + key-free for ALL asset classes. Because every indicator/backtest/AI op goes
+# through _klines/_last_price, routing here makes the whole engine multi-asset for free.
+_CRYPTO_QUOTES = ("USDT", "BUSD", "USDC", "FDUSD", "TUSD", "DAI")
+_YF = {"1m": ("1m", "5d"), "5m": ("5m", "1mo"), "15m": ("15m", "1mo"),
+       "1h": ("60m", "3mo"), "4h": ("60m", "6mo"), "1d": ("1d", "2y")}
+
+
+def _is_crypto(sym):
+    s = sym.upper()
+    if any(ch in s for ch in ("=", ".", "^", "-")):
+        return False  # EURUSD=X, BBCA.JK, ^GSPC, BTC-USD → Yahoo
+    return any(s.endswith(q) for q in _CRYPTO_QUOTES)
+
+
+def _binance_klines(symbol, interval, limit):
     rows = _get("/klines", {"symbol": symbol, "interval": interval, "limit": limit})
     return [{"t": int(r[0]), "o": float(r[1]), "h": float(r[2]), "l": float(r[3]),
              "c": float(r[4]), "v": float(r[5])} for r in rows]
+
+
+def _yahoo(symbol, interval, rng):
+    url = "https://query1.finance.yahoo.com/v8/finance/chart/" + urllib.parse.quote(symbol) + "?interval=" + interval + "&range=" + rng
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as r:
+        return json.loads(r.read().decode("utf-8"))["chart"]["result"][0]
+
+
+def _yahoo_klines(symbol, interval, limit):
+    yi, rng = _YF.get(interval, ("1d", "2y"))
+    res = _yahoo(symbol, yi, rng)
+    ts = res.get("timestamp") or []
+    q = res["indicators"]["quote"][0]
+    out = []
+    for i in range(len(ts)):
+        o, h, l, c, v = q["open"][i], q["high"][i], q["low"][i], q["close"][i], q["volume"][i]
+        if None in (o, h, l, c):
+            continue
+        out.append({"t": ts[i] * 1000, "o": float(o), "h": float(h), "l": float(l), "c": float(c), "v": float(v or 0)})
+    return out[-limit:]
+
+
+def _klines(symbol, interval, limit):
+    return _binance_klines(symbol, interval, limit) if _is_crypto(symbol) else _yahoo_klines(symbol, interval, limit)
+
+
+def _last_price(symbol):
+    if _is_crypto(symbol):
+        return float(_get("/ticker/price", {"symbol": symbol})["price"])
+    res = _yahoo(symbol, "1d", "5d")
+    mp = (res.get("meta") or {}).get("regularMarketPrice")
+    if mp is not None:
+        return float(mp)
+    cl = [c for c in res["indicators"]["quote"][0]["close"] if c is not None]
+    return float(cl[-1])
 
 
 # ── indicators (pure python; None during warm-up) ───────────────────────────────
@@ -224,8 +275,7 @@ def op_get_price(a):
     sym = str(a.get("symbol", "")).upper().strip()
     if not sym:
         return {"error": "symbol required"}
-    d = _get("/ticker/price", {"symbol": sym})
-    return {"result": {"symbol": d["symbol"], "price": float(d["price"]), "source": DATA_BASE}}
+    return {"result": {"symbol": sym, "price": _last_price(sym), "asset": "crypto" if _is_crypto(sym) else "stock/fx"}}
 
 
 def op_get_klines(a):
@@ -503,7 +553,7 @@ def _portfolio():
 
 
 def _price(sym):
-    return float(_get("/ticker/price", {"symbol": sym})["price"])
+    return _last_price(sym)  # multi-asset (crypto → Binance, stocks/forex → Yahoo)
 
 
 def op_portfolio_get(a):
@@ -612,6 +662,8 @@ def op_get_ticker_24h(a):
     sym = str(a.get("symbol", "")).upper().strip()
     if not sym:
         return {"error": "symbol required"}
+    if not _is_crypto(sym):
+        return {"error": "24h ticker is crypto-only; use get_klines for stocks/forex"}
     d = _get("/ticker/24hr", {"symbol": sym})
     return {"result": {"symbol": d["symbol"], "last": float(d["lastPrice"]),
                        "change_pct": float(d["priceChangePercent"]), "high": float(d["highPrice"]),

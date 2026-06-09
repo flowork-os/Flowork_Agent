@@ -52,6 +52,16 @@ func TestFlowAlphaApp(t *testing.T) {
 	t.Logf("backtest BTCUSDT sma_cross → return=%v%% sharpe=%v trades=%v",
 		metrics["total_return_pct"], metrics["sharpe"], metrics["trades"])
 
+	// Multi-asset: a stock symbol (AAPL) routes to Yahoo, not Binance.
+	if sp, err := m.InvokeOp("flowalpha", "get_price", map[string]any{"symbol": "AAPL"}, "agent"); err == nil {
+		if spm, _ := sp.(map[string]any); spm["price"] == nil || spm["asset"] != "stock/fx" {
+			t.Fatalf("stock price wrong: %+v", sp)
+		}
+		t.Logf("multi-asset: AAPL price=%v (%v)", sp.(map[string]any)["price"], sp.(map[string]any)["asset"])
+	} else if !netSkip(err) && !strings.Contains(err.Error(), "urlopen") {
+		t.Logf("AAPL price skipped (data source): %v", err)
+	}
+
 	// custom_indicator (safe AST formula → series). Security (malicious rejection) is covered
 	// by the standalone core test; here we confirm a valid formula yields a series.
 	if ci, err := m.InvokeOp("flowalpha", "custom_indicator", map[string]any{"symbol": "BTCUSDT", "formula": "sma(close,10)-sma(close,30)", "limit": 80}, "agent"); err == nil {

@@ -1,3 +1,13 @@
+## 2026-06-09 — FlowAlpha v0.10.0: multi-asset data (stocks + forex + indices, sovereign)
+
+The whole engine now works on crypto AND stocks/forex/indices — no API key, no broker account.
+A data-source router in core.py sends crypto (BTCUSDT) to the Binance public mirror and
+everything else (AAPL, EURUSD=X, ^GSPC, BBCA.JK) to Yahoo's public chart endpoint. Because every
+indicator/backtest/optimize/custom/AI op goes through _klines/_last_price, they ALL became
+multi-asset for free. Tested live: BTCUSDT (crypto), AAPL (stock), EURUSD=X (forex) — price,
+klines, backtest, custom indicator. 24h-ticker/top-movers stay crypto-only (guarded). GUI hints
+the supported symbols. (Real TRADING on stocks/forex = the owner-gated broker phase; this is DATA.)
+
 ## 2026-06-09 — FlowAlpha v0.9.0: Indicator IDE (SAFE custom formulas, no code execution)
 
 The original's signature "write your own indicator" feature — done SAFELY (Mr.Dev's rule: never
