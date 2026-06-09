@@ -297,6 +297,9 @@ STRATEGIES = {
     "ema_cross": {"params": {"fast": 12, "slow": 26}, "desc": "Long when fast EMA > slow EMA"},
     "rsi_threshold": {"params": {"period": 14, "buy_below": 30, "sell_above": 70}, "desc": "Long when RSI dips below buy_below, exit above sell_above"},
     "macd_cross": {"params": {"fast": 12, "slow": 26, "signal": 9}, "desc": "Long when MACD line > signal line"},
+    "macd_zero": {"params": {"fast": 12, "slow": 26, "signal": 9}, "desc": "Long when the MACD line is above zero"},
+    "bollinger_bounce": {"params": {"period": 20, "k": 2}, "desc": "Long when price dips below the lower Bollinger band, exit above the middle"},
+    "triple_ma": {"params": {"fast": 8, "mid": 21, "slow": 55}, "desc": "Long when fast EMA > mid EMA > slow EMA (trend stack)"},
 }
 
 
@@ -330,6 +333,26 @@ def _positions(closes, strategy, p):
         line, sig, _ = macd(closes, int(p.get("fast", 12)), int(p.get("slow", 26)), int(p.get("signal", 9)))
         for i in range(n):
             pos[i] = None if (line[i] is None or sig[i] is None) else (1 if line[i] > sig[i] else 0)
+    elif strategy == "macd_zero":
+        line, _, _ = macd(closes, int(p.get("fast", 12)), int(p.get("slow", 26)), int(p.get("signal", 9)))
+        for i in range(n):
+            pos[i] = None if line[i] is None else (1 if line[i] > 0 else 0)
+    elif strategy == "bollinger_bounce":
+        mid, _, lo = bollinger(closes, int(p.get("period", 20)), float(p.get("k", 2)))
+        cur = 0
+        for i in range(n):
+            if mid[i] is None:
+                pos[i] = None
+                continue
+            if cur == 0 and closes[i] < lo[i]:
+                cur = 1
+            elif cur == 1 and closes[i] > mid[i]:
+                cur = 0
+            pos[i] = cur
+    elif strategy == "triple_ma":
+        ef, em, es = ema(closes, int(p.get("fast", 8))), ema(closes, int(p.get("mid", 21))), ema(closes, int(p.get("slow", 55)))
+        for i in range(n):
+            pos[i] = None if (ef[i] is None or em[i] is None or es[i] is None) else (1 if (ef[i] > em[i] > es[i]) else 0)
     else:
         return None
     return pos
@@ -724,6 +747,9 @@ def _grid(strategy, custom):
         "ema_cross": {"fast": [8, 12, 20], "slow": [21, 26, 50]},
         "rsi_threshold": {"period": [14], "buy_below": [20, 30], "sell_above": [70, 80]},
         "macd_cross": {"fast": [8, 12], "slow": [21, 26], "signal": [9]},
+        "macd_zero": {"fast": [8, 12], "slow": [21, 26], "signal": [9]},
+        "bollinger_bounce": {"period": [14, 20, 30], "k": [2, 2.5]},
+        "triple_ma": {"fast": [5, 8, 13], "mid": [21, 34], "slow": [55, 100]},
     }.get(strategy, {})
     space = custom if isinstance(custom, dict) and custom else defaults
     keys = list(space.keys())

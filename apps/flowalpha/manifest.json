@@ -2,82 +2,734 @@
   "id": "flowalpha",
   "kind": "app",
   "name": "FlowAlpha",
-  "description": "FlowAlpha — a sovereign quant desk: live market data, indicators, rule strategies, server-side backtests, and parameter optimization with full metrics. One engine driven by both you (GUI) and agents (tools). White-label, no API key, no database, public market data. The closed loop: data → indicator → strategy → backtest → optimize → metrics.",
+  "description": "FlowAlpha \u2014 a sovereign quant desk: live market data, indicators, rule strategies, server-side backtests, and parameter optimization with full metrics. One engine driven by both you (GUI) and agents (tools). White-label, no API key, no database, public market data. The closed loop: data \u2192 indicator \u2192 strategy \u2192 backtest \u2192 optimize \u2192 metrics.",
   "icon": "ui/icon.svg",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "runtime": "process",
   "core_entry": "python3 core.py",
   "gui_entry": "ui/index.html",
   "operations": [
-    { "name": "get_price", "description": "Get the latest price for any market symbol — crypto (BTCUSDT), stocks (AAPL), forex (EURUSD=X), indices (^GSPC). Public data, no key (crypto via Binance, the rest via Yahoo).", "tool": true, "gui": true, "mutates": false,
-      "input_schema": { "type": "object", "properties": { "symbol": { "type": "string", "description": "BTCUSDT | AAPL | EURUSD=X | ^GSPC | BBCA.JK" } }, "required": ["symbol"] } },
-    { "name": "get_klines", "description": "Get recent OHLCV candles for any symbol (crypto/stock/forex/index) at an interval (1m/5m/15m/1h/4h/1d). Crypto via Binance, stocks/forex via Yahoo, no key.", "tool": true, "gui": true, "mutates": false,
-      "input_schema": { "type": "object", "properties": { "symbol": { "type": "string" }, "interval": { "type": "string" }, "limit": { "type": "integer", "description": "1..500 (default 200)" } }, "required": ["symbol"] } },
-    { "name": "search_symbols", "description": "Search available market symbols by a query fragment (e.g. 'BTC').", "tool": true, "gui": true, "mutates": false,
-      "input_schema": { "type": "object", "properties": { "query": { "type": "string" }, "limit": { "type": "integer" } }, "required": ["query"] } },
-    { "name": "list_indicators", "description": "List the built-in technical indicators and their parameters.", "tool": true, "gui": false, "mutates": false,
-      "input_schema": { "type": "object", "properties": {} } },
-    { "name": "compute_indicator", "description": "Compute a technical indicator series over a symbol's candles. indicator: sma|ema|rsi|macd|bollinger|atr|obv|stoch|vwap|adx|supertrend.", "tool": true, "gui": true, "mutates": false,
-      "input_schema": { "type": "object", "properties": { "symbol": { "type": "string" }, "interval": { "type": "string" }, "limit": { "type": "integer" }, "indicator": { "type": "string", "description": "sma|ema|rsi|macd" }, "period": { "type": "integer" }, "fast": { "type": "integer" }, "slow": { "type": "integer" }, "signal": { "type": "integer" } }, "required": ["symbol", "indicator"] } },
-    { "name": "custom_indicator", "description": "Compute a CUSTOM indicator from a safe formula over close/open/high/low/volume using sma/ema/rsi/abs/log/sqrt and arithmetic (e.g. 'sma(close,20)-sma(close,50)' or '(high-low)/close*100'). Evaluated by an AST whitelist — arbitrary code can never run. Returns the series.", "tool": true, "gui": true, "mutates": false,
-      "input_schema": { "type": "object", "properties": { "symbol": { "type": "string" }, "formula": { "type": "string", "description": "e.g. sma(close,20)-sma(close,50)" }, "interval": { "type": "string" }, "limit": { "type": "integer" } }, "required": ["symbol", "formula"] } },
-    { "name": "list_strategies", "description": "List the built-in backtest strategies and their default parameters (sma_cross, ema_cross, rsi_threshold, macd_cross).", "tool": true, "gui": false, "mutates": false,
-      "input_schema": { "type": "object", "properties": {} } },
-    { "name": "run_backtest", "description": "Backtest a strategy on a symbol with realistic risk controls. strategy: sma_cross|ema_cross|rsi_threshold|macd_cross. direction: long|short|both. Optional stop-loss/take-profit/trailing-stop (%) and slippage (bps). Returns equity curve, trades (with side + exit reason: signal/SL/TP/trail) and metrics (return, buy&hold, win rate, max drawdown, Sharpe, Sortino, Calmar, profit factor). Saves as shared state.", "tool": true, "gui": true, "mutates": true,
-      "input_schema": { "type": "object", "properties": { "symbol": { "type": "string" }, "strategy": { "type": "string", "description": "sma_cross|ema_cross|rsi_threshold|macd_cross (default sma_cross)" }, "direction": { "type": "string", "description": "long|short|both (default long)" }, "interval": { "type": "string" }, "limit": { "type": "integer", "description": "candles (default 300, max 500)" }, "fast": { "type": "integer" }, "slow": { "type": "integer" }, "period": { "type": "integer" }, "buy_below": { "type": "number" }, "sell_above": { "type": "number" }, "signal": { "type": "integer" }, "fee_bps": { "type": "number", "description": "round-trip fee bps (default 10)" }, "sl_pct": { "type": "number", "description": "stop-loss %" }, "tp_pct": { "type": "number", "description": "take-profit %" }, "trail_pct": { "type": "number", "description": "trailing-stop %" }, "slippage_bps": { "type": "number", "description": "slippage bps" } }, "required": ["symbol"] } },
-    { "name": "run_optimize", "description": "Parameter sweep: backtest a strategy across a grid of parameters and return the best by `rank_by` (total_return_pct|sharpe|win_rate_pct), plus the ranked results table. Default grid per strategy; pass `grid` to override.", "tool": true, "gui": true, "mutates": false,
-      "input_schema": { "type": "object", "properties": { "symbol": { "type": "string" }, "strategy": { "type": "string" }, "interval": { "type": "string" }, "limit": { "type": "integer" }, "rank_by": { "type": "string", "description": "total_return_pct|sharpe|win_rate_pct" }, "fee_bps": { "type": "number" }, "grid": { "type": "object", "description": "optional {param: [values]} overrides" } }, "required": ["symbol"] } },
-    { "name": "get_last_backtest", "description": "Get the most recent backtest result (shared state).", "tool": true, "gui": true, "mutates": false,
-      "input_schema": { "type": "object", "properties": {} } },
-    { "name": "compare_strategies", "description": "Backtest ALL built-in strategies on a symbol and return their metrics ranked by total return — a side-by-side comparison vs buy & hold.", "tool": true, "gui": true, "mutates": false,
-      "input_schema": { "type": "object", "properties": { "symbol": { "type": "string" }, "interval": { "type": "string" }, "limit": { "type": "integer" }, "fee_bps": { "type": "number" } }, "required": ["symbol"] } },
-    { "name": "regime_detection", "description": "Classify the current market regime for a symbol (trending_up / trending_down / ranging / volatile) from ADX, ATR%, and SMA slope, with a strategy hint.", "tool": true, "gui": true, "mutates": false,
-      "input_schema": { "type": "object", "properties": { "symbol": { "type": "string" }, "interval": { "type": "string" }, "limit": { "type": "integer" } }, "required": ["symbol"] } },
-    { "name": "backtest_history", "description": "List the recent backtest runs (most recent first) — symbol, strategy, direction, return, Sharpe, trades.", "tool": true, "gui": true, "mutates": false,
-      "input_schema": { "type": "object", "properties": {} } },
-    { "name": "ai_analyze", "description": "AI market analysis for a symbol, grounded ONLY on FlowAlpha's own engine output (live price, RSI, an sma_cross backtest) — no invented numbers. Runs through the sovereign Flowork router (no third-party LLM key). Returns a concise neutral analysis.", "tool": true, "gui": true, "mutates": false,
-      "input_schema": { "type": "object", "properties": { "symbol": { "type": "string" }, "interval": { "type": "string" }, "limit": { "type": "integer" } }, "required": ["symbol"] } },
-    { "name": "portfolio_get", "description": "Get the PAPER (virtual, no real money) portfolio: cash, open positions marked to live price with unrealized P&L, total equity, realized P&L, and total return.", "tool": true, "gui": true, "mutates": false,
-      "input_schema": { "type": "object", "properties": {} } },
-    { "name": "paper_buy", "description": "PAPER buy: spend `quote_amount` (e.g. USDT) of virtual cash on `symbol` at the live price. No real money, no broker. Updates the shared paper portfolio.", "tool": true, "gui": true, "mutates": true,
-      "input_schema": { "type": "object", "properties": { "symbol": { "type": "string" }, "quote_amount": { "type": "number", "description": "amount of quote currency to spend (e.g. 1000)" } }, "required": ["symbol", "quote_amount"] } },
-    { "name": "paper_sell", "description": "PAPER sell: sell `qty` of an open position (default: all) at the live price, realizing P&L into virtual cash. No real money.", "tool": true, "gui": true, "mutates": true,
-      "input_schema": { "type": "object", "properties": { "symbol": { "type": "string" }, "qty": { "type": "number", "description": "quantity to sell (omit = sell all)" } }, "required": ["symbol"] } },
-    { "name": "paper_reset", "description": "Reset the paper portfolio back to the starting virtual cash (clears positions and orders).", "tool": true, "gui": true, "mutates": true,
-      "input_schema": { "type": "object", "properties": {} } },
-    { "name": "list_paper_orders", "description": "List recent paper orders (newest first).", "tool": true, "gui": false, "mutates": false,
-      "input_schema": { "type": "object", "properties": { "limit": { "type": "integer" } } } },
-    { "name": "get_ticker_24h", "description": "24h market stats for a symbol: last price, 24h change %, high, low, base/quote volume, trade count.", "tool": true, "gui": true, "mutates": false,
-      "input_schema": { "type": "object", "properties": { "symbol": { "type": "string" } }, "required": ["symbol"] } },
-    { "name": "top_movers", "description": "Top gainers and losers over 24h for a quote currency (e.g. USDT). Useful for market scanning.", "tool": true, "gui": true, "mutates": false,
-      "input_schema": { "type": "object", "properties": { "quote": { "type": "string", "description": "quote currency, default USDT" }, "limit": { "type": "integer" } } } },
-    { "name": "live_status", "description": "Whether real-money LIVE trading is armed. It is OWNER-GATED: disabled unless the owner sets FLOWALPHA_LIVE_ENABLED=1 on the host AND configures a broker. Agents cannot enable it. Default is paper-only.", "tool": true, "gui": true, "mutates": false,
-      "input_schema": { "type": "object", "properties": {} } },
-    { "name": "live_order", "description": "Place a REAL-money order. OWNER-GATED: refuses unless the owner armed live trading (FLOWALPHA_LIVE_ENABLED) and configured a broker — an agent can never enable it. Returns a safe refusal otherwise. Use paper_buy/paper_sell for risk-free trading.", "tool": true, "gui": false, "mutates": true,
-      "input_schema": { "type": "object", "properties": { "side": { "type": "string", "description": "buy|sell" }, "symbol": { "type": "string" }, "quote_amount": { "type": "number" }, "qty": { "type": "number" } }, "required": ["side", "symbol"] } },
-    { "name": "watchlist_get", "description": "Get the watchlist symbols with their current live prices (multi-asset).", "tool": true, "gui": true, "mutates": false,
-      "input_schema": { "type": "object", "properties": {} } },
-    { "name": "watchlist_add", "description": "Add a symbol to the watchlist (crypto/stock/forex).", "tool": true, "gui": true, "mutates": true,
-      "input_schema": { "type": "object", "properties": { "symbol": { "type": "string" } }, "required": ["symbol"] } },
-    { "name": "watchlist_remove", "description": "Remove a symbol from the watchlist.", "tool": true, "gui": true, "mutates": true,
-      "input_schema": { "type": "object", "properties": { "symbol": { "type": "string" } }, "required": ["symbol"] } },
-    { "name": "alert_add", "description": "Add a price alert: fire when `symbol` goes above|below `price`. Multi-asset.", "tool": true, "gui": true, "mutates": true,
-      "input_schema": { "type": "object", "properties": { "symbol": { "type": "string" }, "cond": { "type": "string", "description": "above|below" }, "price": { "type": "number" } }, "required": ["symbol", "cond", "price"] } },
-    { "name": "alert_list", "description": "List all price alerts (with triggered status).", "tool": true, "gui": true, "mutates": false,
-      "input_schema": { "type": "object", "properties": {} } },
-    { "name": "alert_remove", "description": "Remove a price alert by id.", "tool": true, "gui": true, "mutates": true,
-      "input_schema": { "type": "object", "properties": { "id": { "type": "integer" } }, "required": ["id"] } },
-    { "name": "alert_check", "description": "Check all un-triggered alerts against live prices; mark + return any that fired. The GUI polls this; an agent can poll it too to watch the market.", "tool": true, "gui": true, "mutates": false,
-      "input_schema": { "type": "object", "properties": {} } },
-    { "name": "bot_add", "description": "Add a PAPER trading bot: a strategy that runs continuously on the paper portfolio for a symbol. No real money.", "tool": true, "gui": true, "mutates": true,
-      "input_schema": { "type": "object", "properties": { "symbol": { "type": "string" }, "strategy": { "type": "string" }, "interval": { "type": "string" }, "quote": { "type": "number", "description": "USDT per entry" } }, "required": ["symbol"] } },
-    { "name": "bot_list", "description": "List paper bots + last run time.", "tool": true, "gui": true, "mutates": false,
-      "input_schema": { "type": "object", "properties": {} } },
-    { "name": "bot_remove", "description": "Remove a paper bot by id.", "tool": true, "gui": true, "mutates": true,
-      "input_schema": { "type": "object", "properties": { "id": { "type": "integer" } }, "required": ["id"] } },
-    { "name": "bot_toggle", "description": "Enable/disable a paper bot by id.", "tool": true, "gui": true, "mutates": true,
-      "input_schema": { "type": "object", "properties": { "id": { "type": "integer" } }, "required": ["id"] } },
-    { "name": "bot_step", "description": "Run ONE step for all enabled paper bots: evaluate each bot's strategy signal and buy/sell on the paper portfolio accordingly. The GUI/agent calls this on a timer so strategies run live on paper. Returns the actions taken.", "tool": true, "gui": true, "mutates": true,
-      "input_schema": { "type": "object", "properties": {} } }
+    {
+      "name": "get_price",
+      "description": "Get the latest price for any market symbol \u2014 crypto (BTCUSDT), stocks (AAPL), forex (EURUSD=X), indices (^GSPC). Public data, no key (crypto via Binance, the rest via Yahoo).",
+      "tool": true,
+      "gui": true,
+      "mutates": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "description": "BTCUSDT | AAPL | EURUSD=X | ^GSPC | BBCA.JK"
+          }
+        },
+        "required": [
+          "symbol"
+        ]
+      }
+    },
+    {
+      "name": "get_klines",
+      "description": "Get recent OHLCV candles for any symbol (crypto/stock/forex/index) at an interval (1m/5m/15m/1h/4h/1d). Crypto via Binance, stocks/forex via Yahoo, no key.",
+      "tool": true,
+      "gui": true,
+      "mutates": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "interval": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "1..500 (default 200)"
+          }
+        },
+        "required": [
+          "symbol"
+        ]
+      }
+    },
+    {
+      "name": "search_symbols",
+      "description": "Search available market symbols by a query fragment (e.g. 'BTC').",
+      "tool": true,
+      "gui": true,
+      "mutates": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
+    },
+    {
+      "name": "list_indicators",
+      "description": "List the built-in technical indicators and their parameters.",
+      "tool": true,
+      "gui": false,
+      "mutates": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "compute_indicator",
+      "description": "Compute a technical indicator series over a symbol's candles. indicator: sma|ema|rsi|macd|bollinger|atr|obv|stoch|vwap|adx|supertrend.",
+      "tool": true,
+      "gui": true,
+      "mutates": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "interval": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "indicator": {
+            "type": "string",
+            "description": "sma|ema|rsi|macd"
+          },
+          "period": {
+            "type": "integer"
+          },
+          "fast": {
+            "type": "integer"
+          },
+          "slow": {
+            "type": "integer"
+          },
+          "signal": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "symbol",
+          "indicator"
+        ]
+      }
+    },
+    {
+      "name": "custom_indicator",
+      "description": "Compute a CUSTOM indicator from a safe formula over close/open/high/low/volume using sma/ema/rsi/abs/log/sqrt and arithmetic (e.g. 'sma(close,20)-sma(close,50)' or '(high-low)/close*100'). Evaluated by an AST whitelist \u2014 arbitrary code can never run. Returns the series.",
+      "tool": true,
+      "gui": true,
+      "mutates": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "formula": {
+            "type": "string",
+            "description": "e.g. sma(close,20)-sma(close,50)"
+          },
+          "interval": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "symbol",
+          "formula"
+        ]
+      }
+    },
+    {
+      "name": "list_strategies",
+      "description": "List the 7 built-in backtest strategies + default params (sma_cross, ema_cross, rsi_threshold, macd_cross, macd_zero, bollinger_bounce, triple_ma).",
+      "tool": true,
+      "gui": false,
+      "mutates": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "run_backtest",
+      "description": "Backtest a strategy on a symbol with realistic risk controls. strategy: sma_cross|ema_cross|rsi_threshold|macd_cross. direction: long|short|both. Optional stop-loss/take-profit/trailing-stop (%) and slippage (bps). Returns equity curve, trades (with side + exit reason: signal/SL/TP/trail) and metrics (return, buy&hold, win rate, max drawdown, Sharpe, Sortino, Calmar, profit factor). Saves as shared state.",
+      "tool": true,
+      "gui": true,
+      "mutates": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "strategy": {
+            "type": "string",
+            "description": "sma_cross|ema_cross|rsi_threshold|macd_cross (default sma_cross)"
+          },
+          "direction": {
+            "type": "string",
+            "description": "long|short|both (default long)"
+          },
+          "interval": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "candles (default 300, max 500)"
+          },
+          "fast": {
+            "type": "integer"
+          },
+          "slow": {
+            "type": "integer"
+          },
+          "period": {
+            "type": "integer"
+          },
+          "buy_below": {
+            "type": "number"
+          },
+          "sell_above": {
+            "type": "number"
+          },
+          "signal": {
+            "type": "integer"
+          },
+          "fee_bps": {
+            "type": "number",
+            "description": "round-trip fee bps (default 10)"
+          },
+          "sl_pct": {
+            "type": "number",
+            "description": "stop-loss %"
+          },
+          "tp_pct": {
+            "type": "number",
+            "description": "take-profit %"
+          },
+          "trail_pct": {
+            "type": "number",
+            "description": "trailing-stop %"
+          },
+          "slippage_bps": {
+            "type": "number",
+            "description": "slippage bps"
+          }
+        },
+        "required": [
+          "symbol"
+        ]
+      }
+    },
+    {
+      "name": "run_optimize",
+      "description": "Parameter sweep: backtest a strategy across a grid of parameters and return the best by `rank_by` (total_return_pct|sharpe|win_rate_pct), plus the ranked results table. Default grid per strategy; pass `grid` to override.",
+      "tool": true,
+      "gui": true,
+      "mutates": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "strategy": {
+            "type": "string"
+          },
+          "interval": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "rank_by": {
+            "type": "string",
+            "description": "total_return_pct|sharpe|win_rate_pct"
+          },
+          "fee_bps": {
+            "type": "number"
+          },
+          "grid": {
+            "type": "object",
+            "description": "optional {param: [values]} overrides"
+          }
+        },
+        "required": [
+          "symbol"
+        ]
+      }
+    },
+    {
+      "name": "get_last_backtest",
+      "description": "Get the most recent backtest result (shared state).",
+      "tool": true,
+      "gui": true,
+      "mutates": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "compare_strategies",
+      "description": "Backtest ALL built-in strategies on a symbol and return their metrics ranked by total return \u2014 a side-by-side comparison vs buy & hold.",
+      "tool": true,
+      "gui": true,
+      "mutates": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "interval": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "fee_bps": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "symbol"
+        ]
+      }
+    },
+    {
+      "name": "regime_detection",
+      "description": "Classify the current market regime for a symbol (trending_up / trending_down / ranging / volatile) from ADX, ATR%, and SMA slope, with a strategy hint.",
+      "tool": true,
+      "gui": true,
+      "mutates": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "interval": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "symbol"
+        ]
+      }
+    },
+    {
+      "name": "backtest_history",
+      "description": "List the recent backtest runs (most recent first) \u2014 symbol, strategy, direction, return, Sharpe, trades.",
+      "tool": true,
+      "gui": true,
+      "mutates": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "ai_analyze",
+      "description": "AI market analysis for a symbol, grounded ONLY on FlowAlpha's own engine output (live price, RSI, an sma_cross backtest) \u2014 no invented numbers. Runs through the sovereign Flowork router (no third-party LLM key). Returns a concise neutral analysis.",
+      "tool": true,
+      "gui": true,
+      "mutates": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "interval": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "symbol"
+        ]
+      }
+    },
+    {
+      "name": "portfolio_get",
+      "description": "Get the PAPER (virtual, no real money) portfolio: cash, open positions marked to live price with unrealized P&L, total equity, realized P&L, and total return.",
+      "tool": true,
+      "gui": true,
+      "mutates": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "paper_buy",
+      "description": "PAPER buy: spend `quote_amount` (e.g. USDT) of virtual cash on `symbol` at the live price. No real money, no broker. Updates the shared paper portfolio.",
+      "tool": true,
+      "gui": true,
+      "mutates": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "quote_amount": {
+            "type": "number",
+            "description": "amount of quote currency to spend (e.g. 1000)"
+          }
+        },
+        "required": [
+          "symbol",
+          "quote_amount"
+        ]
+      }
+    },
+    {
+      "name": "paper_sell",
+      "description": "PAPER sell: sell `qty` of an open position (default: all) at the live price, realizing P&L into virtual cash. No real money.",
+      "tool": true,
+      "gui": true,
+      "mutates": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "qty": {
+            "type": "number",
+            "description": "quantity to sell (omit = sell all)"
+          }
+        },
+        "required": [
+          "symbol"
+        ]
+      }
+    },
+    {
+      "name": "paper_reset",
+      "description": "Reset the paper portfolio back to the starting virtual cash (clears positions and orders).",
+      "tool": true,
+      "gui": true,
+      "mutates": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "list_paper_orders",
+      "description": "List recent paper orders (newest first).",
+      "tool": true,
+      "gui": false,
+      "mutates": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    {
+      "name": "get_ticker_24h",
+      "description": "24h market stats for a symbol: last price, 24h change %, high, low, base/quote volume, trade count.",
+      "tool": true,
+      "gui": true,
+      "mutates": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol"
+        ]
+      }
+    },
+    {
+      "name": "top_movers",
+      "description": "Top gainers and losers over 24h for a quote currency (e.g. USDT). Useful for market scanning.",
+      "tool": true,
+      "gui": true,
+      "mutates": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "quote": {
+            "type": "string",
+            "description": "quote currency, default USDT"
+          },
+          "limit": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    {
+      "name": "live_status",
+      "description": "Whether real-money LIVE trading is armed. It is OWNER-GATED: disabled unless the owner sets FLOWALPHA_LIVE_ENABLED=1 on the host AND configures a broker. Agents cannot enable it. Default is paper-only.",
+      "tool": true,
+      "gui": true,
+      "mutates": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "live_order",
+      "description": "Place a REAL-money order. OWNER-GATED: refuses unless the owner armed live trading (FLOWALPHA_LIVE_ENABLED) and configured a broker \u2014 an agent can never enable it. Returns a safe refusal otherwise. Use paper_buy/paper_sell for risk-free trading.",
+      "tool": true,
+      "gui": false,
+      "mutates": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "side": {
+            "type": "string",
+            "description": "buy|sell"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "quote_amount": {
+            "type": "number"
+          },
+          "qty": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "side",
+          "symbol"
+        ]
+      }
+    },
+    {
+      "name": "watchlist_get",
+      "description": "Get the watchlist symbols with their current live prices (multi-asset).",
+      "tool": true,
+      "gui": true,
+      "mutates": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "watchlist_add",
+      "description": "Add a symbol to the watchlist (crypto/stock/forex).",
+      "tool": true,
+      "gui": true,
+      "mutates": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol"
+        ]
+      }
+    },
+    {
+      "name": "watchlist_remove",
+      "description": "Remove a symbol from the watchlist.",
+      "tool": true,
+      "gui": true,
+      "mutates": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol"
+        ]
+      }
+    },
+    {
+      "name": "alert_add",
+      "description": "Add a price alert: fire when `symbol` goes above|below `price`. Multi-asset.",
+      "tool": true,
+      "gui": true,
+      "mutates": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "cond": {
+            "type": "string",
+            "description": "above|below"
+          },
+          "price": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "symbol",
+          "cond",
+          "price"
+        ]
+      }
+    },
+    {
+      "name": "alert_list",
+      "description": "List all price alerts (with triggered status).",
+      "tool": true,
+      "gui": true,
+      "mutates": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "alert_remove",
+      "description": "Remove a price alert by id.",
+      "tool": true,
+      "gui": true,
+      "mutates": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
+      "name": "alert_check",
+      "description": "Check all un-triggered alerts against live prices; mark + return any that fired. The GUI polls this; an agent can poll it too to watch the market.",
+      "tool": true,
+      "gui": true,
+      "mutates": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "bot_add",
+      "description": "Add a PAPER trading bot: a strategy that runs continuously on the paper portfolio for a symbol. No real money.",
+      "tool": true,
+      "gui": true,
+      "mutates": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "strategy": {
+            "type": "string"
+          },
+          "interval": {
+            "type": "string"
+          },
+          "quote": {
+            "type": "number",
+            "description": "USDT per entry"
+          }
+        },
+        "required": [
+          "symbol"
+        ]
+      }
+    },
+    {
+      "name": "bot_list",
+      "description": "List paper bots + last run time.",
+      "tool": true,
+      "gui": true,
+      "mutates": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "bot_remove",
+      "description": "Remove a paper bot by id.",
+      "tool": true,
+      "gui": true,
+      "mutates": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
+      "name": "bot_toggle",
+      "description": "Enable/disable a paper bot by id.",
+      "tool": true,
+      "gui": true,
+      "mutates": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
+      "name": "bot_step",
+      "description": "Run ONE step for all enabled paper bots: evaluate each bot's strategy signal and buy/sell on the paper portfolio accordingly. The GUI/agent calls this on a timer so strategies run live on paper. Returns the actions taken.",
+      "tool": true,
+      "gui": true,
+      "mutates": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    }
   ]
 }

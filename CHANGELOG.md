@@ -1,3 +1,11 @@
+## 2026-06-09 — FlowAlpha v0.18.0: 3 more strategies (7 total)
+
+- New strategies (close-based, plug into the registry → auto-work in backtest/optimize/compare/
+  bots): macd_zero (long when MACD>0), bollinger_bounce (mean-revert: long below lower band, exit
+  above middle), triple_ma (long when fast>mid>slow EMA stack). Grids added for optimize.
+- 7 strategies total now. Tested (each backtests with varied, realistic results) + compare ranks
+  all 7. Closes part of the "only 4 strategies" gap.
+
 ## 2026-06-09 — FlowAlpha v0.17.0: paper trading bots (the continuous "operate" layer, gap #4)
 
 - Paper bots: a strategy that runs CONTINUOUSLY on the paper portfolio. bot_add (symbol +
