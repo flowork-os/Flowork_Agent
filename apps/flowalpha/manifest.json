@@ -28,6 +28,16 @@
     { "name": "get_last_backtest", "description": "Get the most recent backtest result (shared state).", "tool": true, "gui": true, "mutates": false,
       "input_schema": { "type": "object", "properties": {} } },
     { "name": "ai_analyze", "description": "AI market analysis for a symbol, grounded ONLY on FlowAlpha's own engine output (live price, RSI, an sma_cross backtest) — no invented numbers. Runs through the sovereign Flowork router (no third-party LLM key). Returns a concise neutral analysis.", "tool": true, "gui": true, "mutates": false,
-      "input_schema": { "type": "object", "properties": { "symbol": { "type": "string" }, "interval": { "type": "string" }, "limit": { "type": "integer" } }, "required": ["symbol"] } }
+      "input_schema": { "type": "object", "properties": { "symbol": { "type": "string" }, "interval": { "type": "string" }, "limit": { "type": "integer" } }, "required": ["symbol"] } },
+    { "name": "portfolio_get", "description": "Get the PAPER (virtual, no real money) portfolio: cash, open positions marked to live price with unrealized P&L, total equity, realized P&L, and total return.", "tool": true, "gui": true, "mutates": false,
+      "input_schema": { "type": "object", "properties": {} } },
+    { "name": "paper_buy", "description": "PAPER buy: spend `quote_amount` (e.g. USDT) of virtual cash on `symbol` at the live price. No real money, no broker. Updates the shared paper portfolio.", "tool": true, "gui": true, "mutates": true,
+      "input_schema": { "type": "object", "properties": { "symbol": { "type": "string" }, "quote_amount": { "type": "number", "description": "amount of quote currency to spend (e.g. 1000)" } }, "required": ["symbol", "quote_amount"] } },
+    { "name": "paper_sell", "description": "PAPER sell: sell `qty` of an open position (default: all) at the live price, realizing P&L into virtual cash. No real money.", "tool": true, "gui": true, "mutates": true,
+      "input_schema": { "type": "object", "properties": { "symbol": { "type": "string" }, "qty": { "type": "number", "description": "quantity to sell (omit = sell all)" } }, "required": ["symbol"] } },
+    { "name": "paper_reset", "description": "Reset the paper portfolio back to the starting virtual cash (clears positions and orders).", "tool": true, "gui": true, "mutates": true,
+      "input_schema": { "type": "object", "properties": {} } },
+    { "name": "list_paper_orders", "description": "List recent paper orders (newest first).", "tool": true, "gui": false, "mutates": false,
+      "input_schema": { "type": "object", "properties": { "limit": { "type": "integer" } } } }
   ]
 }

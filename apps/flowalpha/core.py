@@ -19,6 +19,10 @@ HTTP_TIMEOUT = 12
 LLM_URL = os.environ.get("FLOWORK_ROUTER_URL", "http://127.0.0.1:2402/v1/chat/completions")
 LLM_MODEL = os.environ.get("QUANT_LLM_MODEL", "")
 LLM_TIMEOUT = 30
+# Paper portfolio: virtual cash, no broker, no real money (live trading is a separate,
+# owner-gated phase). Starting cash + per-order fee are configurable.
+STARTING_CASH = float(os.environ.get("QUANT_PAPER_CASH", "10000"))
+PAPER_FEE = float(os.environ.get("QUANT_PAPER_FEE_BPS", "10")) / 10000.0
 STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "state.json")
 MAX_OPT_COMBOS = 60
 
@@ -312,7 +316,7 @@ def op_run_backtest(a):
     if err:
         return {"error": err}
     res["params"]["fee_bps"] = round(fee * 10000, 2)
-    _save_state({"last_backtest": res, "at": int(time.time())})
+    _patch_state({"last_backtest": res})
     return {"result": res}
 
 
@@ -413,7 +417,103 @@ def op_ai_analyze(a):
     return {"result": {"symbol": sym, "analysis": text, "context": ctx}}
 
 
+# ── ops: paper portfolio (virtual; no broker, no real money) ────────────────────
+def _portfolio():
+    p = _load_state().get("portfolio")
+    if not p:
+        p = {"cash": STARTING_CASH, "positions": {}, "orders": [], "realized": 0.0, "start_cash": STARTING_CASH}
+    return p
+
+
+def _price(sym):
+    return float(_get("/ticker/price", {"symbol": sym})["price"])
+
+
+def op_portfolio_get(a):
+    p = _portfolio()
+    positions, pos_value = [], 0.0
+    for sym, pos in p["positions"].items():
+        try:
+            px = _price(sym)
+        except Exception:  # noqa
+            px = pos["avg"]
+        val = pos["qty"] * px
+        pos_value += val
+        positions.append({"symbol": sym, "qty": round(pos["qty"], 8), "avg": pos["avg"], "price": px,
+                          "value": round(val, 2), "unrealized": round(pos["qty"] * (px - pos["avg"]), 2),
+                          "unrealized_pct": round((px / pos["avg"] - 1) * 100, 2) if pos["avg"] else 0.0})
+    start = p.get("start_cash", STARTING_CASH)
+    equity = p["cash"] + pos_value
+    return {"result": {"cash": round(p["cash"], 2), "positions": positions, "equity": round(equity, 2),
+                       "realized_pnl": round(p["realized"], 2), "start_cash": start,
+                       "total_return_pct": round((equity / start - 1) * 100, 2)}}
+
+
+def op_paper_buy(a):
+    sym = str(a.get("symbol", "")).upper().strip()
+    quote = float(a.get("quote_amount") or 0)
+    if not sym or quote <= 0:
+        return {"error": "symbol and positive quote_amount required"}
+    p = _portfolio()
+    if p["cash"] < quote:
+        return {"error": "insufficient cash (have %.2f, need %.2f)" % (p["cash"], quote)}
+    px = _price(sym)
+    qty = (quote * (1 - PAPER_FEE)) / px
+    pos = p["positions"].get(sym, {"qty": 0.0, "avg": 0.0})
+    new_qty = pos["qty"] + qty
+    pos["avg"] = (pos["qty"] * pos["avg"] + qty * px) / new_qty if new_qty > 0 else px
+    pos["qty"] = new_qty
+    p["positions"][sym] = pos
+    p["cash"] -= quote
+    order = {"side": "buy", "symbol": sym, "qty": round(qty, 8), "price": px, "quote": round(quote, 2), "t": int(time.time() * 1000)}
+    p["orders"].append(order)
+    _patch_state({"portfolio": p})
+    return {"result": {"order": order, "cash": round(p["cash"], 2)}}
+
+
+def op_paper_sell(a):
+    sym = str(a.get("symbol", "")).upper().strip()
+    p = _portfolio()
+    pos = p["positions"].get(sym)
+    if not pos or pos["qty"] <= 0:
+        return {"error": "no open position in %s" % sym}
+    qty = float(a.get("qty") or pos["qty"])
+    qty = min(qty, pos["qty"])
+    px = _price(sym)
+    proceeds = qty * px
+    realized = qty * (px - pos["avg"]) - proceeds * PAPER_FEE
+    p["realized"] += realized
+    p["cash"] += proceeds * (1 - PAPER_FEE)
+    pos["qty"] -= qty
+    if pos["qty"] <= 1e-12:
+        del p["positions"][sym]
+    else:
+        p["positions"][sym] = pos
+    order = {"side": "sell", "symbol": sym, "qty": round(qty, 8), "price": px, "realized": round(realized, 2), "t": int(time.time() * 1000)}
+    p["orders"].append(order)
+    _patch_state({"portfolio": p})
+    return {"result": {"order": order, "realized": round(realized, 2), "cash": round(p["cash"], 2)}}
+
+
+def op_paper_reset(a):
+    _patch_state({"portfolio": {"cash": STARTING_CASH, "positions": {}, "orders": [], "realized": 0.0, "start_cash": STARTING_CASH}})
+    return {"result": {"ok": True, "cash": STARTING_CASH}}
+
+
+def op_list_paper_orders(a):
+    p = _portfolio()
+    limit = max(1, min(int(a.get("limit") or 50), 500))
+    return {"result": {"orders": p["orders"][-limit:][::-1], "count": len(p["orders"])}}
+
+
 # ── shared state ────────────────────────────────────────────────────────────
+def _patch_state(updates):
+    st = _load_state()
+    st.update(updates)
+    st["at"] = int(time.time())
+    _save_state(st)
+
+
 def _load_state():
     try:
         with open(STATE_FILE, "r", encoding="utf-8") as f:
@@ -438,6 +538,8 @@ HANDLERS = {
     "list_strategies": op_list_strategies, "run_backtest": op_run_backtest,
     "run_optimize": op_run_optimize, "get_last_backtest": op_get_last_backtest,
     "ai_analyze": op_ai_analyze,
+    "portfolio_get": op_portfolio_get, "paper_buy": op_paper_buy, "paper_sell": op_paper_sell,
+    "paper_reset": op_paper_reset, "list_paper_orders": op_list_paper_orders,
 }
 
 

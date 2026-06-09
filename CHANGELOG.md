@@ -1,3 +1,14 @@
+## 2026-06-09 — FlowAlpha v0.5.0 (Phase 4): paper portfolio (virtual, shared state)
+
+- Paper trading (virtual cash, NO broker, NO real money — live trading is a separate
+  owner-gated phase): portfolio_get (cash, positions marked to live price w/ unrealized P&L,
+  equity, realized P&L, total return), paper_buy, paper_sell (default = sell all), paper_reset,
+  list_paper_orders. Fees modelled. Portfolio is shared state (agent trades → GUI reflects it).
+- state.json now merges (last_backtest + portfolio) via _patch_state instead of overwriting.
+- GUI: Paper Portfolio card — equity/cash/return/realized metrics, positions table, buy/sell/
+  reset controls, clearly labelled virtual.
+- Test extended (reset → buy → portfolio reflects position + cash) — PASS. 15 Ops.
+
 ## 2026-06-09 — FlowAlpha v0.4.0 (Phase 3): sovereign AI analysis via the Flowork router
 
 - ai_analyze Op: AI market analysis routed through the Flowork router (OpenAI-compatible,

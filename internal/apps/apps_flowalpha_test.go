@@ -94,6 +94,30 @@ func TestFlowAlphaApp(t *testing.T) {
 		t.Fatalf("ai_analyze: %v", err)
 	}
 
+	// Paper portfolio (shared state): reset → buy → portfolio reflects the position.
+	if _, err := m.InvokeOp("flowalpha", "paper_reset", nil, "agent"); err != nil {
+		t.Fatalf("paper_reset: %v", err)
+	}
+	if _, err := m.InvokeOp("flowalpha", "paper_buy", map[string]any{"symbol": "BTCUSDT", "quote_amount": 2500.0}, "agent"); err != nil {
+		if netSkip(err) {
+			t.Skipf("data source unreachable (skip): %v", err)
+		}
+		t.Fatalf("paper_buy: %v", err)
+	}
+	pf, err := m.InvokeOp("flowalpha", "portfolio_get", nil, "human-gui")
+	if err != nil {
+		t.Fatalf("portfolio_get: %v", err)
+	}
+	pm, _ := pf.(map[string]any)
+	poss, _ := pm["positions"].([]any)
+	if len(poss) != 1 {
+		t.Fatalf("expected 1 paper position after buy, got %+v", pf)
+	}
+	if cash, _ := pm["cash"].(float64); !(cash > 7000 && cash < 7600) {
+		t.Fatalf("cash after $2500 buy off: %v", pm["cash"])
+	}
+	t.Logf("paper portfolio: equity=%v cash=%v positions=%d", pm["equity"], pm["cash"], len(poss))
+
 	// An unregistered op MUST be rejected (gate validation).
 	if _, e := m.InvokeOp("flowalpha", "rm_rf", nil, "agent"); e == nil {
 		t.Fatal("unregistered op must be rejected")

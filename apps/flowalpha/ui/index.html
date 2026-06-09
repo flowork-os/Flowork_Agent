@@ -82,6 +82,21 @@
     </div>
     <div id="aiout" style="margin-top:8px;font-size:13px;line-height:1.6;color:#dffaf0;white-space:pre-wrap"></div>
   </div>
+
+  <div class="card">
+    <div class="row">
+      <label>PAPER PORTFOLIO</label>
+      <input id="pbsym" class="sym" placeholder="symbol" autocomplete="off">
+      <input id="pbamt" type="number" placeholder="USDT" value="1000">
+      <button id="pbuy">BUY</button>
+      <button id="psell" class="ghost">SELL ALL</button>
+      <button id="preset" class="ghost">RESET</button>
+      <span class="st" id="pst"></span>
+    </div>
+    <div class="sub">Virtual cash — no real money, no broker. Real trading is a separate owner-gated phase.</div>
+    <div class="metrics" id="pmetrics"></div>
+    <div id="ptbl"></div>
+  </div>
 </div>
 <script>
   // Bridge to the Flowork host (sandboxed iframe; postMessage {op,args} is the only channel).
@@ -93,7 +108,7 @@
   window.addEventListener('message', (e) => {
     const d = e.data || {}; if (d.fw !== 1) return;
     if (d.kind === 'res' && pending[d.reqId]) { pending[d.reqId](d); delete pending[d.reqId]; }
-    if (d.kind === 'state') { loadBacktest(); } // agent ran a backtest → host notifies → refresh
+    if (d.kind === 'state') { loadBacktest(); loadPortfolio(); } // agent acted → host notifies → refresh
   });
   const $ = (id) => document.getElementById(id);
   const sym = () => $('sym').value.trim().toUpperCase();
@@ -196,11 +211,42 @@
     if (r.ok && r.result) { $('aiout').textContent = r.result.analysis; st.textContent = '✓ ' + new Date().toLocaleTimeString(); }
     else { st.textContent = '✕ ' + (r.error || 'failed'); }
   }
+  // ── paper portfolio ─────────────────────────────────────────────────────────
+  async function loadPortfolio() {
+    const r = await call('portfolio_get');
+    if (!r.ok || !r.result) return;
+    const p = r.result, cls = (v) => v >= 0 ? 'pos' : 'neg', pct = (v) => (v >= 0 ? '+' : '') + v + '%';
+    $('pmetrics').innerHTML =
+      card('EQUITY', '$' + p.equity) + card('CASH', '$' + p.cash) +
+      card('RETURN', pct(p.total_return_pct), cls(p.total_return_pct)) +
+      card('REALIZED', '$' + p.realized_pnl, cls(p.realized_pnl)) +
+      card('POSITIONS', p.positions.length);
+    if (!p.positions.length) { $('ptbl').innerHTML = ''; return; }
+    let rows = p.positions.map(x => '<tr><td>' + x.symbol + '</td><td>' + x.qty + '</td><td>' + x.avg.toFixed(2) +
+      '</td><td>' + x.price.toFixed(2) + '</td><td>$' + x.value + '</td><td class="' + cls(x.unrealized) + '">' +
+      pct(x.unrealized_pct) + '</td></tr>').join('');
+    $('ptbl').innerHTML = '<table><tr><th>SYMBOL</th><th>QTY</th><th>AVG</th><th>PRICE</th><th>VALUE</th><th>P&L</th></tr>' + rows + '</table>';
+  }
+  async function doBuy() {
+    const st = $('pst'); st.textContent = '…';
+    const r = await call('paper_buy', { symbol: ($('pbsym').value.trim() || sym()).toUpperCase(), quote_amount: +$('pbamt').value || 0 });
+    st.textContent = r.ok ? '✓ bought' : ('✕ ' + (r.error || '')); loadPortfolio();
+  }
+  async function doSell() {
+    const st = $('pst'); st.textContent = '…';
+    const r = await call('paper_sell', { symbol: ($('pbsym').value.trim() || sym()).toUpperCase() });
+    st.textContent = r.ok ? ('✓ sold · realized $' + r.result.realized) : ('✕ ' + (r.error || '')); loadPortfolio();
+  }
+  async function doReset() { await call('paper_reset'); $('pst').textContent = '✓ reset'; loadPortfolio(); }
+
   $('load').onclick = loadChart;
   $('run').onclick = runBacktest;
   $('opt').onclick = optimize;
   $('ai').onclick = aiAnalyze;
-  (async () => { await initStrategies(); loadChart(); loadBacktest(); })();
+  $('pbuy').onclick = doBuy;
+  $('psell').onclick = doSell;
+  $('preset').onclick = doReset;
+  (async () => { await initStrategies(); loadChart(); loadBacktest(); loadPortfolio(); })();
 </script>
 </body>
 </html>
