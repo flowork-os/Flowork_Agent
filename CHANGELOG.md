@@ -1,3 +1,13 @@
+## 2026-06-09 — FlowAlpha v0.8.0: interactive chart (crosshair + OHLC + MACD + timeframes)
+
+Closing more of the gap toward the original, all client-side (no extra ops):
+- Crosshair + OHLC readout: hover the chart → a crosshair spans all panes and a readout shows
+  the hovered candle's O/H/L/C/V/time + RSI + MACD at that point.
+- MACD pane added (line + signal + histogram), a 4th synced pane under RSI.
+- Timeframe buttons (1m/5m/15m/1h/4h/1d) replace the free-text interval.
+- Verified visually in headless Chrome with a simulated hover: all 4 panes (candles+SMA, volume,
+  RSI, MACD) render, the crosshair draws, and the timeframe row shows.
+
 ## 2026-06-09 — FlowAlpha v0.7.0: live 3-pane chart (ticking) + closing the gap
 
 - LIVE chart: a per-tick price loop (polls get_price every 2s → updates the last candle's

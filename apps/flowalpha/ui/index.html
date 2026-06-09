@@ -24,7 +24,13 @@
   canvas{width:100%;display:block;background:#01100a}
   #chart{height:340px;border-radius:6px 6px 0 0;margin-top:8px}
   #vol{height:64px;border-top:1px solid rgba(34,255,136,.08)}
-  #rsi{height:92px;border-top:1px solid rgba(34,255,136,.08);border-radius:0 0 6px 6px}
+  #rsi{height:92px;border-top:1px solid rgba(34,255,136,.08)}
+  #macd{height:92px;border-top:1px solid rgba(34,255,136,.08);border-radius:0 0 6px 6px}
+  .tfs{display:inline-flex;gap:3px}
+  .tf{background:#02120c;color:var(--dim);border:1px solid var(--line);border-radius:5px;padding:6px 9px;font:inherit;font-size:11px;cursor:pointer}
+  .tf.on{background:var(--mx);color:#001a14;font-weight:700;border-color:var(--mx)}
+  .ohlc{font-size:11px;color:var(--dim);margin:6px 0 -2px;font-family:ui-monospace,monospace;letter-spacing:.3px;min-height:14px}
+  .ohlc b{color:#dffaf0;font-weight:600}
   canvas.eq{height:200px;border-radius:6px;margin-top:8px}
   .st{color:var(--mx);font-size:11px;min-height:14px}
   .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:8px}
@@ -48,16 +54,20 @@
   <div class="card">
     <div class="row">
       <label>SYMBOL</label><input id="sym" class="sym" value="BTCUSDT" autocomplete="off">
-      <label>INTERVAL</label><input id="iv" value="1h" autocomplete="off">
+      <span id="tfs" class="tfs"></span>
       <button id="load">LOAD</button>
       <span class="price" id="price">—</span><span class="tick" id="tickst">● live</span>
     </div>
-    <canvas id="chart" width="1400" height="340"></canvas>
-    <canvas id="vol" width="1400" height="64"></canvas>
-    <canvas id="rsi" width="1400" height="92"></canvas>
+    <div id="ohlc" class="ohlc">hover the chart for OHLC</div>
+    <div id="chartwrap" style="position:relative">
+      <canvas id="chart" width="1400" height="340"></canvas>
+      <canvas id="vol" width="1400" height="64"></canvas>
+      <canvas id="rsi" width="1400" height="92"></canvas>
+      <canvas id="macd" width="1400" height="92"></canvas>
+    </div>
     <div class="leg"><span class="dot" style="background:var(--mx)"></span>up<span class="dot" style="background:var(--red)"></span>down
       <span class="dot" style="background:var(--mx)"></span>SMA fast<span class="dot" style="background:#ffd166"></span>SMA slow
-      <span class="dot" style="background:#9fe7cf"></span>volume<span class="dot" style="background:#c792ea"></span>RSI(14) · ▲ buy ▼ sell (after backtest)</div>
+      <span class="dot" style="background:#9fe7cf"></span>volume<span class="dot" style="background:#c792ea"></span>RSI<span class="dot" style="background:#36e6ff"></span>MACD · ▲ buy ▼ sell</div>
     <div class="st" id="cst"></div>
   </div>
 
@@ -103,8 +113,15 @@
   });
   const $ = (id) => document.getElementById(id);
   const sym = () => $('sym').value.trim().toUpperCase();
-  const iv = () => $('iv').value.trim() || '1h';
-  let CANDLES = [], TRADES = [], lastPx = 0;
+  let curTF = '1h';
+  const iv = () => curTF;
+  let CANDLES = [], TRADES = [], lastPx = 0, hoverIdx = -1;
+  // timeframe buttons
+  ['1m', '5m', '15m', '1h', '4h', '1d'].forEach(tf => {
+    const b = document.createElement('button'); b.className = 'tf' + (tf === curTF ? ' on' : ''); b.textContent = tf;
+    b.onclick = () => { curTF = tf; document.querySelectorAll('.tf').forEach(x => x.classList.toggle('on', x.textContent === tf)); loadChart(); };
+    $('tfs').appendChild(b);
+  });
 
   // ── client-side indicators ──────────────────────────────────────────────────
   function smaJS(cl, p) { const o = []; let s = 0; for (let i = 0; i < cl.length; i++) { s += cl[i]; if (i >= p) s -= cl[i - p]; o.push(i >= p - 1 ? s / p : null); } return o; }
@@ -115,6 +132,8 @@
     for (let i = p + 1; i < cl.length; i++) { const d = cl[i] - cl[i - 1]; g = (g * (p - 1) + Math.max(d, 0)) / p; l = (l * (p - 1) + Math.max(-d, 0)) / p; o[i] = l === 0 ? 100 : 100 - 100 / (1 + g / l); }
     return o;
   }
+  function emaJS(cl, p) { const o = []; const k = 2 / (p + 1); let prev = null; for (let i = 0; i < cl.length; i++) { if (i < p - 1) o.push(null); else if (i === p - 1) { prev = cl.slice(0, p).reduce((a, b) => a + b, 0) / p; o.push(prev); } else { prev = cl[i] * k + prev * (1 - k); o.push(prev); } } return o; }
+  function macdJS(cl, f, s, sig) { const ef = emaJS(cl, f), es = emaJS(cl, s); const ln = cl.map((_, i) => (ef[i] != null && es[i] != null) ? ef[i] - es[i] : null); const vals = ln.filter(v => v != null); const sg = emaJS(vals, sig); const signal = new Array(cl.length).fill(null); let j = 0; for (let i = 0; i < cl.length; i++) { if (ln[i] != null) signal[i] = sg[j++]; } const hist = cl.map((_, i) => (ln[i] != null && signal[i] != null) ? ln[i] - signal[i] : null); return { line: ln, signal, hist }; }
   const X = (i, n, W, pad) => pad + (i + 0.5) * ((W - 2 * pad) / n);
   function line(ctx, data, color, x, y, w) { ctx.strokeStyle = color; ctx.lineWidth = w || 1.5; ctx.beginPath(); let st = false; data.forEach((v, i) => { if (v == null) { st = false; return; } const px = x(i), py = y(v); if (!st) { ctx.moveTo(px, py); st = true; } else ctx.lineTo(px, py); }); ctx.stroke(); }
 
@@ -151,6 +170,26 @@
     const ry = (v) => RH - 6 - (v / 100) * (RH - 12);
     [[70, 'rgba(255,107,107,.35)'], [50, 'rgba(127,185,166,.25)'], [30, 'rgba(34,255,136,.35)']].forEach(([lv, cl]) => { rx.strokeStyle = cl; rx.setLineDash([3, 3]); rx.beginPath(); rx.moveTo(pad, ry(lv)); rx.lineTo(RW - pad, ry(lv)); rx.stroke(); rx.setLineDash([]); });
     line(rx, rs, '#c792ea', (i) => X(i, n, RW, pad), ry, 1.4);
+
+    // macd pane
+    const mc = $('macd'), mx = mc.getContext('2d'), MW = mc.width, MH = mc.height; mx.clearRect(0, 0, MW, MH);
+    const md = macdJS(closes, 12, 26, 9);
+    let mlo = Infinity, mhi = -Infinity; [md.line, md.signal, md.hist].forEach(s => s.forEach(v => { if (v != null) { mlo = Math.min(mlo, v); mhi = Math.max(mhi, v); } }));
+    if (isFinite(mlo) && mhi !== mlo) {
+      const my = (v) => MH - 6 - ((v - mlo) / (mhi - mlo)) * (MH - 12), mX = (i) => X(i, n, MW, pad);
+      mx.strokeStyle = 'rgba(127,185,166,.25)'; mx.beginPath(); mx.moveTo(pad, my(0)); mx.lineTo(MW - pad, my(0)); mx.stroke();
+      const bw = Math.max(1, ((MW - 2 * pad) / n) * 0.6);
+      md.hist.forEach((v, i) => { if (v == null) return; mx.fillStyle = v >= 0 ? 'rgba(34,255,136,.5)' : 'rgba(255,107,107,.5)'; const yy = my(v), y0 = my(0); mx.fillRect(mX(i) - bw / 2, Math.min(yy, y0), bw, Math.max(1, Math.abs(yy - y0))); });
+      line(mx, md.line, '#36e6ff', mX, my, 1.3); line(mx, md.signal, '#ffd166', mX, my, 1.1);
+    }
+
+    // crosshair across all panes
+    if (hoverIdx >= 0 && hoverIdx < n) {
+      [['chart', H], ['vol', $('vol').height], ['rsi', RH], ['macd', MH]].forEach(([id, ph]) => {
+        const cv = $(id), cx = cv.getContext('2d'), pxh = X(hoverIdx, n, cv.width, pad);
+        cx.strokeStyle = 'rgba(255,255,255,.28)'; cx.setLineDash([2, 3]); cx.beginPath(); cx.moveTo(pxh, 0); cx.lineTo(pxh, cv.height); cx.stroke(); cx.setLineDash([]);
+      });
+    }
   }
   function marker(ctx, px, py, col, ch) { ctx.fillStyle = col; ctx.font = '12px monospace'; ctx.textAlign = 'center'; ctx.fillText(ch, px, py + 12); ctx.textAlign = 'left'; }
   function idxByTime(t) { if (!CANDLES.length) return -1; let best = -1, bd = Infinity; for (let i = 0; i < CANDLES.length; i++) { const d = Math.abs(CANDLES[i].t - t); if (d < bd) { bd = d; best = i; } } const step = CANDLES.length > 1 ? CANDLES[1].t - CANDLES[0].t : 1; return bd <= step ? best : -1; }
@@ -228,6 +267,16 @@
   async function initStrategies() { const r = await call('list_strategies'); if (r.ok && r.result) r.result.strategies.forEach(s => { const o = document.createElement('option'); o.value = s.name; o.textContent = s.name; $('strat').appendChild(o); }); }
   async function loadLiveStatus() { const r = await call('live_status'); if (r.ok && r.result) $('livebadge').textContent = r.result.live_enabled ? '● LIVE ARMED (owner)' : '○ paper-only · live is owner-gated'; }
 
+  // hover crosshair + OHLC readout
+  function fmtT(t) { const d = new Date(t); return d.toLocaleDateString() + ' ' + d.toLocaleTimeString().slice(0, 5); }
+  function updateOHLC() {
+    const el = $('ohlc'); if (hoverIdx < 0 || hoverIdx >= CANDLES.length) { el.innerHTML = 'hover the chart for OHLC'; return; }
+    const k = CANDLES[hoverIdx], closes = CANDLES.map(c => c.c);
+    const r = rsiJS(closes, 14)[hoverIdx], m = macdJS(closes, 12, 26, 9).line[hoverIdx], up = k.c >= k.o;
+    el.innerHTML = fmtT(k.t) + ' &nbsp; O <b>' + k.o.toFixed(2) + '</b> H <b>' + k.h.toFixed(2) + '</b> L <b>' + k.l.toFixed(2) + '</b> C <b style="color:' + (up ? '#22ff88' : '#ff6b6b') + '">' + k.c.toFixed(2) + '</b> &nbsp; V <b>' + (k.v || 0).toFixed(1) + '</b> &nbsp; RSI <b>' + (r != null ? r.toFixed(1) : '–') + '</b> &nbsp; MACD <b>' + (m != null ? m.toFixed(2) : '–') + '</b>';
+  }
+  $('chartwrap').addEventListener('mousemove', (e) => { const n = CANDLES.length; if (!n) return; const rect = $('chart').getBoundingClientRect(); const rel = (e.clientX - rect.left) / rect.width; hoverIdx = Math.max(0, Math.min(n - 1, Math.floor(rel * n))); drawAll(); updateOHLC(); });
+  $('chartwrap').addEventListener('mouseleave', () => { hoverIdx = -1; drawAll(); updateOHLC(); });
   $('load').onclick = () => { loadChart(); };
   $('run').onclick = runBacktest; $('opt').onclick = optimize; $('ai').onclick = aiAnalyze;
   $('pbuy').onclick = doBuy; $('psell').onclick = doSell; $('preset').onclick = doReset;
