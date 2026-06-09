@@ -300,13 +300,21 @@ STRATEGIES = {
     "macd_zero": {"params": {"fast": 12, "slow": 26, "signal": 9}, "desc": "Long when the MACD line is above zero"},
     "bollinger_bounce": {"params": {"period": 20, "k": 2}, "desc": "Long when price dips below the lower Bollinger band, exit above the middle"},
     "triple_ma": {"params": {"fast": 8, "mid": 21, "slow": 55}, "desc": "Long when fast EMA > mid EMA > slow EMA (trend stack)"},
+    "supertrend": {"params": {"period": 10, "mult": 3}, "desc": "Long when SuperTrend direction is up (ATR trend-following)"},
 }
 
 
-def _positions(closes, strategy, p):
+def _positions(candles, strategy, p):
+    closes = [c["c"] for c in candles]
+    highs = [c["h"] for c in candles]
+    lows = [c["l"] for c in candles]
     n = len(closes)
     pos = [None] * n
-    if strategy == "sma_cross":
+    if strategy == "supertrend":
+        _st, dr = supertrend(highs, lows, closes, int(p.get("period", 10)), float(p.get("mult", 3)))
+        for i in range(n):
+            pos[i] = None if dr[i] is None else (1 if dr[i] == 1 else 0)
+    elif strategy == "sma_cross":
         fast, slow = int(p.get("fast", 10)), int(p.get("slow", 30))
         a, b = sma(closes, fast), sma(closes, slow)
         for i in range(n):
@@ -656,7 +664,7 @@ def _run(symbol, interval, limit, strategy, params, fee, risk=None):
     candles = _klines(symbol, interval, limit)
     closes = [c["c"] for c in candles]
     times = [c["t"] for c in candles]
-    pos = _positions(closes, strategy, params)
+    pos = _positions(candles, strategy, params)
     if pos is None:
         return None, "unknown strategy: " + strategy
     direction = str(risk.get("direction") or "long").lower()
@@ -719,10 +727,10 @@ def op_multi_timeframe(a):
     out = []
     for tf in tfs:
         try:
-            closes = [c["c"] for c in _klines(sym, str(tf), 200)]
+            candles = _klines(sym, str(tf), 200)
         except Exception:  # noqa
             continue
-        pos = _positions(closes, strategy, dict(STRATEGIES[strategy]["params"]))
+        pos = _positions(candles, strategy, dict(STRATEGIES[strategy]["params"]))
         sig = next((v for v in reversed(pos) if v is not None), None)
         out.append({"tf": str(tf), "signal": "long" if sig == 1 else "flat"})
     longs = sum(1 for o in out if o["signal"] == "long")
@@ -775,6 +783,7 @@ def _grid(strategy, custom):
         "macd_zero": {"fast": [8, 12], "slow": [21, 26], "signal": [9]},
         "bollinger_bounce": {"period": [14, 20, 30], "k": [2, 2.5]},
         "triple_ma": {"fast": [5, 8, 13], "mid": [21, 34], "slow": [55, 100]},
+        "supertrend": {"period": [7, 10, 14], "mult": [2, 3, 4]},
     }.get(strategy, {})
     space = custom if isinstance(custom, dict) and custom else defaults
     keys = list(space.keys())
@@ -802,7 +811,7 @@ def op_run_optimize(a):
     times = [c["t"] for c in candles]
     results = []
     for params in itertools.islice(_grid(strategy, a.get("grid")), MAX_OPT_COMBOS):
-        pos = _positions(closes, strategy, params)
+        pos = _positions(candles, strategy, params)
         if pos is None:
             continue
         equity, eq, trades, rets = _simulate(closes, times, pos, fee)
@@ -1143,10 +1152,10 @@ def op_bot_step(a):
             continue
         sym, strat = bot["symbol"], bot["strategy"]
         try:
-            closes = [c["c"] for c in _klines(sym, bot.get("interval", "1h"), 200)]
+            candles = _klines(sym, bot.get("interval", "1h"), 200)
         except Exception:  # noqa
             continue
-        pos = _positions(closes, strat, dict(STRATEGIES[strat]["params"]))
+        pos = _positions(candles, strat, dict(STRATEGIES[strat]["params"]))
         sig = next((v for v in reversed(pos) if v is not None), None)
         if sig is None:
             continue

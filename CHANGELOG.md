@@ -1,3 +1,11 @@
+## 2026-06-09 — FlowAlpha v0.20.0: SuperTrend strategy + OHLC-aware engine
+
+- _positions now receives full candles (OHLC), unlocking high/low based strategies. Added the
+  supertrend strategy (long when SuperTrend direction is up) — 8 strategies total. Plugs into
+  backtest/optimize/compare/bots/multi-timeframe automatically; grid added.
+- Refactor verified non-regressive: existing close-based strategies unchanged (sma_cross still
+  1.6% on the same data). Tested + Go test PASS.
+
 ## 2026-06-09 — FlowAlpha v0.19.0: multi-timeframe confirmation
 
 - multi_timeframe Op: evaluate a strategy's current signal across multiple timeframes (default
