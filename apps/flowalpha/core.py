@@ -9,7 +9,7 @@
 # both the GUI and agents read.
 #
 # Protocol: read {"op","args"} per line on stdin, reply {"result", ...} or {"error"} per line.
-import sys, json, os, time, math, itertools, urllib.request, urllib.parse, urllib.error
+import sys, json, os, time, math, ast, itertools, urllib.request, urllib.parse, urllib.error
 
 DATA_BASE = os.environ.get("QUANT_DATA_BASE", "https://data-api.binance.vision/api/v3")
 HTTP_TIMEOUT = 12
@@ -282,6 +282,78 @@ def op_compute_indicator(a):
         return {"result": {"symbol": sym, "indicator": "macd", "fast": fast, "slow": slow, "signal": signal,
                            "series": [{"t": times[i], "macd": line[i], "signal": sig[i], "hist": hist[i]} for i in range(len(line))]}}
     return {"error": "unknown indicator: " + ind + " (sma|ema|rsi|macd)"}
+
+
+# ── ops: custom indicator (SAFE formula — AST whitelist, NOT exec/eval) ─────────
+# The owner/agent writes a formula over the arrays close/open/high/low/volume using a
+# whitelisted set of functions (sma/ema/rsi/abs/min/max) and arithmetic. It is parsed to an
+# AST and only safe node types are evaluated — no imports, attributes, or arbitrary calls — so
+# arbitrary code can NEVER run (the dangerous part of QuantDinger's indicator IDE, done safely).
+def _elemwise(a, b, fn):
+    la, lb = isinstance(a, list), isinstance(b, list)
+    if la and lb:
+        n = min(len(a), len(b))
+        return [None if (a[i] is None or b[i] is None) else fn(a[i], b[i]) for i in range(n)]
+    if la:
+        return [None if v is None else fn(v, b) for v in a]
+    if lb:
+        return [None if v is None else fn(a, v) for v in b]
+    return fn(a, b)
+
+
+def _vec1(fn):
+    return lambda x: ([None if v is None else fn(v) for v in x] if isinstance(x, list) else fn(x))
+
+
+_FORMULA_FUNCS = {
+    "sma": lambda x, p: sma(x, int(p)), "ema": lambda x, p: ema(x, int(p)), "rsi": lambda x, p: rsi(x, int(p)),
+    "abs": _vec1(abs), "log": _vec1(math.log), "sqrt": _vec1(math.sqrt),
+}
+_BINOPS = {ast.Add: lambda a, b: a + b, ast.Sub: lambda a, b: a - b, ast.Mult: lambda a, b: a * b,
+           ast.Div: lambda a, b: (a / b if b else None), ast.Pow: lambda a, b: a ** b}
+
+
+def _eval_formula(node, ctx):
+    if isinstance(node, ast.Expression):
+        return _eval_formula(node.body, ctx)
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+        return node.value
+    if isinstance(node, ast.Name):
+        if node.id in ctx:
+            return ctx[node.id]
+        raise ValueError("unknown name '%s' (use close/open/high/low/volume)" % node.id)
+    if isinstance(node, ast.BinOp) and type(node.op) in _BINOPS:
+        return _elemwise(_eval_formula(node.left, ctx), _eval_formula(node.right, ctx), _BINOPS[type(node.op)])
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
+        return _elemwise(0, _eval_formula(node.operand, ctx), lambda a, b: a - b)
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in _FORMULA_FUNCS and not node.keywords:
+        return _FORMULA_FUNCS[node.func.id](*[_eval_formula(a, ctx) for a in node.args])
+    raise ValueError("disallowed expression (only +-*/ , numbers, close/open/high/low/volume, sma/ema/rsi/abs/log/sqrt)")
+
+
+def op_custom_indicator(a):
+    sym = str(a.get("symbol", "")).upper().strip()
+    formula = str(a.get("formula", "")).strip()
+    if not sym or not formula:
+        return {"error": "symbol and formula required"}
+    if len(formula) > 500:
+        return {"error": "formula too long"}
+    interval = str(a.get("interval") or "1h")
+    limit = max(1, min(int(a.get("limit") or 200), 500))
+    candles = _klines(sym, interval, limit)
+    times = [c["t"] for c in candles]
+    ctx = {"close": [c["c"] for c in candles], "open": [c["o"] for c in candles],
+           "high": [c["h"] for c in candles], "low": [c["l"] for c in candles], "volume": [c["v"] for c in candles]}
+    try:
+        series = _eval_formula(ast.parse(formula, mode="eval"), ctx)
+    except SyntaxError:
+        return {"error": "formula syntax error"}
+    except Exception as e:  # noqa
+        return {"error": "formula error: " + str(e)}
+    if not isinstance(series, list):
+        series = [series] * len(times)  # constant → broadcast
+    return {"result": {"symbol": sym, "formula": formula,
+                       "series": [{"t": times[i], "v": series[i] if i < len(series) else None} for i in range(len(times))]}}
 
 
 # ── ops: strategies / backtest / optimize ──────────────────────────────────────
@@ -587,6 +659,7 @@ def _save_state(d):
 HANDLERS = {
     "get_price": op_get_price, "get_klines": op_get_klines, "search_symbols": op_search_symbols,
     "list_indicators": op_list_indicators, "compute_indicator": op_compute_indicator,
+    "custom_indicator": op_custom_indicator,
     "list_strategies": op_list_strategies, "run_backtest": op_run_backtest,
     "run_optimize": op_run_optimize, "get_last_backtest": op_get_last_backtest,
     "ai_analyze": op_ai_analyze,

@@ -1,3 +1,13 @@
+## 2026-06-09 — FlowAlpha v0.9.0: Indicator IDE (SAFE custom formulas, no code execution)
+
+The original's signature "write your own indicator" feature — done SAFELY (Mr.Dev's rule: never
+build harm). custom_indicator evaluates a formula over close/open/high/low/volume using a
+whitelisted set (sma/ema/rsi/abs/log/sqrt + arithmetic) via a Python AST whitelist — NOT exec/
+eval. Arbitrary code can never run: imports, attribute access, and non-whitelisted calls are
+rejected. Tested: valid formulas (sma diff, (high-low)/close*100, rsi) compute; malicious ones
+(__import__/open/.__class__) are rejected. GUI: a CUSTOM formula editor that overlays the result
+(auto-scaled pink line) on the chart. Verified visually in headless Chrome. 20 Ops.
+
 ## 2026-06-09 — FlowAlpha v0.8.0: interactive chart (crosshair + OHLC + MACD + timeframes)
 
 Closing more of the gap toward the original, all client-side (no extra ops):

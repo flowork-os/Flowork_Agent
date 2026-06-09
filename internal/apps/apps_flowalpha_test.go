@@ -52,6 +52,16 @@ func TestFlowAlphaApp(t *testing.T) {
 	t.Logf("backtest BTCUSDT sma_cross → return=%v%% sharpe=%v trades=%v",
 		metrics["total_return_pct"], metrics["sharpe"], metrics["trades"])
 
+	// custom_indicator (safe AST formula → series). Security (malicious rejection) is covered
+	// by the standalone core test; here we confirm a valid formula yields a series.
+	if ci, err := m.InvokeOp("flowalpha", "custom_indicator", map[string]any{"symbol": "BTCUSDT", "formula": "sma(close,10)-sma(close,30)", "limit": 80}, "agent"); err == nil {
+		if cm, _ := ci.(map[string]any); cm["series"] == nil {
+			t.Fatalf("custom_indicator wrong shape: %+v", ci)
+		}
+	} else if !netSkip(err) {
+		t.Fatalf("custom_indicator: %v", err)
+	}
+
 	// list_strategies + run_optimize (parameter sweep → best params).
 	if ls, err := m.InvokeOp("flowalpha", "list_strategies", nil, "agent"); err == nil {
 		if lm, _ := ls.(map[string]any); lm["strategies"] == nil {

@@ -69,6 +69,13 @@
       <span class="dot" style="background:var(--mx)"></span>SMA fast<span class="dot" style="background:#ffd166"></span>SMA slow
       <span class="dot" style="background:#9fe7cf"></span>volume<span class="dot" style="background:#c792ea"></span>RSI<span class="dot" style="background:#36e6ff"></span>MACD · ▲ buy ▼ sell</div>
     <div class="st" id="cst"></div>
+    <div class="row" style="margin-top:8px">
+      <label>CUSTOM</label>
+      <input id="cif" style="width:320px" placeholder="sma(close,20)-sma(close,50)" autocomplete="off">
+      <button id="ciplot" class="ghost">PLOT</button><button id="ciclear" class="ghost">CLEAR</button>
+      <span class="st" id="cist"></span>
+    </div>
+    <div class="sub">Safe formula (AST whitelist, no code execution): close/open/high/low/volume · sma/ema/rsi/abs/log/sqrt · + - * /</div>
   </div>
 
   <div class="card">
@@ -115,11 +122,11 @@
   const sym = () => $('sym').value.trim().toUpperCase();
   let curTF = '1h';
   const iv = () => curTF;
-  let CANDLES = [], TRADES = [], lastPx = 0, hoverIdx = -1;
+  let CANDLES = [], TRADES = [], CUSTOM = null, lastPx = 0, hoverIdx = -1;
   // timeframe buttons
   ['1m', '5m', '15m', '1h', '4h', '1d'].forEach(tf => {
     const b = document.createElement('button'); b.className = 'tf' + (tf === curTF ? ' on' : ''); b.textContent = tf;
-    b.onclick = () => { curTF = tf; document.querySelectorAll('.tf').forEach(x => x.classList.toggle('on', x.textContent === tf)); loadChart(); };
+    b.onclick = () => { curTF = tf; CUSTOM = null; document.querySelectorAll('.tf').forEach(x => x.classList.toggle('on', x.textContent === tf)); loadChart(); };
     $('tfs').appendChild(b);
   });
 
@@ -159,6 +166,12 @@
     const lp = closes[n - 1]; ctx.strokeStyle = 'rgba(54,230,255,.5)'; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(pad, y(lp)); ctx.lineTo(W - pad, y(lp)); ctx.stroke(); ctx.setLineDash([]);
     // trade markers (from last backtest), matched by time into the visible window
     TRADES.forEach(t => { const ie = idxByTime(t.entry_t); if (ie >= 0) marker(ctx, x(ie), y(CANDLES[ie].l), '#22ff88', '▲'); const ix = t.exit_t ? idxByTime(t.exit_t) : -1; if (ix >= 0) marker(ctx, x(ix), y(CANDLES[ix].h) - 12, '#ff6b6b', '▼'); });
+
+    // custom indicator overlay (auto-scaled to its own range → always visible)
+    if (CUSTOM && CUSTOM.length) {
+      let clo = Infinity, chi = -Infinity; CUSTOM.forEach(v => { if (v != null) { clo = Math.min(clo, v); chi = Math.max(chi, v); } });
+      if (isFinite(clo) && chi !== clo) { const cy = (v) => H - pad - ((v - clo) / (chi - clo)) * (H - 2 * pad); line(ctx, CUSTOM, '#ff79c6', x, cy, 1.6); }
+    }
 
     // volume pane
     const vc = $('vol'), vx = vc.getContext('2d'), VW = vc.width, VH = vc.height; vx.clearRect(0, 0, VW, VH);
@@ -277,7 +290,15 @@
   }
   $('chartwrap').addEventListener('mousemove', (e) => { const n = CANDLES.length; if (!n) return; const rect = $('chart').getBoundingClientRect(); const rel = (e.clientX - rect.left) / rect.width; hoverIdx = Math.max(0, Math.min(n - 1, Math.floor(rel * n))); drawAll(); updateOHLC(); });
   $('chartwrap').addEventListener('mouseleave', () => { hoverIdx = -1; drawAll(); updateOHLC(); });
-  $('load').onclick = () => { loadChart(); };
+  async function plotCustom() {
+    const f = $('cif').value.trim(); if (!f) return; const st = $('cist'); st.textContent = '…';
+    const r = await call('custom_indicator', { symbol: sym(), interval: iv(), formula: f, limit: 200 });
+    if (r.ok && r.result) { CUSTOM = r.result.series.map(s => s.v); drawAll(); st.textContent = '✓ plotted (pink)'; }
+    else { CUSTOM = null; drawAll(); st.textContent = '✕ ' + (r.error || 'failed'); }
+  }
+  $('ciplot').onclick = plotCustom;
+  $('ciclear').onclick = () => { CUSTOM = null; $('cif').value = ''; $('cist').textContent = ''; drawAll(); };
+  $('load').onclick = () => { CUSTOM = null; loadChart(); };
   $('run').onclick = runBacktest; $('opt').onclick = optimize; $('ai').onclick = aiAnalyze;
   $('pbuy').onclick = doBuy; $('psell').onclick = doSell; $('preset').onclick = doReset;
   (async () => { await initStrategies(); await loadChart(); startLoops(); loadBacktest(); loadPortfolio(); loadLiveStatus(); })();
