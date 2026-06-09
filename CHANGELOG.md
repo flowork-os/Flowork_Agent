@@ -1,3 +1,13 @@
+## 2026-06-09 — FlowAlpha: FIX chart (candlestick rewrite) + visual verification
+
+The chart didn't render: the old code fired 4 concurrent ops (get_klines + get_price + 2×
+compute_indicator) and drew a line — fragile and slow. Rewrote it to a real CANDLESTICK chart
+that needs ONE op (get_klines) and computes the SMA overlays client-side, with on-screen error
+status. VERIFIED visually: rendered the real GUI in headless Chrome with mock data (candles +
+SMA fast/slow draw correctly) AND confirmed the live authenticated /api/apps/op path returns
+real data end-to-end (get_klines/run_backtest/list_strategies/portfolio_get). Lesson: GUI was
+claimed working from backend tests only — now verified by actually rendering it.
+
 ## 2026-06-09 — FlowAlpha v0.6.0 (Phase 5+6): owner-gated live trading + market breadth
 
 - LIVE trading is OWNER-GATED (same doctrine as FLOWORK_POWER_ARMED): live_order refuses unless

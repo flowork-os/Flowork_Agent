@@ -52,7 +52,8 @@
       <span class="price" id="price">—</span>
     </div>
     <canvas id="chart" width="1400" height="300"></canvas>
-    <div class="leg"><span class="dot" style="background:var(--cy)"></span>price
+    <div class="leg"><span class="dot" style="background:var(--mx)"></span>up
+      <span class="dot" style="background:#ff6b6b"></span>down
       <span class="dot" style="background:var(--mx)"></span>SMA fast
       <span class="dot" style="background:#ffd166"></span>SMA slow</div>
     <div class="st" id="cst"></div>
@@ -137,24 +138,50 @@
     });
   }
 
-  // ── chart ──────────────────────────────────────────────────────────────────
+  // ── candlestick chart (1 op; SMAs computed client-side, robust) ─────────────
+  function smaJS(closes, p) {
+    const out = []; let s = 0;
+    for (let i = 0; i < closes.length; i++) { s += closes[i]; if (i >= p) s -= closes[i - p]; out.push(i >= p - 1 ? s / p : null); }
+    return out;
+  }
+  function drawCandles(canvas, candles, overlays) {
+    const ctx = canvas.getContext('2d'), W = canvas.width, H = canvas.height, pad = 10;
+    ctx.clearRect(0, 0, W, H);
+    if (!candles.length) return;
+    let lo = Infinity, hi = -Infinity;
+    candles.forEach(c => { lo = Math.min(lo, c.l); hi = Math.max(hi, c.h); });
+    overlays.forEach(o => o.data.forEach(v => { if (v != null) { lo = Math.min(lo, v); hi = Math.max(hi, v); } }));
+    if (!isFinite(lo) || hi === lo) return;
+    const n = candles.length, cw = (W - 2 * pad) / n;
+    const x = (i) => pad + i * cw + cw / 2, y = (v) => H - pad - ((v - lo) / (hi - lo)) * (H - 2 * pad);
+    candles.forEach((c, i) => {
+      const up = c.c >= c.o, col = up ? '#22ff88' : '#ff6b6b';
+      ctx.strokeStyle = col; ctx.fillStyle = col;
+      const cx = x(i);
+      ctx.beginPath(); ctx.moveTo(cx, y(c.h)); ctx.lineTo(cx, y(c.l)); ctx.stroke();
+      const bw = Math.max(1, cw * 0.6), yo = y(c.o), yc = y(c.c);
+      ctx.fillRect(cx - bw / 2, Math.min(yo, yc), bw, Math.max(1, Math.abs(yc - yo)));
+    });
+    overlays.forEach(o => {
+      ctx.strokeStyle = o.color; ctx.lineWidth = 1.5; ctx.beginPath(); let started = false;
+      o.data.forEach((v, i) => { if (v == null) { started = false; return; }
+        const px = x(i), py = y(v); if (!started) { ctx.moveTo(px, py); started = true; } else ctx.lineTo(px, py); });
+      ctx.stroke();
+    });
+  }
   async function loadChart() {
-    const st = $('cst'); st.textContent = '…';
+    const st = $('cst'); st.textContent = 'loading…';
     const fast = +$('fast').value || 10, slow = +$('slow').value || 30;
-    const [k, p, sf, ss] = await Promise.all([
-      call('get_klines', { symbol: sym(), interval: iv(), limit: 200 }),
-      call('get_price', { symbol: sym() }),
-      call('compute_indicator', { symbol: sym(), interval: iv(), limit: 200, indicator: 'sma', period: fast }),
-      call('compute_indicator', { symbol: sym(), interval: iv(), limit: 200, indicator: 'sma', period: slow }),
+    const k = await call('get_klines', { symbol: sym(), interval: iv(), limit: 200 });
+    if (!k.ok || !k.result || !k.result.candles) { st.textContent = '✕ ' + (k.error || 'chart load failed'); return; }
+    const candles = k.result.candles, closes = candles.map(c => c.c);
+    drawCandles($('chart'), candles, [
+      { data: smaJS(closes, fast), color: '#22ff88' },
+      { data: smaJS(closes, slow), color: '#ffd166' },
     ]);
-    if (!k.ok || !k.result) { st.textContent = '✕ ' + (k.error || 'load failed'); return; }
-    plot($('chart'), [
-      { data: k.result.candles.map(c => c.c), color: '#36e6ff', w: 1.6 },
-      { data: (sf.result ? sf.result.series.map(s => s.v) : []), color: '#22ff88' },
-      { data: (ss.result ? ss.result.series.map(s => s.v) : []), color: '#ffd166' },
-    ], {});
-    if (p.ok && p.result) $('price').innerHTML = p.result.price.toLocaleString('en-US', { maximumFractionDigits: 8 }) + ' <small>' + p.result.symbol + '</small>';
-    st.textContent = '✓ ' + k.result.candles.length + ' candles · ' + new Date().toLocaleTimeString();
+    const last = closes[closes.length - 1];
+    $('price').innerHTML = last.toLocaleString('en-US', { maximumFractionDigits: 8 }) + ' <small>' + sym() + '</small>';
+    st.textContent = '✓ ' + candles.length + ' candles · SMA ' + fast + '/' + slow + ' · ' + new Date().toLocaleTimeString();
   }
 
   // ── backtest + optimize ────────────────────────────────────────────────────
