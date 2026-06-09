@@ -38,6 +38,14 @@
     { "name": "paper_reset", "description": "Reset the paper portfolio back to the starting virtual cash (clears positions and orders).", "tool": true, "gui": true, "mutates": true,
       "input_schema": { "type": "object", "properties": {} } },
     { "name": "list_paper_orders", "description": "List recent paper orders (newest first).", "tool": true, "gui": false, "mutates": false,
-      "input_schema": { "type": "object", "properties": { "limit": { "type": "integer" } } } }
+      "input_schema": { "type": "object", "properties": { "limit": { "type": "integer" } } } },
+    { "name": "get_ticker_24h", "description": "24h market stats for a symbol: last price, 24h change %, high, low, base/quote volume, trade count.", "tool": true, "gui": true, "mutates": false,
+      "input_schema": { "type": "object", "properties": { "symbol": { "type": "string" } }, "required": ["symbol"] } },
+    { "name": "top_movers", "description": "Top gainers and losers over 24h for a quote currency (e.g. USDT). Useful for market scanning.", "tool": true, "gui": true, "mutates": false,
+      "input_schema": { "type": "object", "properties": { "quote": { "type": "string", "description": "quote currency, default USDT" }, "limit": { "type": "integer" } } } },
+    { "name": "live_status", "description": "Whether real-money LIVE trading is armed. It is OWNER-GATED: disabled unless the owner sets FLOWALPHA_LIVE_ENABLED=1 on the host AND configures a broker. Agents cannot enable it. Default is paper-only.", "tool": true, "gui": true, "mutates": false,
+      "input_schema": { "type": "object", "properties": {} } },
+    { "name": "live_order", "description": "Place a REAL-money order. OWNER-GATED: refuses unless the owner armed live trading (FLOWALPHA_LIVE_ENABLED) and configured a broker — an agent can never enable it. Returns a safe refusal otherwise. Use paper_buy/paper_sell for risk-free trading.", "tool": true, "gui": false, "mutates": true,
+      "input_schema": { "type": "object", "properties": { "side": { "type": "string", "description": "buy|sell" }, "symbol": { "type": "string" }, "quote_amount": { "type": "number" }, "qty": { "type": "number" } }, "required": ["side", "symbol"] } }
   ]
 }

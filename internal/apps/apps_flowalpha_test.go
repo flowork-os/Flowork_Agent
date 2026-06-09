@@ -118,6 +118,25 @@ func TestFlowAlphaApp(t *testing.T) {
 	}
 	t.Logf("paper portfolio: equity=%v cash=%v positions=%d", pm["equity"], pm["cash"], len(poss))
 
+	// Live trading is OWNER-GATED: live_order MUST refuse (no real money by default).
+	if _, e := m.InvokeOp("flowalpha", "live_order", map[string]any{"side": "buy", "symbol": "BTCUSDT"}, "agent"); e == nil {
+		t.Fatal("live_order must refuse when not owner-armed")
+	}
+	if ls, err := m.InvokeOp("flowalpha", "live_status", nil, "agent"); err == nil {
+		if lm, _ := ls.(map[string]any); lm["live_enabled"] != false {
+			t.Fatalf("live should be disabled by default: %+v", ls)
+		}
+	}
+
+	// Market breadth: 24h ticker.
+	if tk, err := m.InvokeOp("flowalpha", "get_ticker_24h", map[string]any{"symbol": "BTCUSDT"}, "agent"); err == nil {
+		if tm, _ := tk.(map[string]any); tm["change_pct"] == nil {
+			t.Fatalf("get_ticker_24h wrong shape: %+v", tk)
+		}
+	} else if !netSkip(err) {
+		t.Fatalf("get_ticker_24h: %v", err)
+	}
+
 	// An unregistered op MUST be rejected (gate validation).
 	if _, e := m.InvokeOp("flowalpha", "rm_rf", nil, "agent"); e == nil {
 		t.Fatal("unregistered op must be rejected")

@@ -92,6 +92,7 @@
       <button id="psell" class="ghost">SELL ALL</button>
       <button id="preset" class="ghost">RESET</button>
       <span class="st" id="pst"></span>
+      <span class="st" id="livebadge" style="margin-left:auto;color:#ffd166"></span>
     </div>
     <div class="sub">Virtual cash — no real money, no broker. Real trading is a separate owner-gated phase.</div>
     <div class="metrics" id="pmetrics"></div>
@@ -246,7 +247,11 @@
   $('pbuy').onclick = doBuy;
   $('psell').onclick = doSell;
   $('preset').onclick = doReset;
-  (async () => { await initStrategies(); loadChart(); loadBacktest(); loadPortfolio(); })();
+  async function loadLiveStatus() {
+    const r = await call('live_status');
+    if (r.ok && r.result) $('livebadge').textContent = r.result.live_enabled ? '● LIVE ARMED (owner)' : '○ paper-only · live is owner-gated';
+  }
+  (async () => { await initStrategies(); loadChart(); loadBacktest(); loadPortfolio(); loadLiveStatus(); })();
 </script>
 </body>
 </html>

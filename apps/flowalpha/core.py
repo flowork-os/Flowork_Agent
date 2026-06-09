@@ -23,6 +23,11 @@ LLM_TIMEOUT = 30
 # owner-gated phase). Starting cash + per-order fee are configurable.
 STARTING_CASH = float(os.environ.get("QUANT_PAPER_CASH", "10000"))
 PAPER_FEE = float(os.environ.get("QUANT_PAPER_FEE_BPS", "10")) / 10000.0
+# Live (real-money) trading is OWNER-GATED. It is DISABLED unless the OWNER sets this env on the
+# HOST — an agent can never enable it (same doctrine as FLOWORK_POWER_ARMED). Even when armed, a
+# real broker connector (with the owner's own keys) must be configured to route real orders;
+# none is bundled, so real money is never at risk by default.
+LIVE_ENABLED = os.environ.get("FLOWALPHA_LIVE_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")
 STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "state.json")
 MAX_OPT_COMBOS = 60
 
@@ -506,6 +511,53 @@ def op_list_paper_orders(a):
     return {"result": {"orders": p["orders"][-limit:][::-1], "count": len(p["orders"])}}
 
 
+# ── ops: live trading (OWNER-GATED; refuses unless the owner arms it) ────────────
+def op_live_status(a):
+    return {"result": {
+        "live_enabled": LIVE_ENABLED,
+        "broker": None,
+        "mode": "armed-no-broker" if LIVE_ENABLED else "paper-only",
+        "note": ("Live trading is OWNER-GATED. It is DISABLED unless the OWNER sets "
+                 "FLOWALPHA_LIVE_ENABLED=1 in the host environment AND configures a broker "
+                 "connector with their own keys. An agent can never enable it. Use paper_buy / "
+                 "paper_sell for risk-free trading."),
+    }}
+
+
+def op_live_order(a):
+    # Two-gate refusal (cannot lose real money by default):
+    if not LIVE_ENABLED:
+        return {"error": "live trading is DISABLED (owner-gated). The owner must set "
+                         "FLOWALPHA_LIVE_ENABLED=1 in the host env to arm it — an agent cannot. "
+                         "Use paper_buy / paper_sell for risk-free trading."}
+    return {"error": "live trading is ARMED but no broker connector is configured. The owner "
+                     "adds a broker (with their own keys) to route real orders; none is bundled, "
+                     "so no real order is placed."}
+
+
+# ── ops: market breadth ─────────────────────────────────────────────────────
+def op_get_ticker_24h(a):
+    sym = str(a.get("symbol", "")).upper().strip()
+    if not sym:
+        return {"error": "symbol required"}
+    d = _get("/ticker/24hr", {"symbol": sym})
+    return {"result": {"symbol": d["symbol"], "last": float(d["lastPrice"]),
+                       "change_pct": float(d["priceChangePercent"]), "high": float(d["highPrice"]),
+                       "low": float(d["lowPrice"]), "volume": float(d["volume"]),
+                       "quote_volume": float(d["quoteVolume"]), "trades": int(d.get("count", 0))}}
+
+
+def op_top_movers(a):
+    quote = str(a.get("quote") or "USDT").upper().strip()
+    limit = max(1, min(int(a.get("limit") or 10), 50))
+    rows = [t for t in _get("/ticker/24hr") if t["symbol"].endswith(quote) and float(t.get("quoteVolume", 0)) > 0]
+    rows.sort(key=lambda t: float(t["priceChangePercent"]), reverse=True)
+    fmt = lambda t: {"symbol": t["symbol"], "change_pct": round(float(t["priceChangePercent"]), 2),
+                     "last": float(t["lastPrice"]), "quote_volume": round(float(t["quoteVolume"]), 0)}
+    return {"result": {"quote": quote, "gainers": [fmt(t) for t in rows[:limit]],
+                       "losers": [fmt(t) for t in rows[-limit:][::-1]]}}
+
+
 # ── shared state ────────────────────────────────────────────────────────────
 def _patch_state(updates):
     st = _load_state()
@@ -540,6 +592,8 @@ HANDLERS = {
     "ai_analyze": op_ai_analyze,
     "portfolio_get": op_portfolio_get, "paper_buy": op_paper_buy, "paper_sell": op_paper_sell,
     "paper_reset": op_paper_reset, "list_paper_orders": op_list_paper_orders,
+    "live_status": op_live_status, "live_order": op_live_order,
+    "get_ticker_24h": op_get_ticker_24h, "top_movers": op_top_movers,
 }
 
 

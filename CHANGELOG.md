@@ -1,3 +1,17 @@
+## 2026-06-09 — FlowAlpha v0.6.0 (Phase 5+6): owner-gated live trading + market breadth
+
+- LIVE trading is OWNER-GATED (same doctrine as FLOWORK_POWER_ARMED): live_order refuses unless
+  the owner sets FLOWALPHA_LIVE_ENABLED=1 on the host AND configures a broker — an agent can
+  NEVER enable it; no broker is bundled, so no real money is at risk by default. live_status
+  reports the gate. GUI shows a "paper-only · live is owner-gated" badge.
+- Market breadth: get_ticker_24h (24h change/high/low/volume) + top_movers (gainers/losers by
+  quote currency) for market scanning.
+- Test extended (live refusal + live disabled-by-default + 24h ticker) — PASS. 19 Ops total.
+
+FlowAlpha now spans the full QuantDinger closed loop, white-label + sovereign: data · indicators ·
+4 strategies · backtest · parameter optimization · AI analysis (via the Flowork router) · paper
+portfolio · owner-gated live · market breadth. 19 Ops, each a GUI button AND an agent tool.
+
 ## 2026-06-09 — FlowAlpha v0.5.0 (Phase 4): paper portfolio (virtual, shared state)
 
 - Paper trading (virtual cash, NO broker, NO real money — live trading is a separate
