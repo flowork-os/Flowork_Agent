@@ -1,3 +1,9 @@
+## 2026-06-09 — FlowAlpha v0.22.0: notification webhook (connect to the Telegram agent)
+
+- FlowAlpha does NOT send Telegram itself (sandboxed app, holds no token). It EMITS fired alerts
+  and bot buy/sell actions to QUANT_NOTIFY_URL (POST {"text"}), which the owner points at the
+  agent that handles Telegram. Plug-and-play + sovereign. Empty = off. Tested end-to-end.
+
 ## 2026-06-09 — FlowAlpha v0.21.0: paper portfolio equity curve
 
 - bot_step now snapshots the paper portfolio's equity over time (last 300); portfolio_equity Op

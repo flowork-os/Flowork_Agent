@@ -28,6 +28,22 @@ PAPER_FEE = float(os.environ.get("QUANT_PAPER_FEE_BPS", "10")) / 10000.0
 # real broker connector (with the owner's own keys) must be configured to route real orders;
 # none is bundled, so real money is never at risk by default.
 LIVE_ENABLED = os.environ.get("FLOWALPHA_LIVE_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")
+# Notifications: FlowAlpha does NOT send Telegram itself (the app is sandboxed, holds no token).
+# Instead it EMITS fired alerts/bot-actions to a webhook the owner points at the agent that
+# handles Telegram (telegram-channel / mr-flow). Plug-and-play + sovereign: set QUANT_NOTIFY_URL
+# to that agent's inbound endpoint; empty = notifications off. Payload = {"text": "..."}.
+NOTIFY_URL = os.environ.get("QUANT_NOTIFY_URL", "").strip()
+
+
+def _notify(text):
+    if not NOTIFY_URL:
+        return
+    try:
+        req = urllib.request.Request(NOTIFY_URL, data=json.dumps({"text": text}).encode("utf-8"),
+                                     headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=6).read()
+    except Exception:  # noqa
+        pass
 STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "state.json")
 MAX_OPT_COMBOS = 60
 
@@ -1102,6 +1118,9 @@ def op_alert_check(a):
             triggered.append(dict(alert))
     if changed:
         _patch_state({"alerts": al})
+        for t in triggered:
+            _notify("\U0001f6a8 FlowAlpha alert: %s %s %s (now %s)" % (
+                t["symbol"], t["cond"], t["price"], t.get("fired_price")))
     return {"result": {"triggered": triggered}}
 
 
@@ -1165,10 +1184,13 @@ def op_bot_step(a):
             r = op_paper_buy({"symbol": sym, "quote_amount": bot.get("quote", 1000)})
             if "result" in r:
                 actions.append({"symbol": sym, "strategy": strat, "action": "buy"})
+                _notify("\U0001f916 FlowAlpha bot (%s) BUY %s" % (strat, sym))
         elif sig == 0 and held:
             r = op_paper_sell({"symbol": sym})
             if "result" in r:
-                actions.append({"symbol": sym, "strategy": strat, "action": "sell", "realized": r["result"].get("realized")})
+                rz = r["result"].get("realized")
+                actions.append({"symbol": sym, "strategy": strat, "action": "sell", "realized": rz})
+                _notify("\U0001f916 FlowAlpha bot (%s) SELL %s (realized %s)" % (strat, sym, rz))
     # snapshot paper equity over time (the portfolio's own equity curve)
     pf = _portfolio()
     eq = pf["cash"]
