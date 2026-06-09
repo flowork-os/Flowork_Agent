@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FlowAlpha</title>
+<style>
+  :root{--mx:#22ff88;--cy:#36e6ff;--bg:#06121a;--card:#02120c;--line:rgba(34,255,136,.18);--dim:#7fb9a6}
+  html,body{margin:0;height:100%;background:var(--bg);color:#bdf5d6;
+    font-family:ui-monospace,'JetBrains Mono',Consolas,monospace}
+  .wrap{padding:16px;display:flex;flex-direction:column;gap:12px;max-width:980px;margin:0 auto}
+  .h{color:var(--mx);letter-spacing:3px;font-size:15px;text-shadow:0 0 10px rgba(34,255,136,.4)}
+  .sub{color:var(--dim);font-size:11px;margin-top:-6px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  label{font-size:11px;color:var(--dim)}
+  input{background:#02120c;color:#dffaf0;border:1px solid rgba(34,255,136,.3);border-radius:6px;
+    padding:8px;font:inherit;font-size:13px;outline:none;width:90px}
+  input.sym{width:130px}
+  input:focus{border-color:var(--mx);box-shadow:0 0 0 1px var(--mx)}
+  button{background:linear-gradient(90deg,var(--mx),var(--cy));color:#001a14;border:0;border-radius:5px;
+    padding:8px 16px;font:inherit;font-weight:700;letter-spacing:1px;cursor:pointer}
+  button.ghost{background:#02120c;color:var(--mx);border:1px solid var(--line)}
+  .price{font-size:26px;color:var(--cy);text-shadow:0 0 14px rgba(54,230,255,.4)}
+  .price small{font-size:12px;color:var(--dim)}
+  canvas{width:100%;height:240px;display:block;border-radius:6px;background:#01100a;margin-top:8px}
+  canvas.eq{height:170px}
+  .st{color:var(--mx);font-size:11px;min-height:14px}
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-top:8px}
+  .m{background:#01100a;border:1px solid var(--line);border-radius:8px;padding:9px 11px}
+  .m .k{font-size:10px;color:var(--dim);letter-spacing:1px}
+  .m .v{font-size:17px;margin-top:3px}
+  .pos{color:var(--mx)} .neg{color:#ff6b6b}
+  .leg{font-size:10px;color:var(--dim);margin-top:6px}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;vertical-align:middle;margin:0 3px 0 8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="h">▲ FLOWALPHA</div>
+  <div class="sub">Sovereign quant desk — the same engine driven by you (here) AND agents (tools). Try: "run a backtest on ETHUSDT".</div>
+
+  <div class="card">
+    <div class="row">
+      <label>SYMBOL</label><input id="sym" class="sym" value="BTCUSDT" autocomplete="off">
+      <label>INTERVAL</label><input id="iv" value="1h" autocomplete="off">
+      <button id="load">LOAD CHART</button>
+      <span class="price" id="price">—</span>
+    </div>
+    <canvas id="chart" width="940" height="240"></canvas>
+    <div class="leg"><span class="dot" style="background:var(--cy)"></span>price
+      <span class="dot" style="background:var(--mx)"></span>SMA fast
+      <span class="dot" style="background:#ffd166"></span>SMA slow</div>
+    <div class="st" id="cst"></div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <label>BACKTEST · SMA CROSS</label>
+      <label>FAST</label><input id="fast" type="number" value="10">
+      <label>SLOW</label><input id="slow" type="number" value="30">
+      <label>FEE bps</label><input id="fee" type="number" value="10">
+      <button id="run">RUN BACKTEST</button>
+    </div>
+    <div class="metrics" id="metrics"></div>
+    <canvas id="eq" class="eq" width="940" height="170"></canvas>
+    <div class="leg"><span class="dot" style="background:var(--cy)"></span>strategy equity (start = 1.0)</div>
+    <div class="st" id="bst"></div>
+  </div>
+</div>
+<script>
+  // Bridge to the Flowork host (sandboxed iframe; postMessage {op,args} is the only channel).
+  let rq = 0; const pending = {};
+  function call(op, args) {
+    return new Promise((res) => { const id = ++rq; pending[id] = res;
+      parent.postMessage({ fw: 1, kind: 'op', reqId: id, op, args: args || {} }, '*'); });
+  }
+  window.addEventListener('message', (e) => {
+    const d = e.data || {}; if (d.fw !== 1) return;
+    if (d.kind === 'res' && pending[d.reqId]) { pending[d.reqId](d); delete pending[d.reqId]; }
+    if (d.kind === 'state') { loadBacktest(); } // agent ran a backtest → host notifies → refresh
+  });
+  const $ = (id) => document.getElementById(id);
+  const sym = () => $('sym').value.trim().toUpperCase();
+  const iv = () => $('iv').value.trim() || '1h';
+
+  // ── generic line plot ────────────────────────────────────────────────────
+  function plot(canvas, series, opts) {
+    const ctx = canvas.getContext('2d'), W = canvas.width, H = canvas.height, pad = 8;
+    ctx.clearRect(0, 0, W, H);
+    let lo = Infinity, hi = -Infinity;
+    series.forEach(s => s.data.forEach(v => { if (v != null) { lo = Math.min(lo, v); hi = Math.max(hi, v); } }));
+    if (!isFinite(lo) || hi === lo) { return; }
+    const n = Math.max(...series.map(s => s.data.length));
+    const x = (i) => pad + (i / (n - 1)) * (W - 2 * pad);
+    const y = (v) => H - pad - ((v - lo) / (hi - lo)) * (H - 2 * pad);
+    if (opts && opts.base != null) { // baseline (e.g. equity = 1.0)
+      ctx.strokeStyle = 'rgba(127,185,166,.3)'; ctx.setLineDash([4, 4]); ctx.beginPath();
+      ctx.moveTo(pad, y(opts.base)); ctx.lineTo(W - pad, y(opts.base)); ctx.stroke(); ctx.setLineDash([]);
+    }
+    series.forEach(s => {
+      ctx.strokeStyle = s.color; ctx.lineWidth = s.w || 1.4; ctx.beginPath(); let started = false;
+      s.data.forEach((v, i) => { if (v == null) { started = false; return; }
+        const px = x(i), py = y(v); if (!started) { ctx.moveTo(px, py); started = true; } else ctx.lineTo(px, py); });
+      ctx.stroke();
+    });
+  }
+
+  // ── chart: price + fast/slow SMA ───────────────────────────────────────────
+  async function loadChart() {
+    const st = $('cst'); st.textContent = '…';
+    const fast = +$('fast').value || 10, slow = +$('slow').value || 30;
+    const [k, p, sf, ss] = await Promise.all([
+      call('get_klines', { symbol: sym(), interval: iv(), limit: 200 }),
+      call('get_price', { symbol: sym() }),
+      call('compute_indicator', { symbol: sym(), interval: iv(), limit: 200, indicator: 'sma', period: fast }),
+      call('compute_indicator', { symbol: sym(), interval: iv(), limit: 200, indicator: 'sma', period: slow }),
+    ]);
+    if (!k.ok || !k.result) { st.textContent = '✕ ' + (k.error || 'load failed'); return; }
+    const closes = k.result.candles.map(c => c.c);
+    plot($('chart'), [
+      { data: closes, color: '#36e6ff', w: 1.6 },
+      { data: (sf.result ? sf.result.series.map(s => s.v) : []), color: '#22ff88' },
+      { data: (ss.result ? ss.result.series.map(s => s.v) : []), color: '#ffd166' },
+    ], {});
+    if (p.ok && p.result) $('price').innerHTML = p.result.price.toLocaleString('en-US', { maximumFractionDigits: 8 }) + ' <small>' + p.result.symbol + '</small>';
+    st.textContent = '✓ ' + k.result.candles.length + ' candles · ' + new Date().toLocaleTimeString();
+  }
+
+  // ── backtest ──────────────────────────────────────────────────────────────
+  function renderBacktest(r) {
+    if (!r || !r.metrics) { $('metrics').innerHTML = '<div class="m"><div class="k">NO RUN YET</div></div>'; return; }
+    const m = r.metrics, cls = (v) => v >= 0 ? 'pos' : 'neg', pct = (v) => (v >= 0 ? '+' : '') + v + '%';
+    $('metrics').innerHTML =
+      card('RETURN', pct(m.total_return_pct), cls(m.total_return_pct)) +
+      card('BUY & HOLD', pct(m.buy_hold_pct), cls(m.buy_hold_pct)) +
+      card('WIN RATE', m.win_rate_pct + '%') +
+      card('MAX DD', pct(m.max_drawdown_pct), 'neg') +
+      card('SHARPE', m.sharpe, cls(m.sharpe)) +
+      card('TRADES', m.trades);
+    plot($('eq'), [{ data: r.equity.map(p => p.eq), color: '#36e6ff', w: 1.6 }], { base: 1.0 });
+  }
+  function card(k, v, c) { return '<div class="m"><div class="k">' + k + '</div><div class="v ' + (c || '') + '">' + v + '</div></div>'; }
+
+  async function runBacktest() {
+    const st = $('bst'); st.textContent = 'running…';
+    const r = await call('run_backtest', { symbol: sym(), interval: iv(),
+      fast: +$('fast').value || 10, slow: +$('slow').value || 30, fee_bps: +$('fee').value || 10 });
+    if (r.ok && r.result) { renderBacktest(r.result); st.textContent = '✓ ' + r.result.params.fast + '/' + r.result.params.slow + ' SMA · ' + new Date().toLocaleTimeString(); }
+    else st.textContent = '✕ ' + (r.error || 'backtest failed');
+  }
+  async function loadBacktest() { const r = await call('get_last_backtest'); if (r.ok && r.result && r.result.metrics) renderBacktest(r.result); }
+
+  $('load').onclick = loadChart;
+  $('run').onclick = runBacktest;
+  loadChart(); loadBacktest();
+</script>
+</body>
+</html>

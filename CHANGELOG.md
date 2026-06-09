@@ -1,3 +1,24 @@
+## 2026-06-09 — FlowAlpha quant app v0.2.0 (sovereign, white-label, native engine)
+
+New first-class app `apps/flowalpha/` — a sovereign quant desk (white-label, our own brand),
+plug-and-play (apps platform substrate untouched). The closed loop runs NATIVELY: data →
+indicator → strategy → backtest → metrics. No API key, no database, no third-party backend —
+public market data + a pure-stdlib Python engine (original code; no upstream copied).
+
+- Engine (core.py): SMA/EMA/RSI/MACD indicators + an SMA-crossover backtest producing equity
+  curve, trades, and metrics (total return, buy&hold, win rate, max drawdown, Sharpe). Pure
+  Python, no deps. Data via a public exchange mirror (geo-block-resilient).
+- 7 Ops, each = a GUI button AND an agent tool ("one state, two drivers"): get_price,
+  get_klines, search_symbols, list_indicators, compute_indicator, run_backtest, get_last_backtest.
+  The last backtest is shared state — an agent runs it, the GUI reflects the same run.
+- GUI (ui/index.html): price ticker + price/SMA chart + backtest panel (metrics cards + equity
+  curve canvas). All English. Themed.
+- Test (apps_flowalpha_test.go): loads via host → runs the backtest → asserts metrics + equity +
+  shared state + tool registration + gate rejection. PASS (network-tolerant skip).
+- Scope: this is the CORE loop. Remaining QuantDinger parity (portfolio, AI-optimize via the
+  Flowork router, owner-gated live execution, more data feeds/strategies) is phased — mapped in
+  the private build blueprint.
+
 ## 2026-06-09 — Fix slow Telegram (47s → ~4.5s): interactive LLM budget
 
 ROOT CAUSE (measured, not guessed): mr-flow's primary model (opus) + tool schemas hits the
