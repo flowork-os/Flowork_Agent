@@ -1,3 +1,15 @@
+## 2026-06-09 — FlowAlpha v0.7.0: live 3-pane chart (ticking) + closing the gap
+
+- LIVE chart: a per-tick price loop (polls get_price every 2s → updates the last candle's
+  close/high/low + flashes the price up/down + redraws) + a 60s full candle refresh. No longer
+  a static snapshot.
+- 3 panes (closing the gap toward the original): candlesticks + SMA fast/slow overlays + a live
+  price line + trade ENTRY/EXIT markers (▲▼ from the last backtest) on the price pane; a VOLUME
+  bar pane; an RSI(14) pane with 30/50/70 levels. RSI/SMA computed client-side (fewer ops).
+- VERIFIED visually in headless Chrome (rendered the real GUI with mock candles+volume+backtest:
+  candlesticks, SMA, volume bars, RSI line, equity curve, portfolio all draw; tick updated the
+  price) — not claimed from backend tests alone.
+
 ## 2026-06-09 — FlowAlpha: FIX chart (candlestick rewrite) + visual verification
 
 The chart didn't render: the old code fired 4 concurrent ops (get_klines + get_price + 2×

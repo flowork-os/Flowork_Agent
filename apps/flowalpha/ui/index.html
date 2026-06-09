@@ -5,32 +5,33 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>FlowAlpha</title>
 <style>
-  :root{--mx:#22ff88;--cy:#36e6ff;--bg:#06121a;--card:#02120c;--line:rgba(34,255,136,.18);--dim:#7fb9a6}
-  html,body{margin:0;height:100%;background:var(--bg);color:#bdf5d6;
-    font-family:ui-monospace,'JetBrains Mono',Consolas,monospace}
+  :root{--mx:#22ff88;--cy:#36e6ff;--bg:#06121a;--card:#02120c;--line:rgba(34,255,136,.18);--dim:#7fb9a6;--red:#ff6b6b}
+  html,body{margin:0;height:100%;background:var(--bg);color:#bdf5d6;font-family:ui-monospace,'JetBrains Mono',Consolas,monospace}
   .wrap{padding:16px;display:flex;flex-direction:column;gap:12px;width:100%;box-sizing:border-box}
   .h{color:var(--mx);letter-spacing:3px;font-size:15px;text-shadow:0 0 10px rgba(34,255,136,.4)}
   .sub{color:var(--dim);font-size:11px;margin-top:-6px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
   .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   label{font-size:11px;color:var(--dim)}
-  input,select{background:#02120c;color:#dffaf0;border:1px solid rgba(34,255,136,.3);border-radius:6px;
-    padding:8px;font:inherit;font-size:13px;outline:none;width:90px}
+  input,select{background:#02120c;color:#dffaf0;border:1px solid rgba(34,255,136,.3);border-radius:6px;padding:8px;font:inherit;font-size:13px;outline:none;width:90px}
   input.sym{width:130px} select{width:auto}
   input:focus,select:focus{border-color:var(--mx);box-shadow:0 0 0 1px var(--mx)}
-  button{background:linear-gradient(90deg,var(--mx),var(--cy));color:#001a14;border:0;border-radius:5px;
-    padding:8px 16px;font:inherit;font-weight:700;letter-spacing:1px;cursor:pointer}
+  button{background:linear-gradient(90deg,var(--mx),var(--cy));color:#001a14;border:0;border-radius:5px;padding:8px 16px;font:inherit;font-weight:700;letter-spacing:1px;cursor:pointer}
   button.ghost{background:#02120c;color:var(--mx);border:1px solid var(--line)}
-  .price{font-size:26px;color:var(--cy);text-shadow:0 0 14px rgba(54,230,255,.4)}
+  .price{font-size:26px;color:var(--cy);text-shadow:0 0 14px rgba(54,230,255,.4);transition:color .2s}
   .price small{font-size:12px;color:var(--dim)}
-  canvas{width:100%;height:300px;display:block;border-radius:6px;background:#01100a;margin-top:8px}
-  canvas.eq{height:200px}
+  .tick{font-size:10px;color:var(--dim);margin-left:6px}
+  canvas{width:100%;display:block;background:#01100a}
+  #chart{height:340px;border-radius:6px 6px 0 0;margin-top:8px}
+  #vol{height:64px;border-top:1px solid rgba(34,255,136,.08)}
+  #rsi{height:92px;border-top:1px solid rgba(34,255,136,.08);border-radius:0 0 6px 6px}
+  canvas.eq{height:200px;border-radius:6px;margin-top:8px}
   .st{color:var(--mx);font-size:11px;min-height:14px}
   .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:8px}
   .m{background:#01100a;border:1px solid var(--line);border-radius:8px;padding:9px 11px}
   .m .k{font-size:10px;color:var(--dim);letter-spacing:1px}
   .m .v{font-size:18px;margin-top:3px}
-  .pos{color:var(--mx)} .neg{color:#ff6b6b}
+  .pos{color:var(--mx)} .neg{color:var(--red)}
   .leg{font-size:10px;color:var(--dim);margin-top:6px}
   .dot{display:inline-block;width:9px;height:9px;border-radius:50%;vertical-align:middle;margin:0 3px 0 8px}
   table{width:100%;border-collapse:collapse;margin-top:10px;font-size:12px}
@@ -42,66 +43,54 @@
 <body>
 <div class="wrap">
   <div class="h">▲ FLOWALPHA</div>
-  <div class="sub">Sovereign quant desk — the same engine driven by you (here) AND agents (tools). Try: "optimize an sma_cross backtest on ETHUSDT".</div>
+  <div class="sub">Sovereign quant desk — live chart, the same engine driven by you AND agents. Try: "optimize an sma_cross backtest on ETHUSDT".</div>
 
   <div class="card">
     <div class="row">
       <label>SYMBOL</label><input id="sym" class="sym" value="BTCUSDT" autocomplete="off">
       <label>INTERVAL</label><input id="iv" value="1h" autocomplete="off">
-      <button id="load">LOAD CHART</button>
-      <span class="price" id="price">—</span>
+      <button id="load">LOAD</button>
+      <span class="price" id="price">—</span><span class="tick" id="tickst">● live</span>
     </div>
-    <canvas id="chart" width="1400" height="300"></canvas>
-    <div class="leg"><span class="dot" style="background:var(--mx)"></span>up
-      <span class="dot" style="background:#ff6b6b"></span>down
-      <span class="dot" style="background:var(--mx)"></span>SMA fast
-      <span class="dot" style="background:#ffd166"></span>SMA slow</div>
+    <canvas id="chart" width="1400" height="340"></canvas>
+    <canvas id="vol" width="1400" height="64"></canvas>
+    <canvas id="rsi" width="1400" height="92"></canvas>
+    <div class="leg"><span class="dot" style="background:var(--mx)"></span>up<span class="dot" style="background:var(--red)"></span>down
+      <span class="dot" style="background:var(--mx)"></span>SMA fast<span class="dot" style="background:#ffd166"></span>SMA slow
+      <span class="dot" style="background:#9fe7cf"></span>volume<span class="dot" style="background:#c792ea"></span>RSI(14) · ▲ buy ▼ sell (after backtest)</div>
     <div class="st" id="cst"></div>
   </div>
 
   <div class="card">
     <div class="row">
       <label>STRATEGY</label><select id="strat"></select>
-      <label>FAST</label><input id="fast" type="number" value="10">
-      <label>SLOW</label><input id="slow" type="number" value="30">
+      <label>FAST</label><input id="fast" type="number" value="10"><label>SLOW</label><input id="slow" type="number" value="30">
       <label>FEE bps</label><input id="fee" type="number" value="10">
-      <button id="run">RUN BACKTEST</button>
-      <button id="opt" class="ghost">OPTIMIZE</button>
+      <button id="run">RUN BACKTEST</button><button id="opt" class="ghost">OPTIMIZE</button>
     </div>
     <div class="metrics" id="metrics"></div>
     <canvas id="eq" class="eq" width="1400" height="200"></canvas>
     <div class="leg"><span class="dot" style="background:var(--cy)"></span>strategy equity (start = 1.0)</div>
-    <div class="st" id="bst"></div>
-    <div id="opttbl"></div>
+    <div class="st" id="bst"></div><div id="opttbl"></div>
   </div>
 
   <div class="card">
-    <div class="row">
-      <label>AI ANALYSIS</label>
-      <button id="ai" class="ghost">ANALYZE (via Flowork router)</button>
-      <span class="st" id="aist"></span>
-    </div>
+    <div class="row"><label>AI ANALYSIS</label><button id="ai" class="ghost">ANALYZE (via Flowork router)</button><span class="st" id="aist"></span></div>
     <div id="aiout" style="margin-top:8px;font-size:13px;line-height:1.6;color:#dffaf0;white-space:pre-wrap"></div>
   </div>
 
   <div class="card">
     <div class="row">
-      <label>PAPER PORTFOLIO</label>
-      <input id="pbsym" class="sym" placeholder="symbol" autocomplete="off">
-      <input id="pbamt" type="number" placeholder="USDT" value="1000">
-      <button id="pbuy">BUY</button>
-      <button id="psell" class="ghost">SELL ALL</button>
-      <button id="preset" class="ghost">RESET</button>
-      <span class="st" id="pst"></span>
-      <span class="st" id="livebadge" style="margin-left:auto;color:#ffd166"></span>
+      <label>PAPER PORTFOLIO</label><input id="pbsym" class="sym" placeholder="symbol" autocomplete="off">
+      <input id="pbamt" type="number" placeholder="USDT" value="1000"><button id="pbuy">BUY</button>
+      <button id="psell" class="ghost">SELL ALL</button><button id="preset" class="ghost">RESET</button>
+      <span class="st" id="pst"></span><span class="st" id="livebadge" style="margin-left:auto;color:#ffd166"></span>
     </div>
     <div class="sub">Virtual cash — no real money, no broker. Real trading is a separate owner-gated phase.</div>
-    <div class="metrics" id="pmetrics"></div>
-    <div id="ptbl"></div>
+    <div class="metrics" id="pmetrics"></div><div id="ptbl"></div>
   </div>
 </div>
 <script>
-  // Bridge to the Flowork host (sandboxed iframe; postMessage {op,args} is the only channel).
   let rq = 0; const pending = {};
   function call(op, args) {
     return new Promise((res) => { const id = ++rq; pending[id] = res;
@@ -110,175 +99,139 @@
   window.addEventListener('message', (e) => {
     const d = e.data || {}; if (d.fw !== 1) return;
     if (d.kind === 'res' && pending[d.reqId]) { pending[d.reqId](d); delete pending[d.reqId]; }
-    if (d.kind === 'state') { loadBacktest(); loadPortfolio(); } // agent acted → host notifies → refresh
+    if (d.kind === 'state') { loadBacktest(); loadPortfolio(); }
   });
   const $ = (id) => document.getElementById(id);
   const sym = () => $('sym').value.trim().toUpperCase();
   const iv = () => $('iv').value.trim() || '1h';
+  let CANDLES = [], TRADES = [], lastPx = 0;
 
-  // ── generic line plot ────────────────────────────────────────────────────
-  function plot(canvas, series, opts) {
-    const ctx = canvas.getContext('2d'), W = canvas.width, H = canvas.height, pad = 8;
-    ctx.clearRect(0, 0, W, H);
-    let lo = Infinity, hi = -Infinity;
-    series.forEach(s => s.data.forEach(v => { if (v != null) { lo = Math.min(lo, v); hi = Math.max(hi, v); } }));
-    if (!isFinite(lo) || hi === lo) return;
-    const n = Math.max(...series.map(s => s.data.length));
-    const x = (i) => pad + (i / (n - 1)) * (W - 2 * pad);
-    const y = (v) => H - pad - ((v - lo) / (hi - lo)) * (H - 2 * pad);
-    if (opts && opts.base != null) {
-      ctx.strokeStyle = 'rgba(127,185,166,.3)'; ctx.setLineDash([4, 4]); ctx.beginPath();
-      ctx.moveTo(pad, y(opts.base)); ctx.lineTo(W - pad, y(opts.base)); ctx.stroke(); ctx.setLineDash([]);
-    }
-    series.forEach(s => {
-      ctx.strokeStyle = s.color; ctx.lineWidth = s.w || 1.4; ctx.beginPath(); let started = false;
-      s.data.forEach((v, i) => { if (v == null) { started = false; return; }
-        const px = x(i), py = y(v); if (!started) { ctx.moveTo(px, py); started = true; } else ctx.lineTo(px, py); });
-      ctx.stroke();
-    });
+  // ── client-side indicators ──────────────────────────────────────────────────
+  function smaJS(cl, p) { const o = []; let s = 0; for (let i = 0; i < cl.length; i++) { s += cl[i]; if (i >= p) s -= cl[i - p]; o.push(i >= p - 1 ? s / p : null); } return o; }
+  function rsiJS(cl, p) {
+    const o = new Array(cl.length).fill(null); if (cl.length <= p) return o;
+    let g = 0, l = 0; for (let i = 1; i <= p; i++) { const d = cl[i] - cl[i - 1]; g += Math.max(d, 0); l += Math.max(-d, 0); }
+    g /= p; l /= p; o[p] = l === 0 ? 100 : 100 - 100 / (1 + g / l);
+    for (let i = p + 1; i < cl.length; i++) { const d = cl[i] - cl[i - 1]; g = (g * (p - 1) + Math.max(d, 0)) / p; l = (l * (p - 1) + Math.max(-d, 0)) / p; o[i] = l === 0 ? 100 : 100 - 100 / (1 + g / l); }
+    return o;
   }
+  const X = (i, n, W, pad) => pad + (i + 0.5) * ((W - 2 * pad) / n);
+  function line(ctx, data, color, x, y, w) { ctx.strokeStyle = color; ctx.lineWidth = w || 1.5; ctx.beginPath(); let st = false; data.forEach((v, i) => { if (v == null) { st = false; return; } const px = x(i), py = y(v); if (!st) { ctx.moveTo(px, py); st = true; } else ctx.lineTo(px, py); }); ctx.stroke(); }
 
-  // ── candlestick chart (1 op; SMAs computed client-side, robust) ─────────────
-  function smaJS(closes, p) {
-    const out = []; let s = 0;
-    for (let i = 0; i < closes.length; i++) { s += closes[i]; if (i >= p) s -= closes[i - p]; out.push(i >= p - 1 ? s / p : null); }
-    return out;
-  }
-  function drawCandles(canvas, candles, overlays) {
-    const ctx = canvas.getContext('2d'), W = canvas.width, H = canvas.height, pad = 10;
+  // ── draw the 3 panes (price+candles, volume, rsi) ───────────────────────────
+  function drawAll() {
+    const n = CANDLES.length; if (!n) return;
+    const closes = CANDLES.map(k => k.c), pad = 10;
+    const fast = +$('fast').value || 10, slow = +$('slow').value || 30;
+    const sf = smaJS(closes, fast), ss = smaJS(closes, slow), rs = rsiJS(closes, 14);
+
+    // main price pane
+    const c = $('chart'), ctx = c.getContext('2d'), W = c.width, H = c.height;
     ctx.clearRect(0, 0, W, H);
-    if (!candles.length) return;
-    let lo = Infinity, hi = -Infinity;
-    candles.forEach(c => { lo = Math.min(lo, c.l); hi = Math.max(hi, c.h); });
-    overlays.forEach(o => o.data.forEach(v => { if (v != null) { lo = Math.min(lo, v); hi = Math.max(hi, v); } }));
+    let lo = Infinity, hi = -Infinity; CANDLES.forEach(k => { lo = Math.min(lo, k.l); hi = Math.max(hi, k.h); });
+    [sf, ss].forEach(s => s.forEach(v => { if (v != null) { lo = Math.min(lo, v); hi = Math.max(hi, v); } }));
     if (!isFinite(lo) || hi === lo) return;
-    const n = candles.length, cw = (W - 2 * pad) / n;
-    const x = (i) => pad + i * cw + cw / 2, y = (v) => H - pad - ((v - lo) / (hi - lo)) * (H - 2 * pad);
-    candles.forEach((c, i) => {
-      const up = c.c >= c.o, col = up ? '#22ff88' : '#ff6b6b';
-      ctx.strokeStyle = col; ctx.fillStyle = col;
-      const cx = x(i);
-      ctx.beginPath(); ctx.moveTo(cx, y(c.h)); ctx.lineTo(cx, y(c.l)); ctx.stroke();
-      const bw = Math.max(1, cw * 0.6), yo = y(c.o), yc = y(c.c);
-      ctx.fillRect(cx - bw / 2, Math.min(yo, yc), bw, Math.max(1, Math.abs(yc - yo)));
-    });
-    overlays.forEach(o => {
-      ctx.strokeStyle = o.color; ctx.lineWidth = 1.5; ctx.beginPath(); let started = false;
-      o.data.forEach((v, i) => { if (v == null) { started = false; return; }
-        const px = x(i), py = y(v); if (!started) { ctx.moveTo(px, py); started = true; } else ctx.lineTo(px, py); });
-      ctx.stroke();
-    });
+    const cw = (W - 2 * pad) / n, x = (i) => X(i, n, W, pad), y = (v) => H - pad - ((v - lo) / (hi - lo)) * (H - 2 * pad);
+    CANDLES.forEach((k, i) => { const up = k.c >= k.o, col = up ? '#22ff88' : '#ff6b6b'; ctx.strokeStyle = col; ctx.fillStyle = col; const cx = x(i);
+      ctx.beginPath(); ctx.moveTo(cx, y(k.h)); ctx.lineTo(cx, y(k.l)); ctx.stroke();
+      const bw = Math.max(1, cw * 0.62), yo = y(k.o), yc = y(k.c); ctx.fillRect(cx - bw / 2, Math.min(yo, yc), bw, Math.max(1, Math.abs(yc - yo))); });
+    line(ctx, sf, '#22ff88', x, y); line(ctx, ss, '#ffd166', x, y);
+    // live price dashed line
+    const lp = closes[n - 1]; ctx.strokeStyle = 'rgba(54,230,255,.5)'; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(pad, y(lp)); ctx.lineTo(W - pad, y(lp)); ctx.stroke(); ctx.setLineDash([]);
+    // trade markers (from last backtest), matched by time into the visible window
+    TRADES.forEach(t => { const ie = idxByTime(t.entry_t); if (ie >= 0) marker(ctx, x(ie), y(CANDLES[ie].l), '#22ff88', '▲'); const ix = t.exit_t ? idxByTime(t.exit_t) : -1; if (ix >= 0) marker(ctx, x(ix), y(CANDLES[ix].h) - 12, '#ff6b6b', '▼'); });
+
+    // volume pane
+    const vc = $('vol'), vx = vc.getContext('2d'), VW = vc.width, VH = vc.height; vx.clearRect(0, 0, VW, VH);
+    const mv = Math.max(...CANDLES.map(k => k.v || 0)) || 1;
+    CANDLES.forEach((k, i) => { const up = k.c >= k.o; vx.fillStyle = up ? 'rgba(34,255,136,.5)' : 'rgba(255,107,107,.5)'; const bw = Math.max(1, cw * 0.62), bh = ((k.v || 0) / mv) * (VH - 4); vx.fillRect(x(i) - bw / 2, VH - bh, bw, bh); });
+
+    // rsi pane
+    const rc = $('rsi'), rx = rc.getContext('2d'), RW = rc.width, RH = rc.height; rx.clearRect(0, 0, RW, RH);
+    const ry = (v) => RH - 6 - (v / 100) * (RH - 12);
+    [[70, 'rgba(255,107,107,.35)'], [50, 'rgba(127,185,166,.25)'], [30, 'rgba(34,255,136,.35)']].forEach(([lv, cl]) => { rx.strokeStyle = cl; rx.setLineDash([3, 3]); rx.beginPath(); rx.moveTo(pad, ry(lv)); rx.lineTo(RW - pad, ry(lv)); rx.stroke(); rx.setLineDash([]); });
+    line(rx, rs, '#c792ea', (i) => X(i, n, RW, pad), ry, 1.4);
   }
+  function marker(ctx, px, py, col, ch) { ctx.fillStyle = col; ctx.font = '12px monospace'; ctx.textAlign = 'center'; ctx.fillText(ch, px, py + 12); ctx.textAlign = 'left'; }
+  function idxByTime(t) { if (!CANDLES.length) return -1; let best = -1, bd = Infinity; for (let i = 0; i < CANDLES.length; i++) { const d = Math.abs(CANDLES[i].t - t); if (d < bd) { bd = d; best = i; } } const step = CANDLES.length > 1 ? CANDLES[1].t - CANDLES[0].t : 1; return bd <= step ? best : -1; }
+
+  // ── load + live tick ────────────────────────────────────────────────────────
   async function loadChart() {
     const st = $('cst'); st.textContent = 'loading…';
-    const fast = +$('fast').value || 10, slow = +$('slow').value || 30;
     const k = await call('get_klines', { symbol: sym(), interval: iv(), limit: 200 });
     if (!k.ok || !k.result || !k.result.candles) { st.textContent = '✕ ' + (k.error || 'chart load failed'); return; }
-    const candles = k.result.candles, closes = candles.map(c => c.c);
-    drawCandles($('chart'), candles, [
-      { data: smaJS(closes, fast), color: '#22ff88' },
-      { data: smaJS(closes, slow), color: '#ffd166' },
-    ]);
-    const last = closes[closes.length - 1];
-    $('price').innerHTML = last.toLocaleString('en-US', { maximumFractionDigits: 8 }) + ' <small>' + sym() + '</small>';
-    st.textContent = '✓ ' + candles.length + ' candles · SMA ' + fast + '/' + slow + ' · ' + new Date().toLocaleTimeString();
+    CANDLES = k.result.candles; lastPx = CANDLES[CANDLES.length - 1].c; drawAll(); showPrice(lastPx, 0);
+    st.textContent = '✓ ' + CANDLES.length + ' candles · ' + iv() + ' · ' + new Date().toLocaleTimeString();
+  }
+  function showPrice(px, dir) { const el = $('price'); el.innerHTML = px.toLocaleString('en-US', { maximumFractionDigits: 8 }) + ' <small>' + sym() + '</small>'; el.style.color = dir > 0 ? '#22ff88' : dir < 0 ? '#ff6b6b' : '#36e6ff'; }
+  let tickTimer = null, refreshTimer = null;
+  async function tick() {
+    const r = await call('get_price', { symbol: sym() });
+    if (!r.ok || !r.result || !CANDLES.length) { $('tickst').textContent = '○ paused'; return; }
+    const px = r.result.price, last = CANDLES[CANDLES.length - 1];
+    last.c = px; last.h = Math.max(last.h, px); last.l = Math.min(last.l, px);
+    showPrice(px, px - lastPx); lastPx = px; $('tickst').textContent = '● live'; drawAll();
+  }
+  function startLoops() {
+    if (tickTimer) clearInterval(tickTimer); if (refreshTimer) clearInterval(refreshTimer);
+    tickTimer = setInterval(tick, 2000);              // per-tick price update
+    refreshTimer = setInterval(loadChart, 60000);     // full candle refresh
   }
 
   // ── backtest + optimize ────────────────────────────────────────────────────
   function card(k, v, c) { return '<div class="m"><div class="k">' + k + '</div><div class="v ' + (c || '') + '">' + v + '</div></div>'; }
+  function plotEq(canvas, eq) {
+    const ctx = canvas.getContext('2d'), W = canvas.width, H = canvas.height, pad = 8; ctx.clearRect(0, 0, W, H);
+    let lo = Infinity, hi = -Infinity; eq.forEach(v => { lo = Math.min(lo, v); hi = Math.max(hi, v); }); if (hi === lo) return;
+    const n = eq.length, x = (i) => pad + (i / (n - 1)) * (W - 2 * pad), y = (v) => H - pad - ((v - lo) / (hi - lo)) * (H - 2 * pad);
+    ctx.strokeStyle = 'rgba(127,185,166,.3)'; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(pad, y(1)); ctx.lineTo(W - pad, y(1)); ctx.stroke(); ctx.setLineDash([]);
+    line(ctx, eq, '#36e6ff', x, y, 1.6);
+  }
   function renderBacktest(r) {
     if (!r || !r.metrics) { $('metrics').innerHTML = '<div class="m"><div class="k">NO RUN YET</div></div>'; return; }
     const m = r.metrics, cls = (v) => v >= 0 ? 'pos' : 'neg', pct = (v) => (v >= 0 ? '+' : '') + v + '%';
-    $('metrics').innerHTML =
-      card('RETURN', pct(m.total_return_pct), cls(m.total_return_pct)) +
-      card('BUY & HOLD', pct(m.buy_hold_pct), cls(m.buy_hold_pct)) +
-      card('WIN RATE', m.win_rate_pct + '%') +
-      card('MAX DD', pct(m.max_drawdown_pct), 'neg') +
-      card('SHARPE', m.sharpe, cls(m.sharpe)) +
-      card('TRADES', m.trades);
-    plot($('eq'), [{ data: r.equity.map(p => p.eq), color: '#36e6ff', w: 1.6 }], { base: 1.0 });
+    $('metrics').innerHTML = card('RETURN', pct(m.total_return_pct), cls(m.total_return_pct)) + card('BUY & HOLD', pct(m.buy_hold_pct), cls(m.buy_hold_pct)) +
+      card('WIN RATE', m.win_rate_pct + '%') + card('MAX DD', pct(m.max_drawdown_pct), 'neg') + card('SHARPE', m.sharpe, cls(m.sharpe)) + card('TRADES', m.trades);
+    plotEq($('eq'), r.equity.map(p => p.eq));
+    TRADES = r.trades || []; drawAll(); // show entry/exit markers on the chart
   }
   async function runBacktest() {
     const st = $('bst'); st.textContent = 'running…';
-    const r = await call('run_backtest', { symbol: sym(), interval: iv(), strategy: $('strat').value,
-      fast: +$('fast').value || 10, slow: +$('slow').value || 30, fee_bps: +$('fee').value || 10 });
+    const r = await call('run_backtest', { symbol: sym(), interval: iv(), strategy: $('strat').value, fast: +$('fast').value || 10, slow: +$('slow').value || 30, fee_bps: +$('fee').value || 10 });
     $('opttbl').innerHTML = '';
-    if (r.ok && r.result) { renderBacktest(r.result); st.textContent = '✓ ' + r.result.strategy + ' · ' + new Date().toLocaleTimeString(); }
-    else st.textContent = '✕ ' + (r.error || 'backtest failed');
+    if (r.ok && r.result) { renderBacktest(r.result); st.textContent = '✓ ' + r.result.strategy + ' · ' + new Date().toLocaleTimeString(); } else st.textContent = '✕ ' + (r.error || 'backtest failed');
   }
   async function optimize() {
     const st = $('bst'); st.textContent = 'optimizing…';
-    const r = await call('run_optimize', { symbol: sym(), interval: iv(), strategy: $('strat').value,
-      rank_by: 'total_return_pct', fee_bps: +$('fee').value || 10 });
+    const r = await call('run_optimize', { symbol: sym(), interval: iv(), strategy: $('strat').value, rank_by: 'total_return_pct', fee_bps: +$('fee').value || 10 });
     if (!r.ok || !r.result) { st.textContent = '✕ ' + (r.error || 'optimize failed'); return; }
-    const res = r.result, b = res.best;
-    // apply best params back into the inputs + re-run the full backtest for the chart
-    if (b.params.fast) $('fast').value = b.params.fast;
-    if (b.params.slow) $('slow').value = b.params.slow;
+    const res = r.result, b = res.best; if (b.params.fast) $('fast').value = b.params.fast; if (b.params.slow) $('slow').value = b.params.slow;
     await runBacktest();
-    let rows = res.results.map((x, i) =>
-      '<tr class="' + (i === 0 ? 'best' : '') + '"><td>' + JSON.stringify(x.params) + '</td><td>' +
-      x.metrics.total_return_pct + '%</td><td>' + x.metrics.sharpe + '</td><td>' + x.metrics.win_rate_pct +
-      '%</td><td>' + x.metrics.trades + '</td></tr>').join('');
+    let rows = res.results.map((x, i) => '<tr class="' + (i === 0 ? 'best' : '') + '"><td>' + JSON.stringify(x.params) + '</td><td>' + x.metrics.total_return_pct + '%</td><td>' + x.metrics.sharpe + '</td><td>' + x.metrics.win_rate_pct + '%</td><td>' + x.metrics.trades + '</td></tr>').join('');
     $('opttbl').innerHTML = '<table><tr><th>PARAMS</th><th>RETURN</th><th>SHARPE</th><th>WIN</th><th>TRADES</th></tr>' + rows + '</table>';
     st.textContent = '✓ optimized ' + res.strategy + ' · tested ' + res.tested + ' · best ' + b.metrics.total_return_pct + '% (buy&hold ' + res.buy_hold_pct + '%)';
   }
   async function loadBacktest() { const r = await call('get_last_backtest'); if (r.ok && r.result && r.result.metrics) renderBacktest(r.result); }
 
-  async function initStrategies() {
-    const r = await call('list_strategies');
-    const sel = $('strat');
-    if (r.ok && r.result) r.result.strategies.forEach(s => {
-      const o = document.createElement('option'); o.value = s.name; o.textContent = s.name; sel.appendChild(o);
-    });
-  }
-
-  async function aiAnalyze() {
-    const st = $('aist'); st.textContent = 'thinking…'; $('aiout').textContent = '';
-    const r = await call('ai_analyze', { symbol: sym(), interval: iv() });
-    if (r.ok && r.result) { $('aiout').textContent = r.result.analysis; st.textContent = '✓ ' + new Date().toLocaleTimeString(); }
-    else { st.textContent = '✕ ' + (r.error || 'failed'); }
-  }
-  // ── paper portfolio ─────────────────────────────────────────────────────────
+  // ── AI + portfolio ──────────────────────────────────────────────────────────
+  async function aiAnalyze() { const st = $('aist'); st.textContent = 'thinking…'; $('aiout').textContent = ''; const r = await call('ai_analyze', { symbol: sym(), interval: iv() }); if (r.ok && r.result) { $('aiout').textContent = r.result.analysis; st.textContent = '✓ ' + new Date().toLocaleTimeString(); } else st.textContent = '✕ ' + (r.error || 'failed'); }
   async function loadPortfolio() {
-    const r = await call('portfolio_get');
-    if (!r.ok || !r.result) return;
-    const p = r.result, cls = (v) => v >= 0 ? 'pos' : 'neg', pct = (v) => (v >= 0 ? '+' : '') + v + '%';
-    $('pmetrics').innerHTML =
-      card('EQUITY', '$' + p.equity) + card('CASH', '$' + p.cash) +
-      card('RETURN', pct(p.total_return_pct), cls(p.total_return_pct)) +
-      card('REALIZED', '$' + p.realized_pnl, cls(p.realized_pnl)) +
-      card('POSITIONS', p.positions.length);
+    const r = await call('portfolio_get'); if (!r.ok || !r.result) return; const p = r.result, cls = (v) => v >= 0 ? 'pos' : 'neg', pct = (v) => (v >= 0 ? '+' : '') + v + '%';
+    $('pmetrics').innerHTML = card('EQUITY', '$' + p.equity) + card('CASH', '$' + p.cash) + card('RETURN', pct(p.total_return_pct), cls(p.total_return_pct)) + card('REALIZED', '$' + p.realized_pnl, cls(p.realized_pnl)) + card('POSITIONS', p.positions.length);
     if (!p.positions.length) { $('ptbl').innerHTML = ''; return; }
-    let rows = p.positions.map(x => '<tr><td>' + x.symbol + '</td><td>' + x.qty + '</td><td>' + x.avg.toFixed(2) +
-      '</td><td>' + x.price.toFixed(2) + '</td><td>$' + x.value + '</td><td class="' + cls(x.unrealized) + '">' +
-      pct(x.unrealized_pct) + '</td></tr>').join('');
+    let rows = p.positions.map(x => '<tr><td>' + x.symbol + '</td><td>' + x.qty + '</td><td>' + x.avg.toFixed(2) + '</td><td>' + x.price.toFixed(2) + '</td><td>$' + x.value + '</td><td class="' + cls(x.unrealized) + '">' + pct(x.unrealized_pct) + '</td></tr>').join('');
     $('ptbl').innerHTML = '<table><tr><th>SYMBOL</th><th>QTY</th><th>AVG</th><th>PRICE</th><th>VALUE</th><th>P&L</th></tr>' + rows + '</table>';
   }
-  async function doBuy() {
-    const st = $('pst'); st.textContent = '…';
-    const r = await call('paper_buy', { symbol: ($('pbsym').value.trim() || sym()).toUpperCase(), quote_amount: +$('pbamt').value || 0 });
-    st.textContent = r.ok ? '✓ bought' : ('✕ ' + (r.error || '')); loadPortfolio();
-  }
-  async function doSell() {
-    const st = $('pst'); st.textContent = '…';
-    const r = await call('paper_sell', { symbol: ($('pbsym').value.trim() || sym()).toUpperCase() });
-    st.textContent = r.ok ? ('✓ sold · realized $' + r.result.realized) : ('✕ ' + (r.error || '')); loadPortfolio();
-  }
+  async function doBuy() { const st = $('pst'); st.textContent = '…'; const r = await call('paper_buy', { symbol: ($('pbsym').value.trim() || sym()).toUpperCase(), quote_amount: +$('pbamt').value || 0 }); st.textContent = r.ok ? '✓ bought' : ('✕ ' + (r.error || '')); loadPortfolio(); }
+  async function doSell() { const st = $('pst'); st.textContent = '…'; const r = await call('paper_sell', { symbol: ($('pbsym').value.trim() || sym()).toUpperCase() }); st.textContent = r.ok ? ('✓ sold · realized $' + r.result.realized) : ('✕ ' + (r.error || '')); loadPortfolio(); }
   async function doReset() { await call('paper_reset'); $('pst').textContent = '✓ reset'; loadPortfolio(); }
+  async function initStrategies() { const r = await call('list_strategies'); if (r.ok && r.result) r.result.strategies.forEach(s => { const o = document.createElement('option'); o.value = s.name; o.textContent = s.name; $('strat').appendChild(o); }); }
+  async function loadLiveStatus() { const r = await call('live_status'); if (r.ok && r.result) $('livebadge').textContent = r.result.live_enabled ? '● LIVE ARMED (owner)' : '○ paper-only · live is owner-gated'; }
 
-  $('load').onclick = loadChart;
-  $('run').onclick = runBacktest;
-  $('opt').onclick = optimize;
-  $('ai').onclick = aiAnalyze;
-  $('pbuy').onclick = doBuy;
-  $('psell').onclick = doSell;
-  $('preset').onclick = doReset;
-  async function loadLiveStatus() {
-    const r = await call('live_status');
-    if (r.ok && r.result) $('livebadge').textContent = r.result.live_enabled ? '● LIVE ARMED (owner)' : '○ paper-only · live is owner-gated';
-  }
-  (async () => { await initStrategies(); loadChart(); loadBacktest(); loadPortfolio(); loadLiveStatus(); })();
+  $('load').onclick = () => { loadChart(); };
+  $('run').onclick = runBacktest; $('opt').onclick = optimize; $('ai').onclick = aiAnalyze;
+  $('pbuy').onclick = doBuy; $('psell').onclick = doSell; $('preset').onclick = doReset;
+  (async () => { await initStrategies(); await loadChart(); startLoops(); loadBacktest(); loadPortfolio(); loadLiveStatus(); })();
 </script>
 </body>
 </html>
