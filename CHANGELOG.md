@@ -1,3 +1,8 @@
+## 2026-06-11 — FlowAlpha v0.25.0: sentiment feed
+
+- sentiment Op: the Crypto Fear & Greed Index (public, free, no API key) — a market-wide sentiment
+  read (0-100 + classification). Closes the macro/sentiment-feed gap, sovereign-friendly. 39 Ops.
+
 ## 2026-06-11 — FlowAlpha v0.24.0: multi-agent AI analysis (closes #7)
 
 - ai_team Op: an app-native, sovereign multi-agent analysis. Three specialist lenses (trend & regime,

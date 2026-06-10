@@ -1002,6 +1002,25 @@ def op_ai_team(a):
     return {"result": {"symbol": sym, "context": ctx, "analysts": analysts, "decision": decision}}
 
 
+# op_sentiment — a sovereign-friendly sentiment feed: the Crypto Fear & Greed Index (public, free,
+# no API key). Consistent with the rest of the data layer (public sources). Crypto-wide, not
+# per-symbol.
+def op_sentiment(a):
+    url = "https://api.alternative.me/fng/?limit=1"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        raw = urllib.request.urlopen(req, timeout=10).read()
+        item = (json.loads(raw).get("data") or [{}])[0]
+    except Exception as e:  # noqa
+        return {"error": "sentiment feed unavailable: %s" % e}
+    try:
+        val = int(item.get("value", 0))
+    except Exception:  # noqa
+        val = 0
+    return {"result": {"index": "crypto_fear_greed", "value": val,
+                       "classification": item.get("value_classification"), "ts": item.get("timestamp")}}
+
+
 # ── ops: paper portfolio (virtual; no broker, no real money) ────────────────────
 def _portfolio():
     p = _load_state().get("portfolio")
@@ -1336,6 +1355,7 @@ HANDLERS = {
     "backtest_history": op_backtest_history, "regime_detection": op_regime_detection, "multi_timeframe": op_multi_timeframe,
     "ai_analyze": op_ai_analyze,
     "ai_team": op_ai_team,
+    "sentiment": op_sentiment,
     "portfolio_get": op_portfolio_get, "paper_buy": op_paper_buy, "paper_sell": op_paper_sell,
     "paper_reset": op_paper_reset, "list_paper_orders": op_list_paper_orders,
     "live_status": op_live_status, "live_order": op_live_order,
