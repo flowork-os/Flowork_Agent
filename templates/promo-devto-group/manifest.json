@@ -1,0 +1,31 @@
+{
+  "id": "promo-devto",
+  "version": "1.0.0",
+  "kind": "agent",
+  "display_name": "Promo \u2014 Dev.to",
+  "description": "Per-platform promo colony for Dev.to: writer drafts an article from source material, honesty editor strips overclaim, coordinator publishes via the Forem API. API key + publish flag live in this group's config.",
+  "min_kernel_version": "0.1.0",
+  "abi_version": 1,
+  "author": "@flowork-os",
+  "license": "MIT",
+  "entry": "agent.wasm",
+  "memory_max_mb": 16,
+  "timeout_call_ms": 120000,
+  "capabilities_required": [
+    "net:fetch:http://127.0.0.1:1987/api/kernel/call",
+    "net:fetch:https://dev.to",
+    "state:read",
+    "state:write",
+    "time:read"
+  ],
+  "exposes_rpc": [
+    {
+      "name": "handle_message",
+      "description": "Draft + edit + publish one Dev.to article from source material ({text}).",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  ]
+}
