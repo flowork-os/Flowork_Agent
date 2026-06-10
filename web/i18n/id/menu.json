@@ -1,7 +1,8 @@
 {
   "sidebar": {
     "agents": "AI Agent",
-    "settings": "Pengaturan"
+    "settings": "Pengaturan",
+    "document": "Dokumen"
   },
   "header": {
     "brand": "Flowork",
@@ -195,6 +196,11 @@
       "grd_arm_confirm": "Rekam binary + kernel sekarang sebagai baseline tepercaya & mulai verifikasi tiap boot?",
       "grd_seal_os": "OS-immutable (tersegel)",
       "grd_seal_detect": "Deteksi saja — jalankan `sudo flowork --arm` buat immutability OS"
+    },
+    "document": {
+      "title": "Dokumen",
+      "desc": "Panduan & tutorial Flowork.",
+      "soon": "📖 Dokumentasi lagi disiapin — kontennya segera nyusul."
     }
   }
 }

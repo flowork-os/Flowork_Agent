@@ -1,7 +1,8 @@
 {
   "sidebar": {
     "agents": "AI Agent",
-    "settings": "Settings"
+    "settings": "Settings",
+    "document": "Document"
   },
   "header": {
     "brand": "Flowork",
@@ -195,6 +196,11 @@
       "grd_arm_confirm": "Record the current binary + kernel as the trusted baseline and start verifying every boot?",
       "grd_seal_os": "OS-immutable (sealed)",
       "grd_seal_detect": "Detection-only — run `sudo flowork --arm` for OS-immutability"
+    },
+    "document": {
+      "title": "Document",
+      "desc": "Guides & tutorials for Flowork.",
+      "soon": "📖 Documentation is being prepared — content coming soon."
     }
   }
 }
