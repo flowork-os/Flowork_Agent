@@ -155,6 +155,23 @@ cd Flowork_Agent
       behaves.</p>`,
   },
   {
+    id: 'blueprints',
+    title: '📐 Design Blueprints',
+    body: `
+      <h3>The principles we've planted a dated flag on</h3>
+      <p>A few of Flowork's ideas are written up as standalone, <strong>dated</strong> design
+      blueprints — each with an honest prior-art section — and kept in a separate, stable
+      <a href="https://github.com/flowork-os/doc" target="_blank" rel="noopener">doc repository</a> so
+      they aren't edited away. They mark a <em>specific combination</em>, not a boast.</p>
+      <ul>
+        <li><a href="https://github.com/flowork-os/doc/blob/main/EDUCATIONAL_ERRORS.md" target="_blank" rel="noopener"><strong>Educational Errors</strong></a> — a mistake is kept as a lesson (quarantined, not deleted), not hidden or trained away.</li>
+        <li><a href="https://github.com/flowork-os/doc/blob/main/ANTI_HALLUCINATION_ANTIBODY.md" target="_blank" rel="noopener"><strong>Anti-Hallucination Antibody</strong></a> — the gateway injects the agent's own most-recurrent, most-relevant past mistakes (karma × relevance) before the model answers, so a hallucination gets harder to repeat over time — deterministic, no retraining, no GPU.</li>
+        <li><a href="https://github.com/flowork-os/doc/blob/main/ONE_STATE_TWO_DRIVERS.md" target="_blank" rel="noopener"><strong>One State, Two Drivers</strong></a> — one declared op is a human GUI button and an agent tool at once, over one shared state; the two surfaces can't drift.</li>
+      </ul>
+      <p>Honest by default: the solid-but-not-original parts (FTS5 memory, MCP, WASM sandboxing,
+      microkernels) are <em>not</em> claimed — they're good engineering the field already shares.</p>`,
+  },
+  {
     id: 'menus',
     title: '🧭 Menus',
     body: `
