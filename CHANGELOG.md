@@ -1,3 +1,9 @@
+## 2026-06-11 — FlowAlpha v0.27.0: custom strategy GUI panel
+
+- A CUSTOM STRATEGY panel in the app: entry/exit formula inputs + comparison op + threshold + RUN,
+  showing return / trades / win / sharpe / maxDD. Makes the safe formula strategy usable from the
+  GUI (not just as an agent tool). Render verified via headless Chrome.
+
 ## 2026-06-11 — FlowAlpha v0.26.0: custom strategy (safe, no sandbox)
 
 - custom_strategy Op: a user-defined strategy from SAFE entry/exit formulas — the same AST-whitelist

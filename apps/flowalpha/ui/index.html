@@ -110,6 +110,24 @@
   </div>
 
   <div class="card">
+    <div class="row"><label>CUSTOM STRATEGY</label><span class="st" id="csst">formula-based, safe (no code exec)</span></div>
+    <div class="row" style="flex-wrap:wrap;gap:6px">
+      <label>ENTRY</label>
+      <input id="csEntryF" style="width:200px" placeholder="rsi(close,14)" autocomplete="off">
+      <select id="csEntryOp"><option>&lt;</option><option>&lt;=</option><option>&gt;</option><option>&gt;=</option></select>
+      <input id="csEntryV" type="number" value="30" style="width:70px">
+    </div>
+    <div class="row" style="flex-wrap:wrap;gap:6px">
+      <label>EXIT</label>
+      <input id="csExitF" style="width:200px" placeholder="rsi(close,14)" autocomplete="off">
+      <select id="csExitOp"><option>&gt;</option><option>&gt;=</option><option>&lt;</option><option>&lt;=</option></select>
+      <input id="csExitV" type="number" value="70" style="width:70px">
+      <button id="csRun" class="ghost">RUN</button>
+    </div>
+    <div id="csout" style="margin-top:8px;font-size:13px;color:#dffaf0"></div>
+  </div>
+
+  <div class="card">
     <div class="row">
       <label>PAPER PORTFOLIO</label><input id="pbsym" class="sym" placeholder="symbol" autocomplete="off">
       <input id="pbamt" type="number" placeholder="USDT" value="1000"><button id="pbuy">BUY</button>
@@ -337,6 +355,16 @@
       st.textContent = '✓ team ' + new Date().toLocaleTimeString();
     } else st.textContent = '✕ ' + (r.error || 'failed');
   }
+  async function customStrat() {
+    const st = $('csst'); st.textContent = 'running…'; $('csout').textContent = '';
+    const mk = (f, o, v) => ({ formula: $(f).value.trim(), op: $(o).value, value: parseFloat($(v).value) });
+    const r = await call('custom_strategy', { symbol: sym(), interval: iv(), limit: 400, entry: mk('csEntryF', 'csEntryOp', 'csEntryV'), exit: mk('csExitF', 'csExitOp', 'csExitV') });
+    if (r.ok && r.result) {
+      const m = r.result.metrics;
+      $('csout').textContent = 'return ' + m.total_return_pct + '%  ·  trades ' + m.trades + '  ·  win ' + m.win_rate_pct + '%  ·  sharpe ' + m.sharpe + '  ·  maxDD ' + m.max_drawdown_pct + '%';
+      st.textContent = '✓ ' + new Date().toLocaleTimeString();
+    } else st.textContent = '✕ ' + (r.error || 'failed');
+  }
   async function loadPortfolio() {
     const r = await call('portfolio_get'); if (!r.ok || !r.result) return; const p = r.result, cls = (v) => v >= 0 ? 'pos' : 'neg', pct = (v) => (v >= 0 ? '+' : '') + v + '%';
     $('pmetrics').innerHTML = card('EQUITY', '$' + p.equity) + card('CASH', '$' + p.cash) + card('RETURN', pct(p.total_return_pct), cls(p.total_return_pct)) + card('REALIZED', '$' + p.realized_pnl, cls(p.realized_pnl)) + card('POSITIONS', p.positions.length);
@@ -449,7 +477,7 @@
     else { LINES.push({ i1: drawPt.i, p1: drawPt.p, i2: idx, p2: price }); drawPt = null; drawAll(); $('cst').textContent = '✓ trendline added (' + LINES.length + ')'; }
   });
   $('load').onclick = () => { CUSTOM = null; loadChart(); };
-  $('run').onclick = runBacktest; $('opt').onclick = optimize; $('cmp').onclick = compareStrats; $('ai').onclick = aiAnalyze; $('aiteam').onclick = teamAnalyze;
+  $('run').onclick = runBacktest; $('opt').onclick = optimize; $('cmp').onclick = compareStrats; $('ai').onclick = aiAnalyze; $('aiteam').onclick = teamAnalyze; $('csRun').onclick = customStrat;
   $('pbuy').onclick = doBuy; $('psell').onclick = doSell; $('preset').onclick = doReset;
   (async () => { await initStrategies(); await loadChart(); startLoops(); loadBacktest(); loadPortfolio(); loadLiveStatus(); loadWatchlist(); loadAlerts(); checkAlerts(); loadDashboard(); loadBots(); })();
 </script>

@@ -4,7 +4,7 @@
   "name": "FlowAlpha",
   "description": "FlowAlpha \u2014 a sovereign quant desk: live market data, indicators, rule strategies, server-side backtests, and parameter optimization with full metrics. One engine driven by both you (GUI) and agents (tools). White-label, no API key, no database, public market data. The closed loop: data \u2192 indicator \u2192 strategy \u2192 backtest \u2192 optimize \u2192 metrics.",
   "icon": "ui/icon.svg",
-  "version": "0.26.0",
+  "version": "0.27.0",
   "runtime": "process",
   "core_entry": "python3 core.py",
   "gui_entry": "ui/index.html",
