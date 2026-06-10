@@ -332,6 +332,114 @@ http:
       MCP server (server side).</p>`,
   },
   {
+    id: 'schedule',
+    title: '⏰ Schedule (in depth)',
+    body: `
+      <h3>Jobs that run on a clock</h3>
+      <p>Hit <strong>＋ New</strong>, pick an <em>agent</em> or a <em>group</em> to run, write what it
+      should do, and give it a cron time (<code>min hr dom mon dow</code>) — e.g. <code>0 7 * * *</code>
+      for 7am every day. It can repeat or fire just once.</p>
+      <p>Each scheduled job is a card with:</p>
+      <ul>
+        <li><strong>Enable / Disable</strong> — turn it on or off.</li>
+        <li><strong>▷ Run</strong> — run it right now.</li>
+        <li><strong>✎ Edit</strong> — change it.</li>
+        <li><strong>▸ History</strong> — its past runs.</li>
+        <li><strong>🗑 Delete</strong> — remove it.</li>
+      </ul>
+      <p><strong>Principle:</strong> recurring work without you babysitting it. Schedule and Trigger are
+      two faces of the same little engine — Schedule is the time-based half.</p>`,
+  },
+  {
+    id: 'trigger',
+    title: '⚡ Trigger (in depth)',
+    body: `
+      <h3>Jobs that run when something happens</h3>
+      <p>Not on a clock — on an event. Hit <strong>＋ New</strong> and pick a type:</p>
+      <ul>
+        <li><strong>File watch</strong> — fires when a file or folder changes.</li>
+        <li><strong>Webhook</strong> — fires when something POSTs to it.</li>
+      </ul>
+      <p>Then choose what runs (an agent or a group), what it should do, and where to deliver the result
+      (e.g. Telegram). Each trigger card has <strong>Enable/Disable, ▷ Run, ✎ Edit, ▸ History, 🗑 Delete</strong>.
+      A webhook trigger also shows its URL:</p>
+      <pre><code>POST  http://your-host/api/triggers/hook/&lt;id&gt;?key=&lt;secret&gt;</code></pre>
+      <p>Anything that can make an HTTP POST can fire it — a script, a camera, a web service — and the
+      secret keeps it private.</p>
+      <p><strong>Principle:</strong> the outside world pokes Flowork → an agent does something → you get
+      the answer.</p>`,
+  },
+  {
+    id: 'app',
+    title: '▦ App (in depth)',
+    body: `
+      <h3>Little self-contained programs that live inside Flowork</h3>
+      <p>Each app is <strong>both a screen you click and a set of tools your agents can use</strong> —
+      "one state, two drivers". (A quant desk and a notepad ship as examples.)</p>
+      <p>Two tabs at the top: <strong>Installed</strong> and <strong>Store</strong>.</p>
+      <ul>
+        <li><strong>Install</strong> — upload a <code>.fwpack</code>. Because an app can run a real
+        program on your computer, installing asks for your consent first.</li>
+        <li><strong>Open</strong> — launches the app in a locked-down sandboxed frame; it can only talk to
+        Flowork through validated <em>ops</em> (it asks <code>{op, args}</code>, the host checks the op is
+        declared in the app's manifest, runs it, and sends the result back).</li>
+        <li><strong>Uninstall</strong> — remove it.</li>
+      </ul>
+      <h4>For developers — make an app</h4>
+      <p>An app is a folder under <code>apps/&lt;id&gt;/</code> with three things:</p>
+      <pre><code>apps/my-app/
+├─ manifest.json   kind:"app" + the list of ops
+├─ core.py         the headless logic (talks over stdin/stdout, line-JSON)
+└─ ui/index.html   the screen (sandboxed iframe)</code></pre>
+      <p>Every op you declare becomes <strong>both a GUI button and an agent tool</strong> at the same
+      time.</p>
+      <p><strong>Principle:</strong> write the logic once; it's driven by a human clicking and by an agent
+      calling — same state, two drivers.</p>`,
+  },
+  {
+    id: 'ai-studio',
+    title: '🧬 AI Studio (in depth)',
+    body: `
+      <h3>The workshop where Flowork builds and prunes itself</h3>
+      <ul>
+        <li><strong>⚡ Design</strong> — describe what you want and it generates a module or agent.</li>
+        <li><strong>Pending</strong> — anything it generated waits here for your call: <strong>⏍ Approve</strong>
+        or <strong>⊗ Reject</strong>. Nothing lands without you.</li>
+        <li><strong>Reaper</strong> — apoptosis. It lists modules that look dead or flagged, and you can
+        <strong>⊘ Reap</strong> them (remove). Owner-gated, so the AI can't quietly delete things.</li>
+      </ul>
+      <p><strong>Principle:</strong> the system can grow new parts and shed dead ones, but a human always
+      holds the approve button. Build with a conscience; clean up without fear.</p>`,
+  },
+  {
+    id: 'audit-log',
+    title: '📋 Audit Log (in depth)',
+    body: `
+      <h3>The receipt drawer</h3>
+      <p>A running record of what changed in the system, newest first. It's read-only — you don't do
+      anything here except look. When something changes, you can see what and when.</p>
+      <p><strong>Principle:</strong> nothing happens in the dark — every change leaves a trace you can
+      read.</p>`,
+  },
+  {
+    id: 'settings',
+    title: '⚙️ Settings (in depth)',
+    body: `
+      <h3>Your owner-level control panel</h3>
+      <p>Global stuff that isn't tied to any one agent (kept in the global <code>flowork.db</code>):</p>
+      <ul>
+        <li><strong>Account</strong> — change your password, or log out.</li>
+        <li><strong>API Keys</strong> — add, edit, or delete the keys Flowork uses (stored as secrets,
+        shown masked).</li>
+        <li><strong>Notifications</strong> — your own Telegram: paste a bot token + chat id, <em>Save</em>,
+        and <em>Test</em> (sends you a test message). This is the token the whole system uses to ping
+        you — yours, never hardcoded.</li>
+        <li><strong>YouTube</strong> — connect a YouTube account by OAuth, for the automation that needs it.</li>
+      </ul>
+      <p><strong>Principle:</strong> one place for the owner's keys and switches, kept apart from each
+      agent's private settings.</p>`,
+  },
+  {
     id: 'tech',
     title: '🔧 Technology',
     body: `
