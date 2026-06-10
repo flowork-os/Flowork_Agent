@@ -925,6 +925,83 @@ def op_ai_analyze(a):
     return {"result": {"symbol": sym, "analysis": text, "context": ctx}}
 
 
+def _extract_json(text):
+    if not text:
+        return None
+    i, j = text.find("{"), text.rfind("}")
+    if i < 0 or j <= i:
+        return None
+    try:
+        return json.loads(text[i:j + 1])
+    except Exception:  # noqa
+        return None
+
+
+# op_ai_team — multi-agent-style analysis, app-native (no cross-agent wiring). Several specialist
+# "lenses" each read the SAME factual engine context (never inventing numbers), then a synthesizer
+# turns their notes into one structured decision. Every call goes through the Flowork router, so it
+# inherits the anti-hallucination antibody + constitution. Sovereign: no third-party key.
+def op_ai_team(a):
+    sym = str(a.get("symbol", "")).upper().strip()
+    if not sym:
+        return {"error": "symbol required"}
+    interval = str(a.get("interval") or "1h")
+    limit = max(50, min(int(a.get("limit") or 300), 500))
+    strategy = str(a.get("strategy") or "sma_cross")
+    if strategy not in STRATEGIES:
+        return {"error": "unknown strategy"}
+    params = dict(STRATEGIES[strategy]["params"])
+    params.update(a.get("params") or {})
+    # ---- factual context from our own engine (no invented numbers) ----
+    try:
+        price = float(_get("/ticker/price", {"symbol": sym})["price"])
+    except Exception:  # noqa
+        try:
+            price = _last_price(sym)
+        except Exception as e:  # noqa
+            return {"error": "price unavailable: %s" % e}
+    bt, err = _run(sym, interval, limit, strategy, params, 0.001)
+    if err:
+        return {"error": err}
+    closes = [c["c"] for c in _klines(sym, interval, limit)]
+    r = rsi(closes, 14)
+    rsi_last = next((v for v in reversed(r) if v is not None), None)
+    regime = (op_regime_detection({"symbol": sym, "interval": interval, "limit": limit}) or {}).get("result", {})
+    mtf = (op_multi_timeframe({"symbol": sym, "strategy": strategy}) or {}).get("result", {})
+    ctx = {
+        "symbol": sym, "interval": interval, "price": round(price, 6),
+        "rsi14": round(rsi_last, 1) if rsi_last is not None else None,
+        "regime": {k: regime.get(k) for k in ("regime", "adx", "atr_pct", "slope_pct")},
+        "multi_timeframe": {"alignment": mtf.get("alignment"), "timeframes": mtf.get("timeframes")},
+        "backtest": {"strategy": strategy, **bt["metrics"]},
+    }
+    ctx_json = json.dumps(ctx, indent=2)
+    lenses = [
+        ("trend", "trend & regime analyst", "Read the trend and regime, and whether the timeframes agree (alignment)."),
+        ("momentum", "momentum/technical analyst", "Read momentum from RSI and the regime's ADX — overbought/oversold, strengthening or fading."),
+        ("risk", "risk analyst", "Assess the downside: max drawdown, volatility (ATR%), and what would invalidate a position."),
+    ]
+    analysts = {}
+    for key, role, focus in lenses:
+        p = ("You are a concise, neutral %s. Use ONLY the data below — never invent numbers. %s "
+             "Answer in 2-3 short sentences, no hype, no disclaimers.\n\n%s" % (role, focus, ctx_json))
+        try:
+            analysts[key] = _llm(p, 200)
+        except urllib.error.URLError as e:
+            return {"error": "AI router unreachable (%s) — start the Flowork router" % e.reason}
+    synth = ("You are the lead strategist. Given the three analyst notes and the data, decide. Use ONLY "
+             "the data and notes — never invent numbers. Output ONLY a JSON object with keys: "
+             "\"bias\" (one of LONG, SHORT, FLAT), \"confidence\" (low, medium, high), "
+             "\"reasons\" (array of 2-3 short strings), \"top_risk\" (one short string).\n\n"
+             "DATA:\n%s\n\nANALYST NOTES:\n%s" % (ctx_json, json.dumps(analysts, indent=2)))
+    try:
+        decision_text = _llm(synth, 300)
+    except urllib.error.URLError as e:
+        return {"error": "AI router unreachable (%s)" % e.reason}
+    decision = _extract_json(decision_text) or {"raw": decision_text}
+    return {"result": {"symbol": sym, "context": ctx, "analysts": analysts, "decision": decision}}
+
+
 # ── ops: paper portfolio (virtual; no broker, no real money) ────────────────────
 def _portfolio():
     p = _load_state().get("portfolio")
@@ -1258,6 +1335,7 @@ HANDLERS = {
     "run_optimize": op_run_optimize, "get_last_backtest": op_get_last_backtest, "compare_strategies": op_compare_strategies,
     "backtest_history": op_backtest_history, "regime_detection": op_regime_detection, "multi_timeframe": op_multi_timeframe,
     "ai_analyze": op_ai_analyze,
+    "ai_team": op_ai_team,
     "portfolio_get": op_portfolio_get, "paper_buy": op_paper_buy, "paper_sell": op_paper_sell,
     "paper_reset": op_paper_reset, "list_paper_orders": op_list_paper_orders,
     "live_status": op_live_status, "live_order": op_live_order,

@@ -105,7 +105,7 @@
   </div>
 
   <div class="card">
-    <div class="row"><label>AI ANALYSIS</label><button id="ai" class="ghost">ANALYZE (via Flowork router)</button><span class="st" id="aist"></span></div>
+    <div class="row"><label>AI ANALYSIS</label><button id="ai" class="ghost">ANALYZE</button> <button id="aiteam" class="ghost">TEAM ▦ (multi-agent)</button><span class="st" id="aist"></span></div>
     <div id="aiout" style="margin-top:8px;font-size:13px;line-height:1.6;color:#dffaf0;white-space:pre-wrap"></div>
   </div>
 
@@ -323,6 +323,20 @@
 
   // ── AI + portfolio ──────────────────────────────────────────────────────────
   async function aiAnalyze() { const st = $('aist'); st.textContent = 'thinking…'; $('aiout').textContent = ''; const r = await call('ai_analyze', { symbol: sym(), interval: iv() }); if (r.ok && r.result) { $('aiout').textContent = r.result.analysis; st.textContent = '✓ ' + new Date().toLocaleTimeString(); } else st.textContent = '✕ ' + (r.error || 'failed'); }
+  async function teamAnalyze() {
+    const st = $('aist'); st.textContent = 'team thinking… (3 analysts + synthesis)'; $('aiout').textContent = '';
+    const r = await call('ai_team', { symbol: sym(), interval: iv() });
+    if (r.ok && r.result) {
+      const x = r.result, d = x.decision || {}; let out = '';
+      for (const [k, v] of Object.entries(x.analysts || {})) out += '■ ' + k.toUpperCase() + '\n' + (v || '').trim() + '\n\n';
+      out += '▶ DECISION: ' + (d.bias || '?') + '  (confidence ' + (d.confidence || '?') + ')\n';
+      if (Array.isArray(d.reasons)) out += d.reasons.map(function (z) { return '  • ' + z; }).join('\n') + '\n';
+      if (d.top_risk) out += '  ⚠ risk: ' + d.top_risk;
+      if (d.raw) out += d.raw;
+      $('aiout').textContent = out;
+      st.textContent = '✓ team ' + new Date().toLocaleTimeString();
+    } else st.textContent = '✕ ' + (r.error || 'failed');
+  }
   async function loadPortfolio() {
     const r = await call('portfolio_get'); if (!r.ok || !r.result) return; const p = r.result, cls = (v) => v >= 0 ? 'pos' : 'neg', pct = (v) => (v >= 0 ? '+' : '') + v + '%';
     $('pmetrics').innerHTML = card('EQUITY', '$' + p.equity) + card('CASH', '$' + p.cash) + card('RETURN', pct(p.total_return_pct), cls(p.total_return_pct)) + card('REALIZED', '$' + p.realized_pnl, cls(p.realized_pnl)) + card('POSITIONS', p.positions.length);
@@ -435,7 +449,7 @@
     else { LINES.push({ i1: drawPt.i, p1: drawPt.p, i2: idx, p2: price }); drawPt = null; drawAll(); $('cst').textContent = '✓ trendline added (' + LINES.length + ')'; }
   });
   $('load').onclick = () => { CUSTOM = null; loadChart(); };
-  $('run').onclick = runBacktest; $('opt').onclick = optimize; $('cmp').onclick = compareStrats; $('ai').onclick = aiAnalyze;
+  $('run').onclick = runBacktest; $('opt').onclick = optimize; $('cmp').onclick = compareStrats; $('ai').onclick = aiAnalyze; $('aiteam').onclick = teamAnalyze;
   $('pbuy').onclick = doBuy; $('psell').onclick = doSell; $('preset').onclick = doReset;
   (async () => { await initStrategies(); await loadChart(); startLoops(); loadBacktest(); loadPortfolio(); loadLiveStatus(); loadWatchlist(); loadAlerts(); checkAlerts(); loadDashboard(); loadBots(); })();
 </script>

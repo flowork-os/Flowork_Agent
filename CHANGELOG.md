@@ -1,3 +1,12 @@
+## 2026-06-11 — FlowAlpha v0.24.0: multi-agent AI analysis (closes #7)
+
+- ai_team Op: an app-native, sovereign multi-agent analysis. Three specialist lenses (trend & regime,
+  momentum/technical, risk) each read the SAME factual engine context (price, RSI, regime/ADX/ATR%,
+  multi-timeframe alignment, backtest metrics) without inventing numbers, then a synthesizer returns a
+  structured decision {bias, confidence, reasons[], top_risk}. Every call goes through the Flowork
+  router, inheriting the anti-hallucination antibody + constitution. No cross-agent wiring, no
+  third-party key. GUI: a TEAM button next to ANALYZE. Tested live; numbers match the engine. 38 Ops.
+
 ## 2026-06-11 — Owner-notify hub /api/notify (closes FlowAlpha #8)
 
 - Added a loopback-only POST /api/notify {text} endpoint that reuses notifyOwnerTelegram, so
