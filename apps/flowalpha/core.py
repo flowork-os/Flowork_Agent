@@ -1021,6 +1021,74 @@ def op_sentiment(a):
                        "classification": item.get("value_classification"), "ts": item.get("timestamp")}}
 
 
+_CMP = {"<": lambda a, b: a < b, "<=": lambda a, b: a <= b, ">": lambda a, b: a > b, ">=": lambda a, b: a >= b}
+
+
+# op_custom_strategy — a custom strategy WITHOUT executing user code. Entry and exit are each a SAFE
+# formula (the same AST-whitelist evaluator as custom_indicator — no exec, no imports) compared
+# against a threshold (e.g. entry rsi(close,14) < 30, exit rsi(close,14) > 70). The formula yields a
+# numeric series; the comparison runs in plain Python; a stateful long/flat signal is backtested with
+# the same realistic simulator as the built-in strategies.
+def op_custom_strategy(a):
+    sym = str(a.get("symbol", "")).upper().strip()
+    entry = a.get("entry") or {}
+    exit_ = a.get("exit") or {}
+    ef, xf = str(entry.get("formula", "")).strip(), str(exit_.get("formula", "")).strip()
+    if not sym or not ef or not xf:
+        return {"error": "symbol, entry.formula and exit.formula required"}
+    if len(ef) > 500 or len(xf) > 500:
+        return {"error": "formula too long"}
+    eop, xop = str(entry.get("op") or "<"), str(exit_.get("op") or ">")
+    if eop not in _CMP or xop not in _CMP:
+        return {"error": "op must be one of: < <= > >="}
+    try:
+        eval_, xval = float(entry.get("value")), float(exit_.get("value"))
+    except (TypeError, ValueError):
+        return {"error": "entry.value and exit.value must be numbers"}
+    interval = str(a.get("interval") or "1h")
+    limit = max(50, min(int(a.get("limit") or 300), 500))
+    fee = max(0.0, float(a.get("fee") or 0.001))
+    candles = _klines(sym, interval, limit)
+    closes = [c["c"] for c in candles]
+    times = [c["t"] for c in candles]
+    n = len(closes)
+    ctx = {"close": closes, "open": [c["o"] for c in candles], "high": [c["h"] for c in candles],
+           "low": [c["l"] for c in candles], "volume": [c["v"] for c in candles]}
+    try:
+        es = _eval_formula(ast.parse(ef, mode="eval"), ctx)
+        xs = _eval_formula(ast.parse(xf, mode="eval"), ctx)
+    except SyntaxError:
+        return {"error": "formula syntax error"}
+    except Exception as e:  # noqa
+        return {"error": "formula error: " + str(e)}
+    es = es if isinstance(es, list) else [es] * n
+    xs = xs if isinstance(xs, list) else [xs] * n
+    sig = [0] * n
+    holding = False
+    for i in range(n):
+        ev = i < len(es) and es[i] is not None and _CMP[eop](es[i], eval_)
+        xv = i < len(xs) and xs[i] is not None and _CMP[xop](xs[i], xval)
+        if holding and xv:
+            holding = False
+        elif (not holding) and ev:
+            holding = True
+        sig[i] = 1 if holding else 0
+    risk = a.get("risk") or {}
+    direction = str(risk.get("direction") or "long").lower()
+    if direction not in ("long", "short", "both"):
+        direction = "long"
+    sl = max(0.0, float(risk.get("sl_pct") or 0)) / 100.0
+    tp = max(0.0, float(risk.get("tp_pct") or 0)) / 100.0
+    trail = max(0.0, float(risk.get("trail_pct") or 0)) / 100.0
+    slip = max(0.0, float(risk.get("slippage_bps") or 0)) / 10000.0
+    equity, eq_curve, trades, rets = _simulate(closes, times, sig, fee, direction, sl, tp, trail, slip)
+    metrics = _metrics(equity, closes, eq_curve, trades, rets, interval)
+    return {"result": {"symbol": sym, "interval": interval, "strategy": "custom",
+                       "entry": {"formula": ef, "op": eop, "value": eval_},
+                       "exit": {"formula": xf, "op": xop, "value": xval},
+                       "direction": direction, "metrics": metrics, "equity": eq_curve, "trades": trades}}
+
+
 # ── ops: paper portfolio (virtual; no broker, no real money) ────────────────────
 def _portfolio():
     p = _load_state().get("portfolio")
@@ -1356,6 +1424,7 @@ HANDLERS = {
     "ai_analyze": op_ai_analyze,
     "ai_team": op_ai_team,
     "sentiment": op_sentiment,
+    "custom_strategy": op_custom_strategy,
     "portfolio_get": op_portfolio_get, "paper_buy": op_paper_buy, "paper_sell": op_paper_sell,
     "paper_reset": op_paper_reset, "list_paper_orders": op_list_paper_orders,
     "live_status": op_live_status, "live_order": op_live_order,

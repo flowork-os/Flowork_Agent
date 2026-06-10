@@ -1,3 +1,12 @@
+## 2026-06-11 — FlowAlpha v0.26.0: custom strategy (safe, no sandbox)
+
+- custom_strategy Op: a user-defined strategy from SAFE entry/exit formulas — the same AST-whitelist
+  evaluator as custom_indicator (no exec, no imports), compared against a threshold (e.g. entry
+  rsi(close,14) < 30, exit rsi(close,14) > 70). The formula yields a numeric series; the comparison
+  runs in plain Python; a stateful long/flat signal is backtested with the realistic simulator. This
+  closes the ScriptStrategy gap WITHOUT executing user code — verified: a malicious formula is
+  rejected by the whitelist. 40 Ops.
+
 ## 2026-06-11 — FlowAlpha v0.25.0: sentiment feed
 
 - sentiment Op: the Crypto Fear & Greed Index (public, free, no API key) — a market-wide sentiment
