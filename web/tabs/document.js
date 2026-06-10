@@ -279,6 +279,59 @@ http:
       sharp specialist agents and wiring them together.</p>`,
   },
   {
+    id: 'connections',
+    title: '🔌 Connections (in depth)',
+    body: `
+      <h3>One roof for everything coming in and out</h3>
+      <p>Connections has <strong>two kinds</strong>: <strong>channels</strong> (how people talk to your
+      agents) and <strong>MCP servers</strong> (tools from the outside world your agents can use).</p>
+
+      <h4>1) Channels — human ↔ agent</h4>
+      <p>The doors people use to reach an agent: Telegram, Discord, Slack, WhatsApp, CLI, and so on.</p>
+      <ul>
+        <li><strong>Install</strong> — drop a <code>.fwpack</code> (a <code>kind:channel</code> pack) into
+        the drop zone. It validates, extracts to its own folder, and hot-loads — no restart.</li>
+        <li>Each connector is a card with: its name + an on/off state, <strong>Enable / Disable</strong>,
+        <strong>Config</strong> (set its token and settings — the fields come straight from the
+        connector's own manifest, so secrets are masked and nothing is hardcoded; Save / Close), and
+        <strong>🗑 Uninstall</strong> (deletes its folder, config + token included).</li>
+        <li><em>Native</em> connectors are built in — they only have <strong>Config</strong> (no
+        enable/uninstall).</li>
+      </ul>
+
+      <h4>2) MCP — external tool servers for your agents</h4>
+      <p>MCP (Model Context Protocol) is a standard way to plug external tools into AI. Flowork speaks it
+      <strong>both ways</strong>.</p>
+      <p><strong>Using outside tools (MCP client).</strong> Paste the same <code>mcpServers</code> JSON
+      you'd use in any MCP-compatible app:</p>
+      <pre><code>{
+  "github": {
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-github"],
+    "env": { "GITHUB_TOKEN": "..." }
+  }
+}</code></pre>
+      <p>Hit <strong>Install + enable</strong>. Flowork starts that server and its tools become available
+      to all your agents (you can untick them per-agent later, in each agent's <em>Tools</em>). Each MCP
+      card shows the tools it exposes, plus <strong>Enable / Disable</strong> and
+      <strong>Uninstall</strong>.</p>
+      <p><strong>Exposing your agents (MCP server).</strong> Flowork can also <em>be</em> the MCP server,
+      so an outside AI app or IDE can drive your agents. It speaks MCP over stdio and exposes a small set
+      of tools: <code>chat</code> (talk to an agent — the same path as Telegram or the CLI), plus
+      <code>task_list</code>, <code>task_run</code>, and <code>task_result</code>. Point your external
+      client at the <code>flowork-mcp</code> command; the target agent comes from the
+      <code>FLOWORK_MCP_AGENT</code> setting.</p>
+
+      <h4>For developers — make a connector</h4>
+      <p>A channel connector is just another plug-and-play module: a <code>kind:channel</code>
+      <code>.fwpack</code>. Its manifest declares the config fields it needs (like a bot token), and the
+      Config panel renders them for you. Start from <code>templates/connector-template/</code>, fill in
+      the relay logic (a dumb pipe: a message comes in → an agent handles it → a reply goes out), build
+      it, and drop the <code>.fwpack</code> into this tab. For <strong>MCP</strong> you don't build
+      anything — you just paste a server's config (client side), or point an external client at Flowork's
+      MCP server (server side).</p>`,
+  },
+  {
     id: 'tech',
     title: '🔧 Technology',
     body: `
