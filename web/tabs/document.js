@@ -159,6 +159,82 @@ http:
       your allowlist.</p>`,
   },
   {
+    id: 'ai-agent',
+    title: '🤖 AI Agent (in depth)',
+    body: `
+      <h3>Where your agents live</h3>
+      <p>Each agent is its own little citizen — its own folder, its own memory, its own personality and
+      rules, and its own list of what it's allowed to do. They share nothing unless you wire them to.
+      Disable or delete one and nothing else even notices.</p>
+
+      <h4>Install an agent</h4>
+      <p>At the top is a drop zone: drag in a <code>.fwagent.zip</code> (or click to pick one). It must
+      contain a <code>manifest.json</code> and an <code>agent.wasm</code>, max 64 MiB. Once dropped, it
+      extracts to <code>~/.flowork/agents/&lt;id&gt;.fwagent/</code> and the kernel hot-loads it — no
+      restart. There's also a <strong>↻ Refresh</strong> button.</p>
+
+      <h4>The agent card &amp; its buttons</h4>
+      <p>Every installed agent is a card showing its <strong>ID, Kind, Version, State,</strong> and
+      <strong>Caps</strong> (the capabilities it's allowed). A switch flips it <em>Active / Disabled</em>.
+      The buttons:</p>
+      <ul>
+        <li><strong>⚙️ Setting</strong> — the main config popup (below).</li>
+        <li><strong>📊 Diagnostics</strong> — health and info for this agent.</li>
+        <li><strong>📚 Educational Errors</strong> — this agent's own "doctrine" store: the mistakes it turned into lessons.</li>
+        <li><strong>⧉ Duplicate</strong> — copy this agent into a new one.</li>
+        <li><strong>/ Slash</strong> — a quick slash command for it.</li>
+        <li><strong>⬇ Download</strong> — export it back to a <code>.fwagent.zip</code>.</li>
+        <li><strong>🗑 Remove</strong> — delete it (folder + workspace + brain).</li>
+      </ul>
+
+      <h4>The Setting popup</h4>
+      <p>Everything here is isolated to just this one agent:</p>
+      <ul>
+        <li><strong>Router</strong> — which LLM endpoint it calls, and the model name it asks for.</li>
+        <li><strong>Prompt</strong> — its system prompt: who it is, its persona and rules.</li>
+        <li><strong>Tools</strong> — tick what it may use: Telegram, the LLM router, a KV store, the filesystem (inside its own workspace), and outbound net fetch.</li>
+        <li><strong>Schedule</strong> — recurring jobs in cron format (<code>min hr dom mon dow</code>), one-shot or repeating.</li>
+        <li><strong>Skills</strong> — extra skills it can pick up.</li>
+      </ul>
+
+      <h4>For developers — make your own agent</h4>
+      <p>An agent is a folder, zipped as <code>.fwagent.zip</code>. The easiest start is to copy a
+      template — it's already a working "loket-native" agent that reaches every capability through one
+      kernel door: <code>call(cap, args)</code>. A folder looks like:</p>
+      <pre><code>my-agent.fwagent/
+├─ manifest.json   the contract (below)
+├─ agent.wasm      the compiled agent
+├─ main.go         your logic
+├─ prompt.md       its persona / system prompt
+└─ doktrin.md      its "lessons" doctrine</code></pre>
+      <p>The <code>manifest.json</code> is the contract:</p>
+      <pre><code>{
+  "id": "my-agent",
+  "version": "1.0.0",
+  "kind": "agent",
+  "display_name": "My Agent",
+  "entry": "agent.wasm",
+  "abi_version": 1,
+  "memory_max_mb": 16,
+  "timeout_call_ms": 120000,
+  "capabilities_required": [
+    "net:fetch:http://127.0.0.1:1987/api/kernel/call",
+    "state:read", "state:write", "time:read"
+  ],
+  "exposes_rpc": [
+    { "name": "handle_message",
+      "description": "Handle one message.",
+      "input_schema": { "type": "object", "properties": {} } }
+  ]
+}</code></pre>
+      <p><code>capabilities_required</code> is the agent's permission list — it can only do what's declared
+      there. <code>exposes_rpc</code> is the functions it offers (like <code>handle_message</code>). Build
+      it with plain Go — no special toolchain:</p>
+      <pre><code>GOOS=wasip1 GOARCH=wasm go build -o agent.wasm .</code></pre>
+      <p>Then zip the folder to <code>my-agent.fwagent.zip</code> and drag it into this tab. It hot-loads,
+      and you tune the rest (router, prompt, tools, schedule) from the Setting popup.</p>`,
+  },
+  {
     id: 'tech',
     title: '🔧 Technology',
     body: `
