@@ -103,7 +103,7 @@ cd Flowork_Agent
     body: `
       <h3>The idea Flowork plants a flag on</h3>
       <p>This is an <strong>original design principle</strong> — written down, dated, and public in the
-      repo (<code>EDUCATIONAL_ERRORS.md</code>), originated by the project's owner. Not a boast; a marker:
+      project's <a href="https://github.com/flowork-os/doc" target="_blank" rel="noopener">doc repository</a>, originated by the project's owner. Not a boast; a marker:
       here's the principle, here's the date we committed to it.</p>
       <p>Almost every AI treats a mistake as something to <em>hide</em> — suppress it, fine-tune it away,
       pretend it didn't happen. That throws away the richest learning signal there is. A child burned once
