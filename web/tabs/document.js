@@ -70,6 +70,91 @@ cd Flowork_Agent
       others don't have.</p>`,
   },
   {
+    id: 'brain',
+    title: '🧠 The Brain',
+    body: `
+      <h3>Every agent carries its own mind</h3>
+      <p>Each agent's memory lives in its own <code>state.db</code> — clone the folder and the memory
+      comes with it. Nothing is shared with other agents unless you wire it.</p>
+      <h4>How the brain is built</h4>
+      <ul>
+        <li><strong>Local memory (FTS5)</strong> — a fast keyword memory (SQLite FTS5 / BM25). No
+        embeddings, so it's lightweight, instant, and fully offline. The agent stores what it sees with
+        <code>brain_add</code> and recalls related memories with <code>brain_search</code>.</li>
+        <li><strong>Wings</strong> — every memory is filed in a "wing": <em>general, experience, eureka,</em>
+        or <em>constitution</em> (think labelled drawers). Duplicates are dropped by content hash.</li>
+        <li><strong>Two tiers</strong> — on top of each agent's own little memory sits a big shared corpus
+        (millions of entries, offline and fork-able) it can draw on.</li>
+        <li><strong>Dream → Eureka</strong> — while the agent is idle, a quiet pass looks over its history
+        and consolidates recurring patterns into <code>eureka</code> insights. The brain grows richer from
+        its own experience — no retraining.</li>
+        <li><strong>Immune system</strong> — an antibody scanner quarantines poisoned memories
+        (prompt-injection, jailbreak, low-confidence junk), so the memory never gets corrupted.</li>
+      </ul>
+      <h4>How a turn works</h4>
+      <p>A message comes in → the agent <strong>remembers</strong> it → <strong>recalls</strong> related
+      memories → <strong>thinks</strong> (calls the LLM with its doctrine + the recalled context) →
+      <strong>replies</strong>. Memory first, then thought.</p>
+      <p><strong>Principle:</strong> a brain that never forgets, and grows from its own past.</p>`,
+  },
+  {
+    id: 'educational-errors',
+    title: '📚 Educational Errors',
+    body: `
+      <h3>The idea Flowork plants a flag on</h3>
+      <p>This is an <strong>original design principle</strong> — written down, dated, and public in the
+      repo (<code>EDUCATIONAL_ERRORS.md</code>), originated by the project's owner. Not a boast; a marker:
+      here's the principle, here's the date we committed to it.</p>
+      <p>Almost every AI treats a mistake as something to <em>hide</em> — suppress it, fine-tune it away,
+      pretend it didn't happen. That throws away the richest learning signal there is. A child burned once
+      understands fire for life; an AI that erases its mistakes erases the very thing it could grow from.</p>
+      <p><strong>Flowork treats an error as EDUCATION.</strong> Every mistake is:</p>
+      <ul>
+        <li><strong>Captured</strong> — recorded as a real thing, not a buried log line.</li>
+        <li><strong>Explained</strong> — <em>why</em> it was wrong (an error without a lesson is just noise).</li>
+        <li><strong>Retained</strong> — kept as something the brain can recall, so the same wall isn't hit twice.</li>
+        <li><strong>Redemptive</strong> — the agent that erred is <em>quarantined, not deleted</em>, and given
+        a chance to correct. Punishment removes; education keeps and improves. A second chance, not a death
+        sentence.</li>
+      </ul>
+      <p>The loop in one line: <strong>make a mistake → capture and explain it → keep it as a lesson →
+      recall it next time → don't hit the same wall.</strong> The learning happens at runtime — no
+      retraining the whole model.</p>
+      <p>The pieces are real, not aspiration: a per-agent mistake store, mistake-recall before acting, a
+      reversible immune quarantine, and a Reaper that only prunes on sustained failure (one error earns
+      correction, not deletion).</p>
+      <p><strong>Principle:</strong> errors as growth, not as shame.</p>`,
+  },
+  {
+    id: 'router',
+    title: '🔀 The Router — and why to use ours',
+    body: `
+      <h3>Point your agents at Flowork's own router</h3>
+      <p>You can aim an agent at any LLM, but we recommend pointing it at Flowork's router
+      (<code>http://127.0.0.1:2402/v1/chat/completions</code>). Here's why it's worth it:</p>
+      <ul>
+        <li><strong>One door, model-agnostic</strong> — every agent calls one local router; swap the model
+        in one place, no API-key sprawl. It can route to a subscription model or a fully local one, picking
+        by priority.</li>
+        <li><strong>The anti-hallucination antibody</strong> — the real reason. Before the model answers,
+        the router pulls the agent's past mistakes, ranks them by <em>karma</em> (how often that mistake has
+        recurred) <strong>×</strong> <em>relevance</em> (how close it is to right now), and injects the top
+        few as warnings into the prompt. So a hallucination gets <em>harder to repeat over time, by
+        design</em> — deterministically, with no retraining and no GPU. You can't trust a weak model to
+        remember its own mistakes on its own, so the router forces the correction at the gateway.
+        Deterministic is strong; relying on the model's goodwill is fragile.</li>
+        <li><strong>The constitution, every turn</strong> — the router + brain inject the agent's sacred
+        doctrine on every single turn (a 5W1H gate, an identity guard, a truth rule), budget-capped so it
+        never bloats. Anti-hallucination isn't a setting here — it's law.</li>
+      </ul>
+      <p>This is exactly where <strong>Educational Errors</strong> becomes real: the mistakes the brain
+      keeps are what the router injects back as antibodies. Aim an agent at a raw third-party API and it
+      gets none of this — no antibody, no constitution, no learning loop. Aim it at our router and it gets
+      all three for free.</p>
+      <p><strong>Principle:</strong> make correction deterministic, at the gateway — don't hope the model
+      behaves.</p>`,
+  },
+  {
     id: 'menus',
     title: '🧭 Menus',
     body: `
