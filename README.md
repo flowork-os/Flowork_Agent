@@ -27,6 +27,10 @@ git clone https://github.com/flowork-os/Flowork_Agent.git && cd Flowork_Agent &&
 ```
 *One command. One Go binary. Live on `http://127.0.0.1:1987` — zero external services.*
 
+> 📖 **New here? Read the [handbook](doc/handbook/) first** — what it is, how to install, and a page
+> per menu. It's plain Markdown, readable right after you clone, before you run anything. Start with
+> [Getting Started](doc/handbook/getting-started.md).
+
 [Quick Start](#-quick-start) • [How It Works](#-how-it-works) • [vs OpenClaw / Hermes](#-openclaw-hermes-same-yard-different-bet) • [The Mind](#-the-mind-a-brain-that-learns--a-doctrine-that-wont-lie) • [Tools](#-117-tools-9-commands-zero-prompt-bloat) • [MCP & Connectors](#-connectors-two-ways) • [Security Radar](#-a-security-radar-that-watches-its-own-code) • [Architecture](#-architecture)
 
 </div>
