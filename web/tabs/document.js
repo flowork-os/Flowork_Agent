@@ -235,6 +235,50 @@ http:
       and you tune the rest (router, prompt, tools, schedule) from the Setting popup.</p>`,
   },
   {
+    id: 'group',
+    title: '👥 Group (in depth)',
+    body: `
+      <h3>A team of agents that tackle one task together</h3>
+      <p>Think a colony of ants: each does one small job, then someone brings the pieces together. You
+      don't build a group from scratch — you pick which agents are on the team and how their answers get
+      combined. The whole idea: many small, focused agents beat one big do-everything agent.</p>
+
+      <h4>Create a group</h4>
+      <p>At the top, type an <strong>ID</strong> and a <strong>Name</strong>, then hit
+      <strong>+ Create</strong>. The new group shows up below as a card.</p>
+
+      <h4>The group card</h4>
+      <ul>
+        <li><strong>Name &amp; ID</strong> — the name is editable; the id is shown underneath.</li>
+        <li><strong>Members</strong> — chips of available agents; tick the ones you want on the team. An
+        agent can only be on one group at a time, so the picker only shows agents that are free or
+        already yours.</li>
+        <li><strong>Synthesizer</strong> — one agent that takes everyone's answers and stitches them into
+        the final result (or "none").</li>
+        <li><strong>Task</strong> — what the team should do.</li>
+        <li><strong>Save</strong> — store the roster + task.</li>
+        <li><strong>🗑 Delete</strong> — remove the group.</li>
+      </ul>
+
+      <h4>How it runs</h4>
+      <p>When the group runs, it fans the one task out to each member over the internal "loket bus",
+      collects their answers, and the synthesizer combines them into one result. Members work in
+      isolation — that isolation is the point.</p>
+
+      <h4>For developers — make your own group</h4>
+      <p>The simplest group is <strong>no code</strong>: create one, tick members, pick a synthesizer,
+      write the task, Save.</p>
+      <p>Under the hood a group is just an <em>agent</em> built from a template — a coordinator whose
+      <code>handle_message</code> routes the task to its members through the loket door
+      (<code>call(cap, args)</code>) and gathers the answers. For custom orchestration — phases, specific
+      roles, a gather-then-decide flow — start from <code>templates/group-template/</code> (the generic
+      fan-out) or a richer real example like <code>templates/investment-group/</code> (a multi-phase
+      analyst team), edit <code>main.go</code>, then build it like any agent:</p>
+      <pre><code>GOOS=wasip1 GOARCH=wasm go build -o agent.wasm .</code></pre>
+      <p>Members are themselves ordinary agents — so building a great group is really about writing small,
+      sharp specialist agents and wiring them together.</p>`,
+  },
+  {
     id: 'tech',
     title: '🔧 Technology',
     body: `
