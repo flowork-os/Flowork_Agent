@@ -89,6 +89,76 @@ cd Flowork_Agent
       </ul>`,
   },
   {
+    id: 'threat-radar',
+    title: '🛡️ Threat Radar (in depth)',
+    body: `
+      <h3>Flowork's built-in security scanner</h3>
+      <p>Threat Radar is the one thing no other agent framework ships: a live dashboard that watches
+      the code your agents run, and lets you scan your own code or an authorized external target.</p>
+
+      <h4>The screen</h4>
+      <p>On the left, a radar sweep with three numbers under it — <strong>runs</strong>,
+      <strong>findings</strong>, and <strong>critical</strong> (red if anything critical is live, green
+      if you're clean). The critical number is the worst result from the <em>latest</em> scan of each
+      target, so it actually goes back down when you fix something. On the right are two panels:
+      <strong>Scan Log</strong> (every scan, newest first — status, whether it was manual or automatic,
+      the target, and how many hits) and <strong>Findings</strong> (click any run in the log to see
+      exactly what it found). It refreshes itself every few seconds.</p>
+
+      <h4>The buttons (top-right)</h4>
+      <ul>
+        <li><strong>⟳ Refresh</strong> — reload the scan list now.</li>
+        <li><strong>⊕ Scan Target</strong> — open the scan form. Pick a <em>Tool</em>, a <em>Target</em>,
+        optional <em>Args</em>, and a <em>Category</em> (<code>immune</code> = hardening your own code,
+        <code>pentest</code> = an authorized external target), then Run. The tool list and the target
+        list both come from an <strong>owner-editable allowlist</strong> — Flowork won't run a tool or
+        touch a target that isn't on it, and there's no shell in the middle. Nothing runs that you
+        didn't allow.</li>
+        <li><strong>≣ Arsenal</strong> — the catalog of everything the scanner can use: defensive code
+        auditors (the core — marked <code>CORE</code>, can't be removed), tools, and thousands of
+        detection checks. Search it, and flip any pack on/off with <em>Install / Uninstall</em>. The top
+        shows how many checks are installed right now.</li>
+      </ul>
+
+      <h4>For developers — make your own scanner</h4>
+      <p>A scanner "check" is just a <strong>nuclei template</strong> — a small YAML file that says
+      "look for this". Here's the smallest shape:</p>
+      <pre><code>id: exposed-env-file
+info:
+  name: Exposed .env file
+  author: you
+  severity: high
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/.env"
+    matchers:
+      - type: word
+        words:
+          - "DB_PASSWORD"</code></pre>
+      <p>Two ways to add it:</p>
+      <ol>
+        <li><strong>One check at a time</strong> — POST it to <code>/api/scanner/checks/add</code> with
+        <code>{ name, yaml }</code>. It runs through <code>nuclei -validate</code>; bad syntax is
+        rejected, a good one lands in <code>&lt;nuclei-templates&gt;/flowork-private/</code> and shows
+        up in the Arsenal right away.</li>
+        <li><strong>Ship a pack</strong> (plug-and-play, like a tool) — bundle many checks into a
+        <code>kind:scanner</code> <code>.fwpack</code> (a zip):
+        <pre><code>my-scanner.fwpack  (zip)
+├─ plugin.json   { "id": "my-scanner", "kind": "scanner",
+│                  "scanner": { "name": "My Scanner", "description": "…" } }
+└─ checks/
+   ├─ check-1.yaml
+   └─ check-2.yaml</code></pre>
+        Install it with <code>/api/scanner/packs/install</code>. Flowork validates every check, drops
+        any that fail, and the rest snap into the Arsenal — install/uninstall like any other module
+        (<code>/api/scanner/packs/uninstall</code>, list <code>/api/scanner/packs/installed</code>).</li>
+      </ol>
+      <p><strong>Safety:</strong> everything is owner-only and local; every check is validated before it
+      lands; templates run inert (no code execution); and scans only ever touch the tools and targets on
+      your allowlist.</p>`,
+  },
+  {
     id: 'tech',
     title: '🔧 Technology',
     body: `
