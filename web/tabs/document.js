@@ -1,8 +1,8 @@
 // document.js — Document tab: the in-app handbook for Flowork.
-// Tone: plain, human, like explaining it to a friend — not a spec sheet. Facts are grounded in
-// the repo README + product lineage (nothing invented), brand-neutral, English (global audience).
-// Tab chrome strings live in the existing `menu` i18n domain (menu.tab.document.*); the long-form
-// sections are authored content kept here as data. Layout: left section nav + a content pane.
+// Single scrolling page: a sticky table of contents on the left jumps to each section; all
+// sections live on one page (adding more is just another entry in SECTIONS). Tone is plain and
+// human; facts are grounded in the repo README + the real folder layout (nothing invented),
+// brand-neutral, English (global). Tab chrome strings come from the `menu` i18n domain.
 import { esc } from '../js/utils.js';
 import { t } from '/js/i18n.js';
 
@@ -104,6 +104,47 @@ cd Flowork_Agent
       </ul>`,
   },
   {
+    id: 'map',
+    title: '🗺️ Project Map',
+    body: `
+      <h3>Where everything lives</h3>
+      <p>The whole project is just folders. Here's the lay of the land:</p>
+      <pre><code>Flowork_Agent/
+├─ main.go + *.go ........ the microkernel + HTTP handlers (the "forever" core)
+├─ start.sh / stop.sh / restart.sh ... run / stop / rebuild scripts
+├─ go.mod ................ Go module
+│
+├─ internal/ ............. the core Go packages
+│   ├─ kernel/ , kernelhost/ ... the WASM microkernel + capability broker
+│   ├─ loket/ ............ the one "counter" every module calls through (the ABI)
+│   ├─ guardian/ , protector/ .. self-protection (tamper → safe-mode)
+│   ├─ floworkdb/ , agentdb/ ... databases (global + each agent's private brain)
+│   ├─ tools/ ............ the built-in tools
+│   ├─ scanner/ , scanapi/ , codescan/ , codemap/ ... the security scanner
+│   ├─ triggers/ , scheduler/ , taskflow/ ... automation
+│   ├─ connections/ , mcpclient/ , mcphub/ ... channels + MCP
+│   ├─ groupsapi/ , slashcmd/ , settingsapi/ ... groups, commands, settings
+│   ├─ floworkauth/ ...... owner login
+│   └─ routerclient/ , marketdata/ , watchdog/ , reaper, zombie/ ...
+│
+├─ web/ ................. the control panel UI
+│   ├─ index.html ....... the shell + sidebar
+│   ├─ js/ .............. app logic (app.js router, i18n, utils)
+│   ├─ tabs/ ............ one file per menu (agents.js, scanner.js, document.js …)
+│   ├─ i18n/ ............ translations (en, id)
+│   └─ css/ , vendor/
+│
+├─ apps/ ............... sandboxed apps (flowalpha, notepad)
+├─ agents/ ............. installed agents (each a .fwagent folder)
+├─ templates/ ......... starting points (agent, group, connector, lens, planner …)
+├─ cmd/ ............... extra entry points (CLI, TUI, MCP, chat)
+├─ sdk/ , doc/ , scripts/ , seeds/ , voice-backend/ ... SDK, docs, helpers, voice
+└─ README.md , CHANGELOG.md ... project docs</code></pre>
+      <p>The golden rule: the <strong>core</strong> (top-level <code>*.go</code> + <code>internal/kernel</code>)
+      is written once and left alone. Everything you'd ever add — a tool, a scanner, a channel, an app —
+      is its own folder that snaps on. Break one, fix one; the rest never notices.</p>`,
+  },
+  {
     id: 'features',
     title: '✨ Features',
     body: `
@@ -127,20 +168,24 @@ export async function render(mainEl) {
   mainEl.innerHTML = `
     <h2>${esc(L.title)}</h2>
     <div class="sub">${esc(L.desc)}</div>
-    <div class="doc-layout" style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
-      <nav class="doc-nav" style="display:flex;flex-direction:column;gap:6px;min-width:170px">
-        ${SECTIONS.map((s, i) => `<button class="doc-link${i === 0 ? ' active' : ''}" data-doc="${esc(s.id)}"
-          style="text-align:left;padding:8px 12px;border-radius:8px;cursor:pointer">${esc(s.title)}</button>`).join('')}
+    <div class="doc-layout" style="display:flex;gap:16px;align-items:flex-start">
+      <nav class="doc-toc" style="position:sticky;top:8px;display:flex;flex-direction:column;gap:4px;min-width:180px;max-height:calc(100vh - 120px);overflow:auto">
+        <div style="opacity:.55;font-size:.8em;letter-spacing:.08em;margin:2px 6px 4px">CONTENTS</div>
+        ${SECTIONS.map((s) => `<button class="doc-link" data-doc="${esc(s.id)}"
+          style="text-align:left;padding:7px 12px;border-radius:8px;cursor:pointer">${esc(s.title)}</button>`).join('')}
       </nav>
-      <div class="card doc-body" id="docBody" style="flex:1;min-width:280px;line-height:1.6;padding:18px"></div>
+      <div class="doc-body" style="flex:1;min-width:280px;line-height:1.6">
+        ${SECTIONS.map((s) => `<section id="doc-${esc(s.id)}" class="card" style="padding:18px;margin-bottom:16px;scroll-margin-top:12px">${s.body}</section>`).join('')}
+      </div>
     </div>`;
 
-  const body = mainEl.querySelector('#docBody');
-  const show = (id) => {
-    const s = SECTIONS.find((x) => x.id === id) || SECTIONS[0];
-    body.innerHTML = s.body;
-    mainEl.querySelectorAll('.doc-link').forEach((b) => b.classList.toggle('active', b.dataset.doc === s.id));
-  };
-  mainEl.querySelectorAll('.doc-link').forEach((b) => { b.onclick = () => show(b.dataset.doc); });
-  show(SECTIONS[0].id);
+  // Table of contents → smooth-scroll to the section (buttons, not #hash anchors, so the
+  // app's hash-based tab router is never disturbed).
+  mainEl.querySelectorAll('.doc-link').forEach((b) => {
+    b.onclick = () => {
+      const sec = mainEl.querySelector('#doc-' + b.dataset.doc);
+      if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      mainEl.querySelectorAll('.doc-link').forEach((x) => x.classList.toggle('active', x === b));
+    };
+  });
 }
