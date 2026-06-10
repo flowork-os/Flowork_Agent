@@ -1,3 +1,12 @@
+## 2026-06-11 — Owner-notify hub /api/notify (closes FlowAlpha #8)
+
+- Added a loopback-only POST /api/notify {text} endpoint that reuses notifyOwnerTelegram, so
+  sandboxed local apps + the scanner can push an owner Telegram alert WITHOUT ever holding the
+  token. Additive (main.go handler+route; one auth-exempt case in floworkauth, same loopback +
+  cross-site-drive-by defense as the exec endpoints). FlowAlpha points QUANT_NOTIFY_URL /
+  ~/.flowork/flowalpha-notify.json at it → fired alerts + bot actions reach the owner directly
+  (no agent in the loop, so no unintended action). Tested: hub returns ok + Telegram delivered.
+
 ## 2026-06-09 — FlowAlpha v0.23.0: notify config from env OR file (dormant until wired)
 
 - _notify reads QUANT_NOTIFY_URL + QUANT_NOTIFY_SECRET from env, or falls back to

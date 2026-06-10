@@ -34,6 +34,7 @@ import (
 	"crypto/rand"
 	"embed"
 	"encoding/hex"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -512,6 +513,11 @@ func main() {
 	mux.HandleFunc("/api/settings/keys", settingsAPI.KeysHandler)
 	mux.HandleFunc("/api/settings/notify", settingsAPI.NotifyHandler)
 	settingsapi.TestNotifyFunc = notifyOwnerTelegram
+	// Owner-notify HUB (§ FlowAlpha): a loopback-only endpoint so local sandboxed apps/scanner
+	// can push an owner Telegram alert WITHOUT holding the token. Additive; reuses
+	// notifyOwnerTelegram. Reachable without a session ONLY for a local non-browser caller
+	// (isPublicPath gates it + cross-site browser drive-by is cut there).
+	mux.HandleFunc("/api/notify", notifyHubHandler)
 	// Settings → YouTube (owner-level OAuth via GUI, no .scratch)
 	mux.HandleFunc("/api/settings/youtube", settingsAPI.YouTubeStatusHandler)
 	mux.HandleFunc("/api/settings/youtube/credentials", settingsAPI.YouTubeCredentialsHandler)
@@ -838,6 +844,35 @@ func notifyOwnerTelegram(ctx context.Context, text string) error {
 		return fmt.Errorf("telegram sendMessage status %d", resp.StatusCode)
 	}
 	return nil
+}
+
+// notifyHubHandler — POST /api/notify {"text":"..."} → owner Telegram via notifyOwnerTelegram.
+// Loopback-only (isPublicPath admits it only for a local non-browser caller; cross-site browser
+// drive-by is cut there). Lets sandboxed local apps push an owner alert without the token.
+func notifyHubHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return
+	}
+	var body struct {
+		Text string `json:"text"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&body); err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": "invalid json"})
+		return
+	}
+	text := strings.TrimSpace(body.Text)
+	if text == "" {
+		httpx.WriteJSON(w, map[string]any{"error": "text required"})
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+	if err := notifyOwnerTelegram(ctx, text); err != nil {
+		httpx.WriteJSON(w, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	httpx.WriteJSON(w, map[string]any{"ok": true})
 }
 
 // truncStr — potong string buat log.

@@ -236,6 +236,11 @@ func isPublicPath(r *http.Request) bool {
 		// (owner-local kernel control / module-to-module), consistent with
 		// tools/run; server binds 127.0.0.1 so it is safe from remote.
 		return r.Method == http.MethodPost && isLocalRequest(r)
+	case "/api/notify":
+		// POST — owner-notify hub: a local sandboxed app/scanner pushes an owner
+		// Telegram alert. Loopback-only (server binds 127.0.0.1; non-browser caller),
+		// reuses notifyOwnerTelegram. No token leaves the kernel.
+		return r.Method == http.MethodPost && isLocalRequest(r)
 	case "/api/taskflow/run", "/api/taskflow/category", "/api/taskflow/category/delete":
 		// POST/GET — FASE 4/5 Category Task trigger + CRUD. Loopback-only
 		// (Mr.Flow/scheduler/owner-local). Server bind 127.0.0.1 → aman remote.
