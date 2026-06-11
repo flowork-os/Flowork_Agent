@@ -408,12 +408,25 @@ func main() {
 	case "handle_message", "handle":
 		var msg struct {
 			Payload json.RawMessage `json:"payload"`
+			Text    string          `json:"text"`
 		}
 		_ = json.Unmarshal([]byte(args), &msg)
+		text := msg.Text
 		if len(msg.Payload) > 0 {
 			args = string(msg.Payload)
+			var p struct {
+				Text string `json:"text"`
+			}
+			_ = json.Unmarshal(msg.Payload, &p)
+			text = p.Text
 		}
-		runPromo(args)
+		// Scheduler / owner trigger: a bare "/auto" (or "auto_post") message runs the
+		// autonomous pipeline; any other text is treated as article source material.
+		if tt := strings.ToLower(strings.TrimSpace(text)); tt == "/auto" || tt == "auto_post" || tt == "auto" {
+			autoPost()
+		} else {
+			runPromo(args)
+		}
 	case "auto_post":
 		// Autonomous: pick the next un-covered topic, ground it in this group's
 		// brain (seeded facts), write, and post. No source material needed.
