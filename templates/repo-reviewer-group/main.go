@@ -219,10 +219,64 @@ func xLink(u string) string {
 	return delink(u)
 }
 
-// buildTweet assembles a tweet within X's 280-char limit. Links are rendered as
-// NON-clickable text (xLink) so X won't flag automation; since they're plain text
-// we budget on the REAL character count (no t.co 23-char trick). Trims ONLY the
-// free text — the repo reference, our Telegram invite, and hashtags stay whole.
+// xWeight approximates X's WEIGHTED length: X counts every non-ASCII rune (emoji,
+// CJK, the … ellipsis) as 2. A plain rune count under-estimates and trips error 186
+// ("tweet too long"), which is exactly the bug we hit with the 👉/💬 emoji.
+func xWeight(s string) int {
+	w := 0
+	for _, r := range s {
+		if r > 127 {
+			w += 2
+		} else {
+			w++
+		}
+	}
+	return w
+}
+
+// clampWeighted trims s so its X-weighted length fits maxW, appending … if cut.
+func clampWeighted(s string, maxW int) string {
+	if xWeight(s) <= maxW {
+		return s
+	}
+	w := 0
+	out := make([]rune, 0, len(s))
+	for _, r := range s {
+		cw := 1
+		if r > 127 {
+			cw = 2
+		}
+		if w+cw > maxW-2 { // leave room for the … (weight 2)
+			break
+		}
+		w += cw
+		out = append(out, r)
+	}
+	return strings.TrimSpace(string(out)) + "…"
+}
+
+// stripLabel drops a leading label the writer model sometimes prepends despite being
+// told to output only the post — including a whole first LINE like
+// "**X Post (199 chars):**" (short line containing post/tweet + ":").
+func stripLabel(s string) string {
+	s = strings.TrimSpace(s)
+	if i := strings.IndexByte(s, '\n'); i > 0 && i < 70 {
+		first := strings.ToLower(s[:i])
+		if strings.Contains(first, ":") && (strings.Contains(first, "post") || strings.Contains(first, "tweet")) {
+			s = strings.TrimSpace(s[i+1:])
+		}
+	}
+	for _, p := range []string{"**Post:**", "**Post**:", "**Tweet:**", "**Tweet**:", "Post:", "Tweet:", "X post:", "Here's the post:", "Here is the post:"} {
+		if len(s) >= len(p) && strings.EqualFold(s[:len(p)], p) {
+			s = strings.TrimSpace(s[len(p):])
+		}
+	}
+	return strings.Trim(strings.TrimSpace(s), "\"")
+}
+
+// buildTweet assembles a tweet within X's 280 WEIGHTED-char limit. Links are
+// rendered as NON-clickable text (xLink) so X won't flag automation. Trims ONLY the
+// free text (weighted) — the repo reference, our Telegram invite, and hashtags stay whole.
 func buildTweet(text, url, htags string) string {
 	tail := ""
 	if url != "" {
@@ -234,11 +288,11 @@ func buildTweet(text, url, htags string) string {
 	if htags != "" {
 		tail += "\n" + htags
 	}
-	budget := xLimit - len([]rune(tail)) - 2 // small safety margin
+	budget := xLimit - xWeight(tail) - 6 // weighted budget, margin for glyphs/ellipsis
 	if budget < 0 {
 		budget = 0
 	}
-	return trunc(text, budget) + tail
+	return clampWeighted(stripLabel(text), budget) + tail
 }
 
 // floworkTele returns our Telegram community invite. Configurable in Settings/kv
@@ -414,8 +468,15 @@ func xCreds() (authToken, ct0 string) {
 	return
 }
 
-// postX posts one tweet (browser headers defeat the 226 automation check).
-// Returns (url, ok, note).
+// ogImage returns GitHub's auto-generated social-preview (OpenGraph) image for a
+// repo — a wide 1280x640 card. SAME system for every post: a trending repo or a
+// Flowork product, just a different slug. The owner controls a Flowork repo's card
+// via that repo's Settings → Social preview (the README hero).
+func ogImage(slug string) string { return "https://opengraph.githubassets.com/1/" + slug }
+
+// postX posts one tweet (browser headers + de-linked text defeat the 226 automation
+// check). Text-only: attaching media via cookie auth proved unreliable (it broke the
+// post entirely), so X carries no image — Dev.to is the channel that shows the card.
 func postX(text string) (string, bool, string) {
 	authToken, ct0 := xCreds()
 	if authToken == "" || ct0 == "" {
@@ -466,7 +527,7 @@ func postX(text string) (string, bool, string) {
 
 // ── Dev.to (Forem) ───────────────────────────────────────────────────────────
 
-func postDevto(title, bodyMd string, tags []string) (string, bool, string) {
+func postDevto(title, bodyMd string, tags []string, img string) (string, bool, string) {
 	apiKey := strings.TrimSpace(os.Getenv("DEVTO_API_KEY"))
 	if apiKey == "" {
 		apiKey = cfg("devto_api_key")
@@ -476,6 +537,9 @@ func postDevto(title, bodyMd string, tags []string) (string, bool, string) {
 	}
 	publish := strings.EqualFold(cfg("publish"), "true")
 	article := map[string]any{"title": title, "body_markdown": bodyMd, "published": publish, "tags": tags}
+	if strings.TrimSpace(img) != "" {
+		article["main_image"] = img // Dev.to cover image (the repo's OG card)
+	}
 	reqBody, _ := json.Marshal(map[string]any{"article": article})
 	status, resp := hostFetch("POST", "https://dev.to/api/articles",
 		map[string]string{"Content-Type": "application/json", "api-key": apiKey, "User-Agent": "Flowork-repo-reviewer"},
@@ -492,6 +556,9 @@ func postDevto(title, bodyMd string, tags []string) (string, bool, string) {
 
 // ── Telegram (FLOWORK_OS) ────────────────────────────────────────────────────
 
+// postTelegram sends the FULL review (<=4096) as text + the clickable repo link.
+// Telegram auto-renders the GitHub link as a rich card preview (the repo's OG image),
+// so we get BOTH the image AND the full text in one message — no 1024 caption cap.
 func postTelegram(text string) (bool, string) {
 	chat := strings.TrimSpace(os.Getenv("FWOS_CHAT_ID"))
 	if chat == "" {
@@ -519,10 +586,12 @@ const tweetPrompt = "You are a recognised CODING & AI EXPERT who runs a respecte
 	"(max 200 chars) about the repo below, from its README. Make a dev curious: what it does + who it's for, in plain talk. " +
 	"Be genuine and SPECIFIC; you may name one honest caveat. No hype, no marketing voice, no link (it's appended). Only the post."
 
-const articlePrompt = "You are a senior software engineer and AI expert — a fair, experienced open-source reviewer. From the README, write a short HONEST review of the " +
-	"repo (Markdown). Cover: what it is, who it's for, what's genuinely good, an honest trade-off/limitation, and a one-line " +
-	"verdict. Be specific and grounded ONLY in the README — never invent features, numbers, or benchmarks. No hype. Reply " +
-	"EXACTLY as:\nTITLE: <a clear, non-clickbait title>\n\n<the markdown review body>"
+const articlePrompt = "You are a senior software engineer and AI expert — a fair, experienced open-source reviewer. From the README, write a THOROUGH, in-depth " +
+	"HONEST review ARTICLE (Markdown, aim for 600-1000 words with several ## sections). Cover, each as its own section: what it is and the problem it " +
+	"solves, how it works / its architecture, who it's for and real use-cases, what's genuinely good, honest trade-offs/limitations, how it compares to " +
+	"the usual alternatives, and a closing verdict. Be specific, technical, and grounded ONLY in the README — never invent features, numbers, or " +
+	"benchmarks; if the README is thin, go deeper on implications and use-cases rather than padding. No hype. Reply EXACTLY as:\nTITLE: <a clear, " +
+	"non-clickbait title>\n\n<the full markdown article body>"
 
 const hashtagPrompt = "You are a social-SEO researcher. From the repo's REAL domain, primary language, and what it actually does, " +
 	"pick the 3 hashtags developers genuinely search and follow on X to find a project like this — relevance and real reach " +
@@ -627,14 +696,25 @@ func reviewRepo() {
 	if idx := strings.Index(reviewBody, "\n"); idx >= 0 && strings.HasPrefix(strings.ToUpper(reviewBody), "TITLE:") {
 		reviewBody = strings.TrimSpace(reviewBody[idx+1:])
 	}
+	// Guard: NEVER publish a thin/empty article — a title + our footer with no real body
+	// is a terrible look (exactly the "Dev.to segitu doank" case). If the writer barely
+	// produced a body, skip this repo (mark it reviewed so the next run moves on).
+	if len([]rune(reviewBody)) < 400 {
+		markReviewed(slug)
+		emit(map[string]any{"group": selfID(), "repo": slug, "skipped": "review too thin (<400 chars) — not published", "body_len": len([]rune(reviewBody))})
+		return
+	}
 	tele := floworkTele() // our Telegram invite (configurable, not hardcoded)
 	// Dev.to article: the clean review + repo link + (ALWAYS) our Telegram invite —
 	// Dev.to is the one channel where our community link must always appear.
-	body := reviewBody + "\n\n---\n\n🔗 Repo: " + repoURL
+	// NOTE: never start a section with a bare "---" — Dev.to/Forem parses a leading
+	// "---" as YAML front matter and swallows everything until the next "---", which
+	// HIDES the article. Use headings/blockquote separators instead.
+	body := reviewBody + "\n\n🔗 **Repo:** " + repoURL
 	if tele != "" {
-		body += "\n\n💬 Join the Flowork community on Telegram: " + tele
+		body += "\n\n💬 **Join the Flowork community on Telegram:** " + tele
 	}
-	body += "\n\n_An honest review by the Flowork team — we read the README so you don't have to. We build open-source tooling too; this isn't a sponsored post._"
+	body += "\n\n> _An honest review by the Flowork team — we read the README so you don't have to. We build open-source tooling too; this isn't a sponsored post._"
 	devTags := sanitizeHashtagsList(askMember(hashtagAgent(), hashtagPrompt+"\n\n"+ctx))
 
 	short := strings.Trim(strings.TrimSpace(askMember(reviewerAgent(), tweetPrompt+"\n\n"+ctx)), "\"")
@@ -657,10 +737,18 @@ func reviewRepo() {
 	// invite still goes on Dev.to and X (where the audience is elsewhere).
 	tgText := "🔎 Trending on GitHub: " + slug + "\n\n" + trunc(reviewBody, tgBudget) + "\n\n🔗 " + repoURL
 
-	// 2. Post to all three channels (best-effort each).
-	devURL, devOK, devNote := postDevto(title, body, devTags)
+	// 2. Post to all three channels (best-effort each). Dev.to gets the repo's OG card
+	// as the cover image. X is text-only (de-linked, no image). Telegram needs NO
+	// separate image: it renders the clickable repo link as a rich card AND keeps the
+	// full text (clickable links are safe on Telegram).
+	devURL, devOK, devNote := postDevto(title, body, devTags, ogImage(slug))
 	xURL, xOK, xNote := postX(tweet)
 	tgOK, tgNote := postTelegram(tgText)
+
+	// Owner observability: the X result (e.g. a 226 automation flag during a burst, or
+	// "X cookies not set") is otherwise invisible since the emit goes to stdout.
+	kvSet("last_x_status", fmt.Sprint(xOK))
+	kvSet("last_x_note", xNote)
 
 	markReviewed(slug)
 	emit(map[string]any{

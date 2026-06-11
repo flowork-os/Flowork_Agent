@@ -529,7 +529,9 @@ func stripLeadingTitle(body, title string) string {
 }
 
 // repoFooter is appended to EVERY article — the two products we push, always linked.
-const repoFooter = "\n\n---\n\n**Flowork is open source — both products:**\n\n" +
+// NOTE: never start with a bare "---" — Dev.to/Forem reads a leading "---" as YAML
+// front matter and hides everything after it. Use a heading separator instead.
+const repoFooter = "\n\n## 🔗 Flowork is open source — both products\n\n" +
 	"- 🤖 **Flowork Agent** (the self-hosted agent OS): https://github.com/flowork-os/Flowork_Agent\n" +
 	"- 🛣️ **Flow Router** (the sovereign LLM gateway): https://github.com/flowork-os/flowork_Router\n"
 
@@ -659,7 +661,9 @@ func tagsAndPublish(rs roster, title, keywords, body, topic string) {
 		return
 	}
 
-	article := map[string]any{"title": title, "body_markdown": body, "published": publish, "tags": tagList}
+	article := map[string]any{"title": title, "body_markdown": body, "published": publish, "tags": tagList,
+		// Cover = Flowork Agent's OG social card (the flagship "how it works" hero).
+		"main_image": "https://opengraph.githubassets.com/1/flowork-os/Flowork_Agent"}
 	reqBody, _ := json.Marshal(map[string]any{"article": article})
 	status, resp := hostFetch("POST", "https://dev.to/api/articles",
 		map[string]string{"Content-Type": "application/json", "api-key": apiKey, "User-Agent": "Flowork-promo-devto"},

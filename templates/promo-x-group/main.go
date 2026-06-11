@@ -369,10 +369,63 @@ func xLink(u string) string {
 	return delink(u)
 }
 
-// buildTweet assembles a tweet within X's 280-char limit. Links are rendered as
-// NON-clickable text (xLink) so X won't flag automation; since they're plain text
-// we budget on the REAL character count (no t.co 23-char trick). Trims ONLY the
-// free text — the repo reference, our Telegram invite, and hashtags stay whole.
+// xWeight approximates X's WEIGHTED length (non-ASCII rune = 2, e.g. emoji 👉/💬,
+// CJK, the … ellipsis). A plain rune count under-estimates and trips error 186.
+func xWeight(s string) int {
+	w := 0
+	for _, r := range s {
+		if r > 127 {
+			w += 2
+		} else {
+			w++
+		}
+	}
+	return w
+}
+
+// clampWeighted trims s so its X-weighted length fits maxW, appending … if cut.
+func clampWeighted(s string, maxW int) string {
+	if xWeight(s) <= maxW {
+		return s
+	}
+	w := 0
+	out := make([]rune, 0, len(s))
+	for _, r := range s {
+		cw := 1
+		if r > 127 {
+			cw = 2
+		}
+		if w+cw > maxW-2 {
+			break
+		}
+		w += cw
+		out = append(out, r)
+	}
+	return strings.TrimSpace(string(out)) + "…"
+}
+
+// stripLabel drops a leading label the writer model sometimes prepends despite being
+// told to output only the post — including a whole first LINE like
+// "**X Post (199 chars):**" (short line containing post/tweet + ":").
+func stripLabel(s string) string {
+	s = strings.TrimSpace(s)
+	if i := strings.IndexByte(s, '\n'); i > 0 && i < 70 {
+		first := strings.ToLower(s[:i])
+		if strings.Contains(first, ":") && (strings.Contains(first, "post") || strings.Contains(first, "tweet")) {
+			s = strings.TrimSpace(s[i+1:])
+		}
+	}
+	for _, p := range []string{"**Post:**", "**Post**:", "**Tweet:**", "**Tweet**:", "Post:", "Tweet:", "X post:", "Here's the post:", "Here is the post:"} {
+		if len(s) >= len(p) && strings.EqualFold(s[:len(p)], p) {
+			s = strings.TrimSpace(s[len(p):])
+		}
+	}
+	return strings.Trim(strings.TrimSpace(s), "\"")
+}
+
+// buildTweet assembles a tweet within X's 280 WEIGHTED-char limit. Links are rendered
+// as NON-clickable text (xLink) so X won't flag automation. Trims ONLY the free text
+// (weighted) — the repo reference, our Telegram invite, and hashtags stay whole.
 func buildTweet(text, link, tags string) string {
 	tail := ""
 	if link != "" {
@@ -384,11 +437,11 @@ func buildTweet(text, link, tags string) string {
 	if tags != "" {
 		tail += "\n" + tags
 	}
-	budget := xLimit - len([]rune(tail)) - 2
+	budget := xLimit - xWeight(tail) - 6
 	if budget < 0 {
 		budget = 0
 	}
-	return tweetClampN(text, budget) + tail
+	return clampWeighted(stripLabel(text), budget) + tail
 }
 
 // postTweet posts ONE tweet (replyTo != "" chains it under a thread). Returns the
