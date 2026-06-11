@@ -20,7 +20,8 @@
     "net:fetch:https://api.telegram.org",
     "state:read",
     "state:write",
-    "time:read"
+    "time:read",
+    "mcp:web"
   ],
   "exposes_rpc": [
     {

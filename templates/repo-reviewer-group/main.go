@@ -246,6 +246,46 @@ func fetchReadme(slug string) string {
 	return ""
 }
 
+// githubMeta pulls real repo metadata (stars, language, topics, last push, …) via
+// the flowork-mcp-web MCP tool — Flowork's own Go MCP server — through the loket
+// tool.run. This is the MCP edge in action: an agent enriching itself with a tool
+// from a connected MCP server. Empty on any failure; the review still works from
+// the README alone.
+func githubMeta(slug string) string {
+	r, err := loketCall("tool.run", map[string]any{"name": "mcp_web_github_repo", "args": map[string]any{"repo": slug}})
+	if err != nil {
+		return ""
+	}
+	var w struct {
+		Result struct {
+			Output json.RawMessage `json:"output"`
+		} `json:"result"`
+		Output json.RawMessage `json:"output"`
+	}
+	_ = json.Unmarshal(r, &w)
+	raw := w.Result.Output
+	if len(raw) == 0 {
+		raw = w.Output
+	}
+	if len(raw) == 0 {
+		raw = r // last resort: the whole result
+	}
+	// MCP tool result shape: {content:[{type,text}]}
+	var c struct {
+		Content []struct {
+			Text string `json:"text"`
+		} `json:"content"`
+	}
+	if json.Unmarshal(raw, &c) == nil && len(c.Content) > 0 {
+		return strings.TrimSpace(c.Content[0].Text)
+	}
+	var s string
+	if json.Unmarshal(raw, &s) == nil && s != "" {
+		return strings.TrimSpace(s)
+	}
+	return ""
+}
+
 func reviewerAgent() string {
 	if v := kvGet("reviewer_agent"); v != "" {
 		return v
@@ -503,7 +543,13 @@ func reviewRepo() {
 	if i := strings.Index(slug, "/"); i >= 0 {
 		name = slug[i+1:]
 	}
-	ctx := "REPO: " + slug + "\n\nREADME:\n" + readme
+	// Enrich with REAL metadata from the MCP server (stars/language/topics/freshness).
+	meta := githubMeta(slug)
+	ctx := "REPO: " + slug + "\n"
+	if meta != "" {
+		ctx += "\nLIVE METADATA (from GitHub):\n" + meta + "\n"
+	}
+	ctx += "\nREADME:\n" + readme
 
 	// 1. Generate ALL content first (grounded in the README).
 	art := askMember(reviewerAgent(), articlePrompt+"\n\n"+ctx)
@@ -528,7 +574,7 @@ func reviewRepo() {
 
 	// Dry run: show the content, post nothing. Set kv/workspace "dry" = "true".
 	if strings.EqualFold(cfg("dry"), "true") {
-		emit(map[string]any{"group": selfID(), "repo": slug, "dry": true,
+		emit(map[string]any{"group": selfID(), "repo": slug, "dry": true, "mcp_meta": meta,
 			"title": title, "dev_tags": devTags, "tweet": tweet, "article": trunc(body, 1200)})
 		return
 	}

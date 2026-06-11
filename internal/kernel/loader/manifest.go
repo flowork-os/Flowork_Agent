@@ -2,11 +2,15 @@
 // Status: STABLE — DO NOT MODIFY without owner approval.
 // Owner: Aola Sahidin (Mr.Dev)
 // Repo: https://github.com/flowork-os/flowork-ai-agent
-// Locked at: 2026-05-30
+// Locked at: 2026-05-30 (re-locked 2026-06-11)
+// 2026-06-11 OWNER-APPROVED (frozen, KERNEL_FREEZE hash regenerated): primitive
+//   whitelist += "mcp" so an agent can hold `mcp:<connector>` and call MCP tools
+//   via tool.run (completes MCP-for-agents; the comment already invited this).
+//   Pure addition to the allowed set — does not loosen any existing rule.
 // Reason: Manifest parser + validator. Audit pass — DisallowUnknownFields
 //   (anti typo), strict regex (ID, semver, capability syntax), reject `*`
 //   wildcard (anti privesc), known primitive whitelist (fs/net/kv/exec/bus/
-//   secret/time/rpc/state), boundary checks (memory 1-512MB, timeout 1-300s),
+//   secret/time/rpc/state/mcp), boundary checks (memory 1-512MB, timeout 1-300s),
 //   batch error reporting (errors.Join), lifecycle nil-safe, duplicate RPC
 //   detection. Note: primitive whitelist butuh update saat spec evolve.
 //
@@ -399,10 +403,14 @@ func validateCapability(c string) error {
 	}
 	// Known primitive enforcement — drop in extras here as spec evolves.
 	switch primitive {
-	case "fs", "net", "kv", "exec", "bus", "secret", "time", "rpc", "state":
+	case "fs", "net", "kv", "exec", "bus", "secret", "time", "rpc", "state", "mcp":
 		// known. `state` ditambah 2026-05-29 untuk host_log_interaction
 		// (`state:write`) — log row ke tabel `interactions` di state.db
 		// agent. Lihat internal/kernel/runtime/host.go::logInteraction.
+		// `mcp` ditambah 2026-06-11 (owner-approved): cap `mcp:<connector>` —
+		// izin agent manggil tool MCP (mcp_<id>_<tool>) lewat tool.run; broker
+		// prefix-match `mcp:web` ke approved `mcp`. Tanpa ini MCP-buat-agent
+		// setengah jadi (tool kedaftar tapi agent gak bisa di-grant cap-nya).
 	default:
 		return fmt.Errorf("unknown primitive %q", primitive)
 	}

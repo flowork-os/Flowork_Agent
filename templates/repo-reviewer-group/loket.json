@@ -9,6 +9,7 @@
     "bus.request",
     "store.kv.get",
     "store.kv.set",
-    "time.now"
+    "time.now",
+    "tool.run"
   ]
 }
