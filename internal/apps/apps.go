@@ -226,6 +226,19 @@ func (m *Manager) Shutdown() {
 	m.procs = map[string]*proc{}
 }
 
+// Stop — matikan core SATU app (kalau jalan); state di memori-nya hilang dan op
+// berikutnya lazy-spawn ulang lewat ensureProc. Owner-approved 2026-06-11: dipakai
+// saat tab app DITUTUP di GUI (browser-tab shell) supaya app mati ketika gak ada
+// tab kebuka — proses cuma hidup selama tab-nya ada. No-op kalau app gak jalan.
+func (m *Manager) Stop(id string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if p, ok := m.procs[id]; ok {
+		p.close()
+		delete(m.procs, id)
+	}
+}
+
 // ── op → tool bridge (sisi AGENT) ────────────────────────────────────────────
 
 var nonTool = regexp.MustCompile(`[^a-z0-9_]+`)

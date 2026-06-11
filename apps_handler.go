@@ -108,6 +108,24 @@ func appsUninstallHandler() http.HandlerFunc {
 	}
 }
 
+// POST /api/apps/stop?id= — stop the app's core process (its GUI tab was closed).
+// Lazy: a later op respawns it. Keeps "app runs only while a tab is open".
+func appsStopHandler(mgr *apps.Manager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			tfWriteJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "POST only"})
+			return
+		}
+		id := strings.TrimSpace(r.URL.Query().Get("id"))
+		if !appPathIDRe.MatchString(id) {
+			tfWriteJSON(w, http.StatusBadRequest, map[string]any{"error": "id invalid"})
+			return
+		}
+		mgr.Stop(id)
+		tfWriteJSON(w, 0, map[string]any{"ok": true, "stopped": id})
+	}
+}
+
 // GET /api/apps/state?id= — versi state (GUI poll → sinkron dgn aksi agent).
 func appsStateHandler(mgr *apps.Manager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

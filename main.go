@@ -695,6 +695,7 @@ func main() {
 	mux.HandleFunc("/api/apps/op", appsOpHandler(appsMgr))
 	mux.HandleFunc("/api/apps/install", appsInstallHandler())     // upload .fwpack → hot-reload
 	mux.HandleFunc("/api/apps/uninstall", appsUninstallHandler()) // stop + unregister + rm
+	mux.HandleFunc("/api/apps/stop", appsStopHandler(appsMgr))    // stop core when its GUI tab closes
 	mux.HandleFunc("/api/apps/state", appsStateHandler(appsMgr))
 	mux.HandleFunc("/api/apps/", appsUIHandler(appsMgr)) // /api/apps/<id>/ui/* (iframe sandbox)
 	// GUARDIAN (FASE 1): status + arm/disarm. Owner-session gated (lewat authMgr.Middleware).

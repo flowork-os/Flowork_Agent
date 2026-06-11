@@ -1,150 +1,178 @@
-// apps.js — tab "App" (ROADMAP 4): launcher ala Android. Grid ikon app terinstall; klik →
-// buka GUI app DI DALAM Flowork (iframe TER-SANDBOX). App = program dipakai MANUSIA (GUI) &
-// AGENT (tool) di state yang SAMA. Core app LINTAS BAHASA. Tema Matrix × Jarvis.
+// apps.js — tab "App": a browser-like tabbed shell.
 //
-// KEAMANAN: GUI app pihak-ketiga dimuat di <iframe sandbox="allow-scripts"> TANPA
-// allow-same-origin → tak bisa baca session/DOM Flowork. Satu-satunya kanal = postMessage
-// {op,args} yang DIVALIDASI host (op terdaftar di manifest) lalu diteruskan ke /api/apps/op.
+// Behaviour (Chrome-style):
+//   • Tab 1 is the launcher (the app list) and can never be closed.
+//   • Opening an app spawns a NEW tab running that app's sandboxed GUI; open many.
+//   • An app only runs while its tab exists — closing a tab unloads the iframe and
+//     stops its bridge + state poll (the app dies). No tab → not running.
+//   • The shell lives in <body>, OUTSIDE #main, so switching sidebar menus only
+//     HIDES it (display:none keeps every iframe loaded → apps keep working). It
+//     reappears, still running, when you come back to the App menu.
+//   • Open tabs persist across a page refresh (localStorage); apps reload then.
+//
+// State lives on `window.__fwApps` (a singleton): the router re-imports each tab
+// module with a cache-buster, so module-scope would reset on every visit — the
+// shell + open tabs must outlive that. The DOM shell + iframes outlive it too.
+//
+// Security unchanged: each app GUI is a <iframe sandbox="allow-scripts"> (no
+// same-origin). Its only channel is postMessage {op,args}, validated against the
+// app's manifest ops, forwarded to /api/apps/op.
 import { esc, escAttr, fetchJSON, loadStyle } from '../js/utils.js';
 import { t } from '/js/i18n.js';
 
 const L = new Proxy({}, { get: (_, k) => t('apps.' + String(k)) });
+const LS_KEY = 'flowork_app_tabs';
+
+// singleton state — survives the router's cache-busted re-imports.
+const S = (window.__fwApps = window.__fwApps || {
+  shell: null, tabs: [], activeKey: '__home', seg: 'installed', restored: false, apps: [],
+});
 
 const CSS = `
-.ap{--mx:#22ff88;--cy:#36e6ff;--line:rgba(34,255,136,.20);position:relative;max-width:1040px;padding:6px 2px 50px;
-  color:#bdf5d6;font-family:ui-monospace,'JetBrains Mono',Consolas,monospace}
-.ap-hud{display:flex;align-items:center;gap:14px;margin:6px 0 20px}
-.ap-orb{width:40px;height:40px;position:relative;flex:0 0 auto}
-.ap-core{position:absolute;inset:38%;border-radius:50%;background:radial-gradient(circle,#aef6ff,var(--mx) 45%,transparent 72%);box-shadow:0 0 12px var(--mx);animation:appulse 2.4s ease-in-out infinite}
-.ap-ring{position:absolute;inset:0;border-radius:50%;border:1px solid var(--line);animation:apspin 7s linear infinite}
-@keyframes apspin{to{transform:rotate(360deg)}}@keyframes appulse{0%,100%{transform:scale(1)}50%{transform:scale(1.25);filter:brightness(1.3)}}
-.ap-h h2{margin:0;font-size:18px;letter-spacing:4px;color:#eafdff;text-shadow:0 0 12px rgba(34,255,136,.5)}
-.ap-h .sub{font-size:12px;color:var(--mx);opacity:.8;margin-top:4px}
-.ap-seg{display:flex;gap:6px;margin-bottom:16px}
-.ap-segbtn{padding:7px 14px;border-radius:6px;background:transparent;border:1px solid var(--line);color:#7fb9a6;cursor:pointer;font:inherit;font-size:12px;letter-spacing:1px}
-.ap-segbtn.on{background:rgba(34,255,136,.12);border-color:var(--mx);color:var(--mx)}
-.ap-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:14px}
-.ap-icon{position:relative;background:rgba(4,16,11,.6);border:1px solid var(--line);border-radius:12px;padding:14px 10px;text-align:center;cursor:pointer;transition:.15s}
-.ap-icon:hover{border-color:var(--mx);box-shadow:0 0 16px rgba(34,255,136,.25);transform:translateY(-2px)}
-.ap-icon img{width:48px;height:48px}
-.ap-icon .nm{font-size:12px;color:#eafdff;margin-top:8px;word-break:break-word}
-.ap-icon .rt{font-size:9px;letter-spacing:1px;color:#7fb9a6;margin-top:3px}
-.ap-icon .x{position:absolute;top:4px;right:7px;color:#ff476f;opacity:.6;font-size:13px;display:none}
-.ap-icon:hover .x{display:block}
-.ap-empty{color:var(--mx);opacity:.65;text-align:center;padding:24px;font-size:13px;border:1px dashed var(--line);border-radius:10px}
-.ap-store{background:rgba(4,16,11,.5);border:1px solid var(--line);border-radius:10px;padding:16px;color:#9fd9c4;font-size:13px;line-height:1.6}
-.ap-store code{color:var(--cy);background:rgba(54,230,255,.08);padding:1px 6px;border-radius:3px}
-/* jendela app (iframe) */
-.ap-win{position:fixed;inset:0;z-index:500;background:#06121a;display:flex;flex-direction:column}
-.ap-bar{display:flex;align-items:center;gap:12px;padding:9px 16px;border-bottom:1px solid var(--line);background:rgba(4,16,11,.9)}
-.ap-bar .t{color:var(--mx);letter-spacing:2px;font-size:13px}.ap-bar .tag{font-size:10px;color:#7fb9a6;border:1px solid var(--line);border-radius:3px;padding:2px 6px}
-.ap-bar button{margin-left:auto;background:rgba(34,255,136,.1);border:1px solid var(--line);color:var(--mx);border-radius:5px;padding:6px 14px;cursor:pointer;font:inherit}
-.ap-win iframe{flex:1;width:100%;border:0;background:#06121a}
+.app-shell { position:fixed; z-index:40; display:none; flex-direction:column; background:#0a0e16;
+  border-left:1px solid rgba(148,163,184,0.12); }
+.as-tabbar { display:flex; align-items:center; gap:3px; padding:7px 9px 0; background:rgba(15,23,42,0.7);
+  border-bottom:1px solid rgba(148,163,184,0.16); overflow-x:auto; flex:0 0 auto; }
+.as-tab { display:inline-flex; align-items:center; gap:8px; padding:8px 13px; border-radius:10px 10px 0 0;
+  background:transparent; color:#94a3b8; cursor:pointer; font-size:0.85rem; border:1px solid transparent;
+  border-bottom:none; white-space:nowrap; max-width:230px; transition:background .15s,color .15s; user-select:none; }
+.as-tab:hover { background:rgba(148,163,184,0.08); color:#cbd5e1; }
+.as-tab.on { background:#0e1320; color:#e2e8f0; border-color:rgba(148,163,184,0.18); }
+.as-tab img { width:18px; height:18px; border-radius:4px; flex:0 0 auto; }
+.as-tab .nm { overflow:hidden; text-overflow:ellipsis; }
+.as-tab .cl { margin-left:2px; opacity:.55; border-radius:5px; width:18px; height:18px; line-height:16px; text-align:center; flex:0 0 auto; }
+.as-tab .cl:hover { opacity:1; background:rgba(248,113,113,0.22); color:#f87171; }
+.as-tab.home { font-size:1.05rem; padding:8px 14px; }
+.as-body { flex:1; position:relative; overflow:hidden; }
+.as-pane { position:absolute; inset:0; display:none; overflow:auto; }
+.as-pane.on { display:block; }
+.as-pane iframe { width:100%; height:100%; border:0; background:#06121a; display:block; }
+
+/* ── launcher (home pane) — clean, matches the Agent/Group language ── */
+.as-launch { padding:26px 30px 50px; color:#e2e8f0; }
+.al-hero { padding:26px 30px; border-radius:16px; margin-bottom:22px;
+  background:linear-gradient(135deg, rgba(124,58,237,0.18) 0%, rgba(14,165,233,0.14) 52%, rgba(16,185,129,0.13) 100%);
+  border:1px solid rgba(148,163,184,0.2); }
+.al-eyebrow { font-size:0.72rem; letter-spacing:0.3em; color:#a78bfa; text-transform:uppercase; font-weight:600; margin-bottom:7px; }
+.al-h1 { margin:0; font-size:1.8rem; font-weight:700; background:linear-gradient(90deg,#c4b5fd,#67e8f9 55%,#6ee7b7);
+  -webkit-background-clip:text; background-clip:text; color:transparent; }
+.al-sub { margin:8px 0 0; color:#cbd5e1; font-size:0.92rem; }
+.al-seg { display:flex; gap:8px; margin-bottom:18px; }
+.al-segbtn { padding:7px 15px; border-radius:9px; background:rgba(2,6,18,0.4); border:1px solid rgba(148,163,184,0.2);
+  color:#94a3b8; cursor:pointer; font:inherit; font-size:0.84rem; transition:all .15s; }
+.al-segbtn.on { background:rgba(124,58,237,0.18); border-color:rgba(167,139,250,0.5); color:#c4b5fd; }
+.al-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:16px; }
+.al-card { position:relative; background:rgba(15,23,42,0.6); border:1px solid rgba(148,163,184,0.18); border-radius:14px;
+  padding:18px 12px; text-align:center; cursor:pointer; transition:all .15s; }
+.al-card:hover { border-color:rgba(167,139,250,0.5); transform:translateY(-2px); box-shadow:0 14px 34px -24px rgba(124,58,237,0.5); }
+.al-card img { width:46px; height:46px; }
+.al-card .nm { font-size:0.86rem; color:#f1f5f9; margin-top:9px; word-break:break-word; }
+.al-card .rt { font-size:0.66rem; letter-spacing:0.06em; color:#94a3b8; margin-top:4px; }
+.al-card .x { position:absolute; top:5px; right:8px; color:#f87171; opacity:0; font-size:0.85rem; transition:opacity .15s; }
+.al-card:hover .x { opacity:.7; }
+.al-card .x:hover { opacity:1; }
+.al-empty { color:#94a3b8; text-align:center; padding:30px; font-size:0.9rem; border:1px dashed rgba(148,163,184,0.25); border-radius:12px; }
+.al-store { background:rgba(15,23,42,0.5); border:1px solid rgba(148,163,184,0.18); border-radius:12px; padding:18px 20px;
+  color:#cbd5e1; font-size:0.9rem; line-height:1.65; }
+.al-store code { color:#67e8f9; background:rgba(14,165,233,0.1); padding:1px 6px; border-radius:4px; }
+.al-msg { font-size:0.84rem; margin-left:10px; }
 `;
 
-let apps = [];
-let seg = 'installed';
-let bridgeListener = null, poll = null;
+function topTab() { return (location.hash || '').replace(/^#\/?/, '').split('/')[0] || ''; }
+function visible() { return S.shell && S.shell.style.display !== 'none'; }
 
-export async function render(mainEl) {
-  loadStyle('apps', CSS);
-  try { const d = await fetchJSON('/api/apps'); apps = d.apps || []; } catch { apps = []; }
-  mainEl.innerHTML = `
-    <div class="ap">
-      <div class="ap-hud">
-        <div class="ap-orb"><div class="ap-ring"></div><div class="ap-core"></div></div>
-        <div class="ap-h"><h2>▦ ${esc(L.title)}</h2><div class="sub">${esc(L.sub)}</div></div>
-      </div>
-      <div class="ap-seg">
-        <button class="ap-segbtn ${seg === 'installed' ? 'on' : ''}" data-seg="installed">${esc(L.installed)}</button>
-        <button class="ap-segbtn ${seg === 'store' ? 'on' : ''}" data-seg="store">${esc(L.store)}</button>
-      </div>
-      <div id="apBody"></div>
-    </div>`;
-  mainEl.querySelectorAll('[data-seg]').forEach(b => b.onclick = () => { seg = b.dataset.seg; render(mainEl); });
-  renderBody(mainEl);
+function positionShell() {
+  const main = document.getElementById('main');
+  if (!main || !S.shell) return;
+  const r = main.getBoundingClientRect();
+  S.shell.style.left = r.left + 'px';
+  S.shell.style.top = r.top + 'px';
+  S.shell.style.width = r.width + 'px';
+  S.shell.style.height = r.height + 'px';
+}
+function show() { if (S.shell) { S.shell.style.display = 'flex'; positionShell(); } }
+function hide() { if (S.shell) S.shell.style.display = 'none'; } // iframes stay loaded → apps keep running
+
+function ensureShell() {
+  if (S.shell) return;
+  const shell = document.createElement('div');
+  shell.className = 'app-shell';
+  shell.innerHTML = `<div class="as-tabbar" id="asTabbar"></div><div class="as-body" id="asBody"></div>`;
+  document.body.appendChild(shell);
+  S.shell = shell;
+
+  // the launcher (home) tab — built once, never closed.
+  const home = document.createElement('div');
+  home.className = 'as-pane as-launch';
+  shell.querySelector('#asBody').appendChild(home);
+  S.tabs.push({ key: '__home', pane: home, home: true });
+
+  // keep the shell glued to #main as it resizes (nav collapse, window resize).
+  const main = document.getElementById('main');
+  if (main && 'ResizeObserver' in window) { new ResizeObserver(() => { if (visible()) positionShell(); }).observe(main); }
+  window.addEventListener('resize', () => { if (visible()) positionShell(); });
+  // route awareness: only the App menu shows the shell; others hide it (apps live on).
+  window.addEventListener('hashchange', () => { topTab() === 'apps' ? show() : hide(); });
+
+  renderTabbar();
+  activate('__home');
 }
 
-function renderBody(mainEl) {
-  const body = mainEl.querySelector('#apBody');
-  if (seg === 'store') {
-    body.innerHTML = `<div class="ap-store">${esc(L.store_intro)}<br><br>
-      <button class="ap-segbtn on" id="apPick">${esc(L.store_pick)}</button>
-      <input type="file" id="apFile" accept=".fwpack,.zip" style="display:none">
-      <span class="ap-msg" id="apMsg" style="margin-left:10px"></span><br><br>
-      ${esc(L.store_local)} <code>apps/&lt;id&gt;/</code> (manifest.json + core + ui/).<br>
-      ${esc(L.store_remote)}</div>`;
-    const file = body.querySelector('#apFile');
-    body.querySelector('#apPick').onclick = () => file.click();
-    file.onchange = () => { if (file.files[0]) installPack(mainEl, file.files[0]); };
-    return;
-  }
-  if (!apps.length) { body.innerHTML = `<div class="ap-empty">${esc(L.empty)}</div>`; return; }
-  body.innerHTML = `<div class="ap-grid">${apps.map(iconHTML).join('')}</div>`;
-  apps.forEach(a => {
-    const el = body.querySelector(`[data-app="${a.id}"]`); // id = slug server-validated, aman di selector
-    el.querySelector('.open').onclick = () => openApp(a);
-    el.querySelector('.x').onclick = (e) => { e.stopPropagation(); uninstallApp(mainEl, a); };
+// ── tab bar + panes ───────────────────────────────────────────────────────────
+function renderTabbar() {
+  const bar = S.shell.querySelector('#asTabbar');
+  bar.innerHTML = S.tabs.map((tb) => {
+    if (tb.home) return `<div class="as-tab home ${S.activeKey === tb.key ? 'on' : ''}" data-key="${escAttr(tb.key)}" title="${escAttr(L.title)}">▦</div>`;
+    const a = tb.app;
+    return `<div class="as-tab ${S.activeKey === tb.key ? 'on' : ''}" data-key="${escAttr(tb.key)}" title="${escAttr(a.name || a.id)}">
+      <img src="/api/apps/${escAttr(a.id)}/${escAttr(a.icon || 'ui/icon.svg')}" alt="" onerror="this.style.display='none'">
+      <span class="nm">${esc(a.name || a.id)}</span>
+      <span class="cl" title="${escAttr(L.close)}">✕</span>
+    </div>`;
+  }).join('');
+  bar.querySelectorAll('.as-tab').forEach((el) => {
+    const key = el.dataset.key;
+    el.onclick = (e) => { if (e.target.classList.contains('cl')) { e.stopPropagation(); closeTab(key); } else activate(key); };
   });
 }
 
-function iconHTML(a) {
-  const native = a.runtime === 'process' || a.runtime === 'http';
-  return `<div class="ap-icon" data-app="${escAttr(a.id)}">
-    <span class="x" title="${escAttr(L.uninstall)}">✕</span>
-    <div class="open">
-      <img src="/api/apps/${escAttr(a.id)}/${escAttr(a.icon || 'ui/icon.svg')}" alt="" onerror="this.style.opacity=.3">
-      <div class="nm">${esc(a.name || a.id)}</div>
-      <div class="rt">${native ? '🔓 native' : '🔒 sandbox'} · ${esc(a.runtime || 'wasm')}</div>
-    </div>
-  </div>`;
+function activate(key) {
+  S.activeKey = key;
+  S.tabs.forEach((tb) => tb.pane.classList.toggle('on', tb.key === key));
+  renderTabbar();
+  persist();
 }
 
-// installPack — upload .fwpack → /api/apps/install. Consent exec: app jalanin program di komputer.
-async function installPack(mainEl, f) {
-  const msg = mainEl.querySelector('#apMsg');
-  if (!confirm(L.store_exec_warn)) return;
-  msg.textContent = '⟳ ' + L.installing;
-  const fd = new FormData(); fd.append('file', f);
-  try {
-    // raw fetch: FormData butuh boundary multipart sendiri (fetchJSON maksa JSON content-type).
-    const resp = await fetch('/api/apps/install?approve_exec=1', { method: 'POST', body: fd });
-    const r = await resp.json();
-    if (!resp.ok || r.error) throw new Error(r.error || ('HTTP ' + resp.status));
-    msg.textContent = '✓ ' + L.install_ok + (r.app ? ' — ' + r.app : '');
-    apps = (await fetchJSON('/api/apps')).apps || [];
-    seg = 'installed'; render(mainEl);
-  } catch (e) { msg.textContent = '✕ ' + L.install_fail + ': ' + (e.message || e); }
+function closeTab(key) {
+  const i = S.tabs.findIndex((tb) => tb.key === key);
+  if (i < 0 || S.tabs[i].home) return; // never close the launcher
+  const tb = S.tabs[i];
+  if (tb.poll) clearInterval(tb.poll);
+  if (tb.bridge) window.removeEventListener('message', tb.bridge);
+  tb.pane.remove(); // unloads the iframe (client side)
+  // stop the core PROCESS too — an app runs only while a tab is open (best-effort).
+  if (tb.app) fetch('/api/apps/stop?id=' + encodeURIComponent(tb.app.id), { method: 'POST' }).catch(() => {});
+  S.tabs.splice(i, 1);
+  if (S.activeKey === key) activate(S.tabs[Math.max(0, i - 1)].key);
+  else { renderTabbar(); persist(); }
 }
 
-// uninstallApp — copot app (stop core + unregister tool + hapus folder), lalu refresh grid.
-async function uninstallApp(mainEl, a) {
-  if (!confirm(L.uninstall_confirm.replace('{name}', a.name || a.id))) return;
-  try {
-    await fetchJSON('/api/apps/uninstall?id=' + encodeURIComponent(a.id), { method: 'POST' });
-    apps = (await fetchJSON('/api/apps')).apps || [];
-    render(mainEl);
-  } catch (e) { alert((L.install_fail || 'failed') + ': ' + (e.message || e)); }
-}
-
-// openApp — buka GUI app di iframe ter-sandbox + pasang bridge postMessage + poll state.
+// ── open an app in a tab (sandboxed iframe + bridge + state poll) ──────────────
 function openApp(a) {
-  closeWin();
-  const ops = new Set((a.operations || []).map(o => o.name)); // validasi op dari iframe
-  const win = document.createElement('div');
-  win.className = 'ap-win'; win.id = 'apWin';
-  win.innerHTML = `
-    <div class="ap-bar"><span class="t">▦ ${esc(a.name || a.id)}</span>
-      <span class="tag">${a.runtime === 'process' ? '🔓 native' : '🔒 sandbox'}</span>
-      <button id="apClose">✕ ${esc(L.close)}</button></div>
-    <iframe id="apFrame" sandbox="allow-scripts" src="/api/apps/${escAttr(a.id)}/${escAttr(a.gui_entry || 'ui/index.html')}"></iframe>`;
-  document.body.appendChild(win);
-  const frame = win.querySelector('#apFrame');
-  win.querySelector('#apClose').onclick = closeWin;
+  const key = 'app:' + a.id;
+  if (S.tabs.find((tb) => tb.key === key)) { activate(key); return; }
 
-  // bridge: iframe → host (validasi op) → /api/apps/op → balas ke iframe.
-  bridgeListener = async (e) => {
-    if (e.source !== frame.contentWindow) return;
+  const pane = document.createElement('div');
+  pane.className = 'as-pane';
+  const frame = document.createElement('iframe');
+  frame.sandbox = 'allow-scripts';
+  frame.src = `/api/apps/${a.id}/${a.gui_entry || 'ui/index.html'}`;
+  pane.appendChild(frame);
+  S.shell.querySelector('#asBody').appendChild(pane);
+
+  const ops = new Set((a.operations || []).map((o) => o.name));
+  const bridge = async (e) => {
+    if (e.source !== frame.contentWindow) return; // only this tab's iframe
     const d = e.data || {};
     if (d.fw !== 1 || d.kind !== 'op') return;
     const reply = (extra) => frame.contentWindow.postMessage({ fw: 1, kind: 'res', reqId: d.reqId, ...extra }, '*');
@@ -154,17 +182,121 @@ function openApp(a) {
       reply({ ok: true, result: r.result });
     } catch (err) { reply({ ok: false, error: String(err.message || err) }); }
   };
-  window.addEventListener('message', bridgeListener);
+  window.addEventListener('message', bridge);
 
-  // poll state: kalau agent mengubah (version naik) → kasih tau iframe biar re-render.
   let lastVer = -1;
-  poll = setInterval(async () => {
+  const poll = setInterval(async () => {
     try { const s = await fetchJSON('/api/apps/state?id=' + encodeURIComponent(a.id)); if (s.version !== lastVer) { lastVer = s.version; frame.contentWindow.postMessage({ fw: 1, kind: 'state', version: s.version }, '*'); } } catch {}
   }, 2000);
+
+  S.tabs.push({ key, app: a, pane, frame, bridge, poll });
+  activate(key);
 }
 
-function closeWin() {
-  if (poll) { clearInterval(poll); poll = null; }
-  if (bridgeListener) { window.removeEventListener('message', bridgeListener); bridgeListener = null; }
-  const w = document.getElementById('apWin'); if (w) w.remove();
+// ── persistence (survive refresh) ──────────────────────────────────────────────
+function persist() {
+  try {
+    const open = S.tabs.filter((tb) => !tb.home).map((tb) => tb.app.id);
+    localStorage.setItem(LS_KEY, JSON.stringify({ open, active: S.activeKey }));
+  } catch {}
+}
+function restoreTabs() {
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem(LS_KEY) || '{}'); } catch { saved = {}; }
+  for (const id of saved.open || []) {
+    const a = S.apps.find((x) => x.id === id);
+    if (a) openApp(a);
+  }
+  if (saved.active && S.tabs.some((tb) => tb.key === saved.active)) activate(saved.active);
+  else activate('__home');
+}
+
+// ── launcher (home pane) render ────────────────────────────────────────────────
+async function refreshApps() {
+  try { S.apps = (await fetchJSON('/api/apps')).apps || []; } catch { S.apps = []; }
+  renderHome();
+}
+
+function renderHome() {
+  const home = S.tabs.find((tb) => tb.home);
+  if (!home) return;
+  home.pane.innerHTML = `
+    <div class="al-hero">
+      <div class="al-eyebrow">FLOWORK · APPS</div>
+      <h1 class="al-h1">${esc(L.title)}</h1>
+      <p class="al-sub">${esc(L.sub)}</p>
+    </div>
+    <div class="al-seg">
+      <button class="al-segbtn ${S.seg === 'installed' ? 'on' : ''}" data-seg="installed">${esc(L.installed)}</button>
+      <button class="al-segbtn ${S.seg === 'store' ? 'on' : ''}" data-seg="store">${esc(L.store)}</button>
+    </div>
+    <div id="alBody"></div>`;
+  home.pane.querySelectorAll('[data-seg]').forEach((b) => b.onclick = () => { S.seg = b.dataset.seg; renderHome(); });
+  renderHomeBody(home.pane.querySelector('#alBody'));
+}
+
+function renderHomeBody(body) {
+  if (S.seg === 'store') {
+    body.innerHTML = `<div class="al-store">${esc(L.store_intro)}<br><br>
+      <button class="al-segbtn on" id="alPick">${esc(L.store_pick)}</button>
+      <input type="file" id="alFile" accept=".fwpack,.zip" style="display:none">
+      <span class="al-msg" id="alMsg"></span><br><br>
+      ${esc(L.store_local)} <code>apps/&lt;id&gt;/</code> (manifest.json + core + ui/).<br>
+      ${esc(L.store_remote)}</div>`;
+    const file = body.querySelector('#alFile');
+    body.querySelector('#alPick').onclick = () => file.click();
+    file.onchange = () => { if (file.files[0]) installPack(file.files[0]); };
+    return;
+  }
+  if (!S.apps.length) { body.innerHTML = `<div class="al-empty">${esc(L.empty)}</div>`; return; }
+  body.innerHTML = `<div class="al-grid">${S.apps.map(cardHTML).join('')}</div>`;
+  S.apps.forEach((a) => {
+    const el = body.querySelector(`[data-app="${a.id}"]`);
+    el.onclick = (e) => { if (e.target.classList.contains('x')) { e.stopPropagation(); uninstallApp(a); } else openApp(a); };
+  });
+}
+
+function cardHTML(a) {
+  const native = a.runtime === 'process' || a.runtime === 'http';
+  return `<div class="al-card" data-app="${escAttr(a.id)}">
+    <span class="x" title="${escAttr(L.uninstall)}">✕</span>
+    <img src="/api/apps/${escAttr(a.id)}/${escAttr(a.icon || 'ui/icon.svg')}" alt="" onerror="this.style.opacity=.3">
+    <div class="nm">${esc(a.name || a.id)}</div>
+    <div class="rt">${native ? '🔓 native' : '🔒 sandbox'} · ${esc(a.runtime || 'wasm')}</div>
+  </div>`;
+}
+
+async function installPack(f) {
+  const home = S.tabs.find((tb) => tb.home);
+  const msg = home && home.pane.querySelector('#alMsg');
+  if (!confirm(L.store_exec_warn)) return;
+  if (msg) msg.textContent = '⟳ ' + L.installing;
+  const fd = new FormData(); fd.append('file', f);
+  try {
+    const resp = await fetch('/api/apps/install?approve_exec=1', { method: 'POST', body: fd });
+    const r = await resp.json();
+    if (!resp.ok || r.error) throw new Error(r.error || ('HTTP ' + resp.status));
+    if (msg) msg.textContent = '✓ ' + L.install_ok + (r.app ? ' — ' + r.app : '');
+    S.seg = 'installed';
+    await refreshApps();
+  } catch (e) { if (msg) msg.textContent = '✕ ' + L.install_fail + ': ' + (e.message || e); }
+}
+
+async function uninstallApp(a) {
+  if (!confirm(L.uninstall_confirm.replace('{name}', a.name || a.id))) return;
+  try {
+    closeTab('app:' + a.id); // an open app must stop before its folder is removed
+    await fetchJSON('/api/apps/uninstall?id=' + encodeURIComponent(a.id), { method: 'POST' });
+    await refreshApps();
+  } catch (e) { alert((L.install_fail || 'failed') + ': ' + (e.message || e)); }
+}
+
+// ── entry: called by the router whenever the App menu is opened ────────────────
+export async function render(mainEl) {
+  loadStyle('apps', CSS);
+  ensureShell();          // singleton — built once, survives menu switches
+  mainEl.innerHTML = '';  // the shell overlays #main; keep #main empty
+  await refreshApps();    // refresh the launcher list
+  if (!S.restored) { S.restored = true; restoreTabs(); } // reopen tabs saved before a refresh
+  show();
 }
