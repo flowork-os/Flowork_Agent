@@ -279,6 +279,14 @@ func markPosted(topic, title, url string) {
 	}
 }
 
+// bumpCycle increments the rotation counter (kv "cycle") — how many full passes
+// through the topic backlog this colony has made. Purely for visibility.
+func bumpCycle() {
+	n := 0
+	fmt.Sscanf(kvGet("cycle"), "%d", &n)
+	kvSet("cycle", fmt.Sprintf("%d", n+1))
+}
+
 // seedFacts ingests grounding docs into this group's brain — one drawer per topic
 // (room). It also maintains the kv "topics" backlog (the ordered list of topics
 // the group can write about). Re-runnable: brain dedups identical drawers, and
@@ -337,10 +345,22 @@ func autoPost() {
 		}
 	}
 	if next == "" {
-		emit(map[string]any{"group": selfID(), "status": "all topics covered",
-			"topics_total": len(topics), "posted_total": len(posted),
-			"hint": "seed more topics (seed_facts), or clear kv 'posted_topics' to recycle"})
-		return
+		// All topics covered → RECYCLE: clear the ledger and start the cycle over
+		// from the top. The writer regenerates fresh copy each pass, so the colony
+		// never runs dry — it just keeps rotating through the backlog.
+		kvSet("posted_topics", "")
+		bumpCycle()
+		for _, tp := range topics {
+			if strings.HasPrefix(tp, "_") {
+				continue
+			}
+			next = tp
+			break
+		}
+		if next == "" {
+			emit(map[string]any{"group": selfID(), "status": "no postable topics", "topics_total": len(topics)})
+			return
+		}
 	}
 
 	facts := strings.Join(brainSearch(next, 6), "\n\n---\n\n")
