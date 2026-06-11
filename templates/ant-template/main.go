@@ -210,13 +210,15 @@ func handleMessage(argsJSON string) {
 	//    store steps above already prove the loket works without the router.
 	reply := ""
 	cfg := loadConfig()
-	// Persona + doctrine come from transparent files in the agent's OWN folder
-	// (prompt.md / doktrin.md). Fall back to config, then to a built-in default,
-	// so a fresh copy still works out of the box. The doctrine goes FIRST as a
-	// system message — it is the sacred, always-injected anti-halu layer.
-	persona := readWS("prompt.md")
-	if persona == "" {
-		persona = cfg.Prompt
+	// PERSONA RULE (doc/handbook/menu-ai-agent.md): the persona lives in the GUI
+	// (kv.prompt → FLOWORK_AGENT_CONFIG.prompt). Config is AUTHORITATIVE so a GUI
+	// edit always wins; prompt.md is only a seed (boot copies it into kv.prompt once)
+	// and is read here merely as a last-resort fallback for a brand-new copy whose
+	// prompt hasn't been seeded yet. The doctrine (doktrin.md) is the always-injected
+	// anti-halu layer and goes FIRST as a system message.
+	persona := cfg.Prompt
+	if strings.TrimSpace(persona) == "" {
+		persona = readWS("prompt.md")
 	}
 	doktrin := readWS("doktrin.md")
 
@@ -234,10 +236,33 @@ func handleMessage(argsJSON string) {
 		_ = json.Unmarshal(r, &s)
 		reply = s.Content
 		steps["llm"] = "ok"
+		// LOCAL LEARNING (two-tier brain rule, doc/handbook/menu-ai-agent.md): record
+		// the completed job as an experience drawer in the ant's OWN brain so it
+		// accumulates a memory of its work — recalled next time via brain.search above.
+		learn("experience", "job", "Did: "+trunc(in.Text, 200)+"\n→ "+trunc(reply, 400))
 	} else {
 		steps["llm"] = "offline: " + err.Error()
-		reply = fmt.Sprintf("[title-writer] remembered your message (%d related memories). LLM offline.", hits)
+		reply = fmt.Sprintf("[%s] remembered your message (%d related memories). LLM offline.", selfID(), hits)
+		// LOCAL LEARNING: capture the failure as a mistake drawer so it surfaces on
+		// future recalls — the local half of "learn from mistakes" (the router holds
+		// the shared antibody layer; this is each body's own memory of what went wrong).
+		learn("experience", "mistake", "Mistake — LLM failed for: "+trunc(in.Text, 200)+"\nerr: "+trunc(err.Error(), 200))
 	}
 
 	emit(map[string]any{"reply": reply, "agent": selfID(), "loket_steps": steps})
+}
+
+// learn writes a drawer to the ant's OWN local brain (store.brain.add) — the local
+// half of Flowork's two-tier brain (the Router holds the shared 5M brain). `wing`
+// groups the memory (experience/eureka/…), `room` is a finer tag (job/mistake/…).
+func learn(wing, room, content string) {
+	_, _ = loketCall("store.brain.add", map[string]any{"content": content, "wing": wing, "room": room})
+}
+
+// trunc caps a string for compact drawers/logs.
+func trunc(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
 }
