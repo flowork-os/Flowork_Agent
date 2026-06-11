@@ -200,10 +200,11 @@ func (h *Handler) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Members     []string `json:"members"`
-		Synthesizer string   `json:"synthesizer"`
-		Task        string   `json:"task"`
-		DisplayName string   `json:"display_name"`
+		Members     []string          `json:"members"`
+		Synthesizer string            `json:"synthesizer"`
+		Task        string            `json:"task"`
+		DisplayName string            `json:"display_name"`
+		Config      map[string]string `json:"config"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeErr(w, http.StatusBadRequest, "bad body: "+err.Error())
@@ -242,6 +243,20 @@ func (h *Handler) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if err == nil && strings.TrimSpace(body.DisplayName) != "" {
 		err = st.KVSet("display_name", strings.TrimSpace(body.DisplayName))
+	}
+	// Per-group config/secrets (e.g. a platform API key like devto_api_key) — owner-set,
+	// written to the group's OWN kv store, which the coordinator reads via store.kv.
+	// Reserved roster keys can't be clobbered. Stays local (never pushed, never hardcoded).
+	if err == nil {
+		reserved := map[string]bool{"group": true, "members": true, "synthesizer": true, "task": true, "display_name": true}
+		for k, v := range body.Config {
+			if k = strings.TrimSpace(k); k == "" || reserved[k] {
+				continue
+			}
+			if err = st.KVSet(k, strings.TrimSpace(v)); err != nil {
+				break
+			}
+		}
 	}
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err.Error())

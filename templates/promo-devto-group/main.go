@@ -1,16 +1,19 @@
 // Package main is the Flowork "promo-devto" group — a per-platform promo colony
-// (pasukan-semut) for Dev.to. ONE platform = ONE group: the writer drafts an
-// article from source material (changelog/features), the honesty editor strips any
-// overclaim, and the coordinator publishes it to Dev.to via the Forem API.
+// (pasukan-semut) for Dev.to. ONE platform = ONE group. The pipeline is three
+// ordered specialist members, then the coordinator publishes:
 //
-// Reaches every capability through the single kernel counter (the loket) via
-// call(cap, args), exactly like the investment group. The Forem POST goes out via
-// the same host_net_fetch the loket uses — the coordinator carries net:fetch:* so
-// it may reach dev.to directly. The Dev.to API key + publish flag + tags live in
-// THIS group's own loket kv store (set from the Group Colony menu), never hardcoded.
+//	1. SEO     → decides the TITLE + KEYWORDS
+//	2. WRITER  → writes the article body (weaving the keywords, honest, no hype)
+//	3. TAGS    → picks the best Dev.to tags
+//	→ coordinator appends the repo links + POSTs to the Dev.to Forem API.
 //
-// Members reuse the stock ant wasm (same binary, different persona file) — only this
-// coordinator is custom. Build: GOOS=wasip1 GOARCH=wasm go build -o agent.wasm .
+// Every article ALWAYS carries both product repo links (Flowork Agent + Flow
+// Router) — appended deterministically by the coordinator, not left to the model.
+// Reaches every capability through the loket (call(cap,args)); the Forem POST goes
+// out via host_net_fetch (the coordinator carries net:fetch:https://dev.to). API
+// key + publish flag + tags live in this group's kv or workspace, never hardcoded.
+// Members reuse the stock ant wasm (persona-only). Build:
+// GOOS=wasip1 GOARCH=wasm go build -o agent.wasm .
 package main
 
 import (
@@ -44,8 +47,7 @@ func emit(v any) {
 func selfID() string { return os.Getenv("FLOWORK_AGENT_ID") }
 
 // readWS reads a plain file from this group's OWN folder (mounted at /workspace) —
-// the transparent, editable way for the owner to drop a secret/setting without a
-// menu. Used as a fallback for the Dev.to API key + publish flag + tags. "" if absent.
+// the transparent way for the owner to drop a secret/setting. "" if absent.
 func readWS(name string) string {
 	b, err := os.ReadFile("/workspace/" + name)
 	if err != nil {
@@ -55,7 +57,7 @@ func readWS(name string) string {
 }
 
 // cfg reads a setting from this group's loket kv first (Group Colony menu), then
-// falls back to a workspace file of the same name (owner-dropped). Empty if neither.
+// falls back to a workspace file of the same name (owner-dropped).
 func cfg(key string) string {
 	if v := kvGet(key); v != "" {
 		return v
@@ -103,8 +105,6 @@ func loketCall(capName string, args any) (json.RawMessage, error) {
 	return res.Result, nil
 }
 
-// kvGet reads one key from this group's OWN loket store (live — Group Colony edits
-// apply without a restart).
 func kvGet(k string) string {
 	r, err := loketCall("store.kv.get", map[string]any{"k": k})
 	if err != nil {
@@ -143,8 +143,8 @@ func askMember(to, subject string) string {
 	return string(outer.Reply)
 }
 
-// hostFetch makes a raw outbound HTTP call (used to POST to the Dev.to Forem API).
-// Returns (httpStatus, responseBody). Needs net:fetch:* in the manifest.
+// hostFetch makes a raw outbound HTTP call (POST to the Dev.to Forem API).
+// Returns (httpStatus, responseBody). Needs net:fetch:https://dev.to in the manifest.
 func hostFetch(method, url string, headers map[string]string, body []byte) (int, string) {
 	reqJSON, _ := json.Marshal(map[string]any{
 		"method": method, "url": url, "timeout_ms": 30000, "max_resp_bytes": 1 << 20,
@@ -171,22 +171,40 @@ func hostFetch(method, url string, headers map[string]string, body []byte) (int,
 }
 
 type roster struct {
-	Writer    string
-	Honesty   string
+	SEO    string
+	Writer string
+	Tags   string
 }
 
+// loadRoster: the three ordered roles. Defaults work out of the box; the Group
+// Colony "members" list (in order: seo, writer, tags) or per-role kv keys override.
 func loadRoster() roster {
-	rs := roster{Writer: "promo-devto-writer", Honesty: "promo-devto-honesty"}
+	rs := roster{SEO: "promo-devto-seo", Writer: "promo-devto-writer", Tags: "promo-devto-tags"}
+	if v := kvGet("seo_agent"); v != "" {
+		rs.SEO = v
+	}
+	if v := kvGet("writer_agent"); v != "" {
+		rs.Writer = v
+	}
+	if v := kvGet("tags_agent"); v != "" {
+		rs.Tags = v
+	}
 	if m := kvGet("members"); m != "" {
+		parts := []string{}
 		for _, x := range strings.Split(m, ",") {
 			if x = strings.TrimSpace(x); x != "" {
-				rs.Writer = x
-				break
+				parts = append(parts, x)
 			}
 		}
-	}
-	if s := kvGet("synthesizer"); s != "" {
-		rs.Honesty = s
+		if len(parts) >= 1 {
+			rs.SEO = parts[0]
+		}
+		if len(parts) >= 2 {
+			rs.Writer = parts[1]
+		}
+		if len(parts) >= 3 {
+			rs.Tags = parts[2]
+		}
 	}
 	return rs
 }
@@ -216,20 +234,6 @@ func main() {
 	}
 }
 
-func splitTitleBody(s string) (string, string) {
-	s = strings.TrimSpace(s)
-	nl := strings.IndexByte(s, '\n')
-	if nl < 0 {
-		return strings.TrimSpace(strings.TrimLeft(s, "# ")), ""
-	}
-	title := strings.TrimSpace(strings.TrimLeft(s[:nl], "# "))
-	body := strings.TrimSpace(s[nl+1:])
-	if len(title) > 120 {
-		title = title[:120]
-	}
-	return title, body
-}
-
 func trunc(s string, n int) string {
 	s = strings.TrimSpace(s)
 	if len(s) <= n {
@@ -238,8 +242,36 @@ func trunc(s string, n int) string {
 	return s[:n] + "…"
 }
 
-// runPromo: writer drafts → honesty editor finalizes → publish to Dev.to (or, if no
-// API key is configured yet, return the draft so the owner can review).
+// parseField pulls "FIELD: value" out of a line block (case-insensitive field).
+func parseField(s, field string) string {
+	up := strings.ToUpper(field) + ":"
+	for _, ln := range strings.Split(s, "\n") {
+		ln = strings.TrimSpace(ln)
+		if strings.HasPrefix(strings.ToUpper(ln), up) {
+			return strings.TrimSpace(ln[len(field)+1:])
+		}
+	}
+	return ""
+}
+
+// stripLeadingTitle removes a leading H1 / repeated title line from a body.
+func stripLeadingTitle(body, title string) string {
+	b := strings.TrimSpace(body)
+	if nl := strings.IndexByte(b, '\n'); nl > 0 {
+		first := strings.TrimSpace(strings.TrimLeft(b[:nl], "# "))
+		if strings.EqualFold(first, title) || strings.HasPrefix(b, "# ") {
+			return strings.TrimSpace(b[nl+1:])
+		}
+	}
+	return b
+}
+
+// repoFooter is appended to EVERY article — the two products we push, always linked.
+const repoFooter = "\n\n---\n\n**Flowork is open source — both products:**\n\n" +
+	"- 🤖 **Flowork Agent** (the self-hosted agent OS): https://github.com/flowork-os/Flowork_Agent\n" +
+	"- 🛣️ **Flow Router** (the sovereign LLM gateway): https://github.com/flowork-os/flowork_Router\n"
+
+// runPromo: SEO (title+keywords) → writer (body) → tags → append repo links → publish.
 func runPromo(argsJSON string) {
 	var in struct {
 		Text string `json:"text"`
@@ -252,59 +284,81 @@ func runPromo(argsJSON string) {
 	}
 	rs := loadRoster()
 
-	writeTask := "Write a Dev.to article for a developer audience from the SOURCE below. " +
-		"Output the TITLE on the first line, then a blank line, then the article body in Markdown. " +
-		"Be concrete, technical, and HONEST — highlight real strengths, never overclaim, no hype.\n\nSOURCE:\n" + topic
-	draft := askMember(rs.Writer, writeTask)
-	if draft == "" {
-		emit(map[string]any{"error": "writer (" + rs.Writer + ") produced no draft — is it installed + the router up?"})
+	// 1. SEO research → title + keywords
+	seoOut := askMember(rs.SEO, "You are an SEO researcher for Dev.to. From the SOURCE, decide the best article "+
+		"TITLE (clear, specific, keyword-rich, no clickbait) and 5-8 KEYWORDS a developer would actually search. "+
+		"Reply EXACTLY in this format and nothing else:\nTITLE: <the title>\nKEYWORDS: kw1, kw2, kw3, ...\n\nSOURCE:\n"+topic)
+	if seoOut == "" {
+		emit(map[string]any{"error": "SEO agent (" + rs.SEO + ") gave no output — installed + router up?"})
 		return
 	}
-
-	final := draft
-	if rs.Honesty != "" {
-		edited := askMember(rs.Honesty, "You are the honesty editor. Edit this Dev.to draft: remove any overclaim, "+
-			"hype, or unverifiable superlative; keep it truthful, concrete, and engaging (real strengths stated plainly). "+
-			"Keep the SAME format: TITLE on the first line, blank line, then the Markdown body.\n\nDRAFT:\n"+draft)
-		if edited != "" {
-			final = edited
+	title := parseField(seoOut, "TITLE")
+	keywords := parseField(seoOut, "KEYWORDS")
+	if title == "" {
+		for _, ln := range strings.Split(seoOut, "\n") {
+			if ln = strings.TrimSpace(ln); ln != "" {
+				title = strings.TrimLeft(ln, "# ")
+				break
+			}
 		}
 	}
+	if title == "" {
+		emit(map[string]any{"error": "could not parse a TITLE from the SEO agent", "raw": trunc(seoOut, 300)})
+		return
+	}
+	if len(title) > 120 {
+		title = title[:120]
+	}
 
-	title, body := splitTitleBody(final)
-	if title == "" || body == "" {
-		emit(map[string]any{"error": "could not parse title/body from the editor output", "raw": trunc(final, 400)})
+	// 2. writer → article body (weaves keywords, honest, no hype)
+	body := askMember(rs.Writer, "You are a Dev.to technical writer. Write the article BODY in Markdown for the SOURCE, "+
+		"built around the TITLE and weaving the KEYWORDS in naturally. Be concrete and technical; HONEST — state real "+
+		"strengths plainly, acknowledge trade-offs, and NEVER overclaim or hype. Output ONLY the Markdown body (do NOT "+
+		"repeat the title as a heading).\n\nTITLE: "+title+"\nKEYWORDS: "+keywords+"\n\nSOURCE:\n"+topic)
+	body = stripLeadingTitle(strings.TrimSpace(body), title)
+	if body == "" {
+		emit(map[string]any{"error": "writer (" + rs.Writer + ") produced no body"})
 		return
 	}
 
+	// 3. tags research → up to 4 Dev.to tags
+	tagsOut := askMember(rs.Tags, "You are a Dev.to tagging specialist. Pick the 4 BEST Dev.to tags for this article — "+
+		"lowercase single words from Dev.to's common taxonomy, the most relevant + discoverable. Reply with ONLY the "+
+		"tags, comma-separated, nothing else.\n\nTITLE: "+title+"\n\nARTICLE:\n"+trunc(body, 2000))
 	tagList := []string{}
-	for _, t := range strings.Split(cfg("tags"), ",") {
-		if t = strings.TrimSpace(t); t != "" {
+	for _, t := range strings.Split(tagsOut, ",") {
+		t = strings.ToLower(strings.TrimSpace(strings.Trim(t, "#")))
+		t = strings.ReplaceAll(t, " ", "")
+		if t != "" && len(tagList) < 4 {
 			tagList = append(tagList, t)
 		}
 	}
 	if len(tagList) == 0 {
 		tagList = []string{"opensource", "ai", "go", "selfhosted"}
 	}
-	publish := strings.EqualFold(cfg("publish"), "true")
-	article := map[string]any{"title": title, "body_markdown": body, "published": publish, "tags": tagList}
 
+	// always carry both product repo links.
+	body = body + repoFooter
+
+	publish := strings.EqualFold(cfg("publish"), "true")
 	apiKey := cfg("devto_api_key")
 	if apiKey == "" {
 		emit(map[string]any{
 			"group": selfID(), "status": "drafted (NOT posted)",
-			"reason":  "devto_api_key not set in this group's config (Group Colony → config)",
-			"title":   title, "tags": tagList, "would_publish": publish,
-			"preview": trunc(body, 600),
+			"reason":  "devto_api_key not set (Group Colony config or workspace/devto_api_key)",
+			"title":   title, "keywords": keywords, "tags": tagList, "would_publish": publish,
+			"preview": trunc(body, 700),
 		})
 		return
 	}
 
+	article := map[string]any{"title": title, "body_markdown": body, "published": publish, "tags": tagList}
 	reqBody, _ := json.Marshal(map[string]any{"article": article})
 	status, resp := hostFetch("POST", "https://dev.to/api/articles",
 		map[string]string{"Content-Type": "application/json", "api-key": apiKey, "User-Agent": "Flowork-promo-devto"},
 		reqBody)
-	out := map[string]any{"group": selfID(), "title": title, "http_status": status, "published": publish}
+	out := map[string]any{"group": selfID(), "title": title, "keywords": keywords, "tags": tagList,
+		"http_status": status, "published": publish}
 	if status >= 200 && status < 300 {
 		var r struct {
 			URL string `json:"url"`

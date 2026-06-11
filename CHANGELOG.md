@@ -1,3 +1,13 @@
+## 2026-06-11 — Social promo: promo-devto group (3-stage) + per-group config/secrets
+
+- promo-devto registered as a GROUP (shows in Group Colony): a 3-stage Dev.to colony — SEO ant
+  (title + keywords) → writer ant (body, honest) → tags ant (Dev.to tags) → coordinator appends BOTH
+  product repo links and POSTs to the Forem API. Verified live (201, published, repo links present).
+- Group config/secrets: /api/groups/config now accepts a `config` map written to the group's own kv
+  (reserved roster keys protected); the Group Colony card has a "Config / secrets" key=value field.
+  So a platform API key (e.g. devto_api_key, publish, tags) is set from the GUI, stored locally in
+  the group's kv — never hardcoded, never pushed. Open-source-safe.
+
 ## 2026-06-11 — FlowAlpha v0.27.0: custom strategy GUI panel
 
 - A CUSTOM STRATEGY panel in the app: entry/exit formula inputs + comparison op + threshold + RUN,
