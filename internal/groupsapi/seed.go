@@ -1,3 +1,12 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/flowork-ai-agent
+// Locked at: 2026-06-12
+// Reason: Portable GROUP roster mirror. ReconcileGroupSeeds (SeedFromJSON) syncs a
+//   group's roster between its loket store and a secret-free group.json both ways;
+//   never creates a store for a non-group module. Audited + build/test green.
+//
 // seed.go — portable GROUP roster mirror (group.json).
 //
 // A group's roster (members/synthesizer/task) lives in its loket store, which is
