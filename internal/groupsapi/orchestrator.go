@@ -34,6 +34,27 @@ func sanitizeDesc(s string) string {
 	return s
 }
 
+// telegramCommand turns a group id into a VALID, UNIQUE Telegram slash command:
+// lowercase, only [a-z0-9_], max 32 chars. Telegram rejects setMyCommands outright
+// if any command has a dash, so "promo-devto" → "promo_devto" (keeping the whole id
+// keeps it unique — segment-only derivation collides, e.g. promo-x vs promo-devto).
+func telegramCommand(id string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(id) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '_':
+			b.WriteRune(r)
+		default:
+			b.WriteRune('_')
+		}
+	}
+	c := b.String()
+	if len(c) > 32 {
+		c = c[:32]
+	}
+	return c
+}
+
 // SyncToOrchestrator auto-discovers every group (kv group=1) across all loaded
 // modules and writes the "id|command|desc" list (";"-joined) into the orchestrator's
 // kv "groups". Idempotent; safe to call often. Returns how many groups it synced.
@@ -63,9 +84,10 @@ func (h *Handler) SyncToOrchestrator() int {
 			} else if task, _, _ := st.KVGet("task"); strings.TrimSpace(task) != "" {
 				desc = strings.TrimSpace(task)
 			}
-			// command = the group id (already a safe lowercase slug, valid Telegram
-			// command shape); desc = friendly text shown in the slash menu.
-			parts = append(parts, id+"|"+id+"|"+sanitizeDesc(desc))
+			// command = Telegram-valid form of the id (dash→underscore, unique);
+			// desc = friendly text shown in the slash menu. mr-flow-next matches the
+			// typed command to g.Command and invokes g.ID, so the id keeps its dashes.
+			parts = append(parts, id+"|"+telegramCommand(id)+"|"+sanitizeDesc(desc))
 		}
 		_ = st.Close()
 	}
