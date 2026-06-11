@@ -1,12 +1,13 @@
-// groups.js — tab "Group" (§F2): the ant colony.
+// groups.js — tab "Group": the ant colony.
 //
 // A GROUP is a team of small single-job agents + a synthesizer that fuses their
 // answers. Mr.Flow delegates deep analysis to a group over the loket bus → members
 // work in parallel → synthesizer merges → reply. Tiny prompt per ant → a small/local
 // model can run it (anti over-prompt).
 //
-// All copy goes through the i18n dictionary (en base + id) — no hardcoded strings.
-// Look: "Jarvis" HUD — neon cyan, glass, scanline, corner brackets, animated colony.
+// Look: matches the AI Agent tab — calm glass cards, soft violet→cyan→emerald
+// gradient, deterministic agent avatars for each member. No HUD animation: AI-native,
+// tidy, professional. All copy via the i18n dictionary (en base + id) — no hardcode.
 //
 // API: /api/groups (list + available members), /api/groups/{config,create,delete}.
 // Roster lives in each group's loket store, read LIVE by the wasm (no restart).
@@ -17,105 +18,121 @@ import { t } from '/js/i18n.js';
 const L = new Proxy({}, { get: (_, k) => t('groups.' + String(k)) });
 const fmt = (k, vars) => Object.entries(vars || {}).reduce((s, [n, v]) => s.replaceAll('{' + n + '}', v), L[k]);
 
+// ── deterministic agent avatar (same vocabulary as the AI Agent tab) ──────────
+const AV_PALETTES = [
+  ['#7c3aed', '#a855f7'], ['#0ea5e9', '#22d3ee'], ['#10b981', '#34d399'], ['#f59e0b', '#fbbf24'],
+  ['#ec4899', '#f472b6'], ['#6366f1', '#818cf8'], ['#ef4444', '#f87171'], ['#14b8a6', '#5eead4'],
+];
+const AV_FACES = ['🤖', '🪄', '🦊', '🛸', '👾', '🐙', '🦉', '🐉', '🐺', '🪐', '⚡', '🧊'];
+function hashStr(s) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0; }
+  return h >>> 0;
+}
+function avatarFor(id) {
+  const h = hashStr(id || 'unknown');
+  return { face: AV_FACES[h % AV_FACES.length], palette: AV_PALETTES[(h >>> 8) % AV_PALETTES.length] };
+}
+function avatar(id, size) {
+  const { face, palette } = avatarFor(id);
+  return `<span class="gr-av" style="width:${size}px;height:${size}px;font-size:${Math.round(size * 0.5)}px;
+    background:radial-gradient(circle at 30% 25%, ${palette[1]} 0%, ${palette[0]} 72%, #0f172a 115%);
+    box-shadow:0 0 0 1px ${palette[1]}55, inset 0 0 10px rgba(255,255,255,0.08)">${face}</span>`;
+}
+
 const CSS = `
-.gr-wrap{position:relative;max-width:1400px;padding:6px 2px 40px;
-  --cy:#36e6ff;--cy2:#26ffd0;--ink:#06121a;--line:rgba(54,230,255,.22);--bad:#ff476f;--warn:#ffc24d}
-/* group cards in a responsive grid: up to 3 across on a wide screen, auto-
-   collapsing to 2 then 1 as the viewport narrows (auto-fit + min track width). */
-#grList{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:18px;align-items:start}
-.gr-wrap::before{content:'';position:absolute;inset:0;z-index:0;pointer-events:none;opacity:.30;
-  background:linear-gradient(rgba(54,230,255,.5),transparent);height:40px;animation:grscan 6s linear infinite}
-@keyframes grscan{0%{transform:translateY(-40px);opacity:0}30%{opacity:1}100%{transform:translateY(640px);opacity:0}}
-.gr-wrap *{position:relative;z-index:1}
+.gr-tab { padding:24px 32px 60px; color:#e2e8f0; max-width:1320px; }
 
-/* ── HUD header with animated colony emblem ───────────────────────────── */
-.gr-hud{display:flex;align-items:center;gap:18px;margin:6px 0 22px}
-.gr-colony{width:64px;height:64px;flex:0 0 auto;position:relative}
-.gr-core{position:absolute;top:50%;left:50%;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;
-  background:radial-gradient(circle,#aef6ff 0,var(--cy) 40%,transparent 72%);
-  box-shadow:0 0 12px var(--cy),0 0 26px rgba(54,230,255,.55);animation:grpulse 2.4s ease-in-out infinite}
-.gr-ring{position:absolute;inset:0;border-radius:50%;border:1px solid rgba(54,230,255,.18)}
-.gr-ring.r2{inset:11px;border-color:rgba(38,255,208,.16)}
-.gr-orbit{position:absolute;inset:0;animation:grspin 7s linear infinite}
-.gr-orbit.o2{inset:11px;animation:grspin 4.6s linear infinite reverse}
-.gr-ant{position:absolute;top:-3px;left:50%;width:6px;height:6px;margin-left:-3px;border-radius:50%;
-  background:var(--cy2);box-shadow:0 0 8px var(--cy2)}
-.gr-orbit.o2 .gr-ant{background:var(--cy);box-shadow:0 0 8px var(--cy)}
-@keyframes grspin{to{transform:rotate(360deg)}}
-@keyframes grpulse{0%,100%{transform:scale(1);filter:brightness(1)}50%{transform:scale(1.18);filter:brightness(1.35)}}
-.gr-htext h2{margin:0;font-family:var(--disp,inherit);font-size:18px;letter-spacing:4px;color:#eafdff;
-  text-shadow:0 0 12px rgba(54,230,255,.45)}
-.gr-htext .sub{font-size:12px;color:var(--cy2);opacity:.8;margin-top:5px;max-width:640px;line-height:1.5}
-.gr-htext .stat{font-size:10px;letter-spacing:2px;color:var(--cy2);margin-top:7px;display:flex;align-items:center;gap:7px}
-.gr-dot{width:7px;height:7px;border-radius:50%;background:var(--cy2);box-shadow:0 0 8px var(--cy2);animation:grblink 1.6s ease-in-out infinite}
-@keyframes grblink{0%,100%{opacity:1}50%{opacity:.25}}
+/* ── hero (matches AI Agent) ── */
+.gr-hero { position:relative; overflow:hidden; padding:30px 36px; border-radius:18px; margin-bottom:24px;
+  background:linear-gradient(135deg, rgba(124,58,237,0.20) 0%, rgba(14,165,233,0.16) 52%, rgba(16,185,129,0.15) 100%);
+  border:1px solid rgba(148,163,184,0.22); display:grid; grid-template-columns:1fr auto; align-items:center; gap:22px;
+  box-shadow:0 18px 60px -30px rgba(124,58,237,0.4); }
+.gr-eyebrow { font-size:0.72rem; letter-spacing:0.32em; color:#a78bfa; text-transform:uppercase; font-weight:600; margin-bottom:8px; }
+.gr-h1 { margin:0; font-size:2.1rem; line-height:1.1; font-weight:700;
+  background:linear-gradient(90deg,#c4b5fd,#67e8f9 55%,#6ee7b7); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.gr-hsub { margin:10px 0 0; color:#cbd5e1; max-width:72ch; line-height:1.55; font-size:0.95rem; }
+.gr-stat { background:rgba(15,23,42,0.6); border:1px solid rgba(148,163,184,0.2); padding:14px 22px; border-radius:14px; text-align:center; min-width:104px; backdrop-filter:blur(4px); }
+.gr-stat b { display:block; font-size:1.9rem; font-weight:700; color:#c4b5fd; line-height:1; }
+.gr-stat label { font-size:0.66rem; letter-spacing:0.18em; text-transform:uppercase; color:#94a3b8; margin-top:5px; display:block; }
 
-/* ── panels with corner brackets ──────────────────────────────────────── */
-.gr-panel{position:relative;background:rgba(4,14,22,.6);border:1px solid var(--line);border-radius:8px;
-  padding:16px 18px;margin-bottom:16px;backdrop-filter:blur(3px)}
-.gr-panel::before,.gr-panel::after{content:'';position:absolute;width:13px;height:13px;border:2px solid var(--cy);pointer-events:none;opacity:.75}
-.gr-panel::before{top:-1px;left:-1px;border-right:0;border-bottom:0}
-.gr-panel::after{bottom:-1px;right:-1px;border-left:0;border-top:0}
-.gr-card h3{margin:0;display:flex;align-items:center;gap:9px}
-.gr-tag{font-size:10px;letter-spacing:2px;color:var(--cy);border:1px solid var(--line);border-radius:3px;padding:2px 7px;background:rgba(54,230,255,.06)}
-.gr-gid{font-size:11px;color:rgba(54,230,255,.5);font-family:monospace;margin:6px 0 2px}
-.gr-sec{margin:14px 0 7px;font-size:10px;letter-spacing:2px;color:var(--cy);text-shadow:0 0 8px rgba(54,230,255,.3)}
+/* ── create bar ── */
+.gr-create-bar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:24px;
+  background:rgba(15,23,42,0.5); border:1px solid rgba(148,163,184,0.16); border-radius:14px; padding:14px 16px; }
+.gr-create-bar .gr-in { flex:1; min-width:200px; }
 
-/* ── inputs / chips / buttons ─────────────────────────────────────────── */
-.gr-in,.gr-sel,.gr-task{background:rgba(2,10,16,.85);border:1px solid var(--line);border-radius:4px;color:var(--cy2);
-  padding:8px 11px;font:inherit;font-size:13px}
-.gr-in:focus,.gr-sel:focus,.gr-task:focus{outline:none;border-color:var(--cy);box-shadow:0 0 0 1px var(--cy),0 0 16px rgba(54,230,255,.22)}
-.gr-name{font-size:15px;font-weight:700;color:#eafdff;min-width:240px}
-.gr-task{width:100%;min-height:56px;resize:vertical;margin-top:6px}
-.gr-row{display:flex;gap:11px;align-items:center;flex-wrap:wrap;margin-top:8px}
-.gr-members{display:flex;flex-wrap:wrap;gap:8px}
-.gr-chip{display:inline-flex;align-items:center;gap:7px;padding:6px 11px;border-radius:5px;border:1px solid var(--line);
-  background:rgba(2,10,16,.6);font-size:13px;color:var(--cy2);cursor:pointer;user-select:none;transition:all .15s}
-.gr-chip input{accent-color:var(--cy)}
-.gr-chip.on{border-color:var(--cy);background:rgba(54,230,255,.12);color:#eafdff;box-shadow:0 0 12px rgba(54,230,255,.2)}
-.gr-btn{padding:8px 15px;border-radius:4px;background:rgba(2,10,16,.8);border:1px solid var(--line);color:var(--cy);
-  cursor:pointer;font:inherit;font-size:12px;letter-spacing:1.5px;font-weight:600;transition:all .15s}
-.gr-btn:hover{border-color:var(--cy);color:#eafdff;background:rgba(54,230,255,.08);box-shadow:0 0 14px rgba(54,230,255,.3)}
-.gr-btn:disabled{opacity:.45;cursor:default}
-.gr-btn.primary{border-color:var(--cy);color:#001a22;background:linear-gradient(90deg,var(--cy),var(--cy2));font-weight:700}
-.gr-btn.danger{border-color:rgba(255,71,111,.5);color:var(--bad)}
-.gr-btn.danger:hover{background:rgba(255,71,111,.1);box-shadow:0 0 14px rgba(255,71,111,.3)}
-.gr-save{margin-top:15px;display:flex;align-items:center;gap:12px}
-.gr-msg{font-size:12px;color:var(--cy2)}
-.gr-empty{color:rgba(54,230,255,.5);font-size:13px;padding:12px 0}
+/* ── inputs ── */
+.gr-in, .gr-sel, .gr-task { background:rgba(2,6,18,0.55); border:1px solid rgba(148,163,184,0.2); border-radius:9px;
+  color:#e2e8f0; padding:9px 12px; font:inherit; font-size:0.9rem; transition:border-color .15s; }
+.gr-in:focus, .gr-sel:focus, .gr-task:focus { outline:none; border-color:#a78bfa; }
+.gr-in::placeholder, .gr-task::placeholder { color:#64748b; }
+
+/* ── grid of colony cards ── */
+#grList { display:grid; grid-template-columns:repeat(auto-fill,minmax(380px,1fr)); gap:20px; align-items:start; }
+.gr-card { background:rgba(15,23,42,0.6); border:1px solid rgba(148,163,184,0.18); border-radius:16px; padding:20px 22px;
+  backdrop-filter:blur(4px); transition:border-color .18s, transform .18s, box-shadow .18s; }
+.gr-card:hover { border-color:rgba(167,139,250,0.5); transform:translateY(-2px); box-shadow:0 16px 40px -26px rgba(124,58,237,0.5); }
+
+.gr-head { display:flex; align-items:center; gap:13px; }
+.gr-av { display:inline-flex; align-items:center; justify-content:center; border-radius:50%; flex:0 0 auto; }
+.gr-head-text { flex:1; min-width:0; }
+.gr-name { width:100%; font-size:1.05rem; font-weight:600; color:#f1f5f9; background:transparent; border:1px solid transparent; border-radius:7px; padding:4px 7px; margin:-4px -7px 0; }
+.gr-name:hover { border-color:rgba(148,163,184,0.2); } .gr-name:focus { background:rgba(2,6,18,0.55); border-color:#a78bfa; outline:none; }
+.gr-gid { font-family:ui-monospace,monospace; font-size:0.74rem; color:#64748b; margin-top:3px; padding-left:1px; }
+.gr-tag { font-size:0.6rem; letter-spacing:0.16em; font-weight:700; color:#a78bfa; border:1px solid rgba(167,139,250,0.4);
+  background:rgba(124,58,237,0.12); border-radius:999px; padding:3px 9px; align-self:flex-start; }
+
+.gr-sec { font-size:0.64rem; letter-spacing:0.18em; text-transform:uppercase; color:#94a3b8; margin:18px 0 8px; }
+
+/* ── member avatar chips ── */
+.gr-members { display:flex; flex-wrap:wrap; gap:7px; }
+.gr-chip { display:inline-flex; align-items:center; gap:7px; padding:4px 11px 4px 4px; border-radius:999px;
+  border:1px solid rgba(148,163,184,0.2); background:rgba(2,6,18,0.4); color:#94a3b8; cursor:pointer; user-select:none;
+  font-size:0.82rem; transition:all .15s; }
+.gr-chip input { display:none; }
+.gr-chip:hover { border-color:rgba(148,163,184,0.4); color:#cbd5e1; }
+.gr-chip.on { border-color:rgba(103,232,249,0.55); background:rgba(14,165,233,0.14); color:#e2e8f0; box-shadow:0 0 0 1px rgba(103,232,249,0.25); }
+.gr-chip.on .gr-av { box-shadow:0 0 0 2px rgba(103,232,249,0.6); }
+
+.gr-task { width:100%; min-height:52px; resize:vertical; margin-top:2px; box-sizing:border-box; }
+.gr-sched { font-size:0.78rem; color:#7dd3fc; margin-top:14px; display:flex; align-items:center; gap:6px; }
+
+/* ── buttons ── */
+.gr-foot { display:flex; align-items:center; gap:10px; margin-top:18px; }
+.gr-btn { padding:8px 16px; border-radius:9px; font:inherit; font-size:0.84rem; font-weight:600; cursor:pointer;
+  border:1px solid rgba(148,163,184,0.25); background:rgba(56,189,248,0.14); color:#7dd3fc; transition:all .15s; }
+.gr-btn:hover { background:rgba(56,189,248,0.24); border-color:rgba(125,211,252,0.5); }
+.gr-btn:disabled { opacity:.5; cursor:default; }
+.gr-btn.primary { background:linear-gradient(90deg,#7c3aed,#0ea5e9); border-color:transparent; color:#fff; }
+.gr-btn.primary:hover { filter:brightness(1.12); }
+.gr-btn.danger { background:transparent; border-color:rgba(248,113,113,0.4); color:#f87171; }
+.gr-btn.danger:hover { background:rgba(248,113,113,0.12); }
+.gr-msg { font-size:0.8rem; }
+.gr-empty { color:#64748b; font-size:0.86rem; padding:10px 0; }
 `;
 
 export async function render(mainEl) {
   loadStyle('groups', CSS);
-  const orbits = (n, cls) => Array.from({ length: n }, (_, i) =>
-    `<div class="gr-orbit ${cls}" style="transform:rotate(${(360 / n) * i}deg)"><div class="gr-ant"></div></div>`).join('');
   mainEl.innerHTML = `
-    <div class="gr-wrap">
-      <div class="gr-hud">
-        <div class="gr-colony">
-          <div class="gr-ring"></div><div class="gr-ring r2"></div>
-          ${orbits(3, '')}${orbits(2, 'o2')}
-          <div class="gr-core"></div>
+    <section class="gr-tab">
+      <header class="gr-hero">
+        <div>
+          <div class="gr-eyebrow">FLOWORK · ANT COLONY</div>
+          <h1 class="gr-h1">${esc(L.title)}</h1>
+          <p class="gr-hsub">${esc(L.sub)}</p>
         </div>
-        <div class="gr-htext">
-          <h2>${esc(L.title)}</h2>
-          <div class="sub">${esc(L.sub)}</div>
-          <div class="stat"><span class="gr-dot"></span><span id="grStat">${esc(L.status_online)}</span></div>
-        </div>
+        <div class="gr-stat"><b id="grStatN">·</b><label>${esc(L.count_label)}</label></div>
+      </header>
+
+      <div class="gr-create-bar">
+        <input class="gr-in" id="grNewId" placeholder="${escAttr(L.new_id_ph)}">
+        <input class="gr-in" id="grNewName" placeholder="${escAttr(L.new_name_ph)}">
+        <button class="gr-btn primary gr-create">+ ${esc(L.create_btn)}</button>
+        <span class="gr-msg" id="grNewMsg" style="display:none"></span>
       </div>
 
-      <div class="gr-panel">
-        <div class="gr-sec" style="margin-top:0">${esc(L.new_title)}</div>
-        <div class="gr-row">
-          <input class="gr-in" id="grNewId" placeholder="${escAttr(L.new_id_ph)}" style="min-width:280px">
-          <input class="gr-in" id="grNewName" placeholder="${escAttr(L.new_name_ph)}" style="min-width:220px">
-          <button class="gr-btn primary gr-create">+ ${esc(L.create_btn)}</button>
-          <span class="gr-msg" id="grNewMsg" style="display:none"></span>
-        </div>
-      </div>
-
-      <div id="grList"><div class="gr-empty">⟳ ${esc(L.loading)}</div></div>
-    </div>
+      <div id="grList"><div class="gr-empty">${esc(L.loading)}</div></div>
+    </section>
   `;
   mainEl.querySelector('.gr-create').addEventListener('click', () => createGroup(mainEl));
   await load(mainEl);
@@ -132,24 +149,20 @@ async function load(mainEl) {
   }
   const groups = data.groups || [];
   const avail = data.available_agents || [];
-  const stat = mainEl.querySelector('#grStat');
-  if (stat) stat.textContent = `${L.status_online} · ${groups.length} ${L.count_label}`;
+  const statN = mainEl.querySelector('#grStatN');
+  if (statN) statN.textContent = groups.length;
   if (!groups.length) {
-    list.innerHTML = `<div class="gr-panel"><div class="gr-empty">${esc(L.empty)}</div></div>`;
+    list.innerHTML = `<div class="gr-card"><div class="gr-empty">${esc(L.empty)}</div></div>`;
     return;
   }
   // claimedBy maps an agent id → the group that already uses it (member or
-  // synthesizer). A card then shows only ITS OWN organs + agents no other group
-  // has claimed — so an agent that is not checked into this group is genuinely
-  // free to add, never a leftover from another team cluttering the picker.
+  // synthesizer), so a card only offers its own organs + agents no other group
+  // has claimed.
   const claimedBy = {};
-  // 1) explicit: every organ in a group's roster (members + synth + aux roles).
   for (const g of groups) {
     for (const c of g.claims || g.members || []) claimedBy[c] = g.id;
     if (g.synthesizer) claimedBy[g.synthesizer] = g.id;
   }
-  // 2) backstop: an organ named with a group's id prefix (e.g. thinking-caster)
-  //    belongs to that group even if it isn't wired into the roster yet.
   for (const a of avail) {
     if (claimedBy[a.id]) continue;
     for (const g of groups) {
@@ -162,40 +175,39 @@ async function load(mainEl) {
 
 function card(g, avail, claimedBy, mainEl) {
   const el = document.createElement('div');
-  el.className = 'gr-panel gr-card';
+  el.className = 'gr-card';
   const members = new Set(g.members || []);
-  // Show an agent only if it belongs to THIS group or is unclaimed by any other.
   const pool = avail.filter((a) => members.has(a.id) || g.synthesizer === a.id || !claimedBy[a.id] || claimedBy[a.id] === g.id);
   const chips = pool.map((a) => `
     <label class="gr-chip ${members.has(a.id) ? 'on' : ''}" data-id="${escAttr(a.id)}">
-      <input type="checkbox" ${members.has(a.id) ? 'checked' : ''}> ${esc(a.display_name || a.id)}
+      ${avatar(a.id, 22)}<span class="gr-chip-name">${esc(a.display_name || a.id)}</span>
+      <input type="checkbox" ${members.has(a.id) ? 'checked' : ''}>
     </label>`).join('');
   const synthOpts = [`<option value="">${esc(L.synth_none)}</option>`]
     .concat(pool.map((a) => `<option value="${escAttr(a.id)}" ${g.synthesizer === a.id ? 'selected' : ''}>${esc(a.display_name || a.id)}</option>`))
     .join('');
   el.innerHTML = `
-    <h3>
-      <input class="gr-sel gr-name" value="${escAttr(g.display_name || g.id)}" placeholder="${escAttr(L.name_ph)}">
+    <div class="gr-head">
+      ${avatar(g.id, 46)}
+      <div class="gr-head-text">
+        <input class="gr-name" value="${escAttr(g.display_name || g.id)}" placeholder="${escAttr(L.name_ph)}">
+        <div class="gr-gid">${esc(g.id)}</div>
+      </div>
       <span class="gr-tag">GROUP</span>
-    </h3>
-    <div class="gr-gid">${esc(g.id)}</div>
+    </div>
 
     <div class="gr-sec">${esc(L.members_label)}</div>
     <div class="gr-members">${chips || `<span class="gr-empty">${esc(L.no_agents)}</span>`}</div>
 
-    <div class="gr-row">
-      <div>
-        <div class="gr-sec" style="margin-top:0">${esc(L.synth_label)}</div>
-        <select class="gr-sel gr-synth">${synthOpts}</select>
-      </div>
-    </div>
+    <div class="gr-sec">${esc(L.synth_label)}</div>
+    <select class="gr-sel gr-synth" style="width:100%">${synthOpts}</select>
 
     <div class="gr-sec">${esc(L.task_label)}</div>
-    <textarea class="gr-task">${esc(g.task || '')}</textarea>
+    <textarea class="gr-task" placeholder="${escAttr(L.task_label)}">${esc(g.task || '')}</textarea>
 
-    <div class="gr-save">
+    <div class="gr-foot">
       <button class="gr-btn primary gr-do">${esc(L.save_btn)}</button>
-      <button class="gr-btn danger gr-del">🗑 ${esc(L.delete_btn)}</button>
+      <button class="gr-btn danger gr-del">${esc(L.delete_btn)}</button>
       <span class="gr-msg" style="display:none"></span>
     </div>
   `;
@@ -211,7 +223,7 @@ function card(g, avail, claimedBy, mainEl) {
   });
 
   const btn = el.querySelector('.gr-do');
-  const msg = el.querySelector('.gr-save .gr-msg');
+  const msg = el.querySelector('.gr-foot .gr-msg');
   btn.addEventListener('click', async () => {
     const chosen = [...el.querySelectorAll('.gr-chip input:checked')].map((i) => i.closest('.gr-chip').dataset.id);
     const payload = {
@@ -225,10 +237,10 @@ function card(g, avail, claimedBy, mainEl) {
       await fetchJSON(`/api/groups/config?id=${encodeURIComponent(g.id)}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
       });
-      msg.style.color = 'var(--cy2)'; msg.textContent = '✓ ' + L.saved; msg.style.display = '';
+      msg.style.color = '#6ee7b7'; msg.textContent = '✓ ' + L.saved; msg.style.display = '';
       setTimeout(() => { msg.style.display = 'none'; }, 2500);
     } catch (e) {
-      msg.style.color = 'var(--bad)'; msg.textContent = L.save_fail + (e.message || e); msg.style.display = '';
+      msg.style.color = '#f87171'; msg.textContent = L.save_fail + (e.message || e); msg.style.display = '';
     } finally {
       btn.disabled = false;
     }
@@ -243,7 +255,7 @@ async function createGroup(mainEl) {
   const btn = mainEl.querySelector('.gr-create');
   const id = (idEl.value || '').trim().toLowerCase();
   if (!/^[a-z0-9][a-z0-9-]{1,39}$/.test(id)) {
-    msg.style.color = 'var(--bad)'; msg.textContent = L.id_invalid; msg.style.display = '';
+    msg.style.color = '#f87171'; msg.textContent = L.id_invalid; msg.style.display = '';
     return;
   }
   btn.disabled = true; msg.style.display = 'none';
@@ -253,10 +265,10 @@ async function createGroup(mainEl) {
       body: JSON.stringify({ id, display_name: nameEl.value.trim() }),
     });
     idEl.value = ''; nameEl.value = '';
-    msg.style.color = 'var(--cy2)'; msg.textContent = '✓ ' + L.create_ok; msg.style.display = '';
+    msg.style.color = '#6ee7b7'; msg.textContent = '✓ ' + L.create_ok; msg.style.display = '';
     setTimeout(() => load(mainEl), 800);
   } catch (e) {
-    msg.style.color = 'var(--bad)'; msg.textContent = L.create_fail + (e.message || e); msg.style.display = '';
+    msg.style.color = '#f87171'; msg.textContent = L.create_fail + (e.message || e); msg.style.display = '';
   } finally {
     btn.disabled = false;
   }
