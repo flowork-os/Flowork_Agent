@@ -131,6 +131,7 @@ export async function render(mainEl) {
         <input class="gr-in" id="grNewId" placeholder="${escAttr(L.new_id_ph)}">
         <input class="gr-in" id="grNewName" placeholder="${escAttr(L.new_name_ph)}">
         <button class="gr-btn primary gr-create">+ ${esc(L.create_btn)}</button>
+        <button class="gr-btn gr-restore" title="Restore any deleted bundled group to its factory setup">↻ Restore defaults</button>
         <span class="gr-msg" id="grNewMsg" style="display:none"></span>
       </div>
 
@@ -138,6 +139,14 @@ export async function render(mainEl) {
     </section>
   `;
   mainEl.querySelector('.gr-create').addEventListener('click', () => createGroup(mainEl));
+  mainEl.querySelector('.gr-restore').addEventListener('click', async () => {
+    if (!confirm('Restore any deleted bundled group/agent to its factory setup? Existing ones are left untouched.')) return;
+    try {
+      const r = await fetchJSON('/api/groups/reset', { method: 'POST' });
+      alert(r.count ? ('Restored: ' + (r.restored || []).join(', ')) : 'Nothing to restore — all bundled groups are present.');
+      setTimeout(() => load(mainEl), 900);
+    } catch (e) { alert('Reset failed: ' + (e.message || e)); }
+  });
   await load(mainEl);
 }
 
@@ -209,11 +218,27 @@ function card(g, avail, claimedBy, mainEl) {
     <textarea class="gr-task" placeholder="${escAttr(L.task_label)}">${esc(g.task || '')}</textarea>
 
     <div class="gr-foot">
+      <button class="gr-btn gr-onoff ${g.enabled === false ? 'danger' : 'primary'}" title="Turn the whole group on/off (coordinator + all members)">${g.enabled === false ? 'OFF' : 'ON'}</button>
       <button class="gr-btn primary gr-do">${esc(L.save_btn)}</button>
       <button class="gr-btn danger gr-del">${esc(L.delete_btn)}</button>
       <span class="gr-msg" style="display:none"></span>
     </div>
   `;
+  // Group ON/OFF — disables/enables the coordinator AND every member at once.
+  const onoff = el.querySelector('.gr-onoff');
+  let grpEnabled = g.enabled !== false;
+  onoff.addEventListener('click', async () => {
+    const next = !grpEnabled;
+    onoff.disabled = true;
+    try {
+      await fetchJSON(`/api/groups/toggle?id=${encodeURIComponent(g.id)}&disabled=${next ? 0 : 1}`, { method: 'POST' });
+      grpEnabled = next;
+      onoff.textContent = grpEnabled ? 'ON' : 'OFF';
+      onoff.classList.toggle('primary', grpEnabled);
+      onoff.classList.toggle('danger', !grpEnabled);
+    } catch (e) { alert('Toggle failed: ' + (e.message || e)); }
+    onoff.disabled = false;
+  });
   el.querySelectorAll('.gr-chip input').forEach((inp) =>
     inp.addEventListener('change', () => inp.closest('.gr-chip').classList.toggle('on', inp.checked)));
 

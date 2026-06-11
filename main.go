@@ -557,6 +557,7 @@ func main() {
 	mux.HandleFunc("/api/groups/create", groupsAPI.CreateHandler)
 	mux.HandleFunc("/api/groups/delete", groupsAPI.DeleteHandler)
 	mux.HandleFunc("/api/groups/toggle", groupsAPI.ToggleHandler) // group on/off (cascade to members)
+	mux.HandleFunc("/api/groups/reset", groupsAPI.ResetHandler)   // restore bundled groups if deleted
 
 	// Page routes — FileServer cuma map exact filename (/login.html), jadi
 	// /login & /register butuh handler eksplisit yang serve embedded HTML.
