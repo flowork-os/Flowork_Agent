@@ -670,8 +670,10 @@ func tagsAndPublish(rs roster, title, keywords, body, topic string) {
 		}
 		// Share the LIVE article to the FLOWORK_OS Telegram group (title + link).
 		// Drafts are skipped — the link isn't public yet. Best-effort: a share
-		// failure never fails the post.
-		if publish && r.URL != "" {
+		// failure never fails the post. OFF by default: the dedicated Telegram
+		// schedule step (promo-x /promote-tele) owns the article→Telegram share, so
+		// publishing here doesn't double-post. Set kv `tele_autoshare`="on" to revert.
+		if publish && r.URL != "" && cfg("tele_autoshare") == "on" {
 			shared, snote := shareToFloworkOS(title, r.URL)
 			out["shared_flowork_os"] = shared
 			if !shared && snote != "" {

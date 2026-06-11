@@ -608,6 +608,51 @@ func promoteDevto() {
 	}
 }
 
+// promoteTele asks the sibling promo-devto colony for its most recent article and
+// announces it to the FLOWORK_OS Telegram group (FWOS_CHAT_ID / FWOS_BOT_TOKEN from
+// Settings → API Keys, forwarded as env; fallback to this group's own config).
+// Dedups on kv "last_tele_url" so the same article is never announced twice. This is
+// the dedicated Telegram-share step (promo-devto's own auto-share is off by default).
+func promoteTele() {
+	resp := askMember("promo-devto", "/latest")
+	var latest struct {
+		OK    bool   `json:"ok"`
+		Topic string `json:"topic"`
+		Title string `json:"title"`
+		URL   string `json:"url"`
+	}
+	if json.Unmarshal([]byte(resp), &latest) != nil || !latest.OK || strings.TrimSpace(latest.URL) == "" {
+		emit(map[string]any{"error": "no Dev.to article to share (asked promo-devto /latest)", "raw": trunc(resp, 200)})
+		return
+	}
+	if kvGet("last_tele_url") == latest.URL {
+		emit(map[string]any{"group": selfID(), "status": "already shared to telegram", "url": latest.URL})
+		return
+	}
+	chat := strings.TrimSpace(os.Getenv("FWOS_CHAT_ID"))
+	if chat == "" {
+		chat = cfg("fwos_chat_id")
+	}
+	token := strings.TrimSpace(os.Getenv("FWOS_BOT_TOKEN"))
+	if token == "" {
+		token = cfg("fwos_bot_token")
+	}
+	if chat == "" || token == "" {
+		emit(map[string]any{"error": "telegram not configured — set FWOS_CHAT_ID + FWOS_BOT_TOKEN in Settings → API Keys"})
+		return
+	}
+	text := "🤖 " + latest.Title + "\n" + latest.URL
+	payload, _ := json.Marshal(map[string]any{"chat_id": chat, "text": text})
+	status, body := hostFetch("POST", "https://api.telegram.org/bot"+token+"/sendMessage",
+		map[string]string{"Content-Type": "application/json"}, payload)
+	if status >= 200 && status < 300 {
+		kvSet("last_tele_url", latest.URL)
+		emit(map[string]any{"group": selfID(), "status": "shared to telegram", "url": latest.URL})
+		return
+	}
+	emit(map[string]any{"error": "telegram share failed", "status": status, "resp": trunc(body, 200)})
+}
+
 // runPromo — manual: thread from passed-in source material ({text}). Not added to
 // the dedup ledger (topic is empty).
 func runPromo(argsJSON string) {
@@ -654,6 +699,8 @@ func main() {
 		switch tt := strings.ToLower(strings.TrimSpace(text)); {
 		case tt == "/promote-devto" || tt == "promote-devto" || tt == "promote_devto":
 			promoteDevto()
+		case tt == "/promote-tele" || tt == "promote-tele" || tt == "promote_tele":
+			promoteTele()
 		case tt == "/auto" || tt == "auto_post" || tt == "auto":
 			autoPost()
 		default:
