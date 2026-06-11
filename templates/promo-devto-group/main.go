@@ -396,6 +396,29 @@ func autoPost() {
 	tagsAndPublish(rs, title, keywords, body, next)
 }
 
+// latestPost returns the most recently published article from the ledger as
+// {topic, title, url}. A sibling colony (promo-x) asks for this so it can write a
+// thread about the same topic and link the Dev.to article.
+func latestPost() {
+	lines := splitNonEmpty(kvGet("posted_log"))
+	if len(lines) == 0 {
+		emit(map[string]any{"ok": false, "reason": "no posts yet"})
+		return
+	}
+	parts := strings.SplitN(lines[len(lines)-1], " | ", 3)
+	out := map[string]any{"ok": true}
+	if len(parts) >= 1 {
+		out["topic"] = strings.TrimSpace(parts[0])
+	}
+	if len(parts) >= 2 {
+		out["title"] = strings.TrimSpace(parts[1])
+	}
+	if len(parts) >= 3 {
+		out["url"] = strings.TrimSpace(parts[2])
+	}
+	emit(out)
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		return
@@ -420,11 +443,15 @@ func main() {
 			_ = json.Unmarshal(msg.Payload, &p)
 			text = p.Text
 		}
-		// Scheduler / owner trigger: a bare "/auto" (or "auto_post") message runs the
-		// autonomous pipeline; any other text is treated as article source material.
-		if tt := strings.ToLower(strings.TrimSpace(text)); tt == "/auto" || tt == "auto_post" || tt == "auto" {
+		// Scheduler / owner trigger: a bare "/auto" runs the autonomous pipeline;
+		// "/latest" returns the most recent published article (so a sibling promo
+		// colony can promote its link); any other text is article source material.
+		switch tt := strings.ToLower(strings.TrimSpace(text)); {
+		case tt == "/auto" || tt == "auto_post" || tt == "auto":
 			autoPost()
-		} else {
+		case tt == "/latest":
+			latestPost()
+		default:
 			runPromo(args)
 		}
 	case "auto_post":

@@ -306,9 +306,6 @@ var xFeatures = map[string]any{
 	"responsive_web_enhance_cards_enabled":                                    false,
 }
 
-// repoTweet — the closing tweet of every thread: both products, always linked.
-const repoTweet = "Flowork is open source 👇\n🤖 Agent OS: https://github.com/flowork-os/Flowork_Agent\n🛣️ Flow Router: https://github.com/flowork-os/flowork_Router\n#opensource #ai #golang #selfhosted"
-
 // xCreds reads the X cookie pair from Settings (env) or this group's own config.
 func xCreds() (authToken, ct0 string) {
 	authToken = strings.TrimSpace(os.Getenv("X_AUTH_TOKEN"))
@@ -322,37 +319,20 @@ func xCreds() (authToken, ct0 string) {
 	return
 }
 
-// tweetClamp trims a tweet to X's 280-character (codepoint) limit, rune-safe.
-func tweetClamp(s string) string {
+// tweetClamp trims a tweet to a safe length. X's hard limit is 280 "weighted"
+// chars (emoji/CJK count 2, URLs a fixed 23), so a plain rune count can
+// under-estimate. We clamp at 250 runes to leave headroom — the writer is already
+// asked for <=270, this is just the backstop.
+func tweetClamp(s string) string { return tweetClampN(s, 250) }
+
+// tweetClampN clamps to n runes, rune-safe.
+func tweetClampN(s string, n int) string {
 	s = strings.TrimSpace(s)
 	r := []rune(s)
-	if len(r) <= 280 {
+	if len(r) <= n {
 		return s
 	}
-	return string(r[:279]) + "…"
-}
-
-// splitThread turns the writer's reply into individual tweets. Tweets are
-// separated by a line containing only "===" (asked for in the prompt). If the
-// writer ignores that, the whole reply becomes one clamped tweet.
-func splitThread(s string) []string {
-	out := []string{}
-	cur := []string{}
-	flush := func() {
-		if t := tweetClamp(strings.Join(cur, "\n")); t != "" {
-			out = append(out, t)
-		}
-		cur = nil
-	}
-	for _, ln := range strings.Split(s, "\n") {
-		if strings.TrimSpace(ln) == "===" {
-			flush()
-			continue
-		}
-		cur = append(cur, ln)
-	}
-	flush()
-	return out
+	return string(r[:n-1]) + "…"
 }
 
 // postTweet posts ONE tweet (replyTo != "" chains it under a thread). Returns the
@@ -369,12 +349,18 @@ func postTweet(text, replyTo, authToken, ct0 string) (string, int, string) {
 	}
 	body, _ := json.Marshal(map[string]any{"variables": vars, "features": xFeatures, "queryId": xQueryID})
 	headers := map[string]string{
-		"Content-Type":          "application/json",
-		"Authorization":         "Bearer " + xBearer,
-		"x-csrf-token":          ct0,
-		"Cookie":                "auth_token=" + authToken + "; ct0=" + ct0,
-		"x-twitter-active-user": "yes",
-		"x-twitter-auth-type":   "OAuth2Session",
+		"Content-Type":              "application/json",
+		"Authorization":             "Bearer " + xBearer,
+		"x-csrf-token":              ct0,
+		"Cookie":                    "auth_token=" + authToken + "; ct0=" + ct0,
+		"x-twitter-active-user":     "yes",
+		"x-twitter-auth-type":       "OAuth2Session",
+		"x-twitter-client-language": "en",
+		"Accept":                    "*/*",
+		"Accept-Language":           "en-US,en;q=0.9",
+		"Origin":                    "https://x.com",
+		"Referer":                   "https://x.com/home",
+		"User-Agent":                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
 	}
 	status, resp := hostFetch("POST", xCreateTweetURL, headers, body)
 	var parsed struct {
@@ -395,53 +381,51 @@ func postTweet(text, replyTo, authToken, ct0 string) (string, int, string) {
 	return id, status, resp
 }
 
-// postThread posts each tweet, chaining replies. Stops on the first failure and
-// reports how many landed (so a half-posted thread is visible, not silent).
-func postThread(tweets []string, authToken, ct0 string) (firstID string, posted int, errNote string) {
-	replyTo := ""
-	for i, t := range tweets {
-		if t = strings.TrimSpace(t); t == "" {
+// hashtagPrompt — the SEO/hashtag researcher's brief. Reach on X comes from a few
+// high-signal tags devs actually follow, not a tag salad.
+const hashtagPrompt = "You are a social SEO specialist for developer audiences. Pick the 3 BEST hashtags to maximise " +
+	"reach for an X (Twitter) post promoting Flowork — an open-source, self-hosted AI agent OS. Match the TOPIC and the " +
+	"POST. Prefer hashtags developers actually search and follow (e.g. opensource, golang, ai, aiagents, selfhosted, " +
+	"devtools, llm) — relevance over volume. Reply with ONLY the hashtags, space-separated, lowercase, each starting with " +
+	"#, nothing else. Example: #opensource #golang #aiagents"
+
+// hashtagAgent — the SEO member. Default works out of the box; override via kv.
+func hashtagAgent() string {
+	if v := kvGet("hashtag_agent"); v != "" {
+		return v
+	}
+	return "promo-x-hashtag"
+}
+
+// sanitizeHashtags normalises the SEO member's reply into at most `max` clean
+// #lowercase tags — defends against tag salad, punctuation, and duplicates.
+func sanitizeHashtags(s string, max int) string {
+	out := []string{}
+	for _, w := range strings.Fields(strings.ReplaceAll(s, ",", " ")) {
+		w = strings.TrimLeft(strings.TrimSpace(w), "#")
+		w = strings.Map(func(r rune) rune {
+			switch {
+			case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+				return r
+			default:
+				return -1
+			}
+		}, w)
+		if w == "" {
 			continue
 		}
-		id, status, resp := postTweet(t, replyTo, authToken, ct0)
-		if status < 200 || status >= 300 || id == "" {
-			return firstID, posted, fmt.Sprintf("tweet %d failed (status=%d): %s", i+1, status, trunc(resp, 220))
+		tag := "#" + strings.ToLower(w)
+		if !contains(out, tag) {
+			out = append(out, tag)
 		}
-		if firstID == "" {
-			firstID = id
+		if len(out) >= max {
+			break
 		}
-		replyTo = id
-		posted++
 	}
-	return firstID, posted, ""
+	return strings.Join(out, " ")
 }
 
-// shareToFloworkOS posts the published thread (hook + link) to the FLOWORK_OS
-// Telegram group. Group chat id + bot token come from Settings → API Keys
-// (FWOS_CHAT_ID / FWOS_BOT_TOKEN), fallback to this group's own config. The bot
-// must be a member of the group. Returns (shared, note).
-func shareToFloworkOS(title, url string) (bool, string) {
-	chat := strings.TrimSpace(os.Getenv("FWOS_CHAT_ID"))
-	if chat == "" {
-		chat = cfg("fwos_chat_id")
-	}
-	token := strings.TrimSpace(os.Getenv("FWOS_BOT_TOKEN"))
-	if token == "" {
-		token = cfg("fwos_bot_token")
-	}
-	if chat == "" || token == "" {
-		return false, "not configured — set FWOS_CHAT_ID + FWOS_BOT_TOKEN in Settings → API Keys"
-	}
-	payload, _ := json.Marshal(map[string]any{"chat_id": chat, "text": title + "\n" + url})
-	status, resp := hostFetch("POST", "https://api.telegram.org/bot"+token+"/sendMessage",
-		map[string]string{"Content-Type": "application/json"}, payload)
-	if status >= 200 && status < 300 {
-		return true, ""
-	}
-	return false, trunc(resp, 200)
-}
-
-// writerAgent — the thread writer. Default works out of the box; override via kv
+// writerAgent — the post writer. Default works out of the box; override via kv
 // "writer_agent" or the first entry of the "members" list.
 func writerAgent() string {
 	if v := kvGet("writer_agent"); v != "" {
@@ -457,62 +441,95 @@ func writerAgent() string {
 	return "promo-x-writer"
 }
 
-// composeAndPost is the shared posting path: writer drafts a grounded thread →
-// post it to X → append the repo tweet → share the link to FLOWORK_OS. `topic` is
-// non-empty only on the autonomous path → a confirmed post marks the dedup ledger.
-func composeAndPost(topic, facts string) {
+// hookPrompt is the X post writer's brief. It encodes the proven viral-hook
+// principles (pattern-interrupt opener, conversational tone, ONE concrete idea,
+// brevity + impact — lxfater/Awesome-GPTs Viral-Hooks-Generator, AIPIHKAL "open
+// with a compelling hook") WITHOUT loosening Flowork's anti-hallucination rule:
+// every claim must come from the FACTS. Output is ONE tweet, no link (we append
+// the article link as the CTA).
+const hookPrompt = "You are a developer-influencer who writes X (Twitter) posts that devs actually stop scrolling for. " +
+	"Write ONE post (max 200 characters) about the TOPIC, to make a developer curious about Flowork — a sovereign, " +
+	"self-hosted, open-source AI agent OS.\n\n" +
+	"How to make it land:\n" +
+	"- Open with a PATTERN INTERRUPT: a sharp claim, a 'you don't need X', a myth you break, or a concrete pain devs feel. " +
+	"NOT a feature list, NOT a corporate title, NOT 'Introducing…'.\n" +
+	"- Conversational, casual, first-person or 'you'. Like telling a smart dev friend, not a press release.\n" +
+	"- ONE idea, ONE concrete detail (a real command, number, or capability) — specificity sells.\n" +
+	"- Brevity + impact. No hashtag salad (0-2 max). No emoji spam (0-1). Do NOT add a link (it's appended for you).\n" +
+	"- HONEST: only what the FACTS support. If it's not in the FACTS, don't claim it. No hype, no overclaim.\n\n" +
+	"Study these hooks (different patterns — pick what fits the TOPIC, don't copy verbatim):\n" +
+	"- \"Most 'local' AI agents still phone home. Flowork doesn't — one Go binary, offline, your data never leaves the box.\"\n" +
+	"- \"You don't need Docker, an account, or the cloud to run AI agents. git clone, ./start.sh, done.\"\n" +
+	"- \"Letting an AI agent run code on your machine is terrifying. Unless every app is sandboxed in WASM and asks consent first.\"\n" +
+	"- \"Your AI agent OS shouldn't be a black box. Flowork's kernel is ~30 frozen files — everything else is a folder you can read.\"\n\n" +
+	"Output ONLY the post text, nothing else."
+
+// composeAndPost is the shared posting path: a writer drafts ONE grounded,
+// scroll-stopping post → the coordinator appends the link (the Dev.to article when
+// promoting, else the repo) → posts a single tweet → shares it to FLOWORK_OS. A
+// single tweet (not a thread) is deliberate: it's far gentler on rate limits and
+// never leaves a half-posted thread. `topic` non-empty marks the dedup ledger.
+// Returns true if it actually posted.
+func composeAndPost(topic, facts, devtoURL string) bool {
 	facts = strings.TrimSpace(facts)
 	if facts == "" {
 		emit(map[string]any{"error": "no grounding facts for this run", "topic": topic})
-		return
+		return false
 	}
 	writer := writerAgent()
 	what := topic
 	if what == "" {
 		what = "Flowork"
 	}
-	out := askMember(writer, "You write engaging X (Twitter) threads to promote Flowork — a sovereign, self-hosted AI "+
-		"agent OS. Write a SHORT thread (3-5 tweets) about \""+what+"\", built ONLY from the FACTS below. Rules: each tweet "+
-		"<= 270 characters; concrete + punchy; tweet 1 is a strong hook (no \"a thread:\" filler); HONEST — real strengths, "+
-		"acknowledge trade-offs, NEVER overclaim or hype; if a detail (feature, number, command) is NOT in the FACTS, do NOT "+
-		"state it. Separate each tweet with a line containing only ===. Do NOT number the tweets. Output ONLY the tweets.\n\n"+
-		"TOPIC: "+what+"\n\nFACTS:\n"+facts)
-	tweets := splitThread(out)
-	if len(tweets) == 0 {
-		emit(map[string]any{"error": "writer (" + writer + ") produced no thread — installed + router up?", "topic": topic})
-		return
+	hook := strings.TrimSpace(askMember(writer, hookPrompt+"\n\nTOPIC: "+what+"\n\nFACTS:\n"+facts))
+	hook = strings.Trim(hook, "\"") // models love wrapping the line in quotes
+	if hook == "" {
+		emit(map[string]any{"error": "writer (" + writer + ") produced no post — installed + router up?", "topic": topic})
+		return false
 	}
-	tweets = append(tweets, repoTweet) // always close with both product links
+	hook = tweetClampN(hook, 170) // leave room for the link CTA + hashtags
+
+	// Hashtag/SEO research — a dedicated member picks the tags that maximise reach.
+	tags := sanitizeHashtags(askMember(hashtagAgent(), hashtagPrompt+"\n\nTOPIC: "+what+"\n\nPOST: "+hook), 3)
+
+	link := devtoURL
+	if link == "" {
+		link = "https://github.com/flowork-os/Flowork_Agent"
+	}
+	tweet := hook + "\n\n👉 " + link
+	if tags != "" {
+		tweet += "\n" + tags
+	}
+	tweet = tweetClamp(tweet)
 
 	authToken, ct0 := xCreds()
 	if authToken == "" || ct0 == "" {
 		emit(map[string]any{
-			"group": selfID(), "status": "drafted (NOT posted)", "topic": topic,
+			"group": selfID(), "status": "drafted (NOT posted)", "topic": topic, "devto_url": devtoURL,
 			"reason": "X cookies not set — add X_AUTH_TOKEN + X_CT0 in Settings → API Keys",
-			"tweets": tweets,
+			"tweet":  tweet,
 		})
-		return
+		return false
 	}
 
-	firstID, n, errNote := postThread(tweets, authToken, ct0)
-	res := map[string]any{"group": selfID(), "topic": topic, "tweets_posted": n}
-	if firstID != "" && errNote == "" {
-		url := "https://x.com/i/status/" + firstID
+	id, status, resp := postTweet(tweet, "", authToken, ct0)
+	res := map[string]any{"group": selfID(), "topic": topic, "devto_url": devtoURL, "tweet": tweet}
+	posted := id != "" && status >= 200 && status < 300
+	if posted {
+		url := "https://x.com/i/status/" + id
 		res["ok"] = true
 		res["url"] = url
 		if topic != "" {
-			markPosted(topic, tweets[0], url)
+			markPosted(topic, hook, url)
 		}
-		shared, snote := shareToFloworkOS(trunc(tweets[0], 120), url)
-		res["shared_flowork_os"] = shared
-		if !shared && snote != "" {
-			res["share_note"] = snote
-		}
+		// X posts are NOT shared to Telegram — only Dev.to articles go to the
+		// FLOWORK_OS group (promo-devto handles that). X stands on its own feed.
 	} else {
 		res["ok"] = false
-		res["error"] = errNote
+		res["error"] = fmt.Sprintf("post failed (status=%d): %s", status, trunc(resp, 200))
 	}
 	emit(res)
+	return posted
 }
 
 // autoPost — autonomous: pick the next un-covered topic, ground it in the seeded
@@ -540,7 +557,36 @@ func autoPost() {
 			"hint": "seed more topics (seed_facts), or clear kv 'posted_topics' to recycle"})
 		return
 	}
-	composeAndPost(next, strings.Join(brainSearch(next, 6), "\n\n---\n\n"))
+	composeAndPost(next, strings.Join(brainSearch(next, 6), "\n\n---\n\n"), "")
+}
+
+// promoteDevto asks the sibling promo-devto colony for its most recent article,
+// writes a grounded thread about that topic, and drives readers to the Dev.to link.
+// Scheduled ~30 min after the Dev.to post so the article is already live. Won't
+// promote the same article twice (kv "last_promoted_url").
+func promoteDevto() {
+	resp := askMember("promo-devto", "/latest")
+	var latest struct {
+		OK    bool   `json:"ok"`
+		Topic string `json:"topic"`
+		Title string `json:"title"`
+		URL   string `json:"url"`
+	}
+	if json.Unmarshal([]byte(resp), &latest) != nil || !latest.OK || strings.TrimSpace(latest.URL) == "" {
+		emit(map[string]any{"error": "no Dev.to article to promote (asked promo-devto /latest)", "raw": trunc(resp, 200)})
+		return
+	}
+	if kvGet("last_promoted_url") == latest.URL {
+		emit(map[string]any{"group": selfID(), "status": "already promoted", "url": latest.URL})
+		return
+	}
+	facts := strings.Join(brainSearch(latest.Topic, 6), "\n\n---\n\n")
+	if strings.TrimSpace(facts) == "" {
+		facts = latest.Title // fall back to the title if this colony has no seeded facts for the topic
+	}
+	if composeAndPost(latest.Topic, facts, latest.URL) {
+		kvSet("last_promoted_url", latest.URL)
+	}
 }
 
 // runPromo — manual: thread from passed-in source material ({text}). Not added to
@@ -555,7 +601,7 @@ func runPromo(argsJSON string) {
 		emit(map[string]any{"error": "empty source — pass {\"text\":\"<material>\"} or use /auto"})
 		return
 	}
-	composeAndPost("", src)
+	composeAndPost("", src, "")
 }
 
 func main() {
@@ -582,11 +628,16 @@ func main() {
 			_ = json.Unmarshal(msg.Payload, &p)
 			text = p.Text
 		}
-		// Scheduler / owner trigger: a bare "/auto" message runs the autonomous
-		// pipeline; any other text is treated as source material for a thread.
-		if tt := strings.ToLower(strings.TrimSpace(text)); tt == "/auto" || tt == "auto_post" || tt == "auto" {
+		// Scheduler / owner trigger:
+		//   /promote-devto → promote the latest Dev.to article (thread + link)
+		//   /auto          → autonomous standalone (this colony's own topic backlog)
+		//   <other text>   → a thread from the passed-in source material
+		switch tt := strings.ToLower(strings.TrimSpace(text)); {
+		case tt == "/promote-devto" || tt == "promote-devto" || tt == "promote_devto":
+			promoteDevto()
+		case tt == "/auto" || tt == "auto_post" || tt == "auto":
 			autoPost()
-		} else {
+		default:
 			runPromo(args)
 		}
 	case "auto_post":
