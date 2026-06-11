@@ -1,0 +1,32 @@
+{
+  "id": "promo-x",
+  "version": "1.0.0",
+  "kind": "agent",
+  "display_name": "Promo \u2014 X",
+  "description": "Per-platform promo colony for X (Twitter): a writer drafts a short grounded thread from this group's brain, the coordinator posts it via the internal CreateTweet API (cookie auth X_AUTH_TOKEN+X_CT0), then shares the link to FLOWORK_OS. Topics + facts seeded; anti-duplicate ledger.",
+  "min_kernel_version": "0.1.0",
+  "abi_version": 1,
+  "author": "@flowork-os",
+  "license": "MIT",
+  "entry": "agent.wasm",
+  "memory_max_mb": 16,
+  "timeout_call_ms": 120000,
+  "capabilities_required": [
+    "net:fetch:http://127.0.0.1:1987/api/kernel/call",
+    "net:fetch:https://x.com",
+    "net:fetch:https://api.telegram.org",
+    "state:read",
+    "state:write",
+    "time:read"
+  ],
+  "exposes_rpc": [
+    {
+      "name": "handle_message",
+      "description": "Post a grounded X thread: /auto = autonomous (next topic), or {text} = thread from source.",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  ]
+}

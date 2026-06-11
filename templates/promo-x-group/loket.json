@@ -1,0 +1,14 @@
+{
+  "id": "promo-x",
+  "kind": "agent",
+  "name": "Promo X",
+  "version": "1.0.0",
+  "abi_version": "1",
+  "entry": "handle",
+  "consumes": [
+    "bus.request",
+    "store.kv.get",
+    "store.kv.set",
+    "time.now"
+  ]
+}
