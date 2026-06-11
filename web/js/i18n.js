@@ -20,7 +20,7 @@
 // a new .json there and adding its name to DOMAINS — no other changes.
 
 const DOMAINS = ['menu', 'tooltip', 'error', 'status', 'common', 'tasks',
-  'doktrin_edukasi', 'scanner', 'commits', 'agents', 'coder', 'groups', 'connections', 'schedule', 'triggers', 'apps'];
+  'doktrin_edukasi', 'scanner', 'commits', 'agents', 'coder', 'groups', 'connections', 'schedule', 'triggers', 'apps', 'codemap'];
 const DEFAULT_LOCALE = 'en';
 
 const dict = {};
