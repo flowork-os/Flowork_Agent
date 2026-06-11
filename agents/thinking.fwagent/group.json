@@ -1,0 +1,17 @@
+{
+  "members": [
+    "thinking-caster",
+    "thinking-firstprinciples",
+    "thinking-how",
+    "thinking-improvement",
+    "thinking-influence",
+    "thinking-inversion",
+    "thinking-planner",
+    "thinking-questions",
+    "thinking-strategy",
+    "thinking-synthesis"
+  ],
+  "synthesizer": "thinking-synthesis",
+  "task": "Frame the key questions, view the subject through each grounded lens, then synthesize one decision.",
+  "display_name": "Thinking"
+}

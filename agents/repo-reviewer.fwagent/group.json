@@ -1,0 +1,8 @@
+{
+  "members": [
+    "repo-reviewer-writer"
+  ],
+  "synthesizer": "",
+  "task": "honest reviews of trending GitHub repos",
+  "display_name": "Repo Reviewer"
+}

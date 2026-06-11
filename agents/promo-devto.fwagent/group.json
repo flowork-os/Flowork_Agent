@@ -1,0 +1,10 @@
+{
+  "members": [
+    "promo-devto-seo",
+    "promo-devto-writer",
+    "promo-devto-tags"
+  ],
+  "synthesizer": "",
+  "task": "publish dev.to",
+  "display_name": "Promo \u2014 Dev.to"
+}

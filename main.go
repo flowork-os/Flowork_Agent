@@ -2,7 +2,10 @@
 // Status: STABLE — DO NOT MODIFY without owner approval.
 // Owner: Aola Sahidin (Mr.Dev)
 // Repo: https://github.com/flowork-os/flowork-ai-agent
-// Locked at: 2026-05-30 (re-locked 2026-06-11)
+// Locked at: 2026-05-30 (re-locked 2026-06-11; +group seed 2026-06-12)
+// 2026-06-12 OWNER-APPROVED: boot calls groupsAPI.SeedFromJSON() to reconcile each
+//   group's roster with its committed group.json mirror (export configured groups,
+//   restore them on a fresh install). Additive — no-op for plain agents.
 // 2026-06-11 OWNER-APPROVED: inject saved Settings → API Keys + Default Router/Model
 //   (FLOWORK_LLM_MODEL, ROUTER_DEFAULT_URL from KV) into the process env BEFORE
 //   kernelhost.Boot, so agents see them at load time (fixes the boot-order defect
@@ -504,6 +507,12 @@ func main() {
 		AgentsDir:     loader.AgentsDir(),
 		GroupWasmPath: "templates/group-template/agent.wasm",
 	})
+	// Keep each group's roster in sync with its committed group.json mirror: export
+	// configured groups (so they can be committed) and restore them on a fresh
+	// install. No-op for plain agents and already-synced groups.
+	if restored, exported := groupsAPI.SeedFromJSON(); restored > 0 || exported > 0 {
+		log.Printf("groups: %d roster(s) restored, %d mirrored to group.json", restored, exported)
+	}
 
 	mux := http.NewServeMux()
 

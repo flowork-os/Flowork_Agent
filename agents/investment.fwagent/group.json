@@ -1,0 +1,13 @@
+{
+  "members": [
+    "investment-decision",
+    "investment-financials",
+    "investment-governance",
+    "investment-risk",
+    "investment-technical",
+    "investment-valuation"
+  ],
+  "synthesizer": "investment-decision",
+  "task": "Gather verified market data, analyze through each organ, then decide INVEST/WATCH/PASS with sizing and kill-criteria.",
+  "display_name": "Investment Team"
+}

@@ -8,6 +8,10 @@
 //   id validated by idRe on Config/Delete/Create; Delete refuses non-group modules.
 //   Tested (groupsapi_test.go, 4/4 PASS).
 //
+// 2026-06-12 (owner-approved): ConfigHandler now also mirrors the roster to a
+//   secret-free group.json (see seed.go) so a group's membership is committable;
+//   SeedFromJSON() restores it into the loket store on a fresh install.
+//
 // Package groupsapi serves the GUI "Groups" tab (§F2): list the GROUP modules,
 // show each group's roster (members + synthesizer + task), and edit it. A GROUP is
 // just a loket-native module marked by kv "group"=="1" in its OWN loket store; its
@@ -247,6 +251,9 @@ func (h *Handler) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// Mirror the roster to a secret-free group.json so the group's membership is
+	// versionable + portable (the loket store above is .db-ignored). Best-effort.
+	writeGroupSeed(h.d.AgentsDir, id, clean, body.Synthesizer, body.Task, body.DisplayName)
 	httpx.WriteJSON(w, map[string]any{"ok": true, "id": id, "members": clean})
 }
 
