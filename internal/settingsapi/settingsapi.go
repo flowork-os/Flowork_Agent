@@ -212,6 +212,71 @@ func (a *API) KeysHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// modelRe — default model id sanity: letters/digits/_-.:/ (e.g. claude-haiku-4-5).
+var modelRe = regexp.MustCompile(`^[A-Za-z0-9_.:/-]{1,64}$`)
+
+// RouterDefaultHandler — GET/POST /api/settings/router-default.
+//
+// The GLOBAL fallback used by any agent that does NOT pin its own model/router.
+// Per-agent config still wins (an agent that sets its own model keeps it); these
+// two values only fill the blank. Stored in the generic KV (config, not a secret)
+// and mirrored into the process env so agents pick them up:
+//   - model      -> FLOWORK_LLM_MODEL  (already forwarded to every agent at boot)
+//   - router_url -> ROUTER_DEFAULT_URL (read by the llm.complete provider)
+//
+// router_url is localhost-validated downstream (routerclient host whitelist), so
+// a stray external value can never exfiltrate — it just falls back to the default.
+func (a *API) RouterDefaultHandler(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		model, _ := a.store.GetKV("llm_default_model")
+		url, _ := a.store.GetKV("router_default_url")
+		httpx.WriteJSON(w, map[string]any{"model": model, "router_url": url})
+	case http.MethodPost:
+		var body struct {
+			Model     string `json:"model"`
+			RouterURL string `json:"router_url"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&body); err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": "invalid json: " + err.Error()})
+			return
+		}
+		model := strings.TrimSpace(body.Model)
+		url := strings.TrimSpace(body.RouterURL)
+		if model != "" && !modelRe.MatchString(model) {
+			httpx.WriteJSON(w, map[string]any{"error": "model id invalid (letters/digits/_-.: only, e.g. claude-haiku-4-5)"})
+			return
+		}
+		if url != "" && !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+			httpx.WriteJSON(w, map[string]any{"error": "router_url must start with http:// or https://"})
+			return
+		}
+		if err := a.store.SetKV("llm_default_model", model); err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+			return
+		}
+		if err := a.store.SetKV("router_default_url", url); err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+			return
+		}
+		// Live-inject so running agents/providers use it without a restart. An
+		// empty value clears the override -> falls back to the built-in default.
+		if model != "" {
+			_ = os.Setenv("FLOWORK_LLM_MODEL", model)
+		} else {
+			_ = os.Unsetenv("FLOWORK_LLM_MODEL")
+		}
+		if url != "" {
+			_ = os.Setenv("ROUTER_DEFAULT_URL", url)
+		} else {
+			_ = os.Unsetenv("ROUTER_DEFAULT_URL")
+		}
+		httpx.WriteJSON(w, map[string]any{"ok": true})
+	default:
+		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
+	}
+}
+
 // mask — tampilkan 4 char terakhir, sisanya bullet.
 func mask(v string) string {
 	v = strings.TrimSpace(v)

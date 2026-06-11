@@ -770,6 +770,13 @@ func buildAgentEnv(d loader.Discovery, store *agentdb.Store, workspaceMount, sha
 		"FLOWORK_TG_ALLOWED_CHATS",
 		"FLOWORK_ROUTER_URL",
 		"FLOWORK_LLM_MODEL",
+		// Publishing credentials set in Settings → API Keys (os.Setenv'd before agents boot),
+		// forwarded so a per-platform promo group reads its own key via os.Getenv. Curated
+		// allowlist — only these Settings keys reach agents, not every global key.
+		"DEVTO_API_KEY",
+		"X_AUTH_TOKEN",
+		"X_CT0",
+		"LINKEDIN_COOKIE",
 	} {
 		if v := strings.TrimSpace(os.Getenv(key)); v != "" {
 			out[key] = v

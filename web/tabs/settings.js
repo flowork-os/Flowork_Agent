@@ -57,11 +57,30 @@ const CSS = `
 .set-empty { color:var(--text-muted); font-size:0.82rem; padding:8px 0; }
 .set-tag { font-size:0.7rem; color:#64748b; }
 .set-total { font-size:1.4rem; font-weight:700; color:#86efac; margin:6px 0; }
+.set-presets { display:flex; gap:6px; flex-wrap:wrap; margin:2px 0 10px; }
+.set-preset { padding:5px 11px; font-size:0.76rem; border-radius:999px; cursor:pointer;
+  background:rgba(139,92,246,0.10); border:1px solid rgba(139,92,246,0.30); color:#c4b5fd;
+  transition:background .15s,border-color .15s; }
+.set-preset:hover { background:rgba(139,92,246,0.22); border-color:rgba(139,92,246,0.55); }
+.set-preset.set-on { background:rgba(34,197,94,0.14); border-color:rgba(34,197,94,0.4); color:#86efac; }
+.set-hint { font-size:0.74rem; color:var(--text-muted); margin:-4px 0 8px; }
 `;
+
+// Known integration keys — friendly platform label → env var name. Clicking a
+// chip pre-fills the exact variable name so owners never have to guess it.
+// Service names are proper nouns (kept verbatim); instructional text is i18n.
+const KEY_PRESETS = [
+  { label: 'Dev.to',         key: 'DEVTO_API_KEY' },
+  { label: 'X · auth_token', key: 'X_AUTH_TOKEN' },
+  { label: 'X · ct0',        key: 'X_CT0' },
+  { label: 'LinkedIn',       key: 'LINKEDIN_COOKIE' },
+  { label: 'Telegram bot',   key: 'TELEGRAM_BOT_TOKEN' },
+];
 
 const SEGMENTS = [
   { key: 'account', label: () => t('menu.tab.settings.seg_account'), render: renderAccount },
   { key: 'keys', label: () => t('menu.tab.settings.seg_keys'), render: renderKeys },
+  { key: 'router', label: () => t('menu.tab.settings.seg_router'), render: renderRouterDefault },
   { key: 'notify', label: () => t('menu.tab.settings.seg_notify'), render: renderNotify },
   { key: 'youtube', label: () => t('menu.tab.settings.seg_youtube'), render: renderYouTube },
   { key: 'guardian', label: () => t('menu.tab.settings.seg_guardian'), render: renderGuardian },
@@ -160,8 +179,12 @@ async function renderKeys(panel) {
         <input type="text" id="kVal" placeholder="${escAttr(tk('keys_val_ph'))}">
         <button class="set-btn-primary" id="kAdd">${esc(t('common.btn.save'))}</button>
       </div>
+      <div class="set-hint">${esc(tk('keys_preset_hint'))}</div>
+      <div class="set-presets" id="kPresets">
+        ${KEY_PRESETS.map(p => `<span class="set-preset" data-key="${escAttr(p.key)}" title="${escAttr(p.key)}">${esc(p.label)}</span>`).join('')}
+      </div>
       <datalist id="kKnown">
-        <option value="ETHERSCAN_API_KEY"><option value="COINGECKO_API_KEY">
+        ${KEY_PRESETS.map(p => `<option value="${escAttr(p.key)}">`).join('')}
       </datalist>
       <div class="set-msg" id="kMsg"></div>
       <ul class="set-list" id="kList"></ul>
@@ -169,9 +192,22 @@ async function renderKeys(panel) {
   `;
   const list = panel.querySelector('#kList');
   const msg = panel.querySelector('#kMsg');
+  // Clicking a preset chip pre-fills the exact env var name → owner just pastes
+  // the value. Chips for keys already saved turn green so it's clear what's set.
+  panel.querySelectorAll('.set-preset').forEach(c => c.addEventListener('click', () => {
+    panel.querySelector('#kKey').value = c.getAttribute('data-key');
+    const v = panel.querySelector('#kVal'); v.value = ''; v.focus();
+    msg.className = 'set-msg'; msg.textContent = '';
+  }));
+  function markPresets(items) {
+    const set = new Set((items || []).map(it => it.key));
+    panel.querySelectorAll('.set-preset').forEach(c =>
+      c.classList.toggle('set-on', set.has(c.getAttribute('data-key'))));
+  }
   async function reload() {
     const d = await fetchJSON('/api/settings/keys');
     const items = d.items || [];
+    markPresets(items);
     if (!items.length) { list.innerHTML = `<div class="set-empty">${esc(tk('keys_empty'))}</div>`; return; }
     list.innerHTML = items.map(it => `
       <li>
@@ -211,6 +247,47 @@ async function renderKeys(panel) {
     } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
   });
   await reload();
+}
+
+// ── Default Router & Model ──────────────────────────────────────────────────
+// Global fallback for agents that don't pin their own model/router. Per-agent
+// config still wins — these values only fill the blank.
+async function renderRouterDefault(panel) {
+  const tk = (k) => t('menu.tab.settings.' + k);
+  panel.innerHTML = `
+    <div class="set-card">
+      <h3>${esc(tk('router_h'))}</h3>
+      <div class="sub">${esc(tk('router_sub'))}</div>
+      <div class="set-row">
+        <input type="text" id="rdModel" placeholder="${escAttr(tk('router_model_ph'))}">
+      </div>
+      <div class="set-hint">${esc(tk('router_model_hint'))}</div>
+      <div class="set-row">
+        <input type="text" id="rdUrl" placeholder="${escAttr(tk('router_url_ph'))}">
+      </div>
+      <div class="set-hint">${esc(tk('router_url_hint'))}</div>
+      <div class="set-row"><button class="set-btn-primary" id="rdSave">${esc(t('common.btn.save'))}</button></div>
+      <div class="set-msg" id="rdMsg"></div>
+    </div>
+  `;
+  const msg = panel.querySelector('#rdMsg');
+  try {
+    const d = await fetchJSON('/api/settings/router-default');
+    panel.querySelector('#rdModel').value = d.model || '';
+    panel.querySelector('#rdUrl').value = d.router_url || '';
+  } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
+  panel.querySelector('#rdSave').addEventListener('click', async () => {
+    const model = panel.querySelector('#rdModel').value.trim();
+    const router_url = panel.querySelector('#rdUrl').value.trim();
+    msg.className = 'set-msg'; msg.textContent = '';
+    try {
+      await fetchJSON('/api/settings/router-default', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, router_url }),
+      });
+      msg.className = 'set-msg ok'; msg.textContent = tk('router_saved');
+    } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
+  });
 }
 
 // ── Notifikasi (Telegram owner-level, TERPISAH dari agent) ──────────────────

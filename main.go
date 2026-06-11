@@ -148,6 +148,30 @@ func main() {
 		return result.Text, cmdName, err
 	}
 
+	// Inject saved Settings → API Keys into the process env BEFORE agents boot. The kernel
+	// builds each agent's env (buildAgentEnv) at load time from os.Getenv, so the keys MUST be
+	// set first — otherwise agents boot before the keys exist and never see them (the old order
+	// injected them after kernelhost.Boot, an architectural defect). floworkdb.Shared() is an
+	// idempotent singleton, safe to open here. UPPER_SNAKE only; reserved/sensitive names skipped.
+	if fdbEarly, ferr := floworkdb.Shared(); ferr == nil {
+		if secrets, serr := fdbEarly.AllSecrets(); serr == nil {
+			for k, v := range secrets {
+				if k == strings.ToUpper(k) && strings.TrimSpace(v) != "" && !settingsapi.IsSensitiveEnvKey(k) {
+					_ = os.Setenv(k, v)
+				}
+			}
+		}
+		// Settings → Default Router & Model (Settings page, generic KV not secrets).
+		// The global fallback for agents that don't pin their own model/router. Set
+		// BEFORE Boot so every agent's env carries FLOWORK_LLM_MODEL from the start.
+		if m, _ := fdbEarly.GetKV("llm_default_model"); strings.TrimSpace(m) != "" {
+			_ = os.Setenv("FLOWORK_LLM_MODEL", strings.TrimSpace(m))
+		}
+		if u, _ := fdbEarly.GetKV("router_default_url"); strings.TrimSpace(u) != "" {
+			_ = os.Setenv("ROUTER_DEFAULT_URL", strings.TrimSpace(u))
+		}
+	}
+
 	host, err := kernelhost.Boot(ctx)
 	if err != nil {
 		log.Fatalf("kernel boot: %v", err)
@@ -511,6 +535,7 @@ func main() {
 
 	// Settings (owner-level, flowork.db global).
 	mux.HandleFunc("/api/settings/keys", settingsAPI.KeysHandler)
+	mux.HandleFunc("/api/settings/router-default", settingsAPI.RouterDefaultHandler)
 	mux.HandleFunc("/api/settings/notify", settingsAPI.NotifyHandler)
 	settingsapi.TestNotifyFunc = notifyOwnerTelegram
 	// Owner-notify HUB (§ FlowAlpha): a loopback-only endpoint so local sandboxed apps/scanner

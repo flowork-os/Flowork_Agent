@@ -163,7 +163,12 @@ func llmCompleteProvider(ctx context.Context, _ string, args json.RawMessage) (j
 		return nil, fmt.Errorf("llm.complete: messages required")
 	}
 	if a.Model == "" {
-		a.Model = "claude-haiku-4-5" // default to a SMALL model — the ant ethos
+		// Caller didn't pin a model → fall back to the Settings → Default Model
+		// (FLOWORK_LLM_MODEL), then to a SMALL model — the ant ethos.
+		a.Model = strings.TrimSpace(os.Getenv("FLOWORK_LLM_MODEL"))
+		if a.Model == "" {
+			a.Model = "claude-haiku-4-5"
+		}
 	}
 	reqMap := map[string]any{"model": a.Model, "messages": a.Messages}
 	if len(a.Tools) > 0 {
@@ -181,7 +186,13 @@ func llmCompleteProvider(ctx context.Context, _ string, args json.RawMessage) (j
 		reqMap["tool_choice"] = a.ToolChoice
 	}
 	reqBody, _ := json.Marshal(reqMap)
-	url := routerclient.DefaultRouterURL + "/v1/chat/completions"
+	// Base = Settings → Default Router URL (ROUTER_DEFAULT_URL) when set, else the
+	// built-in default. This is read HOST-SIDE only: agents reach the LLM through
+	// this provider (the one place that knows the transport), so the URL never
+	// needs to cross into a sandboxed agent's env. routerclient.New validates the
+	// host (localhost whitelist), so a stray/external value safely falls back —
+	// never an exfil vector.
+	url := routerclient.New(os.Getenv("ROUTER_DEFAULT_URL")).BaseURL + "/v1/chat/completions"
 
 	cctx, cancel := context.WithTimeout(ctx, 120*time.Second)
 	defer cancel()
