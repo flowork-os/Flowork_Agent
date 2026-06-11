@@ -2,7 +2,12 @@
 // Status: STABLE — DO NOT MODIFY without owner approval.
 // Owner: Aola Sahidin (Mr.Dev)
 // Repo: https://github.com/flowork-os/flowork-ai-agent
-// Locked at: 2026-05-30
+// Locked at: 2026-05-30 (re-locked 2026-06-11)
+// 2026-06-11 OWNER-APPROVED BUG FIX: Spec.Matches forced now.UTC() before testing
+//   minute/hour, so a Schedule/Trigger given LOCAL wall-clock time (type_time uses
+//   time.Now()) was matched against UTC — every cron fired 7h off (WIB) i.e. while
+//   the machine was usually off, so jobs never ran. Matches now uses `now` as
+//   passed; callers choose tz (Section-18 sends now.UTC(), trigger sends local).
 // Reason: Section 18 phase 1 standard 5-field cron parser. Field order:
 //   minute hour day-of-month month day-of-week. Format support: `*`,
 //   number `5`, range `1-5`, step `*/N`, list `1,3,5`. Phase 2 (L/W/#
@@ -120,9 +125,13 @@ func expandField(field string, lo, hi int) (map[int]bool, error) {
 	return out, nil
 }
 
-// Matches — true kalau `now` due. Minute-resolution.
+// Matches — true kalau `now` due. Minute-resolution. Cocok di TIMEZONE caller:
+// kita pakai field `now` apa adanya (BUG fix 2026-06-11, owner-approved: dulu paksa
+// `now.UTC()` → cron Schedule/Trigger yg dikasih waktu LOKAL malah dicocokin di UTC
+// = meleset 7 jam, jadwal gak pernah fire). Pemanggil yg mau UTC kirim now.UTC()
+// (Section-18 scheduler); yg mau lokal kirim time.Now() (trigger type_time).
 func (s Spec) Matches(now time.Time) bool {
-	t := now.UTC()
+	t := now
 	if !s.Min[t.Minute()] || !s.Hour[t.Hour()] || !s.Month[int(t.Month())] {
 		return false
 	}
