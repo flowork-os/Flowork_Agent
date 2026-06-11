@@ -377,11 +377,24 @@ func registerCommands(token, target string) bool {
 	if json.Unmarshal(outer.Reply, &inner) != nil || !strings.HasPrefix(strings.TrimSpace(inner.Reply), "{") {
 		return false
 	}
-	// inner.Reply is already a setMyCommands body: {"commands":[…]}.
+	// inner.Reply is already a setMyCommands body: {"commands":[…]}. Dedup: only
+	// push to Telegram when the list actually changed (the loop re-checks often so a
+	// newly-created group's command appears within minutes, without spamming the API).
+	if strings.TrimSpace(inner.Reply) == lastSlashBody {
+		return true
+	}
 	st, _ := hostFetch("POST", fmt.Sprintf("%s/bot%s/setMyCommands", tgBase(), token), map[string]string{"Content-Type": "application/json"}, []byte(inner.Reply))
 	fmt.Fprintf(os.Stderr, "[%s] setMyCommands status=%d\n", selfID(), st)
-	return st >= 200 && st < 300
+	if st >= 200 && st < 300 {
+		lastSlashBody = strings.TrimSpace(inner.Reply)
+		return true
+	}
+	return false
 }
+
+// lastSlashBody is the last command list pushed to Telegram (process-lifetime memo
+// for the dedup above). Empty until the first successful sync.
+var lastSlashBody string
 
 func sendMessage(token string, chatID int64, text string) error {
 	// Telegram caps a message at 4096 chars; a long answer must be SPLIT into
@@ -463,11 +476,15 @@ func boot() {
 	fmt.Fprintf(os.Stderr, "[%s] live: target=%s allowed=%d\n", selfID(), target, len(allowed))
 	waitLoketReady()
 	var offset int64
-	registered := false
+	tick := 0
 	for {
-		if !registered { // sync the Telegram slash menu once Mr.Flow is reachable
-			registered = registerCommands(token, target)
+		// Re-sync the Telegram slash menu periodically (~every 6 polls) so a group
+		// created/deleted at runtime auto-appears/disappears — plug-and-play, no
+		// restart. registerCommands dedups, so it only calls setMyCommands on change.
+		if tick%6 == 0 {
+			registerCommands(token, target)
 		}
+		tick++
 		updates, err := getUpdates(token, offset, pollTimeout)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "[%s] getUpdates: %v\n", selfID(), err)

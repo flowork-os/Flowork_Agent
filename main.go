@@ -533,6 +533,11 @@ func main() {
 	if restored, exported := groupsAPI.SeedFromJSON(); restored > 0 || exported > 0 {
 		log.Printf("groups: %d roster(s) restored, %d mirrored to group.json", restored, exported)
 	}
+	// Plug-and-play: auto-discover every group and sync the list to the orchestrator
+	// so the Telegram slash menu + Mr.Flow's ask_group cover ALL groups, no config.
+	if n := groupsAPI.SyncToOrchestrator(); n > 0 {
+		log.Printf("groups: synced %d group(s) to orchestrator (%s) for slash + ask_group", n, groupsapi.OrchestratorID)
+	}
 
 	mux := http.NewServeMux()
 

@@ -254,6 +254,9 @@ func (h *Handler) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 	// Mirror the roster to a secret-free group.json so the group's membership is
 	// versionable + portable (the loket store above is .db-ignored). Best-effort.
 	writeGroupSeed(h.d.AgentsDir, id, clean, body.Synthesizer, body.Task, body.DisplayName)
+	// Plug-and-play: re-sync the group list to the orchestrator so a renamed group's
+	// slash-menu description stays current (see orchestrator.go).
+	h.SyncToOrchestrator()
 	httpx.WriteJSON(w, map[string]any{"ok": true, "id": id, "members": clean})
 }
 
@@ -288,6 +291,9 @@ func (h *Handler) DeleteHandler(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "hapus folder: "+err.Error())
 		return
 	}
+	// Plug-and-play: re-sync so the deleted group drops out of the slash menu + the
+	// ask_group tool automatically (see orchestrator.go).
+	h.SyncToOrchestrator()
 	httpx.WriteJSON(w, map[string]any{"ok": true, "id": id})
 }
 
@@ -371,5 +377,9 @@ func (h *Handler) CreateHandler(w http.ResponseWriter, r *http.Request) {
 			_ = st.Close()
 		}
 	}
+	// Plug-and-play: the moment a group is created it auto-registers with the
+	// orchestrator → appears in the Telegram slash menu + becomes runnable via
+	// Mr.Flow, with no kv editing and no code change (see orchestrator.go).
+	h.SyncToOrchestrator()
 	httpx.WriteJSON(w, map[string]any{"ok": true, "id": id, "display_name": display})
 }
