@@ -444,6 +444,47 @@ func buildTweet(text, link, tags string) string {
 	return clampWeighted(stripLabel(text), budget) + tail
 }
 
+// pctEnc percent-encodes a string for application/x-www-form-urlencoded.
+func pctEnc(s string) string {
+	var b strings.Builder
+	for _, c := range []byte(s) {
+		if c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '-' || c == '_' || c == '.' || c == '~' {
+			b.WriteByte(c)
+		} else {
+			b.WriteString(fmt.Sprintf("%%%02X", c))
+		}
+	}
+	return b.String()
+}
+
+// postFacebook publishes to a Facebook PAGE via the official Graph API (message +
+// link → rich OG card). Reads FB_PAGE_ID + FB_PAGE_TOKEN from Settings → API Keys.
+// The Page/Graph route is sanctioned + stable — no cookies, real links allowed.
+func postFacebook(message, link string) (bool, string) {
+	pageID := strings.TrimSpace(os.Getenv("FB_PAGE_ID"))
+	if pageID == "" {
+		pageID = cfg("fb_page_id")
+	}
+	token := strings.TrimSpace(os.Getenv("FB_PAGE_TOKEN"))
+	if token == "" {
+		token = cfg("fb_page_token")
+	}
+	if pageID == "" || token == "" {
+		return false, "FB Page not configured (FB_PAGE_ID/FB_PAGE_TOKEN)"
+	}
+	form := "message=" + pctEnc(message)
+	if strings.TrimSpace(link) != "" {
+		form += "&link=" + pctEnc(link)
+	}
+	form += "&access_token=" + pctEnc(token)
+	status, resp := hostFetch("POST", "https://graph.facebook.com/v21.0/"+pageID+"/feed",
+		map[string]string{"Content-Type": "application/x-www-form-urlencoded"}, []byte(form))
+	if status >= 200 && status < 300 {
+		return true, ""
+	}
+	return false, fmt.Sprintf("status=%d %s", status, trunc(resp, 160))
+}
+
 // postTweet posts ONE tweet (replyTo != "" chains it under a thread). Returns the
 // new tweet's rest_id, the http status, and the raw body.
 func postTweet(text, replyTo, authToken, ct0 string) (string, int, string) {
@@ -642,6 +683,14 @@ func composeAndPost(topic, facts, devtoURL string) bool {
 		res["ok"] = false
 		res["error"] = fmt.Sprintf("post failed (status=%d): %s", status, trunc(resp, 200))
 	}
+	// Facebook PAGE (Graph API): the promo hook + the alternated repo link (FB renders
+	// its OG card). Independent of X — runs whether the tweet landed or not.
+	fbMsg := hook
+	if t := strings.TrimSpace(cfg("flowork_tele_link")); t != "" {
+		fbMsg += "\n\n💬 Join Flowork on Telegram: " + t
+	}
+	fbOK, fbNote := postFacebook(fbMsg, link)
+	res["facebook"] = map[string]any{"ok": fbOK, "note": fbNote}
 	emit(res)
 	return posted
 }

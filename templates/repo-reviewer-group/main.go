@@ -580,6 +580,50 @@ func postTelegram(text string) (bool, string) {
 	return false, trunc(resp, 160)
 }
 
+// ── Facebook (Graph API, Page) ───────────────────────────────────────────────
+
+// pctEnc percent-encodes a string for application/x-www-form-urlencoded.
+func pctEnc(s string) string {
+	var b strings.Builder
+	for _, c := range []byte(s) {
+		if c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '-' || c == '_' || c == '.' || c == '~' {
+			b.WriteByte(c)
+		} else {
+			b.WriteString(fmt.Sprintf("%%%02X", c))
+		}
+	}
+	return b.String()
+}
+
+// postFacebook publishes to a Facebook PAGE via the official Graph API. message +
+// link (the link renders a rich card with the repo's OG image). Reads FB_PAGE_ID +
+// FB_PAGE_TOKEN from Settings → API Keys. The Page/Graph route is the sanctioned,
+// stable path — no cookies, no automation flags, real clickable links allowed.
+func postFacebook(message, link string) (bool, string) {
+	pageID := strings.TrimSpace(os.Getenv("FB_PAGE_ID"))
+	if pageID == "" {
+		pageID = cfg("fb_page_id")
+	}
+	token := strings.TrimSpace(os.Getenv("FB_PAGE_TOKEN"))
+	if token == "" {
+		token = cfg("fb_page_token")
+	}
+	if pageID == "" || token == "" {
+		return false, "FB Page not configured (FB_PAGE_ID/FB_PAGE_TOKEN)"
+	}
+	form := "message=" + pctEnc(message)
+	if strings.TrimSpace(link) != "" {
+		form += "&link=" + pctEnc(link)
+	}
+	form += "&access_token=" + pctEnc(token)
+	status, resp := hostFetch("POST", "https://graph.facebook.com/v21.0/"+pageID+"/feed",
+		map[string]string{"Content-Type": "application/x-www-form-urlencoded"}, []byte(form))
+	if status >= 200 && status < 300 {
+		return true, ""
+	}
+	return false, fmt.Sprintf("status=%d %s", status, trunc(resp, 160))
+}
+
 // ── the review ───────────────────────────────────────────────────────────────
 
 const tweetPrompt = "You are a recognised CODING & AI EXPERT who runs a respected developer account boosting cool open-source projects. Write ONE honest X post " +
@@ -745,6 +789,14 @@ func reviewRepo() {
 	xURL, xOK, xNote := postX(tweet)
 	tgOK, tgNote := postTelegram(tgText)
 
+	// Facebook PAGE (Graph API): full review excerpt + the repo link (FB renders the
+	// link's OG card = the repo image). Official Page route, so real links are fine.
+	fbMsg := "🔎 Trending on GitHub: " + slug + "\n\n" + trunc(reviewBody, 2000)
+	if tele != "" {
+		fbMsg += "\n\n💬 Join the Flowork community on Telegram: " + tele
+	}
+	fbOK, fbNote := postFacebook(fbMsg, repoURL)
+
 	// Owner observability: the X result (e.g. a 226 automation flag during a burst, or
 	// "X cookies not set") is otherwise invisible since the emit goes to stdout.
 	kvSet("last_x_status", fmt.Sprint(xOK))
@@ -756,6 +808,7 @@ func reviewRepo() {
 		"devto":    map[string]any{"ok": devOK, "url": devURL, "note": devNote},
 		"x":        map[string]any{"ok": xOK, "url": xURL, "note": xNote},
 		"telegram": map[string]any{"ok": tgOK, "note": tgNote},
+		"facebook": map[string]any{"ok": fbOK, "note": fbNote},
 	})
 }
 
