@@ -538,6 +538,32 @@ func runPromo(argsJSON string) {
 // key (Settings → API Keys first), and POSTs to Dev.to. On the autonomous path
 // `topic` is non-empty: a successful post appends it to the dedup ledger so the
 // group never writes about the same topic twice.
+// shareToFloworkOS posts a published article (title + link) to the FLOWORK_OS
+// Telegram group. The group chat id + bot token come from Settings → API Keys
+// (FWOS_CHAT_ID / FWOS_BOT_TOKEN, forwarded as env), with a fallback
+// to this group's own config — never hardcoded. The bot must be a member of the
+// group. Returns (shared, note); note explains why it was skipped/failed.
+func shareToFloworkOS(title, url string) (bool, string) {
+	chat := strings.TrimSpace(os.Getenv("FWOS_CHAT_ID"))
+	if chat == "" {
+		chat = cfg("fwos_chat_id")
+	}
+	token := strings.TrimSpace(os.Getenv("FWOS_BOT_TOKEN"))
+	if token == "" {
+		token = cfg("fwos_bot_token")
+	}
+	if chat == "" || token == "" {
+		return false, "not configured — set FWOS_CHAT_ID + FWOS_BOT_TOKEN in Settings → API Keys"
+	}
+	payload, _ := json.Marshal(map[string]any{"chat_id": chat, "text": title + "\n" + url})
+	status, resp := hostFetch("POST", "https://api.telegram.org/bot"+token+"/sendMessage",
+		map[string]string{"Content-Type": "application/json"}, payload)
+	if status >= 200 && status < 300 {
+		return true, ""
+	}
+	return false, trunc(resp, 200)
+}
+
 func tagsAndPublish(rs roster, title, keywords, body, topic string) {
 	tagsOut := askMember(rs.Tags, "You are a Dev.to tagging specialist. Pick the 4 BEST Dev.to tags for this article — "+
 		"lowercase single words from Dev.to's common taxonomy, the most relevant + discoverable. Reply with ONLY the "+
@@ -594,6 +620,16 @@ func tagsAndPublish(rs roster, title, keywords, body, topic string) {
 		// path, mark the topic covered so it's never picked again.
 		if topic != "" {
 			markPosted(topic, title, r.URL)
+		}
+		// Share the LIVE article to the FLOWORK_OS Telegram group (title + link).
+		// Drafts are skipped — the link isn't public yet. Best-effort: a share
+		// failure never fails the post.
+		if publish && r.URL != "" {
+			shared, snote := shareToFloworkOS(title, r.URL)
+			out["shared_flowork_os"] = shared
+			if !shared && snote != "" {
+				out["share_note"] = snote
+			}
 		}
 	} else {
 		out["ok"] = false

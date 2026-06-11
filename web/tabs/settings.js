@@ -79,6 +79,8 @@ const KEY_PRESETS = [
   { label: 'X · ct0',        key: 'X_CT0' },
   { label: 'LinkedIn',       key: 'LINKEDIN_COOKIE' },
   { label: 'Telegram bot',   key: 'TELEGRAM_BOT_TOKEN' },
+  { label: 'FLOWORK_OS group id', key: 'FWOS_CHAT_ID' },
+  { label: 'FLOWORK_OS bot',      key: 'FWOS_BOT_TOKEN' },
 ];
 
 const SEGMENTS = [

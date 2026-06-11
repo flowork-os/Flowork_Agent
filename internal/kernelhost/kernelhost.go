@@ -11,6 +11,9 @@
 //   X_CT0/LINKEDIN_COOKIE so a per-platform promo group reads its own publishing
 //   key from Settings → API Keys via os.Getenv. Curated allowlist only — does NOT
 //   widen the env surface beyond these named keys. No orchestration/isolation change.
+//   (2nd pass same day, owner-approved, hash re-regenerated): +FWOS_CHAT_ID/
+//   FWOS_BOT_TOKEN so the promo group shares each published article to the
+//   FLOWORK_OS Telegram group. Same curated-allowlist pattern.
 // Reason: Kernel orchestrator (CRITICAL). Audit pass:
 //   - Boot: per-agent rejection isolation (one bad agent ngga kill boot)
 //   - Workspace mkdir 0o755, state.db touch
@@ -782,6 +785,11 @@ func buildAgentEnv(d loader.Discovery, store *agentdb.Store, workspaceMount, sha
 		"X_AUTH_TOKEN",
 		"X_CT0",
 		"LINKEDIN_COOKIE",
+		// Share-to-community: the FLOWORK_OS Telegram group id + the bot token used
+		// to post there (the promo group shares each published article). Settings →
+		// API Keys, forwarded here so the group reads them via os.Getenv.
+		"FWOS_CHAT_ID",
+		"FWOS_BOT_TOKEN",
 	} {
 		if v := strings.TrimSpace(os.Getenv(key)); v != "" {
 			out[key] = v
