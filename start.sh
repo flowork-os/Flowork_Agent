@@ -129,6 +129,34 @@ fi
 [ -f "$ROOT/flowork.local.env" ] && set -a && . "$ROOT/flowork.local.env" && set +a
 export FLOWORK_POWER_ARMED="${FLOWORK_POWER_ARMED:-1}"
 
+# ── SEED AGENTS (fresh-install convenience) ──────────────────────────────────
+# The repo ships every agent/group DEFINITION + built agent.wasm under ./agents,
+# but the runtime reads ~/.flowork/agents (or $FLOWORK_AGENTS_DIR). On a fresh
+# checkout that dir is empty, so none of the bundled agents would load. Install
+# any bundled *.fwagent that isn't there yet — NEVER overwrite an existing one
+# (preserves a live workspace/state.db with the owner's tokens). Idempotent: on a
+# machine that already has its agents this copies nothing.
+AGENTS_SRC="$ROOT/agents"
+AGENTS_DST="${FLOWORK_AGENTS_DIR:-$HOME/.flowork/agents}"
+if [ -d "$AGENTS_SRC" ]; then
+  mkdir -p "$AGENTS_DST"
+  seeded=0
+  for d in "$AGENTS_SRC"/*.fwagent/; do
+    [ -d "$d" ] || continue
+    name="$(basename "$d")"
+    if [ ! -e "$AGENTS_DST/$name" ]; then
+      cp -r "$d" "$AGENTS_DST/$name" || continue
+      # Strip any stray runtime state so a seeded agent starts clean (it builds its
+      # own workspace/state.db on first run). A real clone has none of this; this is
+      # belt-and-suspenders against a dirty working tree.
+      rm -rf "$AGENTS_DST/$name/workspace" "$AGENTS_DST/$name/shared"
+      find "$AGENTS_DST/$name" \( -name '*.db' -o -name '*.db-shm' -o -name '*.db-wal' \) -delete 2>/dev/null || true
+      seeded=$((seeded + 1))
+    fi
+  done
+  [ "$seeded" -gt 0 ] && c_ok "Seeded $seeded bundled agent(s) → $AGENTS_DST"
+fi
+
 # Jalanin di background
 c_info "Start flowork-gui di http://$ADDR... (power armed=$FLOWORK_POWER_ARMED)"
 nohup "$BIN" -addr "$ADDR" >"$LOG_FILE" 2>&1 &
