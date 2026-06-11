@@ -193,9 +193,6 @@ function card(g, avail, claimedBy, mainEl) {
     <div class="gr-sec">${esc(L.task_label)}</div>
     <textarea class="gr-task">${esc(g.task || '')}</textarea>
 
-    <div class="gr-sec">🔑 Config / secrets <span class="gr-empty" style="font-weight:400">— one <code>key=value</code> per line (e.g. <code>devto_api_key=…</code>, <code>publish=true</code>). Stays on your machine, never pushed.</span></div>
-    <textarea class="gr-task gr-config" placeholder="devto_api_key=xxxxxxxx&#10;publish=true&#10;tags=opensource,ai,go,selfhosted" spellcheck="false"></textarea>
-
     <div class="gr-save">
       <button class="gr-btn primary gr-do">${esc(L.save_btn)}</button>
       <button class="gr-btn danger gr-del">🗑 ${esc(L.delete_btn)}</button>
@@ -217,17 +214,11 @@ function card(g, avail, claimedBy, mainEl) {
   const msg = el.querySelector('.gr-save .gr-msg');
   btn.addEventListener('click', async () => {
     const chosen = [...el.querySelectorAll('.gr-chip input:checked')].map((i) => i.closest('.gr-chip').dataset.id);
-    const config = {};
-    el.querySelector('.gr-config').value.split('\n').forEach((ln) => {
-      const i = ln.indexOf('=');
-      if (i > 0) { const k = ln.slice(0, i).trim(); if (k) config[k] = ln.slice(i + 1).trim(); }
-    });
     const payload = {
       members: chosen,
       synthesizer: el.querySelector('.gr-synth').value,
       task: el.querySelector('.gr-task').value,
       display_name: el.querySelector('.gr-name').value.trim(),
-      config,
     };
     btn.disabled = true; msg.style.display = 'none';
     try {

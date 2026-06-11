@@ -341,7 +341,12 @@ func runPromo(argsJSON string) {
 	body = body + repoFooter
 
 	publish := strings.EqualFold(cfg("publish"), "true")
-	apiKey := cfg("devto_api_key")
+	// API key: primary from Settings → API Keys (env DEVTO_API_KEY, forwarded by the host),
+	// fallback to this group's kv / workspace file. Never hardcoded.
+	apiKey := strings.TrimSpace(os.Getenv("DEVTO_API_KEY"))
+	if apiKey == "" {
+		apiKey = cfg("devto_api_key")
+	}
 	if apiKey == "" {
 		emit(map[string]any{
 			"group": selfID(), "status": "drafted (NOT posted)",
