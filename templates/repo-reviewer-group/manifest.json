@@ -1,0 +1,35 @@
+{
+  "id": "repo-reviewer",
+  "version": "1.0.0",
+  "kind": "agent",
+  "display_name": "Repo Reviewer",
+  "description": "Give-value colony: reviews trending GitHub repos honestly (grounded in their README) and posts to Dev.to, X, and the FLOWORK_OS Telegram group. No Flowork pitch inside reviews.",
+  "min_kernel_version": "0.1.0",
+  "abi_version": 1,
+  "author": "@flowork-os",
+  "license": "MIT",
+  "entry": "agent.wasm",
+  "memory_max_mb": 16,
+  "timeout_call_ms": 120000,
+  "capabilities_required": [
+    "net:fetch:http://127.0.0.1:1987/api/kernel/call",
+    "net:fetch:https://github.com",
+    "net:fetch:https://raw.githubusercontent.com",
+    "net:fetch:https://x.com",
+    "net:fetch:https://dev.to",
+    "net:fetch:https://api.telegram.org",
+    "state:read",
+    "state:write",
+    "time:read"
+  ],
+  "exposes_rpc": [
+    {
+      "name": "handle_message",
+      "description": "Review one trending GitHub repo and post to Dev.to/X/Telegram. Trigger with /review.",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  ]
+}
