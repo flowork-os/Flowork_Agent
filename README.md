@@ -1,7 +1,5 @@
 <div align="center">
 
-<img src="img/cover.png" alt="Flowork Agent — the self-hosted operating system for AI agents: own your AI, give it a memory that never forgets, a conscience that never lies, and a security radar built in" width="100%">
-
 # ⚡ Flowork Agent
 
 ### The self-hosted **operating system for AI agents** you actually own.
