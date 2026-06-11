@@ -3,6 +3,10 @@
 // Owner: Aola Sahidin (Mr.Dev)
 // Repo: https://github.com/flowork-os/flowork-ai-agent
 // Locked at: 2026-05-30
+// 2026-06-11 (owner-approved security audit, unfreeze→refreeze): webfetch client
+//   now uses a Transport.DialContext (safeFetchDial) that re-checks + pins the IP
+//   at connect time — closes a DNS-rebinding window left by the one-shot
+//   validateURL() resolve. Also covers redirect targets.
 // Reason: Section 11 phase 1d (webfetch) DONE. API stable: webfetch
 //   tool dengan SSRF defense — scheme whitelist (http/https), hostname
 //   resolve + IP CIDR block (127.x loopback, 10.x/172.16-31.x/192.168.x
@@ -103,6 +107,38 @@ func validateURL(raw string) (*url.URL, error) {
 	return u, nil
 }
 
+// safeFetchDial re-validates the destination IP at connection time and dials the
+// exact validated IP (pinned), closing the DNS-rebinding gap that a one-shot
+// validateURL() leaves open. The TLS ServerName is derived from the request URL
+// host by net/http, not from the dial address, so cert verification still works
+// against the original hostname.
+func safeFetchDial(ctx context.Context, network, addr string) (net.Conn, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+	d := &net.Dialer{Timeout: webFetchTimeout, KeepAlive: 30 * time.Second}
+	if ip := net.ParseIP(host); ip != nil {
+		if isBlockedIP(ip) {
+			return nil, fmt.Errorf("ip %s blocked (private/loopback/metadata range)", ip)
+		}
+		return d.DialContext(ctx, network, addr)
+	}
+	ips, lerr := net.DefaultResolver.LookupIPAddr(ctx, host)
+	if lerr != nil {
+		return nil, fmt.Errorf("dns lookup: %w", lerr)
+	}
+	if len(ips) == 0 {
+		return nil, fmt.Errorf("dns lookup: no addresses for %s", host)
+	}
+	for _, a := range ips {
+		if isBlockedIP(a.IP) {
+			return nil, fmt.Errorf("ip %s blocked (private/loopback/metadata range)", a.IP)
+		}
+	}
+	return d.DialContext(ctx, network, net.JoinHostPort(ips[0].IP.String(), port))
+}
+
 // =============================================================================
 // webfetch — HTTP GET URL
 // =============================================================================
@@ -134,8 +170,13 @@ func (webFetchTool) Run(ctx context.Context, args map[string]any) (tools.Result,
 	}
 
 	// Build client dengan timeout + redirect policy yang strip auth.
+	// Transport.DialContext re-checks the IP at connect time and pins the dial to
+	// the validated address — validateURL() alone resolves once up front, leaving a
+	// DNS-rebinding window where the name re-resolves to a private/metadata IP at
+	// dial time. Re-checking per-dial also covers redirect targets.
 	client := &http.Client{
-		Timeout: webFetchTimeout,
+		Timeout:   webFetchTimeout,
+		Transport: &http.Transport{DialContext: safeFetchDial},
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			// Re-validate redirect target untuk SSRF defense — kalau attacker
 			// host respond 301 ke private IP, blok.

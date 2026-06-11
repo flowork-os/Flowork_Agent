@@ -2,7 +2,11 @@
 // Status: STABLE — DO NOT MODIFY without owner approval.
 // Owner: Aola Sahidin (Mr.Dev)
 // Repo: https://github.com/flowork-os/flowork-ai-agent
-// Locked at: 2026-05-30 (re-audited 2026-06-06)
+// Locked at: 2026-05-30 (re-audited 2026-06-06; security audit 2026-06-11)
+// Update 2026-06-11 (owner-approved security audit, unfreeze→refreeze): (1) the
+//   loopback-secret check in ToolRunHandler now uses subtle.ConstantTimeCompare
+//   instead of ==; (2) extractFile caps per-entry extraction with a 64MB
+//   LimitReader (zip-bomb guard, matches pack_extract.go / plugin_handler.go).
 // Update 2026-06-06 (owner-approved AI-Agent audit): ConfigHandler POST now calls
 //   reconcileMaskedSecrets() before Save — GET masks secrets to ••••<last4>, the GUI
 //   posts the whole form back, and Save full-replaces the secrets table, so an
@@ -26,6 +30,7 @@ package agentmgr
 import (
 	"archive/zip"
 	"bytes"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -715,7 +720,8 @@ func ToolRunHandler(w http.ResponseWriter, r *http.Request) {
 	// pluginID, un-forgeable by the guest) is the authoritative identity. This
 	// stops one agent running tools under another agent's id via ?id=. External
 	// callers (GUI/scripts, no secret) keep using ?id (loopback-gated as before).
-	if secret := strings.TrimSpace(os.Getenv("FLOWORK_LOOPBACK_SECRET")); secret != "" && r.Header.Get("X-Flowork-Secret") == secret {
+	if secret := strings.TrimSpace(os.Getenv("FLOWORK_LOOPBACK_SECRET")); secret != "" &&
+		subtle.ConstantTimeCompare([]byte(r.Header.Get("X-Flowork-Secret")), []byte(secret)) == 1 {
 		if caller := strings.TrimSpace(r.Header.Get("X-Flowork-Caller")); caller != "" {
 			if id != "" && id != caller {
 				httpx.WriteJSON(w, map[string]any{"error": "agent identity mismatch (caller-bound execution)"})
@@ -1445,6 +1451,9 @@ func extractFile(f *zip.File, dest string) error {
 		return err
 	}
 	defer out.Close()
-	_, err = io.Copy(out, rc)
+	// Cap per-entry extraction (zip-bomb guard): a small compressed entry can
+	// expand without bound and fill the disk. 64MB matches the upload body cap
+	// and the LimitReader already used in pack_extract.go / plugin_handler.go.
+	_, err = io.Copy(out, io.LimitReader(rc, 64<<20))
 	return err
 }
