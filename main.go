@@ -899,6 +899,7 @@ func seedSocialDefaults(fdb *floworkdb.Store, agentsDir string) {
 			Cron   string `json:"cron"`
 			Target string `json:"target"`
 			Prompt string `json:"prompt"`
+			Kind   string `json:"kind"` // "group" (default) or "agent"
 		} `json:"schedule"`
 		GroupConfig  map[string]string `json:"group_config"`
 		ConfigGroups []string          `json:"config_groups"`
@@ -909,10 +910,14 @@ func seedSocialDefaults(fdb *floworkdb.Store, agentsDir string) {
 	// (a) schedule — fresh install only (empty table), never overwrite an existing one.
 	if existing, lerr := fdb.ListTriggers(); lerr == nil && len(existing) == 0 && len(seed.Schedule) > 0 {
 		for _, s := range seed.Schedule {
+			kind := s.Kind
+			if kind == "" {
+				kind = "group"
+			}
 			_ = fdb.UpsertTrigger(floworkdb.Trigger{
 				ID: s.ID, Name: s.Name, TypeID: "time",
 				Config: `{"cron":"` + s.Cron + `"}`,
-				Target: s.Target, TargetKind: "group",
+				Target: s.Target, TargetKind: kind,
 				Prompt: s.Prompt, Deliver: "telegram", Enabled: true,
 			})
 		}

@@ -5,7 +5,8 @@
     {"id": "social-promo-devto", "name": "Flowork promo — Dev.to article",      "cron": "0 21 * * *",  "target": "promo-devto",   "prompt": "/auto"},
     {"id": "social-promo-tele",  "name": "Flowork promo — share to Telegram",   "cron": "20 21 * * *", "target": "promo-x",       "prompt": "/promote-tele"},
     {"id": "social-promo-x",     "name": "Flowork promo — share to X",          "cron": "40 21 * * *", "target": "promo-x",       "prompt": "/promote-devto"},
-    {"id": "social-trend-2",     "name": "Trending repo #2 (Dev+X+Tele)",      "cron": "30 22 * * *", "target": "repo-reviewer", "prompt": "/review"}
+    {"id": "social-trend-2",     "name": "Trending repo #2 (Dev+X+Tele)",      "cron": "30 22 * * *", "target": "repo-reviewer", "prompt": "/review"},
+    {"id": "operator-shutdown-0000", "name": "Operator — matikan PC 00:00 WIB", "cron": "0 0 * * *", "target": "operator-shutdown", "prompt": "/shutdown", "kind": "agent"}
   ],
   "group_config": {
     "flowork_tele_link": "https://t.me/+55oqrk75lc43YWE1"

@@ -1,0 +1,13 @@
+{
+  "id": "operator-shutdown",
+  "kind": "agent",
+  "name": "Operator — Nightly Shutdown",
+  "version": "1.0.0",
+  "abi_version": "1",
+  "entry": "handle",
+  "consumes": [
+    "tool.run",
+    "store.kv.get",
+    "store.kv.set"
+  ]
+}

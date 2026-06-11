@@ -1,0 +1,27 @@
+{
+  "id": "operator-shutdown",
+  "version": "1.0.0",
+  "kind": "agent",
+  "display_name": "Operator — Nightly Shutdown",
+  "description": "Deterministic operator: on a /shutdown message it calls the system_power tool to power off the host. Wired to a 00:00 WIB scheduler trigger. Real shutdown only fires when the host is ARMED (env FLOWORK_POWER_ARMED=1); otherwise it dry-runs.",
+  "min_kernel_version": "0.1.0",
+  "abi_version": 1,
+  "author": "@flowork-os",
+  "license": "MIT",
+  "entry": "agent.wasm",
+  "memory_max_mb": 16,
+  "timeout_call_ms": 120000,
+  "capabilities_required": [
+    "net:fetch:http://127.0.0.1:1987/api/kernel/call",
+    "exec:power",
+    "state:read",
+    "state:write"
+  ],
+  "exposes_rpc": [
+    {
+      "name": "handle_message",
+      "description": "Power off the host computer. Trigger with /shutdown.",
+      "input_schema": { "type": "object", "properties": {} }
+    }
+  ]
+}

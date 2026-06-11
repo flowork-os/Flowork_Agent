@@ -77,6 +77,8 @@ const KEY_PRESETS = [
   { label: 'Dev.to',         key: 'DEVTO_API_KEY' },
   { label: 'X · auth_token', key: 'X_AUTH_TOKEN' },
   { label: 'X · ct0',        key: 'X_CT0' },
+  { label: 'Facebook · c_user', key: 'FB_C_USER' }, // personal account (not a Page): cookie pair
+  { label: 'Facebook · xs',     key: 'FB_XS' },     // from a logged-in facebook.com session
   { label: 'LinkedIn',       key: 'LINKEDIN_COOKIE' },
   { label: 'Telegram bot',   key: 'TELEGRAM_BOT_TOKEN' },
   { label: 'FLOWORK_OS group id', key: 'FWOS_CHAT_ID' },
