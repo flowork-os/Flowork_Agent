@@ -108,3 +108,54 @@ Do not invent a second secret store. Do not write a token into an agent's
 `state.db`, a `manifest.json`, a `loket.json` value, or any committed file. A secret
 that isn't in Settings → API Keys is a bug. The only secret-free things that ship are
 *names/placeholders* (`PASTE_YOUR_KEY_HERE`).
+
+---
+
+## 🧠 RULE — Persona (prompt) & the two-tier brain (ARCHITECTURE, ENFORCED)
+
+### The prompt lives in the GUI — always
+**Every agent's persona/system prompt is the GUI field (Settings → 1. Prompt), backed
+by `kv.prompt` in its `state.db`. That is the single source of truth.** The owner
+edits the prompt in ONE place, and it reaches the agent's wasm via
+`FLOWORK_AGENT_CONFIG.prompt`. This is what makes Flowork repurposable: you built it
+to promote Flowork, but another user changes the prompt in the GUI to sell *their*
+product — no file editing, no rebuild.
+
+- A `prompt.md` shipped in an agent folder is only a **seed**. On boot,
+  `agentmgr.SeedPromptsFromMd` copies it into `kv.prompt` **once, only when the prompt
+  is still empty** — after that the GUI is authoritative and the file is never read
+  again. Editing the prompt in the GUI is never overwritten by the seed.
+- 🚫 **Do NOT hardcode a persona only in `prompt.md` (or bake it into the wasm).** A
+  prompt that can't be changed from the GUI is a bug. Read the persona from
+  `FLOWORK_AGENT_CONFIG.prompt` (fallback to a built-in default) — the way `mr-flow`
+  does — so the GUI override always wins.
+- New agent → put its starter persona in `prompt.md`; the seed lands it in the GUI.
+
+### Intelligence is two-tier — and BOTH must keep learning
+An agent's intelligence lives in **two brains**, and the design REQUIRES both to grow,
+not sit frozen:
+
+1. **Router brain (shared, server-side).** The Flowork Router holds the big collective
+   Memory Palace (~5M drawers) and the anti-hallucination antibodies. On *every* LLM
+   call it **enriches** the prompt with relevant knowledge + skills + past-mistake
+   antibodies, and is reinforced when a hallucination is caught. One brain, many
+   bodies — every agent that calls the router gets smarter together.
+2. **Per-agent brain (local, in `state.db`).** Each agent owns its own tables:
+   `mistakes_local`, `skills`, `educational_errors_cache`, `brain_antibody`,
+   `constitution`, `karma_self`, `interactions`. Each agent ships with a seeded
+   starter brain (constitution + a baseline antibody/educational-error set).
+
+**The rule:** an agent must be able to **update its own intelligence** — record a new
+mistake, learn/curate a skill, cache an educational-error remediation, strengthen an
+antibody, log its interactions/decisions — into its local brain, AND feed vetted
+knowledge up to the router brain. A wasm that only *reads* a frozen seed and never
+writes back is not finished: wire the local-brain writes (mistake capture →
+educational-error → antibody; skill authoring; karma) so the colony actually learns.
+The router covers the shared layer; the per-agent layer is what makes each body
+individually wiser over time.
+
+### For AI working on this repo
+- Persona → `kv.prompt` (GUI). Never strand it in a file or the wasm.
+- Don't treat the per-agent brain tables as read-only seed data — agents are meant to
+  write to them (learn). If you find them empty after real use, that's a gap to close,
+  not the intended steady state.

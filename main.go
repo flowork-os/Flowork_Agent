@@ -169,6 +169,13 @@ func main() {
 	}
 	kernelhost.EnvForwardKeys = connections.GlobalSecretEnvKeys
 
+	// Backfill each agent's GUI-editable prompt (kv.prompt) from its prompt.md when
+	// unset, so the persona shows up + is editable in the GUI and reaches the wasm
+	// via FLOWORK_AGENT_CONFIG.prompt. Non-destructive (never overwrites a GUI edit).
+	if n := agentmgr.SeedPromptsFromMd(loader.AgentsDir()); n > 0 {
+		log.Printf("agents: seeded %d GUI prompt(s) from prompt.md", n)
+	}
+
 	// Inject saved Settings → API Keys into the process env BEFORE agents boot. The kernel
 	// builds each agent's env (buildAgentEnv) at load time from os.Getenv, so the keys MUST be
 	// set first — otherwise agents boot before the keys exist and never see them (the old order
