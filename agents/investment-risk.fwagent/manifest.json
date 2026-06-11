@@ -1,0 +1,30 @@
+{
+  "id": "investment-risk",
+  "version": "1.0.0",
+  "kind": "agent",
+  "display_name": "Investment — Risk",
+  "description": "Risk/inversion analyst: the bear case — what loses money.",
+  "min_kernel_version": "0.1.0",
+  "abi_version": 1,
+  "author": "@flowork-os",
+  "license": "MIT",
+  "entry": "agent.wasm",
+  "memory_max_mb": 16,
+  "timeout_call_ms": 120000,
+  "capabilities_required": [
+    "net:fetch:http://127.0.0.1:1987/api/kernel/call",
+    "state:read",
+    "state:write",
+    "time:read"
+  ],
+  "exposes_rpc": [
+    {
+      "name": "handle_message",
+      "description": "Analyze one subject through this organ's lens.",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  ]
+}

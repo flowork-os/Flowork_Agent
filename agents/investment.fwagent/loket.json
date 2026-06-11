@@ -1,0 +1,12 @@
+{
+  "id": "investment",
+  "kind": "agent",
+  "name": "Investment Team",
+  "version": "0.1.0",
+  "abi_version": "1",
+  "entry": "handle",
+  "consumes": [
+    "tool.run",
+    "time.now"
+  ]
+}

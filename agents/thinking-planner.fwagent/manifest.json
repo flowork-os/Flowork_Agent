@@ -1,0 +1,46 @@
+{
+  "id": "thinking-planner",
+  "version": "1.0.0",
+  "kind": "agent",
+  "display_name": "Thinking — Planner",
+  "description": "Drafts a step plan (LLM) and stores it in a deterministic kv list; status is mechanical truth, not model memory. Functions: plan/status/done.",
+  "min_kernel_version": "0.1.0",
+  "abi_version": 1,
+  "author": "@flowork-os",
+  "license": "MIT",
+  "entry": "agent.wasm",
+  "memory_max_mb": 16,
+  "timeout_call_ms": 120000,
+  "capabilities_required": [
+    "net:fetch:http://127.0.0.1:1987/api/kernel/call",
+    "state:read",
+    "state:write",
+    "time:read"
+  ],
+  "exposes_rpc": [
+    {
+      "name": "plan",
+      "description": "Draft a step plan for a goal and store it.",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "status",
+      "description": "Read the stored plan + step statuses (ground truth).",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "done",
+      "description": "Mark step n done (mechanical).",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  ]
+}

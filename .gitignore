@@ -22,6 +22,8 @@ Thumbs.db
 # Per-agent runtime workspace — NEVER commit. state.db berisi TOKEN/secret
 # (TELEGRAM_BOT_TOKEN dll). Blanket: seluruh isi workspace tiap agent di-ignore.
 agents/*/workspace/
+# Per-agent runtime OUTPUT (job/document/media/cache/log) — bukan definisi agent.
+agents/*/shared/
 *.db
 *.db-shm
 *.db-wal

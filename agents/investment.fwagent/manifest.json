@@ -1,0 +1,31 @@
+{
+  "id": "investment",
+  "version": "1.0.0",
+  "kind": "agent",
+  "display_name": "Investment Team",
+  "description": "Stock-analyst colony with eyes: gather real data (price, fundamentals, news), analyze through financials/valuation/technical/governance/risk organs, then decide INVEST/WATCH/PASS.",
+  "min_kernel_version": "0.1.0",
+  "abi_version": 1,
+  "author": "@flowork-os",
+  "license": "MIT",
+  "entry": "agent.wasm",
+  "memory_max_mb": 16,
+  "timeout_call_ms": 120000,
+  "capabilities_required": [
+    "net:fetch:http://127.0.0.1:1987/api/kernel/call",
+    "net:fetch:*",
+    "state:read",
+    "state:write",
+    "time:read"
+  ],
+  "exposes_rpc": [
+    {
+      "name": "handle_message",
+      "description": "Run the investment pipeline on one subject/ticker.",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  ]
+}

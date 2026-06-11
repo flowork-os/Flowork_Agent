@@ -70,20 +70,13 @@ const loketURL = "http://127.0.0.1:1987/api/kernel/call"
 // the outbound request, so the kernel always knows it is us — un-forgeable.
 // Returns the raw "result" on success, or an error if the kernel refused.
 func loketCall(capName string, args any) (json.RawMessage, error) {
-	return loketCallT(capName, args, 120000)
-}
-
-// loketCallT is loketCall with an explicit host-fetch timeout (ms). The LLM call
-// uses a SHORTER bound than the response deadline so the orchestrator can fall back
-// to a cheaper model instead of hanging when the premium tier is rate-limited.
-func loketCallT(capName string, args any, timeoutMs int) (json.RawMessage, error) {
 	argsJSON, _ := json.Marshal(args)
 	body, _ := json.Marshal(map[string]any{"cap": capName, "args": json.RawMessage(argsJSON)})
 
 	reqJSON, _ := json.Marshal(map[string]any{
 		"method":         "POST",
 		"url":            loketURL,
-		"timeout_ms":     timeoutMs,
+		"timeout_ms":     120000,
 		"max_resp_bytes": 4 << 20,
 		"headers":        map[string]string{"Content-Type": "application/json"},
 		"body_base64":    base64.StdEncoding.EncodeToString(body),
@@ -284,7 +277,7 @@ func handleMessage(argsJSON string) {
 	_ = json.Unmarshal([]byte(argsJSON), &in)
 	in.Text = strings.TrimSpace(in.Text)
 	if in.Text == "" {
-		emit(map[string]any{"reply": "(empty message)", "agent": selfID()})
+		emit(map[string]any{"reply": "(pesan kosong)", "agent": selfID()})
 		return
 	}
 
@@ -304,7 +297,7 @@ func handleMessage(argsJSON string) {
 			if i := strings.IndexAny(c, " \n"); i >= 0 {
 				c = c[:i]
 			}
-			emit(map[string]any{"reply": "Send me the problem 🙂\nExample:\n" + c + " how do I double revenue in 3 months with no capital?", "agent": selfID()})
+			emit(map[string]any{"reply": "Kasih gw masalahnya, bro 🙂\nContoh:\n" + c + " gimana caranya naikin omzet 2x dalam 3 bulan tanpa modal?", "agent": selfID()})
 			return
 		}
 		handleGroupChat(gid, subj, in.ChatID)
@@ -315,12 +308,46 @@ func handleMessage(argsJSON string) {
 		return
 	}
 
-	// ALL group routing is the LLM's job — it reads the request (in ANY language) and
-	// picks the right group via the ask_group tool: stock → investment, deep analysis
-	// → thinking, computer control → operasi-komputer-grup. No hardcoded keyword table
-	// (those were Indonesian-only and broke for global users). ask_group is terminal
-	// (relayGroup), so picking a group costs ONE LLM turn and the group's answer goes
-	// straight to the user, in the user's language.
+	// Computer-control PRE-ROUTER (deterministic, before the LLM): a clear power/
+	// app command MUST act, not be second-guessed by the model. If the text looks
+	// like one, route it straight to the operasi-komputer-grup GROUP (whose member
+	// is the operator executor) and return its reply — no LLM hedging on shutdown.
+	if isComputerCommand(in.Text) {
+		res := askGroup(json.RawMessage(`{"group":"operasi-komputer-grup","subject":` + jsonStr(in.Text) + `}`))
+		reply := in.Text
+		var gr struct {
+			GroupResult string `json:"group_result"`
+			Error       string `json:"error"`
+		}
+		if json.Unmarshal([]byte(res), &gr) == nil {
+			if gr.GroupResult != "" {
+				reply = gr.GroupResult
+			} else if gr.Error != "" {
+				reply = "kontrol komputer error: " + gr.Error
+			}
+		}
+		// The group (no synth) labels member sections "### <id> …"; for a single
+		// executor that's noise — strip the leading "### <id>" token (the section
+		// separator may be a newline OR a space, since jsonEsc flattens newlines).
+		if strings.HasPrefix(reply, "### ") {
+			rest := reply[len("### "):]
+			if i := strings.IndexAny(rest, " \n"); i >= 0 {
+				reply = strings.TrimSpace(rest[i+1:])
+			}
+		}
+		emit(map[string]any{"reply": reply, "agent": selfID()})
+		return
+	}
+
+	// Thinking PRE-ROUTER (deterministic, before the LLM): when the owner explicitly
+	// asks to think a problem through ("pikirin pake tim thinking", "cara berpikir",
+	// "pikir mateng"), route straight to the `thinking` GROUP and return its SYNTH
+	// answer verbatim — no LLM hedging (so it reliably delegates) and no final LLM
+	// wrap (so the long multi-lens pipeline never trips mr-flow's response deadline).
+	if isThinkingCommand(in.Text) {
+		handleGroupChat("thinking", in.Text, in.ChatID)
+		return
+	}
 
 	// Doctrine is SACRED and injected FIRST — the always-on anti-halu layer.
 	doktrin := readWS("doktrin.md")
@@ -342,7 +369,7 @@ func handleMessage(argsJSON string) {
 	if mem != "" {
 		msgs = append(msgs, map[string]any{
 			"role":    "system",
-			"content": "[Relevant MEMORY from your brain — use if relevant, do not invent beyond this]:\n" + mem,
+			"content": "[INGATAN terkait dari brain lo — pakai kalau relevan, jangan ngarang di luar ini]:\n" + mem,
 		})
 	}
 	// PRIMARY privilege: pull grounding from the 5M shared corpus. Refused (and
@@ -351,7 +378,7 @@ func handleMessage(argsJSON string) {
 	if shared != "" {
 		msgs = append(msgs, map[string]any{
 			"role":    "system",
-			"content": "[REFERENCE from the shared 5M corpus — grounding material, MUST verify before claiming as fact, do not swallow raw]:\n" + shared,
+			"content": "[REFERENSI dari korpus bersama 5jt — bahan grounding, WAJIB verifikasi sebelum diklaim sebagai fakta, jangan telan mentah]:\n" + shared,
 		})
 	}
 	// Multi-turn: replay the recent conversation turns so the agent is NOT stateless
@@ -497,12 +524,12 @@ func toolSpecs() []json.RawMessage {
 			"type": "function",
 			"function": map[string]any{
 				"name":        "ask_group",
-				"description": "Delegate DEEP analysis to a GROUP (a colony of agents that work multiple viewpoints, then merged by a synthesizer). Use when the user asks for analysis that fits one of these groups:\n" + strings.Join(lines, "\n"),
+				"description": "Delegasikan analisa MENDALAM ke sebuah GROUP (koloni agent yang ngerjain banyak sudut pandang lalu digabung synthesizer). Pakai kalau user minta analisa yang cocok salah satu group ini:\n" + strings.Join(lines, "\n"),
 				"parameters": map[string]any{
 					"type": "object",
 					"properties": map[string]any{
-						"group":   map[string]any{"type": "string", "description": "target group id (one from the list)"},
-						"subject": map[string]any{"type": "string", "description": "the user's request, kept VERBATIM in their original language (do not translate) — the group answers in that language"},
+						"group":   map[string]any{"type": "string", "description": "id group tujuan (salah satu dari daftar)"},
+						"subject": map[string]any{"type": "string", "description": "subjek / pertanyaan yang mau dianalisa group"},
 					},
 					"required": []string{"group", "subject"},
 				},
@@ -647,81 +674,6 @@ func askGroup(argsRaw json.RawMessage) string {
 	return string(r)
 }
 
-// fallbackTierModel — the cheap, high-rate-limit tier the orchestrator drops to
-// when its primary (premium) model is throttled, so an interactive chat still gets
-// a reply instead of a deadline hang. The router's fleet-wide 429 backoff is
-// owner-locked and untouched; this only softens the INTERACTIVE path.
-const fallbackTierModel = "claude-haiku-4-5"
-
-// primaryBudgetMs / fallbackBudgetMs — interactive LLM-call budgets (ms). The primary
-// budget is deliberately SHORT so a rate-limited primary fails over fast instead of
-// hanging out the router's retry storm; the fallback tier is fast so its budget is
-// generous. Both env-overridable (no hardcode): FLOWORK_PRIMARY_BUDGET_MS /
-// FLOWORK_FALLBACK_BUDGET_MS.
-var primaryBudgetMs = envInt("FLOWORK_PRIMARY_BUDGET_MS", 3000)
-var fallbackBudgetMs = envInt("FLOWORK_FALLBACK_BUDGET_MS", 15000)
-
-// envInt reads an int env var, falling back to def when unset/invalid.
-func envInt(key string, def int) int {
-	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			return n
-		}
-	}
-	return def
-}
-
-// llmComplete runs llm.complete with rate-limit resilience tuned for INTERACTIVE chat.
-// The primary model (opus) is the preferred answerer, but it gets a SHORT budget: if it
-// answers in time (budget free) the user gets opus; if it's rate-limited (e.g. the
-// subscription throttles opus+tools — confirmed: opus alone is fast, opus+tools 429s)
-// we DON'T wait out the router's ~90s retry storm — we fail over FAST to the high-limit
-// fallback tier so Telegram stays snappy instead of hanging ~47s. So: opus when it can,
-// fast fallback when it can't, never a long hang. primaryBudgetMs is intentionally small
-// (an interactive deadline), NOT the old 45s — that 45s was the whole UX problem.
-func llmComplete(llmArgs map[string]any) (json.RawMessage, error) {
-	primary := model()
-	llmArgs["model"] = primary
-	r, lastErr := loketCallT("llm.complete", llmArgs, primaryBudgetMs)
-	if lastErr == nil {
-		return r, nil
-	}
-	if fallbackTierModel != "" && fallbackTierModel != primary {
-		llmArgs["model"] = fallbackTierModel
-		r2, err2 := loketCallT("llm.complete", llmArgs, fallbackBudgetMs)
-		if err2 == nil {
-			return r2, nil
-		}
-		lastErr = err2
-	}
-	// Propagate the REAL underlying error (not a generic "rate-limited") so the caller
-	// can tell a dead gateway apart from an actual throttle — see llmFailMessage.
-	return nil, lastErr
-}
-
-// llmFailMessage turns an LLM-call failure into an honest user-facing line. It must
-// NOT cry "penuh/limit" for a dead gateway (connection refused) — that mislabel cost
-// hours of false "rate-limit" debugging. The error propagates from the host as
-// "loket refused: llm router: ...connection refused" (gateway down) vs "llm: ...429..."
-// (real throttle); classify on that text.
-func llmFailMessage(err error) string {
-	if err == nil {
-		return "⏳ Lagi ada kendala bro, coba lagi sebentar ya 🙏"
-	}
-	e := strings.ToLower(err.Error())
-	switch {
-	case strings.Contains(e, "connection refused"), strings.Contains(e, "dial tcp"),
-		strings.Contains(e, "no such host"), strings.Contains(e, "connect: connection"),
-		strings.Contains(e, "no response after retries"):
-		return "⚠️ Gateway-nya kayaknya lagi mati bro (koneksi ke service gagal, bukan limit) — coba cek service-nya jalan dulu."
-	case strings.Contains(e, "429"), strings.Contains(e, "rate"), strings.Contains(e, "too many"),
-		strings.Contains(e, "overloaded"), strings.Contains(e, "quota"), strings.Contains(e, "throttl"):
-		return "⏳ Modelnya lagi penuh/limit bro, coba lagi sebentar ya 🙏"
-	default:
-		return "⏳ Lagi ada kendala manggil model bro, coba lagi sebentar ya 🙏"
-	}
-}
-
 // runToolLoop is Mr.Flow's tool-calling loop, every hop through the loket: offer
 // tools → the model asks for one → tool.run executes it → feed the result back →
 // repeat until the model answers in plain text. Returns the final reply + how
@@ -734,16 +686,14 @@ func llmFailMessage(err error) string {
 func runToolLoop(msgs []any, specs []json.RawMessage) (string, int) {
 	toolsUsed := 0
 	for iter := 0; iter < maxToolIters; iter++ {
-		llmArgs := map[string]any{"messages": msgs}
+		llmArgs := map[string]any{"model": model(), "messages": msgs}
 		if len(specs) > 0 {
 			llmArgs["tools"] = specs
 			llmArgs["parallel_tool_calls"] = false
 		}
-		r, err := llmComplete(llmArgs)
+		r, err := loketCall("llm.complete", llmArgs)
 		if err != nil {
-			// Rate-limit / timeout even after the cheap-tier fallback → fail SOFT with a
-			// clean message, never a raw error or (worse) a silent deadline hang.
-			return llmFailMessage(err), toolsUsed
+			return "[mr-flow-next] LLM error: " + err.Error(), toolsUsed
 		}
 		var resp struct {
 			Content   string `json:"content"`
@@ -776,49 +726,20 @@ func runToolLoop(msgs []any, specs []json.RawMessage) (string, int) {
 		if strings.TrimSpace(tc.Function.Arguments) != "" {
 			argsRaw = json.RawMessage(tc.Function.Arguments)
 		}
-		// ask_group is a TERMINAL delegation: the LLM PICKS the right group (that is
-		// the intelligence — no hardcoded keyword routing), but the group's synthesizer
-		// has already produced a complete, user-facing answer IN THE USER'S LANGUAGE, so
-		// we relay it DIRECTLY instead of paying a second LLM turn to rewrite it. That
-		// second turn would also risk the response deadline on a long multi-organ
-		// pipeline (the reason the old deterministic pre-routers existed). LLM-as-router,
-		// group-as-answer. Every other tool loops back so the LLM can use its result.
+		// ask_group is loket-native (orchestration), handled locally; every other
+		// tool goes through the engine bridge (tool.run).
+		var result string
 		if tc.Function.Name == "ask_group" {
-			toolsUsed++
-			return relayGroup(askGroup(argsRaw)), toolsUsed
+			result = askGroup(argsRaw)
+		} else {
+			result = toolRun(tc.Function.Name, argsRaw)
 		}
-		result := toolRun(tc.Function.Name, argsRaw)
 		toolsUsed++
 		msgs = append(msgs, map[string]any{
 			"role": "tool", "tool_call_id": id, "content": result,
 		})
 	}
 	return "(batas loop tool kena — coba perjelas permintaan lo)", toolsUsed
-}
-
-// relayGroup turns an ask_group result envelope into the final user-facing reply:
-// the group's synthesized answer, markdown-stripped for Telegram. A single-executor
-// group (no synthesizer) labels its one section "### <id> …" — strip that noise.
-func relayGroup(raw string) string {
-	var gr struct {
-		GroupResult string `json:"group_result"`
-		Error       string `json:"error"`
-	}
-	_ = json.Unmarshal([]byte(raw), &gr)
-	reply := strings.TrimSpace(gr.GroupResult)
-	if reply == "" {
-		if gr.Error != "" {
-			return "Grup error: " + gr.Error
-		}
-		return "Grup belum ngasih jawaban — coba lagi bentar ya."
-	}
-	if strings.HasPrefix(reply, "### ") {
-		rest := reply[len("### "):]
-		if i := strings.IndexAny(rest, " \n"); i >= 0 {
-			reply = strings.TrimSpace(rest[i+1:])
-		}
-	}
-	return plainify(reply)
 }
 
 // toolRun executes one tool by name via the loket bridge (tool.run) and returns
@@ -965,8 +886,8 @@ func handleGroupChat(groupID, userMsg string, chatID int64) {
 	}
 	subject := userMsg
 	if mem && strings.TrimSpace(hist) != "" {
-		subject = "Earlier conversation context (CONTINUE from here, do not start over):\n" +
-			hist + "=== Latest user message ===\n" + userMsg
+		subject = "Konteks percakapan sebelumnya (LANJUTKAN dari sini, jangan ulang dari nol):\n" +
+			hist + "=== Pesan terbaru user ===\n" + userMsg
 	}
 	res := askGroup(json.RawMessage(`{"group":` + jsonStr(groupID) + `,"subject":` + jsonStr(subject) + `}`))
 	reply := ""
@@ -978,73 +899,66 @@ func handleGroupChat(groupID, userMsg string, chatID int64) {
 		if gr.GroupResult != "" {
 			reply = gr.GroupResult
 		} else if gr.Error != "" {
-			reply = "group error: " + gr.Error
+			reply = "grup error: " + gr.Error
 		}
 	}
 	if strings.TrimSpace(reply) == "" {
-		reply = "The group returned no answer."
+		reply = "grup ga ngasih jawaban."
 	} else {
 		reply = plainify(reply)
 	}
-	if mem && !strings.HasPrefix(reply, "group error") && !strings.HasPrefix(reply, "The group returned no answer") {
+	if mem && !strings.HasPrefix(reply, "grup error") && !strings.HasPrefix(reply, "grup ga") {
 		ans := reply
 		if len(ans) > 700 {
 			ans = ans[:700] + " …"
 		}
 		newHist := hist + "User: " + userMsg + "\nTim: " + ans + "\n\n"
-		newHist = compactHist(newHist)
+		if len(newHist) > 2400 {
+			newHist = newHist[len(newHist)-2400:]
+		}
 		tkvSet(histKey, newHist)
 	}
 	emit(map[string]any{"reply": reply, "agent": selfID()})
 }
 
-// compactHist (P4 — context compaction): keep the rolling group-chat buffer bounded
-// WITHOUT a blind mid-content char cut. When it overflows, keep the newest turns
-// verbatim (on clean "\n\n" turn boundaries) and fold the older turns into a one-line
-// summary memo, so continuity survives. Only fires on overflow; the summary uses the
-// resilient llmComplete and degrades to a clean boundary drop if the model is busy.
-func compactHist(history string) string {
-	const capChars, keepChars = 2400, 1600
-	if len(history) <= capChars {
-		return history
+// isComputerCommand deterministically detects a host power/app control request, so
+// mr-flow routes it straight to the operasi-komputer-grup GROUP instead of letting
+// the LLM second-guess a shutdown. Keep it specific (avoid hijacking normal chat).
+func isComputerCommand(text string) bool {
+	s := strings.ToLower(text)
+	kw := []string{
+		"matiin pc", "matikan pc", "matiin komputer", "matikan komputer", "shutdown", "shut down",
+		"restart pc", "restart komputer", "reboot", "mulai ulang",
+		"suspend", "sleep pc", "tidurin pc", "hibernate",
+		"kunci layar", "lock screen", "lock pc",
+		"logout", "log out",
+		"buka chrome", "buka vscode", "buka vs code", "buka code", "open chrome", "open vscode",
+		"batal matiin", "batal shutdown", "cancel shutdown",
 	}
-	turns := strings.Split(strings.TrimRight(history, "\n"), "\n\n")
-	keep := []string{}
-	total := 0
-	for i := len(turns) - 1; i >= 0; i-- {
-		if total+len(turns[i]) > keepChars && len(keep) > 0 {
-			old := strings.Join(turns[:i+1], "\n\n")
-			head := ""
-			if s := summarizeHist(old); s != "" {
-				head = "[ringkasan percakapan awal: " + s + "]\n\n"
-			}
-			return head + strings.Join(keep, "\n\n") + "\n\n"
+	for _, k := range kw {
+		if strings.Contains(s, k) {
+			return true
 		}
-		keep = append([]string{turns[i]}, keep...) // prepend → chronological
-		total += len(turns[i])
 	}
-	return history
+	return false
 }
 
-// summarizeHist compresses older turns into ONE memo line via the resilient LLM path.
-// "" on failure → caller degrades to a clean-boundary drop (never blocks the reply).
-func summarizeHist(old string) string {
-	r, err := llmComplete(map[string]any{"messages": []any{
-		map[string]any{"role": "system", "content": "Ringkas percakapan ini jadi SATU kalimat memo — fakta + keputusan penting saja, tanpa basa-basi. Bahasa ikut percakapan."},
-		map[string]any{"role": "user", "content": old},
-	}})
-	if err != nil {
-		return ""
+// isThinkingCommand deterministically detects an explicit request to reason a
+// problem through with the `thinking` GROUP, so mr-flow delegates reliably instead
+// of the LLM choosing to answer (or ask back) on its own. Kept specific so it never
+// hijacks ordinary chat.
+func isThinkingCommand(text string) bool {
+	s := strings.ToLower(text)
+	kw := []string{
+		"tim thinking", "grup thinking", "group thinking", "thinking group",
+		"pake thinking", "pakai thinking", "lewat thinking", "minta thinking",
+		"cara berpikir", "pikirin mateng", "pikirin mateng", "pikir mateng",
+		"pikirkan matang", "pikir matang", "pikirin mendalam",
 	}
-	var resp struct {
-		Content string `json:"content"`
+	for _, k := range kw {
+		if strings.Contains(s, k) {
+			return true
+		}
 	}
-	if json.Unmarshal(r, &resp) != nil {
-		return ""
-	}
-	s := strings.TrimSpace(resp.Content)
-	if len(s) > 300 {
-		s = s[:300]
-	}
-	return s
+	return false
 }

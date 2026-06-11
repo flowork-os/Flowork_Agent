@@ -1,0 +1,30 @@
+{
+  "id": "thinking-strategy",
+  "version": "1.0.0",
+  "kind": "agent",
+  "display_name": "Thinking — Strategy",
+  "description": "Analyzes a subject through a strategy lens, grounded in retrieved principles.",
+  "min_kernel_version": "0.1.0",
+  "abi_version": 1,
+  "author": "@flowork-os",
+  "license": "MIT",
+  "entry": "agent.wasm",
+  "memory_max_mb": 16,
+  "timeout_call_ms": 120000,
+  "capabilities_required": [
+    "net:fetch:http://127.0.0.1:1987/api/kernel/call",
+    "state:read",
+    "state:write",
+    "time:read"
+  ],
+  "exposes_rpc": [
+    {
+      "name": "handle_message",
+      "description": "Handle one task message through the loket.",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "id": "promo-x-writer",
+  "version": "1.0.0",
+  "kind": "agent",
+  "display_name": "Promo X \u2014 Writer",
+  "description": "Loket-native ant template. Reaches every capability through the kernel counter call(cap, args). Copy this folder to make a new ant.",
+  "min_kernel_version": "0.1.0",
+  "abi_version": 1,
+  "author": "@flowork-os",
+  "license": "MIT",
+  "entry": "agent.wasm",
+  "memory_max_mb": 16,
+  "timeout_call_ms": 120000,
+  "capabilities_required": [
+    "net:fetch:http://127.0.0.1:1987/api/kernel/call",
+    "state:read",
+    "state:write",
+    "time:read"
+  ],
+  "exposes_rpc": [
+    {
+      "name": "handle_message",
+      "description": "Handle one message through the loket: remember it, recall related memories, write a title.",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  ]
+}

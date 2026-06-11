@@ -63,13 +63,9 @@ func selfID() string {
 // Telegram API. Returns (status, body); (0, nil) on host error.
 func hostFetch(method, url string, headers map[string]string, body []byte) (int, []byte) {
 	reqJSON, _ := json.Marshal(map[string]any{
-		"method": method,
-		"url":    url,
-		// 110s (just under the kernel's 120s call deadline): the longest target is the
-		// investment GROUP pipeline (gather + 5 organs + synth, ~60-70s, slower when the
-		// LLM account is throttled). 65s used to cancel it mid-run → no reply. Telegram
-		// long-poll getUpdates carries its own (shorter) server-side timeout param.
-		"timeout_ms":     110000,
+		"method":         method,
+		"url":            url,
+		"timeout_ms":     65000,
 		"max_resp_bytes": 4 << 20,
 		"headers":        headers,
 		"body_base64":    base64.StdEncoding.EncodeToString(body),

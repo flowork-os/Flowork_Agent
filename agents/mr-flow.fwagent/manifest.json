@@ -1,0 +1,121 @@
+{
+  "id": "mr-flow",
+  "version": "1.0.0",
+  "kind": "agent",
+  "display_name": "Mr.Flow",
+  "description": "Owner-class warga. All-in-one Telegram agent: long-poll bot updates, persona Mr.Flow, dispatch ke flow_router /v1/chat/completions, reply natural Bahasa Indonesia.",
+  "min_kernel_version": "0.1.0",
+  "abi_version": 1,
+  "author": "@flowork-os",
+  "license": "MIT",
+  "entry": "agent.wasm",
+  "memory_max_mb": 16,
+  "timeout_call_ms": 300000,
+  "capabilities_required": [
+    "net:fetch:https://api.telegram.org",
+    "net:fetch:http://127.0.0.1:2402/v1/chat/completions",
+    "net:fetch:http://127.0.0.1:1987/api/agents/self-prompt/render",
+    "net:fetch:http://127.0.0.1:1987/api/agents/interactions",
+    "net:fetch:http://127.0.0.1:1987/api/agents/tools/specs",
+    "net:fetch:http://127.0.0.1:1987/api/agents/tools/run",
+    "net:fetch:http://127.0.0.1:1987/api/taskflow/categories",
+    "state:read",
+    "state:write",
+    "time:read",
+    "fs:read",
+    "fs:write",
+    "exec:git",
+    "rpc:router:skill",
+    "rpc:router:brain",
+    "rpc:taskflow",
+    "rpc:agent-invoke"
+  ],
+  "exposes_rpc": [
+    {
+      "name": "boot",
+      "description": "Daemon: long-poll Telegram getUpdates dan dispatch reply via LLM. Kernel auto-call ini saat plugin kind=agent di-load.",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "handle_message",
+      "description": "Standalone text handler. Apply persona, panggil LLM, balikan reply text. Bisa dipanggil langsung untuk testing.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "reply": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "name": "send_message",
+      "description": "Send a one-off message ke chat_id tertentu (admin use).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "chat_id": {
+            "type": "integer"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "chat_id",
+          "text"
+        ]
+      }
+    }
+  ],
+  "i18n_keys": {
+    "mr_flow.label": {
+      "en": "Mr.Flow",
+      "id": "Mr.Flow"
+    }
+  },
+  "ui_schema": {
+    "sections": [
+      {
+        "id": "telegram",
+        "icon": "✈️",
+        "title": "Telegram Bot",
+        "description": "Bot token dari @BotFather + chat IDs yang boleh chat sama Mr.Flow (cari chat_id lo via @userinfobot).",
+        "fields": [
+          {
+            "key": "TELEGRAM_BOT_TOKEN",
+            "label": "Bot Token",
+            "type": "password",
+            "storage": "secrets",
+            "required": true,
+            "placeholder": "123456789:AAEx...",
+            "help": "Format: <bot_id>:<secret>. Dapet dari /newbot @BotFather."
+          },
+          {
+            "key": "TELEGRAM_ALLOWED_CHATS",
+            "label": "Allowed Chat IDs",
+            "type": "text",
+            "storage": "secrets",
+            "required": true,
+            "placeholder": "123456789, -1001234567890",
+            "help": "Pisahkan koma. Group chat = negative ID. Personal = positive."
+          }
+        ]
+      }
+    ]
+  }
+}

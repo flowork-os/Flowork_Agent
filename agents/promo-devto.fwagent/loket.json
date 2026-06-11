@@ -1,0 +1,9 @@
+{
+  "id": "promo-devto",
+  "kind": "agent",
+  "name": "Promo Dev.to",
+  "version": "1.0.0",
+  "abi_version": "1",
+  "entry": "handle",
+  "consumes": ["bus.request", "store.kv.get", "store.kv.set", "time.now"]
+}
