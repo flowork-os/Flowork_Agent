@@ -2,7 +2,12 @@
 // Status: STABLE — DO NOT MODIFY without owner approval.
 // Owner: Aola Sahidin (Mr.Dev)
 // Repo: https://github.com/flowork-os/flowork-ai-agent
-// Locked at: 2026-05-30
+// Locked at: 2026-05-30 (re-locked 2026-06-11)
+// 2026-06-11 OWNER-APPROVED: inject saved Settings → API Keys + Default Router/Model
+//   (FLOWORK_LLM_MODEL, ROUTER_DEFAULT_URL from KV) into the process env BEFORE
+//   kernelhost.Boot, so agents see them at load time (fixes the boot-order defect
+//   where keys set after Boot never reached agents). Mounts /api/settings/router-default.
+//   UPPER_SNAKE + IsSensitiveEnvKey filter preserved — no new env surface.
 // Reason: Single-binary bootstrap. Audit pass — flag.Parse addr, embed.FS
 //   static, SIGINT/SIGTERM signal handling, srv timeout (ReadHeader 15s,
 //   Idle 120s), graceful shutdown 5s, scheduler/walletalert/watchdog

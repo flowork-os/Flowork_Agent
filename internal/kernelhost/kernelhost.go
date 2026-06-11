@@ -2,10 +2,15 @@
 // Status: STABLE — DO NOT MODIFY without owner approval.
 // Owner: Aola Sahidin (Mr.Dev)
 // Repo: https://github.com/flowork-os/flowork-ai-agent
-// Locked at: 2026-05-30
+// Locked at: 2026-05-30 (re-locked 2026-06-11)
 // 2026-06-03 TWEAK (param-only): InvokeAgentMessage deadline 180s→300s (selaras
 //   manifest timeout_call_ms=300000) — fix synth crew 6-agent kena deadline.
 //   Cap doang, ga ngubah orkestrasi/isolasi.
+// 2026-06-11 OWNER-APPROVED (frozen file unfreeze→refreeze, KERNEL_FREEZE.md hash
+//   regenerated): buildAgentEnv forward-allowlist + DEVTO_API_KEY/X_AUTH_TOKEN/
+//   X_CT0/LINKEDIN_COOKIE so a per-platform promo group reads its own publishing
+//   key from Settings → API Keys via os.Getenv. Curated allowlist only — does NOT
+//   widen the env surface beyond these named keys. No orchestration/isolation change.
 // Reason: Kernel orchestrator (CRITICAL). Audit pass:
 //   - Boot: per-agent rejection isolation (one bad agent ngga kill boot)
 //   - Workspace mkdir 0o755, state.db touch

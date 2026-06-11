@@ -2,7 +2,11 @@
 // Status: STABLE — DO NOT MODIFY without owner approval.
 // Owner: Aola Sahidin (Mr.Dev)
 // Repo: https://github.com/flowork-os/flowork-ai-agent
-// Locked at: 2026-05-31 (re-audited 2026-06-07)
+// Locked at: 2026-05-31 (re-audited 2026-06-07, re-locked 2026-06-11)
+// Update 2026-06-11 (owner-approved): API Keys preset chips (per-service, pre-fill
+//   the exact env var name, green when set) + new "Router & Model" segment
+//   (renderRouterDefault → /api/settings/router-default) for the global default
+//   model + router URL. All values esc/escAttr'd, labels via i18n, no inline secrets.
 // Reason: Tab Settings (Akun/API-Keys/Notif/YouTube). Audit pass — esc/escAttr
 //   semua field, fetchJSON util, API key masked, label via i18n. E2E verified
 //   lewat instance isolated. 2026-06-06 (owner-approved): segmen Wallet

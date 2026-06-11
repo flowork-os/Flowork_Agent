@@ -13,6 +13,12 @@
 //	value — the GUI clears the value field on Edit, so a stray Save would otherwise
 //	overwrite the real secret with "" (silent wipe). Removal is an explicit DELETE.
 //	Tested (keys_empty_test.go).
+// Update 2026-06-11 (owner-approved, re-locked): added RouterDefaultHandler
+//	(GET/POST /api/settings/router-default) — the GLOBAL default model + router URL
+//	(KV-backed config, NOT secrets). model validated by modelRe; router_url requires
+//	http(s):// and is localhost-validated downstream (routerclient host whitelist),
+//	so a stray external value can never exfiltrate. os.Setenv FLOWORK_LLM_MODEL /
+//	ROUTER_DEFAULT_URL live; empty clears the override. IsSensitiveEnvKey untouched.
 //
 // Package settingsapi — HTTP handler untuk halaman Settings (owner-level).
 // Semua operasi menyentuh flowork.db GLOBAL (floworkdb), tidak per-warga.

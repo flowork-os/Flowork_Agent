@@ -1,3 +1,17 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Locked at: 2026-06-11
+// Reason: Loket wiring (package main, NOT frozen-kernel) — carries the LLM
+//   transport (llmCompleteProvider) and the loopback-secret guard, so it is
+//   security-relevant. Audit pass — loopback secret from os.Getenv, tool-result
+//   secret redaction, retry on 5xx only.
+// 2026-06-11 OWNER-APPROVED: llm.complete now resolves the base URL from
+//   Settings → Default Router (ROUTER_DEFAULT_URL) and the model from
+//   FLOWORK_LLM_MODEL when the caller pins neither. Read HOST-SIDE only.
+//   routerclient.New enforces the localhost host-whitelist → a stray/external
+//   router URL safely falls back to the built-in default, never an exfil vector.
+//
 // loket_wire.go — wire the new microkernel ("loket") into the running process.
 //
 // ADDITIVE + non-breaking: this adds ONE endpoint and ONE new Kernel instance
