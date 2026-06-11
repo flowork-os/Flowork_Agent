@@ -41,7 +41,7 @@ function avatar(id, size) {
 }
 
 const CSS = `
-.gr-tab { padding:24px 32px 60px; color:#e2e8f0; max-width:1600px; }
+.gr-tab { padding:24px 32px 60px; color:#e2e8f0; }
 
 /* ── hero (matches AI Agent) ── */
 .gr-hero { position:relative; overflow:hidden; padding:30px 36px; border-radius:18px; margin-bottom:24px;
