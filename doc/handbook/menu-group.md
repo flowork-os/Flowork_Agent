@@ -14,8 +14,19 @@ Type an **ID** and a **Name**, hit **+ Create**. The new group appears as a card
 - **Save** · **🗑 Delete**.
 
 ## How it runs
-The group fans the one task out to each member over the internal "loket bus", collects their answers,
-and the synthesizer stitches them into one result.
+A group is a **coordinator** agent plus a **roster** of small member agents. The coordinator receives
+the task, **fans it out to each member over the internal "loket bus"** (`call(bus.request, …)`),
+collects their answers, and the synthesizer stitches them into one result. Members are the agents you
+tick in the card — they live *under* the group (an agent belongs to one group at a time).
+
+**A schedule or [Trigger](menu-trigger.md) activates the group, not a loose agent.** The firm flow is:
+
+> **Schedule → activates the GROUP → the coordinator distributes tasks to the member agents in the
+> roster → result.**
+
+So you never wire a clock straight to a worker agent — you point it at the colony, and the coordinator
+hands out the work. Clock → colony → ants. (See [Architecture](architecture.md) for the same picture at
+the system level, and [Schedule](menu-schedule.md) to put a group on a timer.)
 
 ## For developers
 The simplest group is **no code** — create, tick members, pick a synthesizer, write the task, Save.
