@@ -1,3 +1,4 @@
+// ⚠️ NEW AGENT? READ doc/handbook/menu-ai-agent.md FIRST — enforced rules: secrets→Settings·API Keys, prompt→GUI (kv.prompt), two-tier brain (router+per-agent), bus over fs:shared, extend the frozen kernel via hooks (never unlock). Breaking one is a bug, not a shortcut.
 // Package main is the Flowork CONNECTOR TEMPLATE — copy this folder, fill in the
 // three TODO(connector) spots, and you have a new plug-and-play connector for the
 // Connections family (the same shape that drives Telegram today).

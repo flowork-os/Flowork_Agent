@@ -1,3 +1,4 @@
+// ⚠️ NEW AGENT? READ doc/handbook/menu-ai-agent.md FIRST — enforced rules: secrets→Settings·API Keys, prompt→GUI (kv.prompt), two-tier brain (router+per-agent), bus over fs:shared, extend the frozen kernel via hooks (never unlock). Breaking one is a bug, not a shortcut.
 // Package main is the Flowork "repo-reviewer" group — the give-value colony. It
 // pulls GitHub's trending list, picks a repo it hasn't covered yet (ledger), reads
 // the repo's REAL README to ground itself (anti-hallucination), writes an HONEST

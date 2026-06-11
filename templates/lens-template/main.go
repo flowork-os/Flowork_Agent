@@ -1,3 +1,4 @@
+// ⚠️ NEW AGENT? READ doc/handbook/menu-ai-agent.md FIRST — enforced rules: secrets→Settings·API Keys, prompt→GUI (kv.prompt), two-tier brain (router+per-agent), bus over fs:shared, extend the frozen kernel via hooks (never unlock). Breaking one is a bug, not a shortcut.
 // === LOCKED FILE ===
 // Status: STABLE — `thinking` group lens (RAG ant). Tested 2026-06-08: grounded retrieval
 //   bilingual EN/ID + anti-halu refusal; PATTERN self-wiring (item 12/14/15): recalled

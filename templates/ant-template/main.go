@@ -1,3 +1,4 @@
+// ⚠️ NEW AGENT? READ doc/handbook/menu-ai-agent.md FIRST — enforced rules: secrets→Settings·API Keys, prompt→GUI (kv.prompt), two-tier brain (router+per-agent), bus over fs:shared, extend the frozen kernel via hooks (never unlock). Breaking one is a bug, not a shortcut.
 // Package main is the Flowork "ant" template — a minimal, loket-native module.
 //
 // It is the golden reference for the "pasukan semut" (ant army): a tiny

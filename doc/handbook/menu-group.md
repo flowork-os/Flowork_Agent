@@ -35,3 +35,42 @@ the task to its members via `call(cap, args)`. For custom orchestration (phases,
 `templates/group-template/` or a richer example like `templates/investment-group/`, edit `main.go`,
 and build it like any agent (`GOOS=wasip1 GOARCH=wasm go build -o agent.wasm .`). Members are ordinary
 agents — a great group is really about small, sharp specialists wired together.
+
+---
+
+## 🔗 RULE — Cross-group data: shared workspace vs the bus
+
+When a SEQUENCE crosses groups (e.g. scan a repo → write an article about it →
+share it), one step needs the previous step's output. There are two channels.
+
+### `workspace/` IS the shared workspace (SharedDir)
+The project's `workspace/` folder is the cross-agent **SharedDir**. Layout:
+`workspace/<agent-id>/{tools,job,document,media,cache,log}` per agent, plus
+`workspace/_global/` for material shared across every agent. It's git-ignored
+(runtime data, may hold scraped content) — only the convention ships.
+
+But an agent only sees `/shared` (this folder) mounted **when it effectively holds
+the `fs:shared` capability**, which is a DANGEROUS cap gated by
+`FLOWORK_PRIVILEGED_AGENTS`. So file-sharing through `workspace/` is **opt-in and
+deliberate**, never blanket: grant `fs:shared` to a specific agent that genuinely
+needs cross-agent files, and add it to `FLOWORK_PRIVILEGED_AGENTS`. Do NOT hand
+`fs:shared` to ordinary content groups — it gives them read/write over every other
+agent's files.
+
+### Prefer the loket BUS for sequenced hand-offs
+For chaining steps, the **loket bus is the right channel** — capability-gated,
+isolated, no privileged FS grant. A downstream group asks an upstream one for its
+latest output, exactly how `promo-x` pulls the article it shares:
+
+```
+askMember("promo-devto", "/latest")   // → {ok,topic,title,url}
+```
+
+Same pattern wires a full pipeline: `promo-devto` asks `repo-reviewer` for the repo
+it just scanned and writes an article about THAT repo; `promo-x` asks `promo-devto`
+for the article and shares it to X / Telegram. The data flows group-to-group with
+zero cross-agent filesystem access.
+
+**Rule:** sequence hand-offs go over the **bus** by default. Reach for `fs:shared`
++ `workspace/_global` only for genuinely file-shaped, large, or binary artifacts an
+agent must drop for others — and grant the cap deliberately, per agent.

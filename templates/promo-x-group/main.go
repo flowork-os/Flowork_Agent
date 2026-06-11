@@ -1,3 +1,4 @@
+// ⚠️ NEW AGENT? READ doc/handbook/menu-ai-agent.md FIRST — enforced rules: secrets→Settings·API Keys, prompt→GUI (kv.prompt), two-tier brain (router+per-agent), bus over fs:shared, extend the frozen kernel via hooks (never unlock). Breaking one is a bug, not a shortcut.
 // Package main is the Flowork "promo-x" group — a per-platform promo colony
 // (pasukan-semut) for X (Twitter). ONE platform = ONE group. Same colony pattern
 // as promo-devto, but it posts a short THREAD to X via the internal GraphQL

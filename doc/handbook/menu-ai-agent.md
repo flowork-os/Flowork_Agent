@@ -1,5 +1,19 @@
 # 🤖 AI Agent
 
+> ## ⚠️ READ THIS BEFORE CREATING A NEW AGENT
+> This page is the **contract** for every agent in Flowork. Before you build, copy,
+> or wire a new agent, read the **enforced RULES** below — they are not optional:
+> 1. **🔐 Secrets** live ONLY in Settings → API Keys (never in a file/wasm/state.db).
+> 2. **🧠 Persona/prompt** lives in the GUI (`kv.prompt`) — never stranded in a file.
+> 3. **🧠 Two-tier brain** — router (shared) + per-agent (local); both must keep learning.
+> 4. **🔗 Cross-group data** goes over the loket **bus**; `workspace/` is the shared
+>    space but `fs:shared` is privileged — grant deliberately, never blanket.
+> 5. **🧱 Frozen kernel** — extend via the plug-and-play hooks, never unlock it.
+>
+> An agent that breaks one of these (a hardcoded token, a file-only prompt, a
+> privileged cap it doesn't need) is a **bug**, not a shortcut. When in doubt, match
+> how `mr-flow` does it.
+
 Where your agents live. Each agent is its own citizen — its own folder, memory, personality, rules,
 and list of what it's allowed to do. They share nothing unless you wire them. Disable or delete one
 and nothing else notices.
@@ -159,3 +173,33 @@ individually wiser over time.
 - Don't treat the per-agent brain tables as read-only seed data — agents are meant to
   write to them (learn). If you find them empty after real use, that's a gap to close,
   not the intended steady state.
+
+---
+
+## 🔗 RULE — Shared workspace & cross-group data (ARCHITECTURE, ENFORCED)
+
+The project's **`workspace/`** folder is the cross-agent **SharedDir**:
+`workspace/<agent-id>/{tools,job,document,media,cache,log}` per agent, plus
+`workspace/_global/` for material shared across agents. It is git-ignored (runtime
+data) — only the convention ships.
+
+- An agent only sees `/shared` mounted when it **effectively holds `fs:shared`** — a
+  DANGEROUS cap gated by `FLOWORK_PRIVILEGED_AGENTS`. File-sharing is therefore
+  **opt-in and per-agent**: grant `fs:shared` only to an agent that genuinely needs
+  cross-agent files. 🚫 Never blanket-grant it to content groups.
+- For a **sequence that hands off between groups** (scan → article → share), use the
+  loket **bus**, not the filesystem — capability-gated and isolated. Example
+  (already live): `promo-x` pulls the article to share with
+  `askMember("promo-devto", "/latest")`. The same pattern chains any pipeline with
+  zero cross-agent FS access.
+- Reach for `fs:shared` + `workspace/_global` ONLY for genuinely file-shaped/large/
+  binary artifacts. See **menu-group.md → Cross-group data** for the full rule.
+
+### What changed recently (architecture summary)
+- **Persona → GUI** (`kv.prompt`, seeded from `prompt.md` once); read via
+  `FLOWORK_AGENT_CONFIG.prompt`.
+- **Secrets → Settings → API Keys** (global), delivered per-agent via the frozen
+  `kernelhost.EnvForwardKeys` plug-and-play hook — new tokens need no frozen edit.
+- **Two-tier brain** — router shared 5M brain + per-agent local brain (mistakes,
+  skills, educational-errors, antibody, constitution); both meant to keep learning.
+- **Shared workspace** = `workspace/` (SharedDir + `_global`), bus-first for hand-offs.

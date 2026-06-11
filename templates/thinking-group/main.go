@@ -1,3 +1,4 @@
+// ⚠️ NEW AGENT? READ doc/handbook/menu-ai-agent.md FIRST — enforced rules: secrets→Settings·API Keys, prompt→GUI (kv.prompt), two-tier brain (router+per-agent), bus over fs:shared, extend the frozen kernel via hooks (never unlock). Breaking one is a bug, not a shortcut.
 // === LOCKED FILE ===
 // Status: STABLE — `thinking` group sequential orchestrator. ITEM 1 + 6-7-8 + 10-11/13
 // seed done + tested 2026-06-08. Pipeline: questioner → how → CASTER (picks ≤3 bench

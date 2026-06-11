@@ -1,3 +1,4 @@
+// ⚠️ NEW AGENT? READ doc/handbook/menu-ai-agent.md FIRST — enforced rules: secrets→Settings·API Keys, prompt→GUI (kv.prompt), two-tier brain (router+per-agent), bus over fs:shared, extend the frozen kernel via hooks (never unlock). Breaking one is a bug, not a shortcut.
 // Package main is the Flowork "promo-devto" group — a per-platform promo colony
 // (pasukan-semut) for Dev.to. ONE platform = ONE group. The pipeline is three
 // ordered specialist members, then the coordinator publishes:

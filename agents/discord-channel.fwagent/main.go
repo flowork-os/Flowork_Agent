@@ -1,3 +1,4 @@
+// ⚠️ NEW AGENT? READ doc/handbook/menu-ai-agent.md FIRST — enforced rules: secrets→Settings·API Keys, prompt→GUI (kv.prompt), two-tier brain (router+per-agent), bus over fs:shared, extend the frozen kernel via hooks (never unlock). Breaking one is a bug, not a shortcut.
 // === LOCKED FILE ===
 // Status: STABLE — live-proven (tested via realistic mock harness + live Telegram token 2026-06-07).
 // Plug-and-play connector: to change behavior swap the folder; do not hand-edit without owner approval.
