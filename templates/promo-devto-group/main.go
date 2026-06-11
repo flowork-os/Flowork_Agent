@@ -209,6 +209,193 @@ func loadRoster() roster {
 	return rs
 }
 
+func kvSet(k, v string) { _, _ = loketCall("store.kv.set", map[string]any{"k": k, "v": v}) }
+
+// brainAdd stores one grounding drawer in this group's OWN brain, tagged by room
+// (the topic) so the writer can later pull exactly the facts for that topic.
+func brainAdd(content, room string) {
+	_, _ = loketCall("store.brain.add", map[string]any{"content": content, "wing": "docs", "room": room})
+}
+
+// brainSearch pulls the top-k grounding drawers for a topic — the ONLY facts the
+// writer is allowed to use. Returns each drawer's content text.
+func brainSearch(query string, k int) []string {
+	r, err := loketCall("store.brain.search", map[string]any{"query": query, "k": k})
+	if err != nil {
+		return nil
+	}
+	var s struct {
+		Hits []struct {
+			Content string `json:"content"`
+		} `json:"hits"`
+	}
+	if json.Unmarshal(r, &s) != nil {
+		return nil
+	}
+	out := []string{}
+	for _, h := range s.Hits {
+		if c := strings.TrimSpace(h.Content); c != "" {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// splitNonEmpty splits a newline-joined list into trimmed, non-empty entries.
+func splitNonEmpty(s string) []string {
+	out := []string{}
+	for _, x := range strings.Split(s, "\n") {
+		if x = strings.TrimSpace(x); x != "" {
+			out = append(out, x)
+		}
+	}
+	return out
+}
+
+func contains(list []string, v string) bool {
+	for _, x := range list {
+		if strings.EqualFold(x, v) {
+			return true
+		}
+	}
+	return false
+}
+
+// markPosted records a topic in the dedup ledger (kv "posted_topics", one per
+// line) and keeps a human-readable trail (kv "posted_log") of title + url. Called
+// only after a confirmed post, so a draft/failure never burns a topic.
+func markPosted(topic, title, url string) {
+	posted := splitNonEmpty(kvGet("posted_topics"))
+	if !contains(posted, topic) {
+		posted = append(posted, topic)
+		kvSet("posted_topics", strings.Join(posted, "\n"))
+	}
+	log := strings.TrimSpace(kvGet("posted_log"))
+	entry := topic + " | " + title + " | " + url
+	if log == "" {
+		kvSet("posted_log", entry)
+	} else {
+		kvSet("posted_log", log+"\n"+entry)
+	}
+}
+
+// seedFacts ingests grounding docs into this group's brain — one drawer per topic
+// (room). It also maintains the kv "topics" backlog (the ordered list of topics
+// the group can write about). Re-runnable: brain dedups identical drawers, and
+// topics are merged (new ones appended, order preserved). This is how the colony
+// learns the REAL product (README + handbook + codemap facts) so the writer never
+// has to invent anything.
+func seedFacts(argsJSON string) {
+	var in struct {
+		Items []struct {
+			Room    string `json:"room"`
+			Content string `json:"content"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal([]byte(argsJSON), &in); err != nil {
+		emit(map[string]any{"error": "bad args: " + err.Error()})
+		return
+	}
+	topics := splitNonEmpty(kvGet("topics"))
+	seeded := 0
+	for _, it := range in.Items {
+		room := strings.TrimSpace(it.Room)
+		content := strings.TrimSpace(it.Content)
+		if room == "" || content == "" {
+			continue
+		}
+		brainAdd(content, room)
+		seeded++
+		if !contains(topics, room) {
+			topics = append(topics, room)
+		}
+	}
+	kvSet("topics", strings.Join(topics, "\n"))
+	emit(map[string]any{"group": selfID(), "seeded": seeded, "topics": topics, "topics_total": len(topics)})
+}
+
+// autoPost is the autonomous pipeline: pick the next topic the colony hasn't
+// covered yet (deterministic anti-duplicate), ground it in the seeded brain
+// facts, then run SEO → writer → tags → publish. No source material is passed in
+// — the facts come from this group's own brain, so the article is grounded and
+// never repeats a topic.
+func autoPost() {
+	topics := splitNonEmpty(kvGet("topics"))
+	if len(topics) == 0 {
+		emit(map[string]any{"error": "no topics seeded — run seed_facts first"})
+		return
+	}
+	posted := splitNonEmpty(kvGet("posted_topics"))
+	next := ""
+	for _, tp := range topics {
+		if strings.HasPrefix(tp, "_") { // reserved/test topics (e.g. _ping) are never published
+			continue
+		}
+		if !contains(posted, tp) {
+			next = tp
+			break
+		}
+	}
+	if next == "" {
+		emit(map[string]any{"group": selfID(), "status": "all topics covered",
+			"topics_total": len(topics), "posted_total": len(posted),
+			"hint": "seed more topics (seed_facts), or clear kv 'posted_topics' to recycle"})
+		return
+	}
+
+	facts := strings.Join(brainSearch(next, 6), "\n\n---\n\n")
+	facts = strings.TrimSpace(facts)
+	if facts == "" {
+		emit(map[string]any{"error": "no grounding facts in brain for topic '" + next + "' — re-seed", "topic": next})
+		return
+	}
+
+	rs := loadRoster()
+
+	// 1. SEO — title + keywords, grounded in the facts (no invented angle).
+	seoOut := askMember(rs.SEO, "You are an SEO researcher for Dev.to. The article TOPIC is \""+next+"\". Using ONLY the "+
+		"FACTS below as the source of truth, decide the best article TITLE (clear, specific, keyword-rich, no clickbait) and "+
+		"5-8 KEYWORDS a developer would actually search. Reply EXACTLY in this format and nothing else:\nTITLE: <the title>\n"+
+		"KEYWORDS: kw1, kw2, kw3, ...\n\nFACTS:\n"+facts)
+	if seoOut == "" {
+		emit(map[string]any{"error": "SEO agent (" + rs.SEO + ") gave no output — installed + router up?", "topic": next})
+		return
+	}
+	title := parseField(seoOut, "TITLE")
+	keywords := parseField(seoOut, "KEYWORDS")
+	if title == "" {
+		for _, ln := range strings.Split(seoOut, "\n") {
+			if ln = strings.TrimSpace(ln); ln != "" {
+				title = strings.TrimLeft(ln, "# ")
+				break
+			}
+		}
+	}
+	if title == "" {
+		emit(map[string]any{"error": "could not parse a TITLE from the SEO agent", "topic": next, "raw": trunc(seoOut, 300)})
+		return
+	}
+	if len(title) > 120 {
+		title = title[:120]
+	}
+
+	// 2. writer — STRICT grounding: only what the FACTS support (anti-halu).
+	body := askMember(rs.Writer, "You are a Dev.to technical writer. Write the article BODY in Markdown about \""+next+"\", "+
+		"built around the TITLE and weaving the KEYWORDS in naturally. CRITICAL: use ONLY the FACTS below as your source of "+
+		"truth — every claim must be supported by them. If a detail (a feature, number, command, or capability) is NOT in the "+
+		"FACTS, do NOT state it; never invent or assume. Be concrete and technical; HONEST — state real strengths plainly, "+
+		"acknowledge trade-offs, NEVER overclaim or hype. Output ONLY the Markdown body (do NOT repeat the title as a heading)."+
+		"\n\nTITLE: "+title+"\nKEYWORDS: "+keywords+"\n\nFACTS:\n"+facts)
+	body = stripLeadingTitle(strings.TrimSpace(body), title)
+	if body == "" {
+		emit(map[string]any{"error": "writer (" + rs.Writer + ") produced no body", "topic": next})
+		return
+	}
+
+	// 3. tags + repo footer + publish — records the topic in the ledger on success.
+	tagsAndPublish(rs, title, keywords, body, next)
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		return
@@ -227,6 +414,14 @@ func main() {
 			args = string(msg.Payload)
 		}
 		runPromo(args)
+	case "auto_post":
+		// Autonomous: pick the next un-covered topic, ground it in this group's
+		// brain (seeded facts), write, and post. No source material needed.
+		autoPost()
+	case "seed_facts":
+		// Ingest grounding docs into this group's brain, one drawer per topic.
+		// args: {items:[{room, content}]} — room = the topic key (e.g. "scanner").
+		seedFacts(args)
 	case "boot":
 		emit(map[string]any{"ok": true})
 	default:
@@ -321,7 +516,16 @@ func runPromo(argsJSON string) {
 		return
 	}
 
-	// 3. tags research → up to 4 Dev.to tags
+	// 3. tags + repo footer + publish — shared with the autonomous path.
+	//    topic="" on the manual path, so nothing is written to the dedup ledger.
+	tagsAndPublish(rs, title, keywords, body, "")
+}
+
+// tagsAndPublish runs the tags member, appends the two repo links, resolves the
+// key (Settings → API Keys first), and POSTs to Dev.to. On the autonomous path
+// `topic` is non-empty: a successful post appends it to the dedup ledger so the
+// group never writes about the same topic twice.
+func tagsAndPublish(rs roster, title, keywords, body, topic string) {
 	tagsOut := askMember(rs.Tags, "You are a Dev.to tagging specialist. Pick the 4 BEST Dev.to tags for this article — "+
 		"lowercase single words from Dev.to's common taxonomy, the most relevant + discoverable. Reply with ONLY the "+
 		"tags, comma-separated, nothing else.\n\nTITLE: "+title+"\n\nARTICLE:\n"+trunc(body, 2000))
@@ -352,7 +556,7 @@ func runPromo(argsJSON string) {
 			"group": selfID(), "status": "drafted (NOT posted)",
 			"reason":  "devto_api_key not set (Group Colony config or workspace/devto_api_key)",
 			"title":   title, "keywords": keywords, "tags": tagList, "would_publish": publish,
-			"preview": trunc(body, 700),
+			"topic":   topic, "preview": trunc(body, 700),
 		})
 		return
 	}
@@ -363,7 +567,7 @@ func runPromo(argsJSON string) {
 		map[string]string{"Content-Type": "application/json", "api-key": apiKey, "User-Agent": "Flowork-promo-devto"},
 		reqBody)
 	out := map[string]any{"group": selfID(), "title": title, "keywords": keywords, "tags": tagList,
-		"http_status": status, "published": publish}
+		"http_status": status, "published": publish, "topic": topic}
 	if status >= 200 && status < 300 {
 		var r struct {
 			URL string `json:"url"`
@@ -373,6 +577,11 @@ func runPromo(argsJSON string) {
 		out["ok"] = true
 		out["url"] = r.URL
 		out["id"] = r.ID
+		// Anti-duplicate: only on a confirmed post, and only on the autonomous
+		// path, mark the topic covered so it's never picked again.
+		if topic != "" {
+			markPosted(topic, title, r.URL)
+		}
 	} else {
 		out["ok"] = false
 		out["error"] = trunc(resp, 300)
