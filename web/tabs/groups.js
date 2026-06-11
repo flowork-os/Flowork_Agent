@@ -83,6 +83,13 @@ const CSS = `
 .gr-save{margin-top:15px;display:flex;align-items:center;gap:12px}
 .gr-msg{font-size:12px;color:var(--cy2)}
 .gr-empty{color:rgba(54,230,255,.5);font-size:13px;padding:12px 0}
+.gr-sched-hint{font-weight:400;letter-spacing:0;color:#64748b;font-size:11px;text-shadow:none}
+.gr-sched-row{display:flex;gap:8px;margin-bottom:6px;align-items:center}
+.gr-sched-row .sr-cron{flex:0 0 130px}
+.gr-sched-row .sr-task{flex:1}
+.gr-sched-row .sr-rm{padding:6px 10px}
+.gr-sched-actions{margin-top:8px;display:flex;align-items:center;gap:10px}
+.gr-sched-msg{font-size:12px}
 `;
 
 export async function render(mainEl) {
@@ -193,6 +200,14 @@ function card(g, avail, claimedBy, mainEl) {
     <div class="gr-sec">${esc(L.task_label)}</div>
     <textarea class="gr-task">${esc(g.task || '')}</textarea>
 
+    <div class="gr-sec">⏰ ${esc(L.sched_label)} <span class="gr-sched-hint">${esc(L.sched_hint)}</span></div>
+    <div class="gr-sched"><span class="gr-empty">${esc(L.loading)}</span></div>
+    <div class="gr-sched-actions">
+      <button class="gr-btn gr-sched-add" type="button">+ ${esc(L.sched_add)}</button>
+      <button class="gr-btn primary gr-sched-save" type="button">💾 ${esc(L.sched_save)}</button>
+      <span class="gr-sched-msg" style="display:none"></span>
+    </div>
+
     <div class="gr-save">
       <button class="gr-btn primary gr-do">${esc(L.save_btn)}</button>
       <button class="gr-btn danger gr-del">🗑 ${esc(L.delete_btn)}</button>
@@ -231,6 +246,57 @@ function card(g, avail, claimedBy, mainEl) {
       msg.style.color = 'var(--bad)'; msg.textContent = L.save_fail + (e.message || e); msg.style.display = '';
     } finally {
       btn.disabled = false;
+    }
+  });
+
+  // ── Schedule editor (per-agent cron). Stored via /api/agents/config, which is
+  //    a SEPARATE store from the group's members/task — so saving a schedule never
+  //    touches the colony's operational data. Cron is evaluated in UTC.
+  const schedBox = el.querySelector('.gr-sched');
+  const schedMsg = el.querySelector('.gr-sched-msg');
+  function schedRow(s = {}) {
+    const row = document.createElement('div');
+    row.className = 'gr-sched-row';
+    row.innerHTML = `
+      <input class="gr-sel sr-cron" value="${escAttr(s.cron || '')}" placeholder="${escAttr(L.sched_cron_ph)}">
+      <input class="gr-sel sr-task" value="${escAttr(s.task || '')}" placeholder="${escAttr(L.sched_task_ph)}">
+      <button class="gr-btn danger sr-rm" type="button">✕</button>`;
+    row.querySelector('.sr-rm').addEventListener('click', () => row.remove());
+    return row;
+  }
+  function paintSched(rows) {
+    schedBox.innerHTML = '';
+    if (!rows.length) { schedBox.innerHTML = `<span class="gr-empty">${esc(L.sched_empty)}</span>`; return; }
+    rows.forEach((s) => schedBox.appendChild(schedRow(s)));
+  }
+  fetchJSON(`/api/agents/config?id=${encodeURIComponent(g.id)}`)
+    .then((d) => paintSched((d && d.config && Array.isArray(d.config.schedule)) ? d.config.schedule : []))
+    .catch(() => paintSched([]));
+
+  el.querySelector('.gr-sched-add').addEventListener('click', () => {
+    const empty = schedBox.querySelector('.gr-empty'); if (empty) schedBox.innerHTML = '';
+    schedBox.appendChild(schedRow());
+  });
+
+  el.querySelector('.gr-sched-save').addEventListener('click', async () => {
+    const rows = [...schedBox.querySelectorAll('.gr-sched-row')].map((r, i) => ({
+      id: `sched-${i + 1}`,
+      cron: r.querySelector('.sr-cron').value.trim(),
+      task: r.querySelector('.sr-task').value.trim(),
+    })).filter((s) => s.cron && s.task);
+    schedMsg.style.display = 'none';
+    try {
+      const d = await fetchJSON(`/api/agents/config?id=${encodeURIComponent(g.id)}`);
+      const cfg = (d && d.config) || {};
+      cfg.schedule = rows;
+      delete cfg.secrets; // never round-trip masked secret values back into the store
+      await fetchJSON(`/api/agents/config?id=${encodeURIComponent(g.id)}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cfg),
+      });
+      schedMsg.style.color = 'var(--cy2)'; schedMsg.textContent = '✓ ' + L.saved; schedMsg.style.display = '';
+      setTimeout(() => { schedMsg.style.display = 'none'; }, 2500);
+    } catch (e) {
+      schedMsg.style.color = 'var(--bad)'; schedMsg.textContent = L.save_fail + (e.message || e); schedMsg.style.display = '';
     }
   });
   return el;
