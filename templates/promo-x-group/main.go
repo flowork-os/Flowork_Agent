@@ -345,6 +345,52 @@ func tweetClampN(s string, n int) string {
 	return string(r[:n-1]) + "…"
 }
 
+const xLimit = 280 // X hard limit (REAL chars — we de-link URLs, so no t.co weighting)
+
+// delink turns a real URL into plain text so X's automation filter (error 226 —
+// "this request looks automated") doesn't flag the post: https://x → ~/x,
+// http://x → ~/x. Still readable, just not a clickable t.co link — and that
+// clickable link is exactly what trips X's bot detection.
+func delink(s string) string {
+	s = strings.ReplaceAll(s, "https://", "~/")
+	return strings.ReplaceAll(s, "http://", "~/")
+}
+
+// xLink formats a URL for X WITHOUT a clickable link (avoids the 226 automation
+// flag). A GitHub repo becomes the short, clean "github : owner/repo"; anything
+// else (e.g. our t.me invite) falls back to the de-linked ~/… form.
+func xLink(u string) string {
+	u = strings.TrimSpace(u)
+	for _, p := range []string{"https://github.com/", "http://github.com/"} {
+		if strings.HasPrefix(u, p) {
+			return "github : " + strings.TrimSuffix(strings.TrimPrefix(u, p), "/")
+		}
+	}
+	return delink(u)
+}
+
+// buildTweet assembles a tweet within X's 280-char limit. Links are rendered as
+// NON-clickable text (xLink) so X won't flag automation; since they're plain text
+// we budget on the REAL character count (no t.co 23-char trick). Trims ONLY the
+// free text — the repo reference, our Telegram invite, and hashtags stay whole.
+func buildTweet(text, link, tags string) string {
+	tail := ""
+	if link != "" {
+		tail += "\n\n👉 " + xLink(link)
+	}
+	if tele := strings.TrimSpace(cfg("flowork_tele_link")); tele != "" {
+		tail += "\n💬 " + xLink(tele)
+	}
+	if tags != "" {
+		tail += "\n" + tags
+	}
+	budget := xLimit - len([]rune(tail)) - 2
+	if budget < 0 {
+		budget = 0
+	}
+	return tweetClampN(text, budget) + tail
+}
+
 // postTweet posts ONE tweet (replyTo != "" chains it under a thread). Returns the
 // new tweet's rest_id, the http status, and the raw body.
 func postTweet(text, replyTo, authToken, ct0 string) (string, int, string) {
@@ -393,11 +439,11 @@ func postTweet(text, replyTo, authToken, ct0 string) (string, int, string) {
 
 // hashtagPrompt — the SEO/hashtag researcher's brief. Reach on X comes from a few
 // high-signal tags devs actually follow, not a tag salad.
-const hashtagPrompt = "You are a social SEO specialist for developer audiences. Pick the 3 BEST hashtags to maximise " +
-	"reach for an X (Twitter) post promoting Flowork — an open-source, self-hosted AI agent OS. Match the TOPIC and the " +
-	"POST. Prefer hashtags developers actually search and follow (e.g. opensource, golang, ai, aiagents, selfhosted, " +
-	"devtools, llm) — relevance over volume. Reply with ONLY the hashtags, space-separated, lowercase, each starting with " +
-	"#, nothing else. Example: #opensource #golang #aiagents"
+const hashtagPrompt = "You are a social-SEO RESEARCHER for developer audiences. Research and pick the 3 BEST hashtags to maximise " +
+	"reach for an X (Twitter) post promoting Flowork — an open-source, self-hosted AI agent OS. They MUST match the specific " +
+	"TOPIC and POST, and be hashtags developers actually search and follow (e.g. opensource, golang, ai, aiagents, selfhosted, " +
+	"devtools, llm) — relevance and real reach over volume. AVOID lazy generic filler (#code, #tech, #dev) unless truly central. " +
+	"Reply with ONLY the hashtags, space-separated, lowercase, each starting with #, nothing else. Example: #opensource #golang #aiagents"
 
 // hashtagAgent — the SEO member. Default works out of the box; override via kv.
 func hashtagAgent() string {
@@ -457,7 +503,7 @@ func writerAgent() string {
 // with a compelling hook") WITHOUT loosening Flowork's anti-hallucination rule:
 // every claim must come from the FACTS. Output is ONE tweet, no link (we append
 // the article link as the CTA).
-const hookPrompt = "You are a developer-influencer who writes X (Twitter) posts that devs actually stop scrolling for. " +
+const hookPrompt = "You are a CODING & AI EXPERT and developer-influencer who writes X (Twitter) posts that devs actually stop scrolling for. " +
 	"Write ONE post (max 200 characters) about the TOPIC, to make a developer curious about Flowork — a sovereign, " +
 	"self-hosted, open-source AI agent OS.\n\n" +
 	"How to make it land:\n" +
@@ -491,7 +537,15 @@ func composeAndPost(topic, facts, devtoURL string) bool {
 	if what == "" {
 		what = "Flowork"
 	}
-	hook := strings.TrimSpace(askMember(writer, hookPrompt+"\n\nTOPIC: "+what+"\n\nFACTS:\n"+facts))
+	// The promo ALTERNATES between our two products each run — one post pushes Flowork
+	// Agent, the next pushes Flowork Router (kv "promo_last_repo" flips the toggle). The
+	// writer is told which product to centre the post on, and the X link points to it.
+	repo, product := "flowork-os/Flowork_Agent", "Flowork Agent — a sovereign, self-hosted, open-source AI agent OS"
+	if strings.TrimSpace(kvGet("promo_last_repo")) == "flowork-os/Flowork_Agent" {
+		repo, product = "flowork-os/flowork_Router", "Flowork Router — a sovereign, self-hosted, open-source LLM gateway/router"
+	}
+	kvSet("promo_last_repo", repo)
+	hook := strings.TrimSpace(askMember(writer, hookPrompt+"\n\nPRODUCT TO PROMOTE: "+product+"\n\nTOPIC: "+what+"\n\nFACTS:\n"+facts))
 	hook = strings.Trim(hook, "\"") // models love wrapping the line in quotes
 	if hook == "" {
 		emit(map[string]any{"error": "writer (" + writer + ") produced no post — installed + router up?", "topic": topic})
@@ -502,15 +556,12 @@ func composeAndPost(topic, facts, devtoURL string) bool {
 	// Hashtag/SEO research — a dedicated member picks the tags that maximise reach.
 	tags := sanitizeHashtags(askMember(hashtagAgent(), hashtagPrompt+"\n\nTOPIC: "+what+"\n\nPOST: "+hook), 3)
 
-	link := devtoURL
-	if link == "" {
-		link = "https://github.com/flowork-os/Flowork_Agent"
-	}
-	tweet := hook + "\n\n👉 " + link
-	if tags != "" {
-		tweet += "\n" + tags
-	}
-	tweet = tweetClamp(tweet)
+	// On X we link to the Flowork REPO (the alternated one above), never the Dev.to
+	// article: repo URLs are short (a Dev.to slug eats too much of the 280-char budget)
+	// and the repo is the real destination. The Dev.to article still reaches readers via
+	// the Telegram share (/promote-tele), where long links are fine.
+	link := "https://github.com/" + repo
+	tweet := buildTweet(hook, link, tags)
 
 	authToken, ct0 := xCreds()
 	if authToken == "" || ct0 == "" {

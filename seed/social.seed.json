@@ -1,0 +1,14 @@
+{
+  "_comment": "Portable social-pipeline defaults so a FRESH git clone runs the SAME setup as the owner — tokens excluded (those live in Settings → API Keys / flowork.db, never pushed). Loaded on boot by seedSocialDefaults(): the schedule is installed ONLY when trigger_rules is empty (never clobbers an existing schedule); flowork_tele_link is set per group only when absent. Ratio = 2 trending : 1 promo per channel (Telegram/X/Dev.to). Times are server-local (owner runs the PC 20:00-24:00 WIB).",
+  "schedule": [
+    {"id": "social-trend-1",     "name": "Trending repo #1 (Dev+X+Tele)",      "cron": "0 20 * * *",  "target": "repo-reviewer", "prompt": "/review"},
+    {"id": "social-promo-devto", "name": "Flowork promo — Dev.to article",      "cron": "0 21 * * *",  "target": "promo-devto",   "prompt": "/auto"},
+    {"id": "social-promo-tele",  "name": "Flowork promo — share to Telegram",   "cron": "20 21 * * *", "target": "promo-x",       "prompt": "/promote-tele"},
+    {"id": "social-promo-x",     "name": "Flowork promo — share to X",          "cron": "40 21 * * *", "target": "promo-x",       "prompt": "/promote-devto"},
+    {"id": "social-trend-2",     "name": "Trending repo #2 (Dev+X+Tele)",      "cron": "30 22 * * *", "target": "repo-reviewer", "prompt": "/review"}
+  ],
+  "group_config": {
+    "flowork_tele_link": "https://t.me/+55oqrk75lc43YWE1"
+  },
+  "config_groups": ["repo-reviewer", "promo-x", "promo-devto"]
+}

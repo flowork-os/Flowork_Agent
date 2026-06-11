@@ -78,6 +78,9 @@ func (h *Handler) ToggleHandler(w http.ResponseWriter, r *http.Request) {
 			failed[t] = err.Error()
 		}
 	}
+	// Re-sync the orchestrator so an OFF group drops from the Telegram slash menu +
+	// Mr.Flow's list immediately (and an ON group reappears).
+	h.SyncToOrchestrator()
 	httpx.WriteJSON(w, map[string]any{
 		"ok": true, "id": id, "disabled": disabled, "applied": applied, "failed": failed,
 	})

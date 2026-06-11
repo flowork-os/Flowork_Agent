@@ -78,7 +78,11 @@ func (h *Handler) SyncToOrchestrator() int {
 			continue
 		}
 		marker, _, _ := st.KVGet("group")
-		if strings.TrimSpace(marker) == "1" {
+		off, _, _ := st.KVGet("group_off")
+		// A group that's turned OFF drops out of the orchestrator list entirely — no
+		// slash command, and Mr.Flow won't list it (so the model can't be told about a
+		// command that does nothing). It comes back the moment it's turned ON.
+		if strings.TrimSpace(marker) == "1" && strings.TrimSpace(off) != "1" {
 			desc := h.displayName(id)
 			if dn, ok, _ := st.KVGet("display_name"); ok && strings.TrimSpace(dn) != "" {
 				desc = strings.TrimSpace(dn)

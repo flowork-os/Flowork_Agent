@@ -337,7 +337,11 @@ func autoPost() {
 	}
 	posted := splitNonEmpty(kvGet("posted_topics"))
 	next := ""
-	for _, tp := range topics {
+	// Prefer the NEWEST log/topic first (topics are appended in arrival order, so we
+	// walk from the end). Skips anything already posted today — no duplicate topics
+	// until the whole backlog is exhausted, then it recycles below.
+	for i := len(topics) - 1; i >= 0; i-- {
+		tp := topics[i]
 		if strings.HasPrefix(tp, "_") { // reserved/test topics (e.g. _ping) are never published
 			continue
 		}
@@ -352,7 +356,8 @@ func autoPost() {
 		// never runs dry — it just keeps rotating through the backlog.
 		kvSet("posted_topics", "")
 		bumpCycle()
-		for _, tp := range topics {
+		for i := len(topics) - 1; i >= 0; i-- {
+			tp := topics[i]
 			if strings.HasPrefix(tp, "_") {
 				continue
 			}
@@ -402,7 +407,7 @@ func autoPost() {
 	}
 
 	// 2. writer — STRICT grounding: only what the FACTS support (anti-halu).
-	body := askMember(rs.Writer, "You are a Dev.to technical writer. Write the article BODY in Markdown about \""+next+"\", "+
+	body := askMember(rs.Writer, "You are a senior software engineer and AI expert writing for Dev.to. Write the article BODY in Markdown about \""+next+"\", "+
 		"built around the TITLE and weaving the KEYWORDS in naturally. CRITICAL: use ONLY the FACTS below as your source of "+
 		"truth — every claim must be supported by them. If a detail (a feature, number, command, or capability) is NOT in the "+
 		"FACTS, do NOT state it; never invent or assume. Be concrete and technical; HONEST — state real strengths plainly, "+
@@ -568,7 +573,7 @@ func runPromo(argsJSON string) {
 	}
 
 	// 2. writer → article body (weaves keywords, honest, no hype)
-	body := askMember(rs.Writer, "You are a Dev.to technical writer. Write the article BODY in Markdown for the SOURCE, "+
+	body := askMember(rs.Writer, "You are a senior software engineer and AI expert writing for Dev.to. Write the article BODY in Markdown for the SOURCE, "+
 		"built around the TITLE and weaving the KEYWORDS in naturally. Be concrete and technical; HONEST — state real "+
 		"strengths plainly, acknowledge trade-offs, and NEVER overclaim or hype. Output ONLY the Markdown body (do NOT "+
 		"repeat the title as a heading).\n\nTITLE: "+title+"\nKEYWORDS: "+keywords+"\n\nSOURCE:\n"+topic)
@@ -631,6 +636,11 @@ func tagsAndPublish(rs roster, title, keywords, body, topic string) {
 
 	// always carry both product repo links.
 	body = body + repoFooter
+	// Dev.to ALWAYS carries our Telegram community invite (both promo + trending
+	// modes). Configurable in Settings/kv ("flowork_tele_link") — never hardcoded.
+	if tele := strings.TrimSpace(cfg("flowork_tele_link")); tele != "" {
+		body += "\n💬 **Join the Flowork community on Telegram:** " + tele + "\n"
+	}
 
 	publish := strings.EqualFold(cfg("publish"), "true")
 	// API key: primary from Settings → API Keys (env DEVTO_API_KEY, forwarded by the host),

@@ -81,6 +81,7 @@ import (
 	"flowork-gui/internal/slashcmd"
 	slashbuiltins "flowork-gui/internal/slashcmd/builtins"
 	slashcustom "flowork-gui/internal/slashcmd/custom"
+	"flowork-gui/internal/loket"
 	"flowork-gui/internal/tools"
 	"flowork-gui/internal/tools/builtins"
 	"flowork-gui/internal/triggers"
@@ -539,6 +540,10 @@ func main() {
 	if n := groupsAPI.SyncToOrchestrator(); n > 0 {
 		log.Printf("groups: synced %d group(s) to orchestrator (%s) for slash + ask_group", n, groupsapi.OrchestratorID)
 	}
+	// Portable defaults: a FRESH clone gets the SAME social schedule + public Telegram
+	// invite as the owner (tokens stay in Settings, never pushed). No-op on a machine
+	// that already has a schedule / config.
+	seedSocialDefaults(fdb, loader.AgentsDir())
 
 	mux := http.NewServeMux()
 
@@ -872,6 +877,62 @@ func main() {
 
 func ownerAutoVerify(w http.ResponseWriter, _ *http.Request) {
 	httpx.WriteJSON(w, map[string]any{"verified": true})
+}
+
+// seedSocialDefaults makes a FRESH clone match the owner's setup. It loads the
+// committed seed/social.seed.json and:
+//   (a) installs the 2-trending-1-promo social schedule — ONLY when trigger_rules is
+//       empty, so it never clobbers a machine that already has its own schedule;
+//   (b) sets each social group's non-secret flowork_tele_link kv when it's absent.
+//
+// Secrets are NOT here: tokens (X cookies, Dev.to key, bot tokens) stay in Settings →
+// API Keys (flowork.db, never pushed). So `git clone` → same setup, user only fills tokens.
+func seedSocialDefaults(fdb *floworkdb.Store, agentsDir string) {
+	raw, err := os.ReadFile("seed/social.seed.json")
+	if err != nil {
+		return // no seed file shipped → nothing to do
+	}
+	var seed struct {
+		Schedule []struct {
+			ID     string `json:"id"`
+			Name   string `json:"name"`
+			Cron   string `json:"cron"`
+			Target string `json:"target"`
+			Prompt string `json:"prompt"`
+		} `json:"schedule"`
+		GroupConfig  map[string]string `json:"group_config"`
+		ConfigGroups []string          `json:"config_groups"`
+	}
+	if json.Unmarshal(raw, &seed) != nil {
+		return
+	}
+	// (a) schedule — fresh install only (empty table), never overwrite an existing one.
+	if existing, lerr := fdb.ListTriggers(); lerr == nil && len(existing) == 0 && len(seed.Schedule) > 0 {
+		for _, s := range seed.Schedule {
+			_ = fdb.UpsertTrigger(floworkdb.Trigger{
+				ID: s.ID, Name: s.Name, TypeID: "time",
+				Config: `{"cron":"` + s.Cron + `"}`,
+				Target: s.Target, TargetKind: "group",
+				Prompt: s.Prompt, Deliver: "telegram", Enabled: true,
+			})
+		}
+		log.Printf("seed: installed %d social schedule rule(s) from seed/social.seed.json", len(seed.Schedule))
+	}
+	// (b) non-secret per-group config (e.g. the PUBLIC Telegram invite) — set if absent.
+	for _, gid := range seed.ConfigGroups {
+		staged := filepath.Join(agentsDir, gid+".fwagent")
+		path := filepath.Join(filepath.Dir(agentdb.Resolve(gid, staged)), "loket.db")
+		st, oerr := loket.OpenStore(path)
+		if oerr != nil {
+			continue
+		}
+		for k, v := range seed.GroupConfig {
+			if cur, _, _ := st.KVGet(k); strings.TrimSpace(cur) == "" {
+				_ = st.KVSet(k, v)
+			}
+		}
+		_ = st.Close()
+	}
 }
 
 // notifyOwnerTelegram — push pesan ke owner via Telegram. Baca config dari
