@@ -23,12 +23,5 @@
   "delete_btn": "HAPUS",
   "delete_confirm": "Hapus group \"{name}\"? Folder + roster-nya dibuang (agent anggotanya TIDAK ikut terhapus).",
   "delete_fail": "gagal hapus: ",
-  "loading": "memuat…",
-  "sched_label": "JADWAL — jalanin koloni ini otomatis",
-  "sched_hint": "cron UTC · 20:00 WIB = 0 13 * * * · task /auto = posting otonom",
-  "sched_add": "Tambah baris",
-  "sched_save": "Simpan jadwal",
-  "sched_empty": "belum ada jadwal — tambah baris biar group jalan otomatis",
-  "sched_cron_ph": "0 13 * * *",
-  "sched_task_ph": "/auto"
+  "loading": "memuat…"
 }

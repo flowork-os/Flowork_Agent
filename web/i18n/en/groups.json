@@ -23,12 +23,5 @@
   "delete_btn": "DELETE",
   "delete_confirm": "Delete group \"{name}\"? Its folder + roster are removed (the member agents are NOT deleted).",
   "delete_fail": "delete failed: ",
-  "loading": "loading…",
-  "sched_label": "SCHEDULE — run this colony on a timer",
-  "sched_hint": "cron in UTC · 20:00 WIB = 0 13 * * * · task /auto = autonomous post",
-  "sched_add": "Add row",
-  "sched_save": "Save schedule",
-  "sched_empty": "no schedule — add a row to run this group automatically",
-  "sched_cron_ph": "0 13 * * *",
-  "sched_task_ph": "/auto"
+  "loading": "loading…"
 }
