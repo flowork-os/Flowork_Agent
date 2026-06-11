@@ -1,3 +1,8 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Locked at: 2026-06-12 — mature core agent, stable.
+//
 // mr-flow — Telegram AI agent untuk Flowork.
 //
 // === Layout standar (HARDCODED, lihat doc/standar_ai_agent.md) ===

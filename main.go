@@ -2,7 +2,11 @@
 // Status: STABLE — DO NOT MODIFY without owner approval.
 // Owner: Aola Sahidin (Mr.Dev)
 // Repo: https://github.com/flowork-os/flowork-ai-agent
-// Locked at: 2026-05-30 (re-locked 2026-06-11; +group seed 2026-06-12)
+// Locked at: 2026-05-30 (re-locked 2026-06-11; +group seed & secret-central 2026-06-12)
+// 2026-06-12 OWNER-APPROVED: boot migrates connector secrets to Settings → API Keys
+//   (connections.MigrateSchemaSecretsToGlobal) and wires the frozen env-forward hook
+//   (kernelhost.EnvForwardKeys = connections.GlobalSecretEnvKeys) so connector tokens
+//   live ONLY in Settings yet still reach their connector via env.
 // 2026-06-12 OWNER-APPROVED: boot calls groupsAPI.SeedFromJSON() to reconcile each
 //   group's roster with its committed group.json mirror (export configured groups,
 //   restore them on a fresh install). Additive — no-op for plain agents.
@@ -155,6 +159,15 @@ func main() {
 		result, cmdName, err := slashcmd.DispatchWithHooks(ctx, text)
 		return result.Text, cmdName, err
 	}
+
+	// Centralize connector secrets: relocate any token still living in a per-agent
+	// store into Settings → API Keys (global) BEFORE the env injection below reads
+	// it, then register the frozen env-forward hook so each connector's token (and
+	// any future connector's) reaches it via env — with no further frozen edit.
+	if n := connections.MigrateSchemaSecretsToGlobal(); n > 0 {
+		log.Printf("connections: centralized %d connector secret(s) into Settings → API Keys", n)
+	}
+	kernelhost.EnvForwardKeys = connections.GlobalSecretEnvKeys
 
 	// Inject saved Settings → API Keys into the process env BEFORE agents boot. The kernel
 	// builds each agent's env (buildAgentEnv) at load time from os.Getenv, so the keys MUST be

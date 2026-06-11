@@ -2,7 +2,12 @@
 // Status: STABLE — DO NOT MODIFY without owner approval.
 // Owner: Aola Sahidin (Mr.Dev)
 // Repo: https://github.com/flowork-os/flowork-ai-agent
-// Locked at: 2026-05-30 (re-locked 2026-06-11)
+// Locked at: 2026-05-30 (re-locked 2026-06-11; +env hook 2026-06-12)
+// 2026-06-12 OWNER-APPROVED (frozen unfreeze→refreeze, hash regenerated): added the
+//   `EnvForwardKeys` PLUG-AND-PLAY hook so buildAgentEnv can forward extra global
+//   env keys (connector tokens, future secrets) registered from NON-FROZEN code —
+//   so adding a new token NEVER requires unlocking this file again. This is meant to
+//   be the LAST edit to the env-forward path; new keys go through the hook.
 // 2026-06-03 TWEAK (param-only): InvokeAgentMessage deadline 180s→300s (selaras
 //   manifest timeout_call_ms=300000) — fix synth crew 6-agent kena deadline.
 //   Cap doang, ga ngubah orkestrasi/isolasi.
@@ -771,9 +776,16 @@ func (h *Host) handleAgentChange(ctx context.Context, ch loader.Change) {
 //
 // `store` opsional — kalau nil, env config + secrets di-skip (boot tanpa store
 // hanya kepake oleh code path lama saat migrasi).
+// EnvForwardKeys — PLUG-AND-PLAY extension point (set ONCE from non-frozen init,
+// see main.go wiring connections.GlobalSecretEnvKeys). buildAgentEnv forwards these
+// EXTRA global env keys (Settings → API Keys) to every agent, on top of the
+// hardcoded base list below. Register new tokens/secrets HERE from non-frozen code
+// — never unlock this frozen file again just to add a key. nil → base list only.
+var EnvForwardKeys func() []string
+
 func buildAgentEnv(d loader.Discovery, store *agentdb.Store, workspaceMount, sharedMount string) map[string]string {
 	out := map[string]string{}
-	for _, key := range []string{
+	fwdKeys := []string{
 		"FLOWORK_TG_BOT_TOKEN",
 		"FLOWORK_TG_ALLOWED_CHATS",
 		"FLOWORK_ROUTER_URL",
@@ -790,7 +802,13 @@ func buildAgentEnv(d loader.Discovery, store *agentdb.Store, workspaceMount, sha
 		// API Keys, forwarded here so the group reads them via os.Getenv.
 		"FWOS_CHAT_ID",
 		"FWOS_BOT_TOKEN",
-	} {
+	}
+	// Plug-and-play: non-frozen code may register MORE global keys to forward
+	// (connector tokens, future secrets) without ever editing this frozen file.
+	if EnvForwardKeys != nil {
+		fwdKeys = append(fwdKeys, EnvForwardKeys()...)
+	}
+	for _, key := range fwdKeys {
 		if v := strings.TrimSpace(os.Getenv(key)); v != "" {
 			out[key] = v
 		}

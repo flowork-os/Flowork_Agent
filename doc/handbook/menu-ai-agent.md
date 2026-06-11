@@ -60,3 +60,49 @@ my-agent.fwagent/
 `capabilities_required` is the permission list (it can only do what's declared). `exposes_rpc` is the
 functions it offers. Build with plain Go: `GOOS=wasip1 GOARCH=wasm go build -o agent.wasm .`, zip the
 folder, drag it in. Tune the rest from the Setting popup.
+
+---
+
+## 🔐 RULE — Where secrets live (ARCHITECTURE, ENFORCED)
+
+**Every secret (token / API key / cookie / webhook secret) lives in ONE place:
+Settings → API Keys (the global `secrets` store in `flowork.db`). Nowhere else.**
+
+This is a hard rule, not a preference. It keeps secrets in a single, manageable,
+never-committed store and lets the rest of the config travel cleanly.
+
+- ✅ **Centralized in Settings → API Keys:** all connector tokens
+  (`TELEGRAM_BOT_TOKEN`, `DISCORD_BOT_TOKEN`, `SLACK_BOT_TOKEN`, `WHATSAPP_TOKEN`,
+  `WHATSAPP_WEBHOOK_SECRET`), publishing keys (`DEVTO_API_KEY`, `X_AUTH_TOKEN`,
+  `X_CT0`, `FWOS_BOT_TOKEN`, `YT_*`), notify token — everything secret.
+- 🚫 **The ONLY exceptions — kept per-agent, NOT in Settings:** the agent's
+  **Router endpoint** and **Model**. These are per-agent on purpose (every agent may
+  use a different model/router). Their *defaults* live in Settings
+  (`router_default_url`, `llm_default_model`); an agent overrides them in its own
+  config when it wants something else.
+- 🟡 **Non-secret connector config** (`TARGET_AGENT`, allowed-chats / channel lists)
+  stays in the connector's own store — it isn't a secret.
+
+### How a secret reaches the agent that needs it
+1. You enter it once in **Settings → API Keys** → stored in the global `secrets`.
+2. On boot, the kernel injects global secrets into the process env, and
+   `buildAgentEnv` forwards the registered keys into each agent's env.
+3. The agent reads it with `os.Getenv("KEY")`. Done.
+
+### Adding a NEW token/secret later — DO NOT touch the frozen kernel
+The env-forward path has a **plug-and-play hook** (`kernelhost.EnvForwardKeys`, the
+last edit that frozen file will ever need). Register new keys from **non-frozen**
+code:
+- A **connector** just declares the field as `"type": "secret"` in its `loket.json`
+  schema — `connections.GlobalSecretEnvKeys()` derives it automatically, **zero code,
+  zero frozen edit**.
+- For a non-connector secret, add the key in non-frozen wiring (e.g. extend the
+  function wired into `EnvForwardKeys` in `main.go`).
+- **Never unlock `internal/kernelhost/kernelhost.go` to add a key.** If you think you
+  must, you're doing it wrong — use the hook.
+
+### For AI working on this repo
+Do not invent a second secret store. Do not write a token into an agent's
+`state.db`, a `manifest.json`, a `loket.json` value, or any committed file. A secret
+that isn't in Settings → API Keys is a bug. The only secret-free things that ship are
+*names/placeholders* (`PASTE_YOUR_KEY_HERE`).

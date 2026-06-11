@@ -1,3 +1,8 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Locked at: 2026-06-12 — mature core agent, stable.
+//
 // Package main is Mr.Flow, loket-native — the first mature agent migrated to the
 // "papan kosong" (blank board) microkernel. It reaches EVERY capability through
 // the single kernel counter call(cap, args): its own brain, the real clock, and

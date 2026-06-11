@@ -12,6 +12,12 @@
 //     buildAgentEnv injects. Manifest-declared fields (loket.ConfigField) so the GUI
 //     hardcodes no connector's keys. NOTE: owner NOTIFICATIONS are a separate concern —
 //     they live in Settings → Notifications (floworkdb), not in any connector.
+//     2026-06-12 (owner-directed): SECRET-typed fields are now CENTRALIZED in
+//     Settings → API Keys (global floworkdb) — the single secret store. SetConfig
+//     routes them there (and drops any per-agent copy); GetConfig overlays them;
+//     central.go derives the keys from each connector's schema and feeds the frozen
+//     kernelhost.EnvForwardKeys hook so the token reaches the connector via env.
+//     Non-secret fields (TARGET_AGENT, channels) still live in the connector's store.
 //
 // Package connections is the isolated registry for "Connections" — Flowork's
 // universal connector system (telegram/discord/email/cli/schedule/mcp). A
@@ -44,6 +50,7 @@ import (
 	"strings"
 
 	"flowork-gui/internal/agentdb"
+	"flowork-gui/internal/floworkdb"
 	"flowork-gui/internal/kernel/loader"
 	"flowork-gui/internal/loket"
 )
@@ -239,8 +246,19 @@ func GetConfig(id string) (map[string]string, error) {
 	}
 	defer st.Close()
 	secrets, err := st.Secrets()
-	if err != nil {
-		return map[string]string{}, nil
+	if err != nil || secrets == nil {
+		secrets = map[string]string{}
+	}
+	// Overlay centralized secrets from Settings → API Keys (global) for the
+	// connector's secret-typed fields — the single source of truth for tokens.
+	if fdb, ferr := floworkdb.Shared(); ferr == nil {
+		for _, f := range schemaOf(id) {
+			if isSecretField(f) {
+				if v, e := fdb.GetSecret(f.Key); e == nil && v != "" {
+					secrets[f.Key] = v
+				}
+			}
+		}
 	}
 	return secrets, nil
 }
@@ -270,6 +288,15 @@ func SetConfig(id string, patch map[string]string) error {
 	if isNative(id) {
 		return nativeSetConfig(id, patch) // built-in: config in its own ~/.flowork/connectors/<id>/
 	}
+	// Secret-typed fields are centralized in Settings → API Keys (global floworkdb);
+	// non-secret fields stay in the connector's own store.
+	secretKey := map[string]bool{}
+	for _, f := range schemaOf(id) {
+		if isSecretField(f) {
+			secretKey[f.Key] = true
+		}
+	}
+	fdb, ferr := floworkdb.Shared()
 	st, err := connectorStore(id)
 	if err != nil {
 		return err
@@ -286,6 +313,17 @@ func SetConfig(id string, patch map[string]string) error {
 	for k, v := range patch {
 		if !configKeyRe.MatchString(k) {
 			return errors.New("invalid config key " + k)
+		}
+		// Route a secret to the global Settings store and NEVER keep a per-agent
+		// copy (a stale copy would shadow a later Settings edit via env ordering).
+		if secretKey[k] && ferr == nil {
+			if v == "" {
+				_ = fdb.DeleteSecret(k)
+			} else if e := fdb.SetSecret(k, v); e != nil {
+				return e
+			}
+			delete(secrets, k)
+			continue
 		}
 		if v == "" {
 			delete(secrets, k)
