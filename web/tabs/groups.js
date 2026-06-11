@@ -41,7 +41,7 @@ function avatar(id, size) {
 }
 
 const CSS = `
-.gr-tab { padding:24px 32px 60px; color:#e2e8f0; max-width:1320px; }
+.gr-tab { padding:24px 32px 60px; color:#e2e8f0; max-width:1600px; }
 
 /* ── hero (matches AI Agent) ── */
 .gr-hero { position:relative; overflow:hidden; padding:30px 36px; border-radius:18px; margin-bottom:24px;
@@ -67,10 +67,13 @@ const CSS = `
 .gr-in:focus, .gr-sel:focus, .gr-task:focus { outline:none; border-color:#a78bfa; }
 .gr-in::placeholder, .gr-task::placeholder { color:#64748b; }
 
-/* ── grid of colony cards ── */
-#grList { display:grid; grid-template-columns:repeat(auto-fill,minmax(380px,1fr)); gap:20px; align-items:start; }
+/* ── colony cards — masonry columns so uneven heights pack tightly (no ragged
+   rows). column-width is responsive: more columns on wider screens, 1 on mobile. */
+#grList { column-width:400px; column-gap:20px; }
+#grList > .gr-empty { column-span:all; }
 .gr-card { background:rgba(15,23,42,0.6); border:1px solid rgba(148,163,184,0.18); border-radius:16px; padding:20px 22px;
-  backdrop-filter:blur(4px); transition:border-color .18s, transform .18s, box-shadow .18s; }
+  backdrop-filter:blur(4px); transition:border-color .18s, transform .18s, box-shadow .18s;
+  break-inside:avoid; margin-bottom:20px; }
 .gr-card:hover { border-color:rgba(167,139,250,0.5); transform:translateY(-2px); box-shadow:0 16px 40px -26px rgba(124,58,237,0.5); }
 
 .gr-head { display:flex; align-items:center; gap:13px; }

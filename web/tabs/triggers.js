@@ -9,7 +9,7 @@ const fmt = (k, v) => Object.entries(v || {}).reduce((s, [n, val]) => s.replaceA
 
 const CSS = `
 .tg{--mx:#22ff88;--cy:#36e6ff;--bad:#ff476f;--warn:#ffc24d;--line:rgba(34,255,136,.20);
-  position:relative;max-width:1040px;padding:6px 2px 50px;color:#bdf5d6;
+  position:relative;max-width:1600px;padding:6px 2px 50px;color:#bdf5d6;
   font-family:ui-monospace,'JetBrains Mono','Cascadia Code',Consolas,monospace}
 .tg::before{content:'';position:absolute;left:0;right:0;top:0;height:90px;z-index:0;pointer-events:none;opacity:.5;
   background:linear-gradient(180deg,rgba(34,255,136,.10),transparent);animation:tgscan 6s linear infinite}

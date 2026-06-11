@@ -18,7 +18,7 @@ const L = new Proxy({}, { get: (_, k) => t('connections.' + String(k)) });
 const fmt = (k, vars) => Object.entries(vars || {}).reduce((s, [n, v]) => s.replaceAll('{' + n + '}', v), L[k]);
 
 const CSS = `
-.cx-wrap{position:relative;max-width:1000px;padding:6px 2px 40px;
+.cx-wrap{position:relative;max-width:1600px;padding:6px 2px 40px;
   --cy:#36e6ff;--cy2:#26ffd0;--line:rgba(54,230,255,.22);--bad:#ff476f;--warn:#ffc24d}
 .cx-wrap *{position:relative;z-index:1}
 .cx-hud{display:flex;align-items:center;gap:16px;margin:6px 0 22px}
