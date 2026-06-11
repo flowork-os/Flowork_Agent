@@ -86,7 +86,9 @@ never-committed store and lets the rest of the config travel cleanly.
 ### How a secret reaches the agent that needs it
 1. You enter it once in **Settings → API Keys** → stored in the global `secrets`.
 2. On boot, the kernel injects global secrets into the process env, and
-   `buildAgentEnv` forwards the registered keys into each agent's env.
+   `buildAgentEnv` forwards a key **only to the agent that declares it** — a
+   connector's token reaches that connector alone, never an unrelated agent (so two
+   agents can't both poll the same bot).
 3. The agent reads it with `os.Getenv("KEY")`. Done.
 
 ### Adding a NEW token/secret later — DO NOT touch the frozen kernel

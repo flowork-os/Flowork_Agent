@@ -63,22 +63,22 @@ func connectorSecretKeys(id string) []string {
 	return out
 }
 
-// GlobalSecretEnvKeys — the union of secret-typed env keys declared by all installed
-// connectors. These live in Settings → API Keys (global floworkdb) and are forwarded
-// to agents via kernelhost.EnvForwardKeys (wired in main.go). A NEW connector with a
-// secret field is auto-forwarded — no frozen-file edit needed.
-func GlobalSecretEnvKeys() []string {
-	seen := map[string]bool{}
-	var out []string
-	for _, id := range connectorIDs() {
-		for _, k := range connectorSecretKeys(id) {
-			if !seen[k] {
-				seen[k] = true
-				out = append(out, k)
-			}
-		}
+// GlobalSecretEnvKeys — the secret-typed env keys that THIS agent should receive
+// from Settings → API Keys (global floworkdb). It returns a connector's OWN declared
+// secret keys, and nothing for any other agent — so a bot token reaches only its
+// connector, never an unrelated agent (which could double-poll the same bot). Wired
+// into the per-agent kernelhost.EnvForwardKeys hook from main.go; a NEW connector
+// with a secret field is handled automatically — no frozen-file edit.
+func GlobalSecretEnvKeys(agentID string) []string {
+	dir, ok := folder(agentID)
+	if !ok {
+		return nil
 	}
-	return out
+	m := readManifest(dir)
+	if m == nil || m.Kind != loket.KindChannel {
+		return nil // not a connector → forward no connector secret to it
+	}
+	return connectorSecretKeys(agentID)
 }
 
 // MigrateSchemaSecretsToGlobal moves connector secrets that still sit in a per-agent

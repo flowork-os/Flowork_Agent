@@ -777,11 +777,13 @@ func (h *Host) handleAgentChange(ctx context.Context, ch loader.Change) {
 // `store` opsional — kalau nil, env config + secrets di-skip (boot tanpa store
 // hanya kepake oleh code path lama saat migrasi).
 // EnvForwardKeys — PLUG-AND-PLAY extension point (set ONCE from non-frozen init,
-// see main.go wiring connections.GlobalSecretEnvKeys). buildAgentEnv forwards these
-// EXTRA global env keys (Settings → API Keys) to every agent, on top of the
-// hardcoded base list below. Register new tokens/secrets HERE from non-frozen code
-// — never unlock this frozen file again just to add a key. nil → base list only.
-var EnvForwardKeys func() []string
+// see main.go wiring connections.GlobalSecretEnvKeys). For the agent being built,
+// buildAgentEnv forwards the EXTRA global env keys (Settings → API Keys) this hook
+// returns FOR THAT agent, on top of the hardcoded base list below. Per-agent so a
+// connector's token reaches ONLY that connector (not every agent). Register new
+// tokens/secrets HERE from non-frozen code — never unlock this frozen file again to
+// add a key. nil → base list only.
+var EnvForwardKeys func(agentID string) []string
 
 func buildAgentEnv(d loader.Discovery, store *agentdb.Store, workspaceMount, sharedMount string) map[string]string {
 	out := map[string]string{}
@@ -803,10 +805,11 @@ func buildAgentEnv(d loader.Discovery, store *agentdb.Store, workspaceMount, sha
 		"FWOS_CHAT_ID",
 		"FWOS_BOT_TOKEN",
 	}
-	// Plug-and-play: non-frozen code may register MORE global keys to forward
-	// (connector tokens, future secrets) without ever editing this frozen file.
-	if EnvForwardKeys != nil {
-		fwdKeys = append(fwdKeys, EnvForwardKeys()...)
+	// Plug-and-play: non-frozen code may register MORE global keys to forward for
+	// THIS agent (connector tokens, future secrets) without ever editing this frozen
+	// file. Per-agent so a connector's token reaches only that connector.
+	if EnvForwardKeys != nil && d.Manifest != nil {
+		fwdKeys = append(fwdKeys, EnvForwardKeys(d.Manifest.ID)...)
 	}
 	for _, key := range fwdKeys {
 		if v := strings.TrimSpace(os.Getenv(key)); v != "" {
