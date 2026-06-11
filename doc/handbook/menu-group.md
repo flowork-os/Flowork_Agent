@@ -74,3 +74,49 @@ zero cross-agent filesystem access.
 **Rule:** sequence hand-offs go over the **bus** by default. Reach for `fs:shared`
 + `workspace/_global` only for genuinely file-shaped, large, or binary artifacts an
 agent must drop for others — and grant the cap deliberately, per agent.
+
+---
+
+## 🔌 RULE — How a group is wired (plug-and-play lifecycle)
+
+A group is plug-and-play: create it once and it slots into everything automatically.
+None of the below is hardcoded — it follows the group list the kernel keeps in sync.
+
+### A new group auto-appears as a Telegram slash command
+The host auto-discovers every group (kv `group=1`) and writes the `id|command|desc`
+list into the orchestrator's (`mr-flow-next`) kv `"groups"` on **boot, create, config,
+and delete** (`groupsapi/orchestrator.go → SyncToOrchestrator`). The telegram-channel
+re-reads that list every few polls and pushes it to Telegram's `setMyCommands`
+(deduped). So **create a group → its `/command` shows up in the bot within minutes;
+delete it → it disappears.** The command is the id with dashes turned into
+underscores (Telegram rejects dashes): `promo-devto` → `/promo_devto`. Zero config,
+zero code.
+
+### A group runs from THREE places — all the same logic
+- **Schedule** (`#schedule` / `trigger_rules` type=time): `host.InvokeAgentMessage` →
+  the coordinator's `handle_message`.
+- **Trigger** (event-driven): same `InvokeAgentMessage` path.
+- **Mr.Flow**: type `/promo_devto <task>` in chat, or let the model pick the
+  `ask_group` tool — the loket **bus** → the coordinator's `handle`.
+
+All three converge on the SAME coordinator dispatch (`case "handle_message", "handle"`)
+→ fan-out to members → synthesizer. The group behaves identically whoever triggers it.
+
+### Group ON/OFF (one switch for the whole colony)
+The Groups tab has an **ON/OFF** switch per group (`POST /api/groups/toggle`). OFF
+disables the coordinator **and every member** — each leaves the runtime, so no agent
+in the group can receive a command (the coordinator can't fan out, members can't be
+reached over the bus). ON brings them all back.
+
+### Reset to default (restore a deleted group)
+Deleted a group by accident? The Groups tab's **↻ Restore defaults**
+(`POST /api/groups/reset`) copies every bundled group/agent that's missing back from
+the repo (`agents/<id>.fwagent` — definition only, never workspace/secrets), restores
+its roster from the committed `group.json`, and re-syncs. Existing agents are never
+touched. The factory groups always come back.
+
+### For AI working on this repo
+The group list is **derived, never hardcoded** — a group is any module with kv
+`group=1`; the slash menu, `ask_group`, schedules and Mr.Flow all read the same
+auto-synced list. Don't hand-maintain kv `"groups"`. Don't bake a group's roster into
+code — it lives in the loket store + the committed `group.json` mirror.
