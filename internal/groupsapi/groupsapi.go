@@ -44,6 +44,7 @@ type Deps struct {
 	LoketStorePath func(module string) (string, error) // → that module's loket.db
 	AgentsDir      string                              // where <id>.fwagent folders live
 	GroupWasmPath  string                              // template group wasm to copy on create
+	Toggle         func(id string, disabled bool) error // enable/disable one agent (= agentmgr.ToggleAgent)
 }
 
 type Handler struct{ d Deps }
@@ -63,6 +64,7 @@ type groupView struct {
 	Members     []string `json:"members"`
 	Synthesizer string   `json:"synthesizer"`
 	Task        string   `json:"task"`
+	Enabled     bool     `json:"enabled"` // false = group toggled OFF (group_off=1)
 	// Claims = every agent this group uses across ALL its roster roles (members,
 	// synthesizer, and auxiliary roles like questioner/how/caster), so the picker
 	// can hide an organ that already belongs to another group — not just its
@@ -176,10 +178,12 @@ func (h *Handler) ListHandler(w http.ResponseWriter, _ *http.Request) {
 					claims = append(claims, strings.TrimSpace(v))
 				}
 			}
+			off, _, _ := st.KVGet("group_off")
 			groups = append(groups, groupView{
 				ID: id, DisplayName: name,
 				Members: splitCSV(members), Synthesizer: strings.TrimSpace(synth), Task: strings.TrimSpace(task),
-				Claims: claims,
+				Claims:  claims,
+				Enabled: strings.TrimSpace(off) != "1",
 			})
 		} else if h.eligibleMember(id) {
 			avail = append(avail, agentRef{ID: id, DisplayName: h.displayName(id)})

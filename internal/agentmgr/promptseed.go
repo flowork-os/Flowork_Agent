@@ -14,19 +14,52 @@ package agentmgr
 
 import (
 	"os"
+	"encoding/json"
 	"path/filepath"
 	"strings"
 
 	"flowork-gui/internal/agentdb"
 )
 
-// SeedPromptsFromMd backfills each agent's GUI-editable prompt (kv.prompt) from its
-// prompt.md file when the prompt isn't set yet. Result: the persona appears and is
-// editable in the GUI, and reaches the wasm via FLOWORK_AGENT_CONFIG.prompt — so a
-// user repurposing Flowork edits the prompt in ONE place (the GUI), never a file.
-// ONLY seeds when kv.prompt is empty, so it never clobbers a GUI-edited prompt.
-// Returns how many it seeded. Call at boot, BEFORE kernelhost.Boot (so the seeded
-// prompt is in the agent's env on first load).
+// starterPrompt returns the best available starter persona for an agent so the GUI
+// Prompt field is never empty: the agent's prompt.md if present, otherwise a sentence
+// built from its manifest ("You are <display_name>. <description>"). Empty only when
+// the folder has neither — nothing to seed.
+func starterPrompt(dir, id string) string {
+	if raw, err := os.ReadFile(filepath.Join(dir, "prompt.md")); err == nil {
+		if p := strings.TrimSpace(string(raw)); p != "" {
+			return p
+		}
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, "manifest.json"))
+	if err != nil {
+		return ""
+	}
+	var m struct {
+		DisplayName string `json:"display_name"`
+		Description string `json:"description"`
+	}
+	if json.Unmarshal(raw, &m) != nil {
+		return ""
+	}
+	name := strings.TrimSpace(m.DisplayName)
+	if name == "" {
+		name = id
+	}
+	desc := strings.TrimSpace(m.Description)
+	if desc == "" {
+		return "You are " + name + ", an agent in Flowork. Be concise, honest, and never hallucinate."
+	}
+	return "You are " + name + ". " + desc + "\n\nBe concise, honest, and never claim a capability you don't have."
+}
+
+// SeedPromptsFromMd backfills each agent's GUI-editable prompt (kv.prompt) when it
+// isn't set yet, so the Prompt field in the GUI is never empty: from the agent's
+// prompt.md if present, otherwise a starter persona derived from its manifest. The
+// prompt reaches the wasm via FLOWORK_AGENT_CONFIG.prompt, so a user repurposing
+// Flowork edits it in ONE place (the GUI). ONLY seeds when kv.prompt is empty, so it
+// never clobbers a GUI-edited prompt. Returns how many it seeded. Call at boot,
+// BEFORE kernelhost.Boot (so the seeded prompt is in the agent's env on first load).
 func SeedPromptsFromMd(agentsDir string) int {
 	entries, err := os.ReadDir(agentsDir)
 	if err != nil {
@@ -38,13 +71,9 @@ func SeedPromptsFromMd(agentsDir string) int {
 			continue
 		}
 		dir := filepath.Join(agentsDir, e.Name())
-		raw, rerr := os.ReadFile(filepath.Join(dir, "prompt.md"))
-		if rerr != nil {
-			continue // no prompt.md to seed from
-		}
-		prompt := strings.TrimSpace(string(raw))
+		prompt := starterPrompt(dir, strings.TrimSuffix(e.Name(), ".fwagent"))
 		if prompt == "" {
-			continue
+			continue // no prompt.md and no manifest text to seed from
 		}
 		id := strings.TrimSuffix(e.Name(), ".fwagent")
 		st, serr := agentdb.Open(agentdb.Resolve(id, dir))

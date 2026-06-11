@@ -526,6 +526,7 @@ func main() {
 		},
 		AgentsDir:     loader.AgentsDir(),
 		GroupWasmPath: "templates/group-template/agent.wasm",
+		Toggle:        agentmgr.ToggleAgent, // group on/off cascades to coordinator + members
 	})
 	// Keep each group's roster in sync with its committed group.json mirror: export
 	// configured groups (so they can be committed) and restore them on a fresh
@@ -555,6 +556,7 @@ func main() {
 	mux.HandleFunc("/api/groups/config", groupsAPI.ConfigHandler)
 	mux.HandleFunc("/api/groups/create", groupsAPI.CreateHandler)
 	mux.HandleFunc("/api/groups/delete", groupsAPI.DeleteHandler)
+	mux.HandleFunc("/api/groups/toggle", groupsAPI.ToggleHandler) // group on/off (cascade to members)
 
 	// Page routes — FileServer cuma map exact filename (/login.html), jadi
 	// /login & /register butuh handler eksplisit yang serve embedded HTML.
