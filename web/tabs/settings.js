@@ -38,7 +38,7 @@ const CSS = `
 .set-btn:hover { background:rgba(139,92,246,0.08); color:#cbd5e1; }
 .set-btn.active { background:linear-gradient(135deg,rgba(139,92,246,0.28),rgba(124,58,237,0.12));
   color:#c4b5fd; border-color:rgba(139,92,246,0.45); }
-.set-panel { max-width:1280px; }
+.set-panel { max-width:none; }
 .set-card { background:rgba(15,17,26,0.6); border:1px solid var(--glass-border); border-radius:14px;
   padding:18px 20px; margin-bottom:16px; }
 .set-card h3 { font-size:0.95rem; margin:0 0 4px; color:#e2e8f0; }
