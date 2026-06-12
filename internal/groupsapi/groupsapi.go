@@ -116,6 +116,12 @@ func (h *Handler) eligibleMember(id string) bool {
 	if strings.HasPrefix(id, "mr-flow") {
 		return false
 	}
+	// Operator/control agents (operator-*) hold privileged caps like exec:power — they
+	// can power the host OFF. They are NEVER group members: if one were accidentally
+	// ticked into a roster, a group fan-out could shut the machine down. Hard-exclude.
+	if strings.HasPrefix(id, "operator-") {
+		return false
+	}
 	// Channels are deployed as kind "agent" (dumb pipes) but are I/O endpoints, not
 	// analyst members — exclude by the "-channel" id convention they all follow.
 	if strings.HasSuffix(id, "-channel") {

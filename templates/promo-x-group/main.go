@@ -683,13 +683,16 @@ func composeAndPost(topic, facts, devtoURL string) bool {
 		res["ok"] = false
 		res["error"] = fmt.Sprintf("post failed (status=%d): %s", status, trunc(resp, 200))
 	}
-	// Facebook PAGE (Graph API): the promo hook + the alternated repo link (FB renders
-	// its OG card). Independent of X — runs whether the tweet landed or not.
-	fbMsg := hook
-	if t := strings.TrimSpace(cfg("flowork_tele_link")); t != "" {
-		fbMsg += "\n\n💬 Join Flowork on Telegram: " + t
+	// Facebook PAGE (Graph API) — GATED OFF by default (kv "fb_active" != on). Keeps FB
+	// inactive while the Page token / review is pending, without touching X. Flip on later.
+	fbOK, fbNote := false, "FB inactive (kv fb_active != on)"
+	if strings.EqualFold(cfg("fb_active"), "on") {
+		fbMsg := hook
+		if t := strings.TrimSpace(cfg("flowork_tele_link")); t != "" {
+			fbMsg += "\n\n💬 Join Flowork on Telegram: " + t
+		}
+		fbOK, fbNote = postFacebook(fbMsg, link)
 	}
-	fbOK, fbNote := postFacebook(fbMsg, link)
 	res["facebook"] = map[string]any{"ok": fbOK, "note": fbNote}
 	emit(res)
 	return posted

@@ -789,13 +789,18 @@ func reviewRepo() {
 	xURL, xOK, xNote := postX(tweet)
 	tgOK, tgNote := postTelegram(tgText)
 
-	// Facebook PAGE (Graph API): full review excerpt + the repo link (FB renders the
-	// link's OG card = the repo image). Official Page route, so real links are fine.
-	fbMsg := "🔎 Trending on GitHub: " + slug + "\n\n" + trunc(reviewBody, 2000)
-	if tele != "" {
-		fbMsg += "\n\n💬 Join the Flowork community on Telegram: " + tele
+	// Facebook PAGE (Graph API) — GATED OFF by default. FB rides the same trending run
+	// but only fires when kv "fb_active" == "on", so the owner can keep it inactive
+	// (e.g. while the Page token / pages_manage_posts review is pending) without
+	// touching Dev/X/Telegram. Flip fb_active=on to enable.
+	fbOK, fbNote := false, "FB inactive (kv fb_active != on)"
+	if strings.EqualFold(cfg("fb_active"), "on") {
+		fbMsg := "🔎 Trending on GitHub: " + slug + "\n\n" + trunc(reviewBody, 2000)
+		if tele != "" {
+			fbMsg += "\n\n💬 Join the Flowork community on Telegram: " + tele
+		}
+		fbOK, fbNote = postFacebook(fbMsg, repoURL)
 	}
-	fbOK, fbNote := postFacebook(fbMsg, repoURL)
 
 	// Owner observability: the X result (e.g. a 226 automation flag during a burst, or
 	// "X cookies not set") is otherwise invisible since the emit goes to stdout.
