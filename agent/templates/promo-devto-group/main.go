@@ -528,12 +528,24 @@ func stripLeadingTitle(body, title string) string {
 	return b
 }
 
-// repoFooter is appended to EVERY article — the two products we push, always linked.
+// promoRepo is the GitHub "owner/repo" this colony links to. CONFIGURABLE via the
+// group kv "promo_repo" (Group "Config / secrets" GUI) so anyone can point it at
+// THEIR OWN project. Never hardcoded; empty = the Flowork default.
+func promoRepo() string {
+	r := strings.TrimSpace(kvGet("promo_repo"))
+	if r == "" {
+		r = "flowork-os/Flowork-OS"
+	}
+	return r
+}
+
+// repoFooter is appended to EVERY article — links the product repo.
 // NOTE: never start with a bare "---" — Dev.to/Forem reads a leading "---" as YAML
 // front matter and hides everything after it. Use a heading separator instead.
-const repoFooter = "\n\n## 🔗 Flowork is open source — both products\n\n" +
-	"- 🤖 **Flowork Agent** (the self-hosted agent OS): https://github.com/flowork-os/Flowork-OS\n" +
-	"- 🛣️ **Flow Router** (the sovereign LLM gateway): https://github.com/flowork-os/Flowork-OS\n"
+func repoFooter() string {
+	return "\n\n## 🔗 Open source on GitHub\n\n" +
+		"- ⭐ **" + promoRepo() + "** — https://github.com/" + promoRepo() + "\n"
+}
 
 // runPromo: SEO (title+keywords) → writer (body) → tags → append repo links → publish.
 func runPromo(argsJSON string) {
@@ -637,7 +649,7 @@ func tagsAndPublish(rs roster, title, keywords, body, topic string) {
 	}
 
 	// always carry both product repo links.
-	body = body + repoFooter
+	body = body + repoFooter()
 	// Dev.to ALWAYS carries our Telegram community invite (both promo + trending
 	// modes). Configurable in Settings/kv ("flowork_tele_link") — never hardcoded.
 	if tele := strings.TrimSpace(cfg("flowork_tele_link")); tele != "" {
@@ -663,7 +675,7 @@ func tagsAndPublish(rs roster, title, keywords, body, topic string) {
 
 	article := map[string]any{"title": title, "body_markdown": body, "published": publish, "tags": tagList,
 		// Cover = Flowork Agent's OG social card (the flagship "how it works" hero).
-		"main_image": "https://opengraph.githubassets.com/1/flowork-os/Flowork-OS"}
+		"main_image": "https://opengraph.githubassets.com/1/" + promoRepo()}
 	reqBody, _ := json.Marshal(map[string]any{"article": article})
 	status, resp := hostFetch("POST", "https://dev.to/api/articles",
 		map[string]string{"Content-Type": "application/json", "api-key": apiKey, "User-Agent": "Flowork-promo-devto"},

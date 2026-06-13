@@ -631,14 +631,18 @@ func composeAndPost(topic, facts, devtoURL string) bool {
 	if what == "" {
 		what = "Flowork"
 	}
-	// The promo ALTERNATES between our two products each run — one post pushes Flowork
-	// Agent, the next pushes Flowork Router (kv "promo_last_repo" flips the toggle). The
-	// writer is told which product to centre the post on, and the X link points to it.
-	repo, product := "flowork-os/Flowork-OS", "Flowork Agent — a sovereign, self-hosted, open-source AI agent OS"
-	if strings.TrimSpace(kvGet("promo_last_repo")) == "flowork-os/Flowork-OS" {
-		repo, product = "flowork-os/flowork_Router", "Flowork Router — a sovereign, self-hosted, open-source LLM gateway/router"
+	// The repo + product to promote are CONFIGURABLE — set kv "promo_repo" and
+	// "promo_product" in the Group "Config / secrets" GUI, so anyone (not just us)
+	// can point this colony at THEIR OWN project. Never hardcoded. Empty = Flowork
+	// defaults, so it works out of the box.
+	repo := strings.TrimSpace(kvGet("promo_repo"))
+	if repo == "" {
+		repo = "flowork-os/Flowork-OS"
 	}
-	kvSet("promo_last_repo", repo)
+	product := strings.TrimSpace(kvGet("promo_product"))
+	if product == "" {
+		product = "Flowork — a sovereign, self-hosted, open-source AI agent OS"
+	}
 	hook := strings.TrimSpace(askMember(writer, hookPrompt+"\n\nPRODUCT TO PROMOTE: "+product+"\n\nTOPIC: "+what+"\n\nFACTS:\n"+facts))
 	hook = strings.Trim(hook, "\"") // models love wrapping the line in quotes
 	if hook == "" {
