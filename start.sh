@@ -49,12 +49,19 @@ port_up() {
 }
 
 # 1) Router first — the agent routes its LLM calls through it (:2402).
+# router/start.sh exec's the server in the FOREGROUND (it blocks), so we launch
+# it DETACHED (setsid + log file) and move on — otherwise the agent never starts.
 if port_up 2402; then
   c_warn "→ Router  (:2402) already running — skip"
 elif [ -x "$ROOT/router/start.sh" ]; then
-  c_info "→ Router  (:2402)…"
-  ( cd "$ROOT/router" && ./start.sh ) ; rc=$?
-  [ "$rc" = "1" ] && c_err "  router start failed — check router/ log"
+  RLOG="$ROOT/router/.flowork-router.log"
+  c_info "→ Router  (:2402) starting in background (builds on first run)…"
+  c_info "   log → $RLOG"
+  ( cd "$ROOT/router" && setsid ./start.sh >"$RLOG" 2>&1 </dev/null & )
+  # brief wait so a fast start / immediate error surfaces; first-run build keeps
+  # going in the background while the agent (below) builds too.
+  for _ in 1 2 3 4 5 6 7 8; do port_up 2402 && break; sleep 1; done
+  if port_up 2402; then c_ok "  router up"; else c_info "  router still building — tail $RLOG"; fi
 else
   c_warn "→ router/start.sh not found — skipping router"
 fi
