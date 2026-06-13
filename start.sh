@@ -37,6 +37,32 @@ c_err()  { printf '\e[31m%s\e[0m\n' "$*"; }
 c_info "⚡ Flowork — starting the full stack…"
 echo
 
+# ── AUTO-UPDATE ──────────────────────────────────────────────────────────────
+# Pull the latest from the repo so a downloaded clone keeps itself current.
+# Safe: only when the working tree is CLEAN and the update is a fast-forward
+# (no local commits clobbered, no merge conflicts). The sub-launchers rebuild
+# automatically when the pulled source is newer than their binary.
+# Opt out with FLOWORK_NO_UPDATE=1 (or work offline — fetch just fails quietly).
+if [ "${FLOWORK_NO_UPDATE:-0}" != "1" ] && [ -d "$ROOT/.git" ] && command -v git >/dev/null 2>&1 \
+   && git -C "$ROOT" remote get-url origin >/dev/null 2>&1; then
+  c_info "→ Checking for updates…"
+  if [ -n "$(git -C "$ROOT" status --porcelain 2>/dev/null)" ]; then
+    c_warn "  local changes present — skipping auto-update (commit or stash to enable)"
+  elif git -C "$ROOT" fetch -q origin 2>/dev/null; then
+    LOCAL="$(git -C "$ROOT" rev-parse @ 2>/dev/null)"
+    REMOTE="$(git -C "$ROOT" rev-parse '@{u}' 2>/dev/null)"
+    if [ -n "$REMOTE" ] && [ "$LOCAL" != "$REMOTE" ] \
+       && git -C "$ROOT" merge-base --is-ancestor "$LOCAL" "$REMOTE" 2>/dev/null; then
+      git -C "$ROOT" pull --ff-only -q origin && c_ok "  updated → $(git -C "$ROOT" rev-parse --short @) (will rebuild)"
+    else
+      c_info "  already up to date"
+    fi
+  else
+    c_info "  offline — skipping update check"
+  fi
+  echo
+fi
+
 # port_up PORT — true if something is already listening on 127.0.0.1:PORT.
 # Makes this launcher idempotent: a service already up is left alone (no
 # rebuild, no duplicate, no port-bind error). Falls back to /dev/tcp if no ss.

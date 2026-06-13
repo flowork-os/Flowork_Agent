@@ -10,6 +10,16 @@ cd /d "%~dp0"
 echo Flowork - starting the full stack...
 echo.
 
+REM --- Auto-update: pull latest if this is a git clone (opt out: set FLOWORK_NO_UPDATE=1). ---
+REM --ff-only is safe: it never merges/clobbers; it just fast-forwards or stops.
+if not "%FLOWORK_NO_UPDATE%"=="1" if exist ".git" (
+    where git >nul 2>&1 && (
+        echo - checking for updates...
+        git pull --ff-only
+    )
+)
+echo.
+
 if exist "%~dp0router\start.bat" (
     echo - Router  ^(:2402^)  in its own window...
     start "Flowork Router" /d "%~dp0router" cmd /k start.bat

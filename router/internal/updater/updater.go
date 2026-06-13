@@ -25,7 +25,7 @@ import (
 )
 
 // Repo is "owner/name" of the GitHub repo whose releases we track.
-var Repo = "flowork-os/flowork_Router"
+var Repo = "flowork-os/Flowork-OS"
 
 // CurrentVersion is the running build; the dispatcher sets it from main.
 var CurrentVersion = "0.0.0"
