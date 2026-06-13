@@ -157,8 +157,30 @@ if [ -d "$AGENTS_SRC" ]; then
   [ "$seeded" -gt 0 ] && c_ok "Seeded $seeded bundled agent(s) → $AGENTS_DST"
 fi
 
-# Jalanin di background
-c_info "Start flowork-gui di http://$ADDR... (power armed=$FLOWORK_POWER_ARMED)"
+# ── SEED APPS (fresh-install convenience) ────────────────────────────────────
+# The repo ships bundled apps (e.g. the Shared Notepad) under ./apps, but the
+# runtime reads <data-home>/apps (sibling of the agents dir, i.e. ~/.flowork/apps).
+# On a fresh checkout that dir is empty → "No apps yet". Copy any bundled app that
+# isn't installed yet — NEVER overwrite an existing one (preserves its state).
+APPS_SRC="$ROOT/apps"
+APPS_DST="$(dirname "$AGENTS_DST")/apps"
+if [ -d "$APPS_SRC" ]; then
+  mkdir -p "$APPS_DST"
+  app_seeded=0
+  for d in "$APPS_SRC"/*/; do
+    [ -d "$d" ] || continue
+    name="$(basename "$d")"
+    if [ ! -e "$APPS_DST/$name" ]; then
+      cp -r "$d" "$APPS_DST/$name" || continue
+      find "$APPS_DST/$name" \( -name '*.db' -o -name '*.db-shm' -o -name '*.db-wal' -o -name 'state.json' \) -delete 2>/dev/null || true
+      app_seeded=$((app_seeded + 1))
+    fi
+  done
+  [ "$app_seeded" -gt 0 ] && c_ok "Seeded $app_seeded bundled app(s) → $APPS_DST"
+fi
+
+# Start in the background
+c_info "Starting flowork-gui at http://$ADDR … (power armed=$FLOWORK_POWER_ARMED)"
 nohup "$BIN" -addr "$ADDR" >"$LOG_FILE" 2>&1 &
 PID=$!
 echo "$PID" > "$PID_FILE"

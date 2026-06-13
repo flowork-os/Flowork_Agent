@@ -464,7 +464,7 @@ export async function render(container) {
 
       <div class="cm-d-sec">
         <div class="cm-d-lbl">💥 Blast radius</div>
-        <div style="font-size:0.8rem">${blastCount > 0 ? `<span style="color:#f87171">${blastCount} file terdampak</span> — <button class="cm-sm-btn" id="blast-trigger" title="${L.tipBlast}">visualisasi</button>` : '<em>—</em>'}</div>
+        <div style="font-size:0.8rem">${blastCount > 0 ? `<span style="color:#f87171">${blastCount} files affected</span> — <button class="cm-sm-btn" id="blast-trigger" title="${L.tipBlast}">visualize</button>` : '<em>—</em>'}</div>
       </div>
 
       <div class="cm-d-sec" style="margin-top:8px">
@@ -562,7 +562,7 @@ export async function render(container) {
       if (!r.ok) throw new Error(`${r.status}: ${await r.text().catch(() => r.statusText)}`);
       const d = await r.json();
       if (!d.count) {
-        zombieEl.innerHTML = '<div class="cm-z-ok">${L.noZombie}</div>';
+        zombieEl.innerHTML = `<div class="cm-z-ok">${L.noZombie}</div>`;
         return;
       }
       zombieEl.innerHTML = `
@@ -723,10 +723,10 @@ async function renderFallbackList(container) {
   graphEl.innerHTML = `
     <div class="cm-fallback-shell">
       <div class="cm-fallback-banner">
-        <strong>📋 Mode List</strong> — D3.js graph viz tidak tersedia
-        (lokal <code>static/vendor/d3.min.js</code> belum ada). Tab tetap
-        functional pakai tabel list. Untuk enable graph: copy
-        <code>d3.min.js</code> ke <code>static/vendor/</code> dan refresh.
+        <strong>📋 List Mode</strong> — D3.js graph view unavailable
+        (<code>static/vendor/d3.min.js</code> not found). This tab still
+        works as a table list. To enable the graph: drop
+        <code>d3.min.js</code> into <code>static/vendor/</code> and refresh.
       </div>
       <div class="cm-fallback-grid">
         <div class="cm-fallback-panel">
@@ -748,7 +748,7 @@ async function renderFallbackList(container) {
     const data = r.ok ? await r.json() : { roots: [] };
     const list = (data.roots || data.data || []).slice(0, 50);
     if (list.length === 0) {
-      document.getElementById('cm-fb-roots').innerHTML = '<div class="cm-fb-empty">${L.noRoot}</div>';
+      document.getElementById('cm-fb-roots').innerHTML = `<div class="cm-fb-empty">${L.noRoot}</div>`;
     } else {
       document.getElementById('cm-fb-roots').innerHTML =
         '<ul class="cm-fb-list">' + list.map(n =>
@@ -764,7 +764,7 @@ async function renderFallbackList(container) {
     const data = r.ok ? await r.json() : { zombies: [] };
     const list = (data.zombies || data.data || []).slice(0, 50);
     if (list.length === 0) {
-      document.getElementById('cm-fb-zombies').innerHTML = '<div class="cm-fb-empty">${L.noZombie2}</div>';
+      document.getElementById('cm-fb-zombies').innerHTML = `<div class="cm-fb-empty">${L.noZombie2}</div>`;
     } else {
       document.getElementById('cm-fb-zombies').innerHTML =
         '<ul class="cm-fb-list">' + list.map(n => {
