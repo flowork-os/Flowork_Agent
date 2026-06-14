@@ -23,7 +23,7 @@ var webFS embed.FS
 
 var (
 	addr      = flag.String("addr", "127.0.0.1:8800", "listen address")
-	repo      = flag.String("repo", "flowork-os/flowork", "public release repo (owner/name)")
+	repo      = flag.String("repo", "flowork-os/Flowork-OS", "public release repo (owner/name)")
 	ghAPI     = flag.String("api", "https://api.github.com", "GitHub API base (override for testing/mirror)")
 	noBrowser = flag.Bool("no-browser", false, "do not auto-open a browser")
 )

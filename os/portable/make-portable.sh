@@ -197,7 +197,7 @@ SH
 # Self-update (on demand): pull the latest portable bundle from the public channel + swap binaries.
 { echo '#!/usr/bin/env bash'; cat <<'SH'
 cd "$(cd "$(dirname "$0")" && pwd)"
-REPO="${FLOWORK_REPO:-flowork-os/flowork}"; API="${FLOWORK_GH_API:-https://api.github.com}"
+REPO="${FLOWORK_REPO:-flowork-os/Flowork-OS}"; API="${FLOWORK_GH_API:-https://api.github.com}"
 url="$(curl -fsSL "$API/repos/$REPO/releases/latest" 2>/dev/null | grep -oE '"browser_download_url": *"[^"]*flowork-portable\.zip"' | sed -E 's/.*"(http[^"]*)"/\1/' | head -1)"
 [ -n "$url" ] || { echo "No portable update found in the latest release."; exit 1; }
 echo "Downloading the latest Flowork…"
@@ -314,7 +314,7 @@ cat > "$OUT/Update-Flowork.bat" <<'BAT'
 cd /d "%~dp0"
 echo Downloading the latest Flowork...
 powershell -NoProfile -Command ^
-  "$r = Invoke-RestMethod 'https://api.github.com/repos/flowork-os/flowork/releases/latest';" ^
+  "$r = Invoke-RestMethod 'https://api.github.com/repos/flowork-os/Flowork-OS/releases/latest';" ^
   "$u = ($r.assets | Where-Object { $_.name -eq 'flowork-portable.zip' }).browser_download_url;" ^
   "if (-not $u) { Write-Host 'No portable update found.'; exit 1 };" ^
   "$t = Join-Path $env:TEMP 'flowork-upd'; Remove-Item $t -Recurse -Force -ErrorAction SilentlyContinue;" ^
