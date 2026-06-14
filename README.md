@@ -420,8 +420,8 @@ export ANTHROPIC_BASE_URL=http://127.0.0.1:2402   # or OPENAI_BASE_URL
 - ✅ **Sovereign OS** — bootable USB appliance (dm-verity + A/B + LUKS) · runs portable on any OS
 - ✅ **P2P mesh** — mDNS + WAN rendezvous + ed25519 signed gossip + 9-layer filter + karma
 - ⏳ **Android** — a 24/7 node in your pocket
-- 🌱 **Self-evolution** — background consolidation ("dreaming") + continual training + self-authored tools
-- 🌱 **Continuity** — dead-man's-switch + heir succession + mesh-replicated brain (survives by design)
+- ⏳ **Self-evolution** — background consolidation ("dreaming") ✅ + self-authored tools/skills ✅ shipped · continual (re)training next
+- ⏳ **Continuity** — mesh-replicated brain ✅ + death-letters (incl. to a successor) ✅ shipped · dead-man's-switch + full heir succession next
 - 🌱 **Self-sustaining** — a wallet + economic flywheel (sponsors / hosted tier / bug bounties) so it funds its own compute
 
 *Every shipped milestone is recorded in the changelog; each subsystem carries its rationale in-code — so the work can be audited without guesswork.*
