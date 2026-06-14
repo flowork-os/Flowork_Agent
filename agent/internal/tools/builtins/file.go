@@ -95,25 +95,25 @@ func (fileReadTool) Name() string       { return "file_read" }
 func (fileReadTool) Capability() string { return "fs:read:/shared/*" }
 func (fileReadTool) Schema() tools.Schema {
 	return tools.Schema{
-		Description: "Read file from shared workspace by category + name. 4MB cap.",
+		Description: "Read a file from your workspace. Preferred: file_path (relative path inside your workspace, e.g. 'docs/notes.md'). Legacy: category + name. 4MB cap.",
 		Params: []tools.Param{
-			{Name: "category", Type: tools.ParamString, Description: "tools|job|document|media|cache|log", Required: true},
-			{Name: "name", Type: tools.ParamString, Description: "filename (slashes stripped, basename only)", Required: true},
+			{Name: "file_path", Type: tools.ParamString, Description: "relative path in your workspace (preferred), e.g. 'src/main.go'. Absolute/'..' rejected (isolation)."},
+			{Name: "category", Type: tools.ParamString, Description: "legacy: tools|job|document|media|cache|log (use file_path instead)"},
+			{Name: "name", Type: tools.ParamString, Description: "legacy: filename (basename only) — pair with category"},
 		},
 		Returns: "{path, content, size_bytes, truncated: bool}",
 	}
 }
 func (fileReadTool) Run(ctx context.Context, args map[string]any) (tools.Result, error) {
-	cat, _ := args["category"].(string)
-	name, _ := args["name"].(string)
-	abs, err := validateCategoryAndName(ctx, cat, name)
+	// file_path (relative, workspace-confined) preferred; {category,name} fallback.
+	abs, rel, err := resolveFileArgs(ctx, args)
 	if err != nil {
 		return tools.Result{}, err
 	}
 	info, serr := os.Stat(abs)
 	if serr != nil {
 		if os.IsNotExist(serr) {
-			return tools.Result{}, fmt.Errorf("file not found: %s/%s", cat, filepath.Base(name))
+			return tools.Result{}, fmt.Errorf("file not found: %s", rel)
 		}
 		return tools.Result{}, fmt.Errorf("stat: %w", serr)
 	}
@@ -136,9 +136,8 @@ func (fileReadTool) Run(ctx context.Context, args map[string]any) (tools.Result,
 	if rerr != nil && rerr.Error() != "EOF" {
 		return tools.Result{}, fmt.Errorf("read: %w", rerr)
 	}
-	relPath := cat + "/" + filepath.Base(name)
 	return tools.Result{Output: map[string]any{
-		"path":       relPath,
+		"path":       rel,
 		"content":    string(buf[:n]),
 		"size_bytes": info.Size(),
 		"truncated":  truncated,
@@ -155,18 +154,17 @@ func (fileWriteTool) Name() string       { return "file_write" }
 func (fileWriteTool) Capability() string { return "fs:write:/shared/*" }
 func (fileWriteTool) Schema() tools.Schema {
 	return tools.Schema{
-		Description: "Write file to shared workspace (create or overwrite). Content cap 4MB.",
+		Description: "Write a file in your workspace (create or overwrite). Preferred: file_path (relative path, e.g. 'src/util.go' — parent dirs auto-created). Legacy: category + name. Content cap 4MB.",
 		Params: []tools.Param{
-			{Name: "category", Type: tools.ParamString, Description: "tools|job|document|media|cache|log", Required: true},
-			{Name: "name", Type: tools.ParamString, Description: "filename (slashes stripped)", Required: true},
+			{Name: "file_path", Type: tools.ParamString, Description: "relative path in your workspace (preferred). Absolute/'..' rejected (isolation)."},
 			{Name: "content", Type: tools.ParamString, Description: "file content", Required: true},
+			{Name: "category", Type: tools.ParamString, Description: "legacy: tools|job|document|media|cache|log (use file_path instead)"},
+			{Name: "name", Type: tools.ParamString, Description: "legacy: filename (basename only) — pair with category"},
 		},
 		Returns: "{path, bytes_written}",
 	}
 }
 func (fileWriteTool) Run(ctx context.Context, args map[string]any) (tools.Result, error) {
-	cat, _ := args["category"].(string)
-	name, _ := args["name"].(string)
 	content, _ := args["content"].(string)
 	if content == "" {
 		return tools.Result{}, fmt.Errorf("content required")
@@ -174,20 +172,20 @@ func (fileWriteTool) Run(ctx context.Context, args map[string]any) (tools.Result
 	if len(content) > maxFileBytes {
 		return tools.Result{}, fmt.Errorf("content > %d bytes cap", maxFileBytes)
 	}
-	abs, err := validateCategoryAndName(ctx, cat, name)
+	// file_path (relative, workspace-confined) preferred; {category,name} fallback.
+	abs, rel, err := resolveFileArgs(ctx, args)
 	if err != nil {
 		return tools.Result{}, err
 	}
-	// Ensure parent dir exists.
+	// Ensure parent dir exists (file_path may nest new subdirs in the workspace).
 	if mkerr := os.MkdirAll(filepath.Dir(abs), 0o755); mkerr != nil {
 		return tools.Result{}, fmt.Errorf("mkdir: %w", mkerr)
 	}
 	if werr := os.WriteFile(abs, []byte(content), 0o644); werr != nil {
 		return tools.Result{}, fmt.Errorf("write: %w", werr)
 	}
-	relPath := cat + "/" + filepath.Base(name)
 	return tools.Result{Output: map[string]any{
-		"path":          relPath,
+		"path":          rel,
 		"bytes_written": len(content),
 	}}, nil
 }

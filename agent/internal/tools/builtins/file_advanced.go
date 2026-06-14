@@ -35,20 +35,19 @@ func (editTool) Name() string       { return "edit" }
 func (editTool) Capability() string { return "fs:write:/shared/*" }
 func (editTool) Schema() tools.Schema {
 	return tools.Schema{
-		Description: "Replace exact substring di file. Default: replace_all=false → reject kalau >1 match. Set replace_all=true buat replace semua. File cap 4MB.",
+		Description: "Replace an exact substring in a file. Preferred: file_path (relative path in your workspace). Legacy: category + name. Default replace_all=false → reject if >1 match. File cap 4MB.",
 		Params: []tools.Param{
-			{Name: "category", Type: tools.ParamString, Description: "tools|job|document|media|cache|log", Required: true},
-			{Name: "name", Type: tools.ParamString, Description: "file name (no path)", Required: true},
+			{Name: "file_path", Type: tools.ParamString, Description: "relative path in your workspace (preferred). Absolute/'..' rejected (isolation)."},
 			{Name: "old_string", Type: tools.ParamString, Description: "exact substring to find", Required: true},
 			{Name: "new_string", Type: tools.ParamString, Description: "replacement", Required: true},
 			{Name: "replace_all", Type: tools.ParamBool, Description: "default false; true = replace all occurrences"},
+			{Name: "category", Type: tools.ParamString, Description: "legacy: tools|job|document|media|cache|log (use file_path instead)"},
+			{Name: "name", Type: tools.ParamString, Description: "legacy: filename (basename only) — pair with category"},
 		},
 		Returns: "{replaced: <count>, length}",
 	}
 }
 func (editTool) Run(ctx context.Context, args map[string]any) (tools.Result, error) {
-	category, _ := args["category"].(string)
-	name, _ := args["name"].(string)
 	oldS, _ := args["old_string"].(string)
 	newS, _ := args["new_string"].(string)
 	replaceAll, _ := args["replace_all"].(bool)
@@ -56,7 +55,8 @@ func (editTool) Run(ctx context.Context, args map[string]any) (tools.Result, err
 	if oldS == "" {
 		return tools.Result{}, fmt.Errorf("old_string required (non-empty)")
 	}
-	abs, err := validateCategoryAndName(ctx, category, name)
+	// file_path (relative, workspace-confined) preferred; {category,name} fallback.
+	abs, _, err := resolveFileArgs(ctx, args)
 	if err != nil {
 		return tools.Result{}, err
 	}

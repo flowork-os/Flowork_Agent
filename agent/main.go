@@ -515,6 +515,9 @@ func main() {
 						log.Printf("task-scheduler: %d jadwal di-fire", n)
 					}
 					trigEngine.Tick(ctx) // ROADMAP 3: proses aturan trigger poll (time/file-watch/…)
+					if n := RunDueWakeups(ctx, host); n > 0 { // ScheduleWakeup: fire one-shot wakeup yang due
+						log.Printf("wakeup: %d di-fire", n)
+					}
 				}()
 			}
 		}
