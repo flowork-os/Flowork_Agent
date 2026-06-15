@@ -459,7 +459,7 @@ export async function render(container) {
         const sm = S.semantic[n.path];
         return sm && sm.summary ? `
       <div class="cm-d-sec" style="background:#1e293b;border-radius:6px;padding:8px;margin:6px 0">
-        <div class="cm-d-lbl">🧠 Makna <span style="opacity:.5;font-weight:normal">(self-map R6)</span></div>
+        <div class="cm-d-lbl">${esc(L.meaningH)} <span style="opacity:.5;font-weight:normal">${esc(L.meaningSub)}</span></div>
         <div style="font-size:0.82rem;line-height:1.45">${esc(sm.summary)}</div>
         <div style="margin-top:6px">
           ${sm.domain ? `<span class="cm-chip">domain: ${esc(sm.domain)}</span>` : ''}
@@ -600,7 +600,7 @@ export async function render(container) {
       }
       zombieEl.innerHTML = `
         <div class="cm-z-title">🧟 ${d.count} ${L.zombiePanel}</div>
-        ${d.advisory ? `<div style="background:#3b2410;border:1px solid #b45309;border-radius:6px;padding:7px 9px;margin:6px 0;font-size:0.72rem;color:#fbbf24">⚠️ ${d.note || 'Heuristik lemah — KANDIDAT review manual, JANGAN auto-delete.'}</div>` : ''}
+        ${d.advisory ? `<div style="background:#3b2410;border:1px solid #b45309;border-radius:6px;padding:7px 9px;margin:6px 0;font-size:0.72rem;color:#fbbf24">⚠️ ${esc(L.zombieAdvisory)}</div>` : ''}
         <table class="cm-z-table">
           <thead><tr><th>File</th><th>Type</th><th>Lines</th><th></th></tr></thead>
           <tbody>${(d.zombies||[]).map(z => `
@@ -666,10 +666,10 @@ export async function render(container) {
       const d = await rr.json();
       if (!rr.ok || d.error) throw new Error(d.error || `enrich: ${rr.status}`);
       await loadSemantic();
-      if (S.selected) renderDetail(S.selected); // refresh panel kalau ada node kepilih
-      statusTxt.textContent = `🧠 enriched ${d.enriched} · sisa ${d.remaining}/${d.total_files}`;
+      if (S.selected) renderDetail(S.selected); // refresh panel if a node is selected
+      statusTxt.textContent = `${L.enrichedPrefix} ${d.enriched} · ${L.remainingLabel} ${d.remaining}/${d.total_files}`;
     } catch (e) {
-      statusTxt.textContent = `enrich gagal: ${e.message}`;
+      statusTxt.textContent = `${L.enrichFailed}${e.message}`;
     } finally {
       enrichBtn.disabled = false;
       enrichBtn.textContent = orig;
@@ -926,7 +926,7 @@ function skeleton() {
     <div class="cmf-toolbar">
       <input id="cm-search" class="cmf-search" type="search" placeholder="${L.searchPh}" title="${L.tipSearch}" />
       <button id="cm-reindex" class="cmf-btn" title="${L.tipReindex}">🔄 Reindex</button>
-      <button id="cm-enrich" class="cmf-btn" title="Tambah lapisan MAKNA (LLM) ke self-map: summary/domain/role per file (R6)">🧠 Enrich</button>
+      <button id="cm-enrich" class="cmf-btn" title="${L.tipEnrich}">${L.enrich}</button>
       <button id="cm-fit" class="cmf-btn" title="${L.tipFit}">⊞ Fit</button>
       <div class="cmf-color-grp">
         <button class="cm-color-btn active" data-mode="health" title="${L.tipHealth}">❤️ Health</button>

@@ -24,5 +24,13 @@
   "tip_blast2": "Mode blast radius: warnai node by jangkauan dampak perubahan dari file terpilih.",
   "tip_tour": "Guided tour: daftar 15 file yang harus dibaca dulu buat paham codebase.",
   "tip_zombie": "Tampilkan zombie: file yang ga diimpor siapapun + ga import apapun (kandidat dead code).",
-  "zombie_panel": "Zombie Files — tidak ada yang import, tidak import siapapun"
+  "zombie_panel": "Zombie Files — tidak ada yang import, tidak import siapapun",
+  "enrich": "🧠 Enrich",
+  "tip_enrich": "Tambah lapisan MAKNA (LLM) ke self-map: summary/domain/role per file (R6)",
+  "meaning_h": "🧠 Makna",
+  "meaning_sub": "(self-map R6)",
+  "zombie_advisory": "Heuristik lemah (import Go = level-paket): ini KANDIDAT buat review manual — JANGAN auto-delete. Verifikasi pakai grep / go build dulu.",
+  "enriched_prefix": "🧠 enriched",
+  "remaining_label": "sisa",
+  "enrich_failed": "enrich gagal: "
 }

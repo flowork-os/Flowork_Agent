@@ -24,5 +24,13 @@
   "tip_blast2": "Blast radius mode: color nodes by change impact reach from the selected file.",
   "tip_tour": "Guided tour: ordered list of 15 files to read first to understand the codebase.",
   "tip_zombie": "Show zombie files: files not imported by anyone and importing nothing (dead-code candidates).",
-  "zombie_panel": "Zombie Files — not imported, importing nothing"
+  "zombie_panel": "Zombie Files — not imported, importing nothing",
+  "enrich": "🧠 Enrich",
+  "tip_enrich": "Add a MEANING layer (LLM) to the self-map: summary/domain/role per file (R6)",
+  "meaning_h": "🧠 Meaning",
+  "meaning_sub": "(self-map R6)",
+  "zombie_advisory": "Weak heuristic (Go imports are package-level): these are CANDIDATES for manual review — DO NOT auto-delete. Verify with grep / go build first.",
+  "enriched_prefix": "🧠 enriched",
+  "remaining_label": "remaining",
+  "enrich_failed": "enrich failed: "
 }
