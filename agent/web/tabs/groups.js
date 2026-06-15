@@ -480,7 +480,12 @@ async function renderChat(host) {
       <section class="gc-main">
         <div class="gc-bar">
           <select class="gr-sel gc-target"></select>
-          <input class="gr-in gc-model" placeholder="${escAttr(L.chat_model_ph)}">
+          <select class="gr-sel gc-model" title="${escAttr(L.chat_model_ph)}">
+            <option value="">${esc(L.chat_model_default)}</option>
+            <option value="claude-opus-4-8">${esc(L.chat_model_opus)}</option>
+            <option value="claude-haiku-4-5">${esc(L.chat_model_haiku)}</option>
+            <option value="flowork-brain">${esc(L.chat_model_local)}</option>
+          </select>
         </div>
         <div class="gc-log"><div class="gr-empty gc-intro">${esc(L.chat_pick)}</div></div>
         <div class="gc-input-row">
