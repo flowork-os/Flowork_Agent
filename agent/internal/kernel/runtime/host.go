@@ -138,7 +138,13 @@ func (r *Runtime) registerFloworkHost(ctx context.Context, caps CapsChecker, res
 		karma:       karma,
 		slash:       slash,
 		http: &http.Client{
-			Timeout: 120 * time.Second,
+			// 300s (was 120s, owner-approved 2026-06-16): this is only a CEILING — each
+			// netFetch already sets a per-request context deadline (default 60s, max 5min,
+			// see netFetch timeout logic). 120s here silently CAPPED a valid longer per-
+			// request timeout_ms (e.g. a channel's bus.request to a slow LOCAL-model crew
+			// orchestrator) → "loket: no response" on Telegram. 300s = the per-request max,
+			// so a normal 60s fetch is unaffected; only an explicit long timeout is honored.
+			Timeout: 300 * time.Second,
 			// SSRF guard on the WASM net:fetch host-func: block cloud-metadata /
 			// link-local at dial time (initial + any redirect). Loopback stays
 			// allowed — agents MUST reach the self-API (:1987) and router (:2402).

@@ -66,7 +66,7 @@ func hostFetch(method, url string, headers map[string]string, body []byte) (int,
 	reqJSON, _ := json.Marshal(map[string]any{
 		"method":         method,
 		"url":            url,
-		"timeout_ms":     65000,
+		"timeout_ms":     240000,
 		"max_resp_bytes": 4 << 20,
 		"headers":        headers,
 		"body_base64":    base64.StdEncoding.EncodeToString(body),

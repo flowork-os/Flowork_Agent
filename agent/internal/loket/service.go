@@ -211,7 +211,11 @@ func (s *Service) CallHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.ensureGranted(module) // manifest-driven grants, applied once per module
-	ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
+	// 240s (was 120s, owner-approved 2026-06-16): a channel→orchestrator bus.request whose
+	// orchestrator delegates to a multi-agent crew on the LOCAL model (slow, ~25 tok/s, many
+	// serial LLM calls) needs >120s — else the kernel cuts the call off → channel "loket: no
+	// response" (silent fail on Telegram). Cap, not fixed wait: fast calls still return fast.
+	ctx, cancel := context.WithTimeout(r.Context(), 240*time.Second)
 	defer cancel()
 	writeResult(w, s.Kernel.Call(ctx, module, body.Cap, body.Args))
 }
