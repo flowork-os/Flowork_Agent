@@ -692,6 +692,10 @@ func main() {
 	mux.HandleFunc("/api/coder/pending", coderPendingHandler())
 	mux.HandleFunc("/api/coder/approve", coderApproveHandler(host, fdb))
 	mux.HandleFunc("/api/coder/reject", coderRejectHandler())
+	// ARCHITECT (group/team creator): bikin TIM utuh dari 1 prompt → design (Opus) →
+	// generate tiap specialist+lead (mesin coder yg sama) → groupsapi.CreateGroup.
+	// Hasil: group muncul di tab Group, chat via /api/chat agent=<group_id>, slash auto.
+	mux.HandleFunc("/api/architect/build", architectBuildHandler(host, fdb, groupsAPI))
 	// REAPER (AI Utama 2.4): apoptosis — surface app broken/failing → owner reap.
 	mux.HandleFunc("/api/reaper/candidates", reaperCandidatesHandler(host, fdb))
 	mux.HandleFunc("/api/reaper/reap", reaperReapHandler(fdb))

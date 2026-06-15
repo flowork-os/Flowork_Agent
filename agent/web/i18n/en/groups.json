@@ -23,5 +23,22 @@
   "delete_btn": "DELETE",
   "delete_confirm": "Delete group \"{name}\"? Its folder + roster are removed (the member agents are NOT deleted).",
   "delete_fail": "delete failed: ",
-  "loading": "loading…"
+  "loading": "loading…",
+  "arch_eyebrow": "ARCHITECT",
+  "arch_title": "Build a team from a prompt",
+  "arch_sub": "Describe the team you want — the Architect designs the specialists + a lead, builds the agents, and wires the group. It appears below, ready to chat.",
+  "arch_ph": "e.g. team peramal — fortune from primbon, zodiac & fengshui",
+  "arch_build_btn": "BUILD TEAM",
+  "arch_building": "designing + building the team… (this can take a moment)",
+  "arch_built": "team built — say hi below",
+  "arch_fail": "build failed: ",
+  "arch_invalid": "describe the team in a few words first",
+  "chat_btn": "CHAT",
+  "chat_title": "Chat with",
+  "chat_ph": "Ask the team…",
+  "chat_send": "SEND",
+  "chat_thinking": "the team is working…",
+  "chat_hint": "The coordinator fans out to every member, then the synthesizer fuses one answer.",
+  "chat_fail": "chat failed: ",
+  "chat_close": "Close"
 }

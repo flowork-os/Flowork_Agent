@@ -23,5 +23,22 @@
   "delete_btn": "HAPUS",
   "delete_confirm": "Hapus group \"{name}\"? Folder + roster-nya dibuang (agent anggotanya TIDAK ikut terhapus).",
   "delete_fail": "gagal hapus: ",
-  "loading": "memuat…"
+  "loading": "memuat…",
+  "arch_eyebrow": "ARCHITECT",
+  "arch_title": "Bikin tim dari prompt",
+  "arch_sub": "Deskripsiin tim yang lo mau — Architect rancang specialist + lead, bikin agent-nya, lalu rangkai jadi group. Langsung muncul di bawah, siap di-chat.",
+  "arch_ph": "mis. team peramal — ramal dari primbon, zodiak & fengshui",
+  "arch_build_btn": "BIKIN TIM",
+  "arch_building": "merancang + bikin tim… (bisa makan waktu sebentar)",
+  "arch_built": "tim jadi — sapa di bawah",
+  "arch_fail": "gagal bikin: ",
+  "arch_invalid": "deskripsiin timnya beberapa kata dulu",
+  "chat_btn": "CHAT",
+  "chat_title": "Ngobrol sama",
+  "chat_ph": "Tanya ke tim…",
+  "chat_send": "KIRIM",
+  "chat_thinking": "tim lagi kerja…",
+  "chat_hint": "Coordinator sebar ke tiap anggota, lalu synthesizer gabungin jadi 1 jawaban.",
+  "chat_fail": "chat gagal: ",
+  "chat_close": "Tutup"
 }

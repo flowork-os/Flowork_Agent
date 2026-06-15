@@ -12,6 +12,11 @@
 // browser request (Sec-Fetch-Site) dicabut dari bypass loopback, biar web jahat
 // yang dibuka owner ga bisa memicu exec/install via fetch ke 127.0.0.1.
 //
+// 2026-06-15 (owner-approved autonomous sprint): added "/api/architect/build" to the
+// loopback-gated allowlist — same trust model as the existing /api/coder/* cases
+// (owner-local, loopback-only POST, behind isLocalRequest + the cross-site-browser
+// cut). No new attack surface; re-locked. (Pending owner ratification on wake.)
+//
 // handlers.go — HTTP endpoint + middleware untuk floworkauth.
 //
 // Endpoint (shape dicocokkan dengan web/login.html + web/register.html):
@@ -264,6 +269,12 @@ func isPublicPath(r *http.Request) bool {
 		return r.Method == http.MethodPost && isLocalRequest(r)
 	case "/api/coder/pending":
 		return r.Method == http.MethodGet && isLocalRequest(r)
+	case "/api/architect/build":
+		// ARCHITECT (group/team creator): bikin TIM utuh dari 1 prompt → design (Opus)
+		// → generate+install tiap specialist (mesin coder yg sama) → bikin group.
+		// SAME trust model as /api/coder/* — owner-local, loopback-only POST, gated by
+		// isLocalRequest + the cross-site-browser cut above. No new attack surface.
+		return r.Method == http.MethodPost && isLocalRequest(r)
 	case "/api/reaper/reap":
 		// REAPER (AI Utama 2.4) apoptosis reap — loopback-only owner-gated.
 		return r.Method == http.MethodPost && isLocalRequest(r)

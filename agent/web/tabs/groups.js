@@ -112,6 +112,47 @@ const CSS = `
 .gr-btn.danger:hover { background:rgba(248,113,113,0.12); }
 .gr-msg { font-size:0.8rem; }
 .gr-empty { color:#64748b; font-size:0.86rem; padding:10px 0; }
+
+/* ── architect bar (build a team from a prompt) ── */
+.gr-arch { position:relative; overflow:hidden; margin-bottom:24px; padding:18px 20px; border-radius:14px;
+  background:linear-gradient(135deg, rgba(124,58,237,0.16), rgba(16,185,129,0.10));
+  border:1px solid rgba(167,139,250,0.30); }
+.gr-arch-title { font-size:1.05rem; font-weight:700; color:#e9d5ff; margin:2px 0 4px; }
+.gr-arch-sub { font-size:0.84rem; color:#cbd5e1; margin:0 0 12px; line-height:1.5; max-width:82ch; }
+.gr-arch-row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+.gr-arch-row .gr-in { flex:1; min-width:240px; }
+.gr-arch-msg { font-size:0.82rem; margin-top:10px; display:none; }
+.gr-spin { display:inline-block; width:13px; height:13px; border:2px solid rgba(167,139,250,0.35); border-top-color:#a78bfa;
+  border-radius:50%; animation:gr-spin .7s linear infinite; vertical-align:-2px; margin-right:7px; }
+@keyframes gr-spin { to { transform:rotate(360deg); } }
+
+/* ── chat modal (talk to a group: coordinator fan-out + synth) ── */
+.gr-modal { position:fixed; inset:0; z-index:90; display:flex; align-items:center; justify-content:center;
+  background:rgba(2,6,18,0.72); backdrop-filter:blur(3px); padding:24px; }
+.gr-modal-box { width:min(720px,100%); max-height:86vh; display:flex; flex-direction:column;
+  background:linear-gradient(180deg, rgba(17,24,39,0.98), rgba(2,6,18,0.98)); border:1px solid rgba(148,163,184,0.25);
+  border-radius:16px; box-shadow:0 30px 90px -30px rgba(0,0,0,0.8); overflow:hidden; }
+.gr-modal-head { display:flex; align-items:center; gap:12px; padding:16px 20px; border-bottom:1px solid rgba(148,163,184,0.16); }
+.gr-name2 { font-size:1.0rem; font-weight:700; color:#f1f5f9; }
+.gr-gid2 { font-family:ui-monospace,monospace; font-size:0.72rem; color:#64748b; margin-top:2px; }
+.gr-modal-x { margin-left:auto; background:transparent; border:1px solid rgba(148,163,184,0.3); color:#94a3b8;
+  border-radius:8px; padding:6px 12px; cursor:pointer; font:inherit; font-size:0.8rem; }
+.gr-modal-x:hover { color:#e2e8f0; border-color:rgba(148,163,184,0.5); }
+.gr-log { flex:1; overflow-y:auto; padding:18px 20px; display:flex; flex-direction:column; gap:14px; }
+.gr-bubble { max-width:90%; padding:11px 14px; border-radius:13px; font-size:0.9rem; line-height:1.55; word-wrap:break-word; }
+.gr-bubble.me { align-self:flex-end; background:linear-gradient(90deg,#7c3aed,#0ea5e9); color:#fff; border-bottom-right-radius:4px; white-space:pre-wrap; }
+.gr-bubble.them { align-self:flex-start; background:rgba(15,23,42,0.85); border:1px solid rgba(148,163,184,0.2); color:#e2e8f0; border-bottom-left-radius:4px; }
+.gr-bubble.them h2,.gr-bubble.them h3,.gr-bubble.them h4 { margin:.5em 0 .3em; color:#c4b5fd; line-height:1.25; }
+.gr-bubble.them h2 { font-size:1.05rem; } .gr-bubble.them h3 { font-size:0.97rem; } .gr-bubble.them h4 { font-size:0.9rem; }
+.gr-bubble.them hr { border:none; border-top:1px solid rgba(148,163,184,0.2); margin:.7em 0; }
+.gr-bubble.them b { color:#f1f5f9; }
+.gr-bubble.them code { font-family:ui-monospace,monospace; background:rgba(2,6,18,0.6); padding:1px 5px; border-radius:5px; font-size:0.86em; }
+.gr-bubble.pending { color:#94a3b8; font-style:italic; }
+.gr-chatbar { display:flex; gap:10px; padding:14px 20px; border-top:1px solid rgba(148,163,184,0.16); }
+.gr-chatbar .gr-in { flex:1; }
+.gr-chat-hint { font-size:0.72rem; color:#64748b; padding:0 20px 12px; }
+.gr-btn.gr-chat-open { background:rgba(16,185,129,0.14); color:#6ee7b7; border-color:rgba(110,231,183,0.35); }
+.gr-btn.gr-chat-open:hover { background:rgba(16,185,129,0.24); border-color:rgba(110,231,183,0.6); }
 `;
 
 export async function render(mainEl) {
@@ -127,6 +168,17 @@ export async function render(mainEl) {
         <div class="gr-stat"><b id="grStatN">·</b><label>${esc(L.count_label)}</label></div>
       </header>
 
+      <div class="gr-arch">
+        <div class="gr-eyebrow">${esc(L.arch_eyebrow)}</div>
+        <div class="gr-arch-title">🪄 ${esc(L.arch_title)}</div>
+        <p class="gr-arch-sub">${esc(L.arch_sub)}</p>
+        <div class="gr-arch-row">
+          <input class="gr-in gr-arch-in" placeholder="${escAttr(L.arch_ph)}">
+          <button class="gr-btn primary gr-arch-build">🪄 ${esc(L.arch_build_btn)}</button>
+        </div>
+        <div class="gr-arch-msg"></div>
+      </div>
+
       <div class="gr-create-bar">
         <input class="gr-in" id="grNewId" placeholder="${escAttr(L.new_id_ph)}">
         <input class="gr-in" id="grNewName" placeholder="${escAttr(L.new_name_ph)}">
@@ -139,6 +191,10 @@ export async function render(mainEl) {
     </section>
   `;
   mainEl.querySelector('.gr-create').addEventListener('click', () => createGroup(mainEl));
+  mainEl.querySelector('.gr-arch-build').addEventListener('click', () => architectBuild(mainEl));
+  mainEl.querySelector('.gr-arch-in').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); architectBuild(mainEl); }
+  });
   mainEl.querySelector('.gr-restore').addEventListener('click', async () => {
     if (!confirm('Restore any deleted bundled group/agent to its factory setup? Existing ones are left untouched.')) return;
     try {
@@ -218,12 +274,14 @@ function card(g, avail, claimedBy, mainEl) {
     <textarea class="gr-task" placeholder="${escAttr(L.task_label)}">${esc(g.task || '')}</textarea>
 
     <div class="gr-foot">
+      <button class="gr-btn gr-chat-open" title="Chat with this team">💬 ${esc(L.chat_btn)}</button>
       <button class="gr-btn gr-onoff ${g.enabled === false ? 'danger' : 'primary'}" title="Turn the whole group on/off (coordinator + all members)">${g.enabled === false ? 'OFF' : 'ON'}</button>
       <button class="gr-btn primary gr-do">${esc(L.save_btn)}</button>
       <button class="gr-btn danger gr-del">${esc(L.delete_btn)}</button>
       <span class="gr-msg" style="display:none"></span>
     </div>
   `;
+  el.querySelector('.gr-chat-open').addEventListener('click', () => openChat(g));
   // Group ON/OFF — disables/enables the coordinator AND every member at once.
   const onoff = el.querySelector('.gr-onoff');
   let grpEnabled = g.enabled !== false;
@@ -300,4 +358,116 @@ async function createGroup(mainEl) {
   } finally {
     btn.disabled = false;
   }
+}
+
+// architectBuild — POST a free-text prompt to /api/architect/build → the Architect
+// designs + builds the specialists + lead and wires the group, which then appears in
+// the list below. One LLM call server-side, so it can take a moment (longer if the
+// upstream model is rate-limited and the router fails over).
+async function architectBuild(mainEl) {
+  const inEl = mainEl.querySelector('.gr-arch-in');
+  const btn = mainEl.querySelector('.gr-arch-build');
+  const msg = mainEl.querySelector('.gr-arch-msg');
+  const prompt = (inEl.value || '').trim();
+  if (prompt.length < 3) {
+    msg.style.color = '#f87171'; msg.textContent = L.arch_invalid; msg.style.display = '';
+    return;
+  }
+  btn.disabled = true; inEl.disabled = true;
+  msg.style.color = '#a78bfa'; msg.innerHTML = `<span class="gr-spin"></span>${esc(L.arch_building)}`; msg.style.display = '';
+  try {
+    const r = await fetchJSON('/api/architect/build', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt }),
+    });
+    inEl.value = '';
+    const nm = r.display_name || r.group_id || 'team';
+    const n = (r.members || []).length;
+    msg.style.color = '#6ee7b7'; msg.textContent = `✓ ${L.arch_built} — ${nm} (${n})`;
+    await load(mainEl);
+  } catch (e) {
+    msg.style.color = '#f87171'; msg.textContent = L.arch_fail + (e.message || e);
+  } finally {
+    btn.disabled = false; inEl.disabled = false;
+  }
+}
+
+// mdLite — tiny, XSS-safe markdown → HTML for chat replies. esc() runs FIRST, so only
+// our own fixed tags (from markers in the already-escaped text) are ever injected.
+function mdLite(raw) {
+  let s = esc(String(raw == null ? '' : raw));
+  s = s.replace(/^### (.+)$/gm, '<h4>$1</h4>')
+    .replace(/^## (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^# (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^---+\s*$/gm, '<hr>');
+  s = s.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>');
+  s = s.replace(/\n/g, '<br>').replace(/(<\/h[234]>|<hr>)<br>/g, '$1');
+  return s;
+}
+
+// openChat — modal to talk to a group. POST /api/chat {agent:<group_id>} runs the
+// SAME path Telegram uses: the coordinator fans out to every member, the synthesizer
+// fuses one answer. No client timeout (group runs can take a while).
+function openChat(g) {
+  const overlay = document.createElement('div');
+  overlay.className = 'gr-modal';
+  overlay.innerHTML = `
+    <div class="gr-modal-box">
+      <div class="gr-modal-head">
+        ${avatar(g.id, 38)}
+        <div>
+          <div class="gr-name2">${esc(L.chat_title)} ${esc(g.display_name || g.id)}</div>
+          <div class="gr-gid2">${esc(g.id)}</div>
+        </div>
+        <button class="gr-modal-x">${esc(L.chat_close)}</button>
+      </div>
+      <div class="gr-log"></div>
+      <div class="gr-chat-hint">${esc(L.chat_hint)}</div>
+      <div class="gr-chatbar">
+        <input class="gr-in gr-chat-input" placeholder="${escAttr(L.chat_ph)}">
+        <button class="gr-btn primary gr-chat-send">${esc(L.chat_send)}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const log = overlay.querySelector('.gr-log');
+  const input = overlay.querySelector('.gr-chat-input');
+  const sendBtn = overlay.querySelector('.gr-chat-send');
+  const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); };
+  function onKey(e) { if (e.key === 'Escape') close(); }
+  overlay.querySelector('.gr-modal-x').addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  document.addEventListener('keydown', onKey);
+
+  const addBubble = (cls, html) => {
+    const b = document.createElement('div'); b.className = 'gr-bubble ' + cls; b.innerHTML = html;
+    log.appendChild(b); log.scrollTop = log.scrollHeight; return b;
+  };
+
+  async function send() {
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    addBubble('me', esc(text));
+    sendBtn.disabled = true; input.disabled = true;
+    const pending = addBubble('them pending', `<span class="gr-spin"></span>${esc(L.chat_thinking)}`);
+    try {
+      const r = await fetchJSON('/api/chat', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent: g.id, text }),
+      });
+      pending.classList.remove('pending');
+      pending.innerHTML = mdLite(r.reply || r.error || '(no reply)');
+    } catch (e) {
+      pending.classList.remove('pending');
+      pending.style.color = '#f87171';
+      pending.textContent = L.chat_fail + (e.message || e);
+    } finally {
+      sendBtn.disabled = false; input.disabled = false; input.focus();
+      log.scrollTop = log.scrollHeight;
+    }
+  }
+  sendBtn.addEventListener('click', send);
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
+  setTimeout(() => input.focus(), 50);
 }
