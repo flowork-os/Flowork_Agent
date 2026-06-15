@@ -3,11 +3,13 @@
 // Owner: Aola Sahidin (Mr.Dev)
 // Locked at: 2026-06-15 (owner-approved autonomous sprint)
 // Reason: Flowork Architect — group/team creator. VERIFIED E2E: POST /api/architect/build
-//   {"prompt":"team peramal …"} → designed "Tim Peramal" (4 specialists primbon/zodiak/
-//   fengshui/kalender + lead) → installed 11 agents → created group "peramal" (group.json +
-//   loket group=1 + SyncToOrchestrator) → coordinator loaded → /api/chat {"agent":"peramal"}
-//   returned a real holistic fortune (fan-out + synth). One LLM call (design) + fast local
-//   assembly. Loopback-only (allowlist in floworkauth/handlers.go), owner trust = /api/coder/*.
+//   {"prompt":"team peramal …"} → designed "Tim Peramal Nasib" → ONE pack (3 specialists +
+//   1 lead synth, ALL group-prefixed "peramal-nasib-*") → installed → created group +
+//   SyncToOrchestrator → coordinator loaded → /api/chat returned a real synthesized fortune.
+//   2026-06-15 BUG-1 FIX: was assembling worker+synth per specialist (orphan synths polluted
+//   EVERY group's member pool). Now ONE pack, every crew member used, agent ids group-prefixed
+//   so the Groups GUI auto-claims them → no pollution (mirrors bundled investment/thinking).
+//   One LLM call (design) + fast local assembly. Loopback-only, owner trust = /api/coder/*.
 //
 // architect.go — FLOWORK ARCHITECT: stand up a whole TEAM (group) from one natural
 // prompt. "buatin team peramal" → ONE structured design call (Opus, forced tool)
@@ -147,9 +149,100 @@ func nonEmpty(v, def string) string {
 	return def
 }
 
-// architectBuild — full pipeline from a single design call: design → assemble+install
-// each specialist + the lead → create the coordinator group. All steps after the one
-// LLM call are local Go (fast).
+// swapManifest — clone a template agent manifest, swap id + display_name. Caps stay
+// the template's (proven). Shared by the team assembler for every crew member.
+func swapManifest(tmpl []byte, id, display string) ([]byte, error) {
+	m := map[string]any{} // non-nil: Unmarshal("null") is a no-op → write below won't panic
+	if e := json.Unmarshal(tmpl, &m); e != nil {
+		return nil, e
+	}
+	m["id"] = id
+	m["display_name"] = display
+	return json.MarshalIndent(m, "", "  ")
+}
+
+// architectAssembleTeamPack — build ONE .fwpack for the WHOLE team: every specialist
+// as a worker + the lead as the single synth (installPluginPack requires exactly one
+// synth per pack). Agent ids are GROUP-PREFIXED ("<group>-<slug>", "<group>-synth") so
+// the Groups GUI auto-claims them to this group (a.id.startsWith(group+'-')) → they
+// never pollute other groups' member pools. One pack, every crew member used → NO
+// orphan agents (the Bug 1 fix). Mirrors how the bundled investment/thinking groups
+// are structured. Returns (pack, memberIDs, synthID).
+func architectAssembleTeamPack(plan teamPlan) ([]byte, []string, string, error) {
+	workerWasm, workerMan, err := coderTemplate("worker")
+	if err != nil {
+		return nil, nil, "", err
+	}
+	synthWasm, synthMan, err := coderTemplate("synth")
+	if err != nil {
+		return nil, nil, "", err
+	}
+	files := map[string][]byte{}
+	crew := []pluginCrewMember{}
+	members := []string{}
+	seen := map[string]bool{}
+	for _, sp := range plan.Specialists {
+		slug := strings.ToLower(strings.TrimSpace(sp.CategoryID))
+		slug = strings.TrimPrefix(slug, plan.GroupID+"-") // avoid double prefix if the LLM already prefixed
+		aid := plan.GroupID + "-" + slug
+		if len(aid) > 63 {
+			aid = aid[:63]
+		}
+		if slug == "" || !pluginIDRe.MatchString(aid) || seen[aid] {
+			continue
+		}
+		seen[aid] = true
+		man, merr := swapManifest(workerMan, aid, nonEmpty(sp.Name, slug))
+		if merr != nil {
+			return nil, nil, "", fmt.Errorf("worker manifest %s: %w", aid, merr)
+		}
+		files["agents/"+aid+"/agent.wasm"] = workerWasm
+		files["agents/"+aid+"/manifest.json"] = man
+		crew = append(crew, pluginCrewMember{
+			AgentID: aid, RoleLabel: nonEmpty(sp.Role, "specialist"), Kind: "worker",
+			Persona: nonEmpty(sp.Persona, "Specialist "+plan.DisplayName+" — fokus 1 keahlian, ringkas."),
+		})
+		members = append(members, aid)
+	}
+	if len(members) == 0 {
+		return nil, nil, "", fmt.Errorf("no valid specialists in plan")
+	}
+	synthID := plan.GroupID + "-synth"
+	sman, merr := swapManifest(synthMan, synthID, plan.DisplayName+" — lead")
+	if merr != nil {
+		return nil, nil, "", fmt.Errorf("synth manifest: %w", merr)
+	}
+	files["agents/"+synthID+"/agent.wasm"] = synthWasm
+	files["agents/"+synthID+"/manifest.json"] = sman
+	crew = append(crew, pluginCrewMember{
+		AgentID: synthID, RoleLabel: "lead", Kind: "synth",
+		Persona: nonEmpty(plan.Lead.Persona, "Lead tim "+plan.DisplayName+" — gabungkan jawaban anggota jadi 1 jawaban final yg jelas."),
+	})
+
+	man := pluginManifest{ID: plan.GroupID + "-crew", Name: plan.DisplayName, Version: "1.0.0", Author: "flowork-architect"}
+	man.Category.ID = plan.GroupID
+	man.Category.Name = plan.DisplayName
+	man.Category.Icon = nonEmpty(plan.Lead.Icon, "🧩")
+	man.Category.TriggerHint = "tim " + plan.DisplayName
+	man.Category.SynthDirective = nonEmpty(plan.Lead.Directive, "Rangkai jadi 1 jawaban final yg jelas + rapi.")
+	man.Category.WorkerDirective = "Kerjakan bagianmu sesuai keahlian, ringkas (anti over-prompt)."
+	man.Crew = crew
+	pluginJSON, e := json.MarshalIndent(man, "", "  ")
+	if e != nil {
+		return nil, nil, "", e
+	}
+	files["plugin.json"] = pluginJSON
+
+	pack, e := zipPack(files)
+	if e != nil {
+		return nil, nil, "", e
+	}
+	return pack, members, synthID, nil
+}
+
+// architectBuild — full pipeline from a single design call: design → assemble the WHOLE
+// team into ONE pack → install once → create the coordinator group. All steps after the
+// one LLM call are local Go (fast). No orphan agents; members are group-prefixed.
 func architectBuild(ctx context.Context, host *kernelhost.Host, store *floworkdb.Store, groups *groupsapi.Handler, prompt, model string) (map[string]any, error) {
 	plan, err := architectDesignTeam(ctx, prompt, model)
 	if err != nil {
@@ -165,73 +258,13 @@ func architectBuild(ctx context.Context, host *kernelhost.Host, store *floworkdb
 		return nil, fmt.Errorf("plan has no specialists")
 	}
 
-	built := []map[string]any{}
-	members := []string{}
-	seen := map[string]bool{}
-	for _, sp := range plan.Specialists {
-		cat := strings.ToLower(strings.TrimSpace(sp.CategoryID))
-		if !coderCatRe.MatchString(cat) || seen[cat] || cat == plan.GroupID {
-			continue // skip invalid/duplicate ids and any clash with the group id
-		}
-		seen[cat] = true
-		// Build a full AgentSpec from the worker design; synth-side fields are unused
-		// (we take the -worker into the group) but must be non-empty for validate().
-		spec := AgentSpec{
-			CategoryID:      cat,
-			Name:            nonEmpty(sp.Name, cat),
-			Icon:            nonEmpty(sp.Icon, "🤖"),
-			TriggerHint:     "anggota tim " + plan.DisplayName + " — " + nonEmpty(sp.Role, "specialist"),
-			WorkerRole:      nonEmpty(sp.Role, "specialist"),
-			WorkerPersona:   nonEmpty(sp.Persona, "Specialist "+plan.DisplayName+"."),
-			WorkerDirective: nonEmpty(sp.Directive, "Kerjakan bagianmu sesuai keahlian, ringkas."),
-			SynthPersona:    "Perakit jawaban (tidak dipakai sebagai member).",
-			SynthDirective:  "Gabungkan ringkas.",
-		}
-		if msg := spec.validate(); msg != "" {
-			return nil, fmt.Errorf("specialist %s spec invalid: %s", cat, msg)
-		}
-		pack, perr := coderAssemblePack(spec)
-		if perr != nil {
-			return nil, fmt.Errorf("assemble %s: %w", cat, perr)
-		}
-		if res := installPluginPack(host, store, pack, true); res.status != 0 {
-			return nil, fmt.Errorf("install specialist %s failed: %v", cat, res.body)
-		}
-		members = append(members, cat+"-worker")
-		built = append(built, map[string]any{"category": cat, "worker": cat + "-worker", "name": spec.Name})
-	}
-	if len(members) == 0 {
-		return nil, fmt.Errorf("no valid specialists were built")
-	}
-
-	// Lead/synthesizer — its own generated category; its -synth becomes the group
-	// synthesizer (coderDesignSpec/assemble synth persona = "perakit output final").
-	leadCat := plan.GroupID + "-lead"
-	if !coderCatRe.MatchString(leadCat) {
-		return nil, fmt.Errorf("lead category overflow: %q", leadCat)
-	}
-	leadSpec := AgentSpec{
-		CategoryID:      leadCat,
-		Name:            nonEmpty(plan.Lead.Name, plan.DisplayName+" — Lead"),
-		Icon:            nonEmpty(plan.Lead.Icon, "🧭"),
-		TriggerHint:     "sintesis jawaban final tim " + plan.DisplayName,
-		WorkerRole:      "lead",
-		WorkerPersona:   nonEmpty(plan.Lead.Persona, "Lead tim "+plan.DisplayName+"."),
-		WorkerDirective: "Gabungkan output anggota jadi 1 jawaban utuh.",
-		SynthPersona:    nonEmpty(plan.Lead.Persona, "Lead/synthesizer tim "+plan.DisplayName+"."),
-		SynthDirective:  nonEmpty(plan.Lead.Directive, "Rangkai jadi 1 jawaban final yg jelas + rapi."),
-	}
-	if msg := leadSpec.validate(); msg != "" {
-		return nil, fmt.Errorf("lead spec invalid: %s", msg)
-	}
-	leadPack, aerr := coderAssemblePack(leadSpec)
+	pack, members, synthesizer, aerr := architectAssembleTeamPack(plan)
 	if aerr != nil {
-		return nil, fmt.Errorf("assemble lead: %w", aerr)
+		return nil, fmt.Errorf("assemble team: %w", aerr)
 	}
-	if res := installPluginPack(host, store, leadPack, true); res.status != 0 {
-		return nil, fmt.Errorf("install lead failed: %v", res.body)
+	if res := installPluginPack(host, store, pack, true); res.status != 0 {
+		return nil, fmt.Errorf("install team failed: %v", res.body)
 	}
-	synthesizer := leadCat + "-synth"
 
 	// Wire the coordinator group (folder + roster + orchestrator sync). Live now.
 	if cerr := groups.CreateGroup(plan.GroupID, plan.DisplayName, members, synthesizer, plan.Task); cerr != nil {
@@ -245,7 +278,6 @@ func architectBuild(ctx context.Context, host *kernelhost.Host, store *floworkdb
 		"task":         plan.Task,
 		"members":      members,
 		"synthesizer":  synthesizer,
-		"specialists":  built,
 		"chat":         fmt.Sprintf("POST /api/chat {\"agent\":%q,\"text\":\"...\"}", plan.GroupID),
 		"next":         "Team is live in the Group tab + Telegram slash menu. Chat it via the group id above.",
 	}, nil
