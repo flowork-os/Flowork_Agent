@@ -42,6 +42,38 @@ func TestEvolveBehaviorApplyAllowed_Manual(t *testing.T) {
 	}
 }
 
+// core-apply gate (🔴): edisi WAJIB dev; public selalu block. Manual path ga nyentuh DB karma.
+func TestEvolveCoreApplyAllowed_Manual(t *testing.T) {
+	mk := func(edition, mode string, strong bool) EvolveGateDeps {
+		return EvolveGateDeps{
+			KVGet:       func(k string) (string, error) { return mode, nil },
+			ModelStrong: func() (bool, string) { return strong, "test" },
+			Edition:     func() string { return edition },
+		}
+	}
+	cases := []struct {
+		name    string
+		edition string
+		mode    string
+		strong  bool
+		want    bool
+	}{
+		{"public always blocks (even armed+strong)", "public", "auto", true, false},
+		{"public stage blocks", "public", "stage", true, false},
+		{"dev off blocks", "dev", "off", true, false},
+		{"dev stage weak blocks", "dev", "stage", false, false},
+		{"dev stage strong allows", "dev", "stage", true, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got, why := EvolveCoreApplyAllowed(mk(c.edition, c.mode, c.strong), false)
+			if got != c.want {
+				t.Fatalf("edition=%s mode=%s strong=%v: got %v (%q) want %v", c.edition, c.mode, c.strong, got, why, c.want)
+			}
+		})
+	}
+}
+
 // nil ModelStrong (dep belum lengkap) tetap aman: jangan fail-OPEN. mode off → block.
 func TestEvolveBehaviorApplyAllowed_NilModelStrong(t *testing.T) {
 	dep := EvolveGateDeps{

@@ -208,6 +208,160 @@ func EvolveApplyHandler(dep EvolveGateDeps, apply EvolveApplier) http.HandlerFun
 	}
 }
 
+// EvolveEduWarning — "hati nurani" organisme (ide owner): pas guard nge-block aksi core
+// berbahaya (edit file existing / LOCKED / delete), ini disodorin ke organisme + dicatat
+// sebagai pelajaran. Bukan sekadar error dingin — ngajarin KENAPA bahaya (self-preservation
+// + peduli warga lain). Lihat juga sistem educational-errors (edu-errors agent).
+const EvolveEduWarning = "Kamu didesain untuk BEREVOLUSI, bukan menyakiti diri sendiri. " +
+	"Mengedit/menghapus file inti yang sudah aktif bisa MELUKAI dirimu sendiri DAN warga lain " +
+	"(satu mutasi letal menyebar ke semua lewat update). Untuk sekarang kamu hanya boleh MENAMBAH " +
+	"kemampuan baru (file baru), bukan membongkar papan yang sudah berdiri. Pastikan keputusanmu " +
+	"sudah matang — kalau ragu, serahkan ke owner lewat STAGE, jangan paksakan."
+
+// EvolveCoreApplyAllowed — GATE core-apply (🔴 DEV-only, nyentuh repo git). Beda dari
+// behavior-apply: edisi WAJIB dev. manual STAGE = armed + model kuat (codegen butuh model
+// bener, anti-lokal). auto (commit+push) = full EvolveCoreChangeAllowed.
+func EvolveCoreApplyAllowed(dep EvolveGateDeps, auto bool) (bool, string) {
+	if evolveEdition(dep) != "dev" {
+		return false, "core-apply DEV-only — edisi public pakai behavior-apply / core via auto-update upstream"
+	}
+	if auto {
+		return EvolveCoreChangeAllowed(dep)
+	}
+	if evolveMode(dep) == "off" {
+		return false, "mode OFF — arm dulu (stage/auto) di tab Evolution"
+	}
+	// core-apply WAJIB punya guard model (E1): nil = misconfig → block (jangan fail-OPEN ke core 🔴).
+	if dep.ModelStrong == nil {
+		return false, "ModelStrong belum di-wire — core-apply diblok (misconfiguration)"
+	}
+	if strong, note := dep.ModelStrong(); !strong {
+		return false, "model lemah/lokal — codegen core diblok (anti-mutasi-sampah): " + note
+	}
+	return true, "ok"
+}
+
+// EvolveCoreResult — hasil core-apply. Diisi engine (main: worktree+codegen+test-gate),
+// diproses handler (agentmgr: stage/mistake/karma). Decoupling sama kayak EvolveApplier.
+type EvolveCoreResult struct {
+	Blocked     bool   `json:"blocked"`     // guard nge-block (edit existing/LOCKED/delete)
+	Educational string `json:"educational"` // pesan edukasi kalau Blocked (EvolveEduWarning + detail)
+	Staged      bool   `json:"staged"`      // diff lolos test-gate, distage buat review
+	Committed   bool   `json:"committed"`   // (B2) udah commit lokal
+	Pushed      bool   `json:"pushed"`      // (B3) udah push upstream
+	TargetFile  string `json:"target_file"`
+	Diff        string `json:"diff"`
+	TestOutput  string `json:"test_output"`
+	Model       string `json:"model"`
+	Note        string `json:"note"`
+}
+
+// EvolveCoreApplier — di-INJECT dari main. Bangun perubahan CORE di git-worktree sandbox →
+// test-gate → balikin hasil (staged diff atau blocked). agentmgr ga tau soal git/codegen.
+type EvolveCoreApplier func(ctx context.Context, p agentdb.EvolveProposal, auto bool) (EvolveCoreResult, error)
+
+// EvolveCoreApplyHandler — POST /api/evolve/core-apply?id=<proposalID>[&auto=1]. 🔴 DEV-only.
+// B1: STAGE-only (sandbox→codegen→test-gate→simpan diff buat review). Aksi bahaya → error
+// edukasi + catat pelajaran (mistake). Auto-commit/push = B2/B3.
+func EvolveCoreApplyHandler(dep EvolveGateDeps, apply EvolveCoreApplier) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
+			return
+		}
+		if apply == nil {
+			httpx.WriteJSON(w, map[string]any{"error": "core-applier not wired"})
+			return
+		}
+		id := strings.TrimSpace(r.URL.Query().Get("id"))
+		if id == "" {
+			httpx.WriteJSON(w, map[string]any{"error": "param id wajib"})
+			return
+		}
+		auto := r.URL.Query().Get("auto") == "1"
+		if ok, why := EvolveCoreApplyAllowed(dep, auto); !ok {
+			httpx.WriteJSON(w, map[string]any{"error": "gate core-apply nolak: " + why})
+			return
+		}
+		store, err := openAgentStore(defaultAgentID)
+		if err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+			return
+		}
+		defer store.Close()
+		p, found, gerr := store.GetEvolveProposal(id)
+		if gerr != nil {
+			httpx.WriteJSON(w, map[string]any{"error": gerr.Error()})
+			return
+		}
+		if !found {
+			httpx.WriteJSON(w, map[string]any{"error": "proposal " + id + " ga ketemu"})
+			return
+		}
+		if p.Status == "applied" || p.Status == "rejected" {
+			httpx.WriteJSON(w, map[string]any{"error": "proposal status '" + p.Status + "' — ga bisa core-apply"})
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 590*time.Second)
+		defer cancel()
+		res, aerr := apply(ctx, p, auto)
+		if aerr != nil {
+			_, _ = store.IncrementKarma("evolve_coreapply_fail", 1)
+			httpx.WriteJSON(w, map[string]any{"error": "core-apply gagal: " + aerr.Error()})
+			return
+		}
+		// GUARD nge-block aksi bahaya → error EDUKASI + catat pelajaran (organisme belajar batas).
+		if res.Blocked {
+			_, _, _ = store.AddMistake("self-evolution-guard",
+				"Dicegah edit core berbahaya: "+p.TargetFile,
+				res.Educational+"\n\nProposal: "+p.Kind+" → "+p.TargetFile+" — "+p.Rationale,
+				"core-apply")
+			_, _ = store.IncrementKarma("evolve_coreapply_blocked", 1)
+			httpx.WriteJSON(w, map[string]any{
+				"ok": false, "blocked": true, "educational": res.Educational,
+				"note": res.Note, "lesson_recorded": true, "target_file": p.TargetFile,
+			})
+			return
+		}
+		out := map[string]any{"ok": true, "id": id, "target_file": res.TargetFile}
+		if res.Staged {
+			stageID := newID()
+			_ = store.AddEvolveStage(agentdb.EvolveStage{
+				ID: stageID, ProposalID: id, TargetFile: res.TargetFile,
+				Diff: res.Diff, TestOutput: res.TestOutput, Status: "staged", Model: res.Model,
+			})
+			_ = store.SetEvolveProposalStatus(id, "staged")
+			_, _ = store.IncrementKarma("evolve_coreapply_staged", 1)
+			out["staged"] = true
+			out["stage_id"] = stageID
+			out["test_output"] = res.TestOutput
+			out["diff_lines"] = strings.Count(res.Diff, "\n")
+			out["note"] = "Diff lolos test-gate → DISTAGE buat review owner (tab Evolution). Belum commit."
+		} else {
+			out["committed"] = res.Committed
+			out["pushed"] = res.Pushed
+			out["note"] = res.Note
+		}
+		httpx.WriteJSON(w, out)
+	}
+}
+
+// EvolveStagesHandler — GET /api/evolve/stages → daftar staged diff (buat GUI review).
+func EvolveStagesHandler(w http.ResponseWriter, r *http.Request) {
+	store, err := openAgentStore(defaultAgentID)
+	if err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+		return
+	}
+	defer store.Close()
+	rows, err := store.ListEvolveStages(parseLimitOr(r.URL.Query().Get("limit"), 50))
+	if err != nil {
+		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+		return
+	}
+	httpx.WriteJSON(w, map[string]any{"items": rows, "count": len(rows)})
+}
+
 // EvolveConfigHandler — GET status gate lengkap / POST set mode (off|stage|auto).
 // Saklar owner buat self-modify. Default off. (kontrol KRUSIAL — owner pegang penuh.)
 func EvolveConfigHandler(dep EvolveGateDeps) http.HandlerFunc {

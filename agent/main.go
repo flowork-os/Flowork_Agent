@@ -842,6 +842,10 @@ func main() {
 	// R7 fase-2b ENGINE EKSEKUSI (behavior-layer): apply proposal add-agent/skill/app →
 	// reuse architect → ~/.flowork (additive, di luar git). Gate: saklar+model (anti-lokal).
 	mux.HandleFunc("/api/evolve/apply", agentmgr.EvolveApplyHandler(evolveGateDeps(), evolveApplier(host, fdb, groupsAPI)))
+	// R7 fase-2b core-apply (🔴 DEV-only): proposal core 'NEW:' → git-worktree sandbox →
+	// codegen → test-gate → STAGE diff buat review. Edit existing/LOCKED/delete = error edukasi.
+	mux.HandleFunc("/api/evolve/core-apply", agentmgr.EvolveCoreApplyHandler(evolveGateDeps(), evolveCoreApplier()))
+	mux.HandleFunc("/api/evolve/stages", agentmgr.EvolveStagesHandler)
 	mux.HandleFunc("/api/agents/protector/approval/queue", agentmgr.ApprovalQueueHandler)
 	mux.HandleFunc("/api/agents/protector/approve_pending", agentmgr.ApproveHandler)
 	mux.HandleFunc("/api/agents/protector/reject_pending", agentmgr.RejectHandler)

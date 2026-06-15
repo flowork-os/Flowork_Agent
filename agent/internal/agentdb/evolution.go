@@ -38,6 +38,24 @@ func (s *Store) ensureEvolveSchema() error {
 		  created_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);
 	`)
+	if err != nil {
+		return err
+	}
+	// evolve_stage — R7 fase-2b core-apply: hasil sandbox (diff + test-gate) yg NUNGGU
+	// review owner sebelum commit. Additive, terpisah dari proposal (1 proposal bisa di-stage
+	// ulang). Milestone C GUI baca ini buat tombol Approve/Reject.
+	_, err = s.db.Exec(`
+		CREATE TABLE IF NOT EXISTS evolve_stage (
+		  id           TEXT PRIMARY KEY,
+		  proposal_id  TEXT NOT NULL DEFAULT '',
+		  target_file  TEXT NOT NULL DEFAULT '',
+		  diff         TEXT NOT NULL DEFAULT '',
+		  test_output  TEXT NOT NULL DEFAULT '',
+		  status       TEXT NOT NULL DEFAULT 'staged',
+		  model        TEXT NOT NULL DEFAULT '',
+		  created_at   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+		);
+	`)
 	return err
 }
 
@@ -86,9 +104,9 @@ func (s *Store) GetEvolveProposal(id string) (EvolveProposal, bool, error) {
 // (defensive — jangan biarin field status korup dari caller yg salah).
 func (s *Store) SetEvolveProposalStatus(id, status string) error {
 	switch status {
-	case "proposed", "approved", "rejected", "applied":
+	case "proposed", "approved", "rejected", "applied", "staged":
 	default:
-		return fmt.Errorf("status invalid: %q (harus proposed|approved|rejected|applied)", status)
+		return fmt.Errorf("status invalid: %q (harus proposed|approved|rejected|applied|staged)", status)
 	}
 	if err := s.ensureEvolveSchema(); err != nil {
 		return err
@@ -121,6 +139,100 @@ func (s *Store) ListEvolveProposals(limit int) ([]map[string]any, error) {
 		out = append(out, map[string]any{
 			"id": id, "goal": goal, "target_file": tf, "kind": kind, "rationale": rat,
 			"risk": risk, "status": status, "model": model, "created_at": ca,
+		})
+	}
+	return out, rows.Err()
+}
+
+// EvolveStage — hasil core-apply yg nunggu review owner (diff sandbox + ringkas test-gate).
+type EvolveStage struct {
+	ID         string `json:"id"`
+	ProposalID string `json:"proposal_id"`
+	TargetFile string `json:"target_file"`
+	Diff       string `json:"diff"`
+	TestOutput string `json:"test_output"`
+	Status     string `json:"status"` // staged | approved | rejected | committed
+	Model      string `json:"model"`
+	CreatedAt  string `json:"created_at"`
+}
+
+// AddEvolveStage — simpan 1 staged diff (id wajib unik; caller bikin).
+func (s *Store) AddEvolveStage(st EvolveStage) error {
+	if err := s.ensureEvolveSchema(); err != nil {
+		return err
+	}
+	if st.CreatedAt == "" {
+		st.CreatedAt = time.Now().UTC().Format(time.RFC3339)
+	}
+	if st.Status == "" {
+		st.Status = "staged"
+	}
+	_, err := s.db.Exec(`
+		INSERT INTO evolve_stage (id, proposal_id, target_file, diff, test_output, status, model, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET
+		  diff=excluded.diff, test_output=excluded.test_output, status=excluded.status;`,
+		st.ID, st.ProposalID, st.TargetFile, st.Diff, st.TestOutput, st.Status, st.Model, st.CreatedAt)
+	return err
+}
+
+// SetEvolveStageStatus — owner approve/reject; engine commit. Status divalidasi.
+func (s *Store) SetEvolveStageStatus(id, status string) error {
+	switch status {
+	case "staged", "approved", "rejected", "committed":
+	default:
+		return fmt.Errorf("stage status invalid: %q", status)
+	}
+	if err := s.ensureEvolveSchema(); err != nil {
+		return err
+	}
+	_, err := s.db.Exec(`UPDATE evolve_stage SET status=? WHERE id=?`, status, id)
+	return err
+}
+
+// GetEvolveStage — ambil 1 stage by id (buat commit/approve).
+func (s *Store) GetEvolveStage(id string) (EvolveStage, bool, error) {
+	var st EvolveStage
+	if err := s.ensureEvolveSchema(); err != nil {
+		return st, false, err
+	}
+	row := s.db.QueryRow(`
+		SELECT id, proposal_id, target_file, diff, test_output, status, model, created_at
+		FROM evolve_stage WHERE id=?`, id)
+	err := row.Scan(&st.ID, &st.ProposalID, &st.TargetFile, &st.Diff, &st.TestOutput, &st.Status, &st.Model, &st.CreatedAt)
+	if err == sql.ErrNoRows {
+		return st, false, nil
+	}
+	if err != nil {
+		return st, false, err
+	}
+	return st, true, nil
+}
+
+// ListEvolveStages — staged diff terbaru dulu (buat GUI review Milestone C).
+func (s *Store) ListEvolveStages(limit int) ([]map[string]any, error) {
+	if err := s.ensureEvolveSchema(); err != nil {
+		return nil, err
+	}
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	rows, err := s.db.Query(`
+		SELECT id, proposal_id, target_file, diff, test_output, status, model, created_at
+		FROM evolve_stage ORDER BY created_at DESC LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []map[string]any
+	for rows.Next() {
+		var id, pid, tf, diff, test, status, model, ca string
+		if err := rows.Scan(&id, &pid, &tf, &diff, &test, &status, &model, &ca); err != nil {
+			return nil, err
+		}
+		out = append(out, map[string]any{
+			"id": id, "proposal_id": pid, "target_file": tf, "diff": diff,
+			"test_output": test, "status": status, "model": model, "created_at": ca,
 		})
 	}
 	return out, rows.Err()
