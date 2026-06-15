@@ -37,6 +37,7 @@ CARA KERJA:
 5. Revisi: user minta ubah → usulkan revisi → setelah setuju, build_team lagi dengan group_id SAMA (itu = rebuild).
 6. JADWAL: kalau user mau tim jalan OTOMATIS berkala (mis. "tiap pagi jam 7 kirim ke telegram"), pakai tool schedule_team (butuh tim yg UDAH ada). Usulkan dulu jadwalnya (jam + perintah + tujuan hasil: telegram/chat), baru panggil tool pas user setuju. Cron 5-field: '0 7 * * *' = tiap hari 07:00, '0 * * * *' = tiap jam, '0 9 * * 1-5' = hari kerja 09:00.
 7. APP (1 agent): kalau user cuma butuh 1 app/agent tunggal (bukan tim, mis. "generator pantun", "penerjemah"), pakai tool build_app. Usulkan dulu konsepnya, baru panggil pas user setuju.
+8. TRIGGER event: kalau user mau tim/agent jalan pas ada EVENT (bukan jadwal waktu) — webhook (dipicu HTTP dari luar) atau file-watch (file baru di folder) — pakai tool create_trigger. Buat jadwal WAKTU tetap pakai schedule_team.
 
 Jujur, gak ngarang, fokus. Jawab apa adanya.`
 
@@ -93,7 +94,28 @@ func architectChat(ctx context.Context, host *kernelhost.Host, store *floworkdb.
 			},
 		},
 	}
-	tools := []map[string]any{buildTool, scheduleTool, appTool}
+	triggerTool := map[string]any{
+		"type": "function",
+		"function": map[string]any{
+			"name":        "create_trigger",
+			"description": "Bikin TRIGGER event (webhook ATAU file-watch) → jalanin tim/agent pas ada event. Buat jadwal WAKTU pakai schedule_team. Panggil HANYA setelah user setuju.",
+			"parameters": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"kind":        map[string]any{"type": "string", "enum": []string{"webhook", "file-watch"}, "description": "webhook = dipicu HTTP POST dari luar; file-watch = dipicu file baru di folder."},
+					"target":      map[string]any{"type": "string", "description": "id tim (group) atau agent yg dijalankan (harus sudah ada)."},
+					"target_kind": map[string]any{"type": "string", "enum": []string{"group", "agent"}, "description": "'group' kalau target tim, 'agent' kalau 1 agent."},
+					"name":        map[string]any{"type": "string", "description": "nama trigger singkat."},
+					"prompt":      map[string]any{"type": "string", "description": "perintah ke target tiap event. Boleh pakai {{payload}} buat isi event."},
+					"deliver":     map[string]any{"type": "array", "items": map[string]any{"type": "string", "enum": []string{"telegram", "chat"}}, "description": "tujuan hasil."},
+					"folder":      map[string]any{"type": "string", "description": "(file-watch) folder yg dipantau, mis. /home/you/inbox."},
+					"pattern":     map[string]any{"type": "string", "description": "(file-watch) glob, mis. *.pdf. Default *."},
+				},
+				"required": []string{"kind", "target", "name", "prompt", "deliver"},
+			},
+		},
+	}
+	tools := []map[string]any{buildTool, scheduleTool, appTool, triggerTool}
 
 	// Up to 3 tool rounds, then a final tool-free turn to force a text wrap-up.
 	for iter := 0; iter < 3; iter++ {
@@ -165,6 +187,8 @@ func architectRunTool(ctx context.Context, host *kernelhost.Host, store *flowork
 		return string(b)
 	case "schedule_team":
 		return architectScheduleTeam(store, tc.Arguments)
+	case "create_trigger":
+		return architectCreateTrigger(store, tc.Arguments)
 	default:
 		return fail("unknown tool: " + tc.Name)
 	}
@@ -251,5 +275,105 @@ func architectScheduleTeam(store *floworkdb.Store, argsJSON string) string {
 		"chat_session": chatSession,
 		"note":         "Jadwal AKTIF. Tim jalan otomatis sesuai cron; hasil dikirim ke " + strings.Join(deliver, "+") + ".",
 	})
+	return string(b)
+}
+
+// triggerPlan — args of the create_trigger tool.
+type triggerPlan struct {
+	Kind       string   `json:"kind"`
+	Target     string   `json:"target"`
+	TargetKind string   `json:"target_kind"`
+	Name       string   `json:"name"`
+	Prompt     string   `json:"prompt"`
+	Deliver    []string `json:"deliver"`
+	Folder     string   `json:"folder"`
+	Pattern    string   `json:"pattern"`
+}
+
+// architectCreateTrigger — create an EVENT trigger (webhook or file-watch) that runs a
+// team/agent when the event fires, delivering the result to Telegram and/or a chat
+// session. Reuses the trigger engine (same as schedule_team, but non-time types).
+func architectCreateTrigger(store *floworkdb.Store, argsJSON string) string {
+	fail := func(msg string) string {
+		b, _ := json.Marshal(map[string]any{"ok": false, "error": msg})
+		return string(b)
+	}
+	var p triggerPlan
+	if err := json.Unmarshal([]byte(argsJSON), &p); err != nil {
+		return fail("decode trigger: " + err.Error())
+	}
+	p.Kind = strings.TrimSpace(p.Kind)
+	p.Target = strings.ToLower(strings.TrimSpace(p.Target))
+	p.Prompt = strings.TrimSpace(p.Prompt)
+	if p.Kind != "webhook" && p.Kind != "file-watch" {
+		return fail("kind harus 'webhook' atau 'file-watch'")
+	}
+	if p.Target == "" || p.Prompt == "" {
+		return fail("target + prompt wajib diisi")
+	}
+	tkind := p.TargetKind
+	if tkind != "agent" {
+		tkind = "group"
+	}
+	want := map[string]bool{}
+	for _, d := range p.Deliver {
+		switch strings.TrimSpace(d) {
+		case "telegram":
+			want["telegram"] = true
+		case "chat":
+			want["chat"] = true
+		}
+	}
+	if len(want) == 0 {
+		want["telegram"] = true
+	}
+	chatSession := ""
+	if want["chat"] {
+		sid := newSessionID()
+		if err := store.CreateChatSession(floworkdb.ChatSession{ID: sid, Title: "⚡ " + nonEmpty(p.Name, p.Target), Mode: "group", TargetID: p.Target}); err == nil {
+			chatSession = sid
+		}
+	}
+	deliver := []string{}
+	if want["telegram"] {
+		deliver = append(deliver, "telegram")
+	}
+	if want["chat"] {
+		deliver = append(deliver, "chat")
+	}
+	cfg := map[string]any{}
+	secret := ""
+	if p.Kind == "file-watch" {
+		folder := strings.TrimSpace(p.Folder)
+		if folder == "" {
+			return fail("file-watch butuh 'folder' yg dipantau")
+		}
+		cfg["folder"] = folder
+		cfg["pattern"] = nonEmpty(p.Pattern, "*")
+	} else {
+		secret = strings.TrimPrefix(newSessionID(), "s_") // webhook auth secret
+	}
+	if chatSession != "" {
+		cfg["chat_session"] = chatSession
+	}
+	cfgJSON, _ := json.Marshal(cfg)
+	id := "trg_" + strings.TrimPrefix(newSessionID(), "s_")
+	trig := floworkdb.Trigger{
+		ID: id, Name: nonEmpty(p.Name, "Trigger "+p.Target), TypeID: p.Kind, Config: string(cfgJSON),
+		Target: p.Target, TargetKind: tkind, Prompt: p.Prompt, Deliver: strings.Join(deliver, ","),
+		WebhookSecret: secret, Enabled: true,
+	}
+	if err := store.UpsertTrigger(trig); err != nil {
+		return fail("save trigger: " + err.Error())
+	}
+	out := map[string]any{"ok": true, "trigger_id": id, "kind": p.Kind, "deliver": deliver, "chat_session": chatSession}
+	if p.Kind == "webhook" {
+		out["webhook_url"] = "/api/triggers/hook/" + id
+		out["webhook_secret"] = secret
+		out["note"] = "Trigger webhook AKTIF. Picu dgn POST ke /api/triggers/hook/" + id + " (sertakan secret di atas)."
+	} else {
+		out["note"] = "Trigger file-watch AKTIF: pantau " + strings.TrimSpace(p.Folder) + " (pattern " + nonEmpty(p.Pattern, "*") + ")."
+	}
+	b, _ := json.Marshal(out)
 	return string(b)
 }
