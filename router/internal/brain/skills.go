@@ -4,17 +4,92 @@
 // Repo: https://github.com/flowork-os/Flowork-OS
 // Locked at: 2026-05-30
 // Reason: Audit pass — Brain drawer/embeddings/skills.
+// 2026-06-15 (owner-approved, skill_author): SelectSkills now ALSO merges DYNAMIC
+//   skills authored at runtime (SKILL.md files under DynamicSkillsDir()) on top of the
+//   embedded library — so agents the Architect builds can ship reusable skills that get
+//   injected. FAIL-OPEN: any read/parse error just skips dynamic skills (embedded still
+//   works). Read fresh per call (skills are few + small) so new ones appear w/o restart.
 
-// Embedded skill library + selector.
+// Embedded skill library + selector (+ dynamic on-disk skills).
 
 package brain
 
 import (
 	"embed"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
 )
+
+// DynamicSkillsDir resolves the writable dir for runtime-authored skills (SKILL.md).
+// Precedence mirrors the brain DB: $FLOW_ROUTER_DATA/skills → ~/.flow_router/skills.
+// The skill_author endpoint writes here; SelectSkills reads here. "" if unresolvable.
+func DynamicSkillsDir() string {
+	if d := os.Getenv("FLOW_ROUTER_DATA"); d != "" {
+		return filepath.Join(d, "skills")
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, ".flow_router", "skills")
+}
+
+// loadDynamicSkills reads runtime skills from DynamicSkillsDir (each *.md or
+// <name>/SKILL.md). FAIL-OPEN: returns nil on any error so embedded skills still load.
+func loadDynamicSkills() []SkillDoc {
+	dir := DynamicSkillsDir()
+	if dir == "" {
+		return nil
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil // dir missing / unreadable → no dynamic skills (fine)
+	}
+	var out []SkillDoc
+	for _, e := range entries {
+		var path, fname string
+		if e.IsDir() {
+			path = filepath.Join(dir, e.Name(), "SKILL.md")
+			fname = e.Name() + ".md"
+		} else if strings.HasSuffix(e.Name(), ".md") {
+			path = filepath.Join(dir, e.Name())
+			fname = e.Name()
+		} else {
+			continue
+		}
+		raw, rerr := os.ReadFile(path)
+		if rerr != nil || len(raw) == 0 {
+			continue
+		}
+		out = append(out, parseSkill(string(raw), fname))
+	}
+	return out
+}
+
+// allSkills = embedded library + dynamic on-disk skills (deduped by name; embedded wins).
+func allSkills() []SkillDoc {
+	base := Skills()
+	dyn := loadDynamicSkills()
+	if len(dyn) == 0 {
+		return base
+	}
+	seen := map[string]bool{}
+	for _, s := range base {
+		seen[strings.ToLower(s.Name)] = true
+	}
+	out := append([]SkillDoc(nil), base...)
+	for _, s := range dyn {
+		if s.Name == "" || seen[strings.ToLower(s.Name)] {
+			continue
+		}
+		seen[strings.ToLower(s.Name)] = true
+		out = append(out, s)
+	}
+	return out
+}
 
 // skilldata holds the behavioral skill library, embedded into the binary so the
 // brain's "skills" travel with Flow Router — any agent that hits the endpoint
@@ -96,7 +171,7 @@ func SelectSkills(query string, limit int) []SkillDoc {
 		score int
 	}
 	var ranked []scored
-	for _, s := range Skills() {
+	for _, s := range allSkills() {
 		name := strings.ToLower(s.Name)
 		desc := strings.ToLower(s.Description)
 		body := strings.ToLower(s.Body)

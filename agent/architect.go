@@ -79,6 +79,40 @@ func architectBuildApp(ctx context.Context, host *kernelhost.Host, store *flowor
 	}, nil
 }
 
+// architectSkillsDir — MUST match the router's brain.DynamicSkillsDir() so what the
+// architect authors is what the router injects: $FLOW_ROUTER_DATA/skills else
+// ~/.flow_router/skills. (Same machine; both default to ~/.flow_router/skills.)
+func architectSkillsDir() string {
+	if d := strings.TrimSpace(os.Getenv("FLOW_ROUTER_DATA")); d != "" {
+		return filepath.Join(d, "skills")
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, ".flow_router", "skills")
+}
+
+var skillNameRe = regexp.MustCompile(`[^a-z0-9-]+`)
+
+// authorSkill — write a focused SKILL.md (agent-skills frontmatter format) into the
+// shared dynamic-skills dir so the router brain injects it (by keyword) into relevant
+// future LLM calls — especially on the LOCAL model (skill_author / ant principle).
+// Best-effort: any failure is ignored so it never blocks a build.
+func authorSkill(name, description, body string) {
+	dir := architectSkillsDir()
+	name = strings.Trim(skillNameRe.ReplaceAllString(strings.ToLower(strings.TrimSpace(name)), "-"), "-")
+	if dir == "" || name == "" || strings.TrimSpace(body) == "" {
+		return
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return
+	}
+	desc := strings.ReplaceAll(strings.TrimSpace(description), "\n", " ")
+	md := "---\nname: " + name + "\ndescription: " + desc + "\n---\n\n" + strings.TrimSpace(body) + "\n"
+	_ = os.WriteFile(filepath.Join(dir, name+".md"), []byte(md), 0o644)
+}
+
 // idReGroup is tighter than groupsapi's idRe (2-40): a group_id here also becomes
 // the lead category "<group_id>-lead", which must satisfy coderCatRe (max 31). Cap
 // the group_id at 26 chars so "<group_id>-lead" never overflows.
@@ -242,6 +276,11 @@ func architectAssembleTeamPack(plan teamPlan) ([]byte, []string, string, error) 
 			Persona: nonEmpty(sp.Persona, "Specialist "+plan.DisplayName+" — fokus 1 keahlian, ringkas."),
 		})
 		members = append(members, aid)
+		// skill_author: ship a focused, reusable SKILL.md for this specialist so the
+		// brain injects it into relevant future calls (helps esp. on the local model).
+		authorSkill(aid,
+			nonEmpty(sp.Role, "specialist")+" ("+plan.DisplayName+") — pakai untuk: "+nonEmpty(sp.Name, slug),
+			nonEmpty(sp.Persona, "")+"\n\n## Cara kerja\n"+nonEmpty(sp.Directive, "Kerjakan bagianmu fokus + ringkas (anti over-prompt)."))
 	}
 	if len(members) == 0 {
 		return nil, nil, "", fmt.Errorf("no valid specialists in plan")
