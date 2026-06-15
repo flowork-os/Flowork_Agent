@@ -17,9 +17,13 @@
 //   segment. Now tracked at module scope (ytPoll/stopYtPoll) and cancelled on
 //   segment switch, on re-render, and before starting a new poll.
 //
+// Update 2026-06-16 (owner-approved, re-locked): segment "Wallet" (renderFinance →
+//   /api/finance/wallet) — R8 self-finance fase-1: kredensial wallet EVM (address publik +
+//   private key masked di secret store + chain/RPC/currency + hard-limit). Transaksi = fase-2.
+//
 // settings.js — halaman Settings GLOBAL (owner-level).
 //
-// Section (sub-tab internal): Akun & Keamanan, API Keys, Notifikasi, YouTube.
+// Section (sub-tab internal): Akun & Keamanan, API Keys, Notifikasi, YouTube, Wallet.
 //
 // Data owner-level disimpan di flowork.db global (lewat /api/settings/*).
 // AI agent TETAP terisolasi (warga punya store + channel sendiri).
@@ -125,6 +129,7 @@ const SEGMENTS = [
   { key: 'keys', label: () => t('menu.tab.settings.seg_keys'), render: renderKeys },
   { key: 'router', label: () => t('menu.tab.settings.seg_router'), render: renderRouterDefault },
   { key: 'notify', label: () => t('menu.tab.settings.seg_notify'), render: renderNotify },
+  { key: 'finance', label: () => t('menu.tab.settings.seg_finance'), render: renderFinance },
   { key: 'youtube', label: () => t('menu.tab.settings.seg_youtube'), render: renderYouTube },
   { key: 'guardian', label: () => t('menu.tab.settings.seg_guardian'), render: renderGuardian },
 ];
@@ -412,6 +417,78 @@ function cleanErr(e) {
   const j = m.indexOf('{');
   if (j >= 0) { try { return JSON.parse(m.slice(j)).error || m; } catch {} }
   return m;
+}
+
+// ── Self-finance wallet (R8 fase-1) ──────────────────────────────────────────
+// Kredensial wallet EVM organisme: address (publik), private key (secret, masked, ga pernah
+// ditampilkan), chain/RPC/currency, hard-limit (pagar belanja). Transaksi nyata = fase-2.
+async function renderFinance(panel) {
+  const tk = (k) => t('menu.tab.settings.' + k);
+  panel.innerHTML = `
+    <div class="set-card">
+      <h3>${esc(tk('fin_h'))}</h3>
+      <div class="sub">${esc(tk('fin_sub'))}</div>
+      <div class="set-row"><input type="text" id="finAddr" placeholder="${escAttr(tk('fin_addr_ph'))}" autocomplete="off"></div>
+      <div class="set-row"><input type="password" id="finPk" placeholder="${escAttr(tk('fin_pk_ph'))}" autocomplete="off"></div>
+      <div class="set-tag" style="margin-bottom:10px;color:#fbbf24;">${esc(tk('fin_pk_hint'))}</div>
+      <div class="set-row"><input type="text" id="finChain" placeholder="${escAttr(tk('fin_chain_ph'))}"></div>
+      <div class="set-row"><input type="text" id="finRpc" placeholder="${escAttr(tk('fin_rpc_ph'))}"></div>
+      <div class="set-row" style="display:flex;gap:8px;">
+        <input type="text" id="finCur" placeholder="${escAttr(tk('fin_cur_ph'))}" style="flex:1">
+        <input type="number" id="finLimit" min="0" step="any" placeholder="${escAttr(tk('fin_limit_ph'))}" style="flex:1">
+      </div>
+      <div class="set-row"><label style="display:flex;gap:8px;align-items:center;cursor:pointer;font-size:0.86rem"><input type="checkbox" id="finEnabled"> ${esc(tk('fin_enabled'))}</label></div>
+      <div class="set-tag" id="finBalance" style="margin-bottom:10px;"></div>
+      <div class="set-row">
+        <button class="set-btn-primary" id="finSave">${esc(tk('fin_save'))}</button>
+        <button class="set-btn-primary" id="finDelete" style="background:linear-gradient(135deg,#ef4444,#b91c1c);">${esc(tk('fin_delete'))}</button>
+      </div>
+      <div class="set-msg" id="finMsg"></div>
+    </div>
+  `;
+  const msg = panel.querySelector('#finMsg');
+  const els = {
+    addr: panel.querySelector('#finAddr'), pk: panel.querySelector('#finPk'),
+    chain: panel.querySelector('#finChain'), rpc: panel.querySelector('#finRpc'),
+    cur: panel.querySelector('#finCur'), limit: panel.querySelector('#finLimit'),
+    enabled: panel.querySelector('#finEnabled'),
+  };
+  try {
+    const d = await fetchJSON('/api/finance/wallet');
+    if (d.address) els.addr.value = d.address;
+    if (d.chain) els.chain.value = d.chain;
+    if (d.rpc) els.rpc.value = d.rpc;
+    if (d.currency) els.cur.value = d.currency;
+    if (d.hard_limit) els.limit.value = d.hard_limit;
+    els.enabled.checked = !!d.enabled;
+    if (d.has_privkey && d.privkey_masked) els.pk.setAttribute('placeholder', d.privkey_masked + ' (saved — leave blank to keep)');
+    panel.querySelector('#finBalance').textContent = d.balance || '';
+  } catch (e) { /* ignore */ }
+
+  async function save() {
+    msg.className = 'set-msg'; msg.textContent = '';
+    const payload = {
+      address: els.addr.value.trim(), chain: els.chain.value.trim(), rpc: els.rpc.value.trim(),
+      currency: els.cur.value.trim(), hard_limit: els.limit.value.trim(), enabled: els.enabled.checked,
+    };
+    const pk = els.pk.value.trim();
+    if (pk) payload.privkey = pk;
+    try {
+      await fetchJSON('/api/finance/wallet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      msg.className = 'set-msg ok'; msg.textContent = tk('fin_saved');
+      els.pk.value = '';
+    } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
+  }
+  panel.querySelector('#finSave').addEventListener('click', save);
+  panel.querySelector('#finDelete').addEventListener('click', async () => {
+    if (!confirm(tk('fin_delete_confirm'))) return;
+    msg.className = 'set-msg'; msg.textContent = '';
+    try {
+      await fetchJSON('/api/finance/wallet', { method: 'DELETE' });
+      msg.className = 'set-msg ok'; msg.textContent = tk('fin_deleted');
+      els.pk.value = ''; els.pk.setAttribute('placeholder', tk('fin_pk_ph')); els.enabled.checked = false;
+    } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
+  });
 }
 
 // ── YouTube ────────────────────────────────────────────────────────────────

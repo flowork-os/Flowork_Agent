@@ -808,6 +808,8 @@ func main() {
 	// Legacy reference GUI compat shim — map paths dari reference tabs ke
 	// agent-scoped endpoint (default agent mr-flow).
 	mux.HandleFunc("/api/finance/snapshot", agentmgr.FinanceSnapshotCompatHandler)
+	// R8 self-finance fase-1: menu setting kredensial wallet EVM (privkey lokal terenkripsi, ga ke-commit).
+	mux.HandleFunc("/api/finance/wallet", financeWalletHandler())
 	mux.HandleFunc("/api/brain/prompt-templates", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {
 			agentmgr.PromptTemplatesUpsertCompatHandler(w, r)
