@@ -50,7 +50,7 @@ func chatHandler(host *kernelhost.Host) http.HandlerFunc {
 		}
 		agentID := strings.TrimSpace(body.Agent)
 		if agentID == "" {
-			agentID = "mr-flow"
+			agentID = "mr-flow-next" // R3: satu orchestrator (mr-flow legacy dipensiunin)
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 300*time.Second)
 		defer cancel()

@@ -23,6 +23,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -43,20 +44,24 @@ func notifyTelegram(host *kernelhost.Host, chatID, text string) {
 		log.Printf("[notify] SKIP — chat_id kosong (task ga di-trigger dari Telegram?)")
 		return
 	}
-	store, err := host.OpenAgentStore("mr-flow")
-	if err != nil {
-		log.Printf("[notify] GAGAL buka store mr-flow: %v", err)
-		return
+	// R3 (orchestrator merge): baca bot token dari telegram-channel (channel LIVE yg
+	// punya token), BUKAN dari mr-flow legacy — biar notify ini independen + mr-flow
+	// bisa dipensiun. Fallback ke env TELEGRAM_BOT_TOKEN kalau channel store kosong.
+	token := ""
+	if store, err := host.OpenAgentStore("telegram-channel"); err == nil {
+		if secrets, serr := store.Secrets(); serr == nil {
+			token = strings.TrimSpace(secrets["TELEGRAM_BOT_TOKEN"])
+		}
+		store.Close()
 	}
-	defer store.Close()
-	secrets, err := store.Secrets()
-	if err != nil {
-		log.Printf("[notify] GAGAL baca secrets: %v", err)
-		return
-	}
-	token := strings.TrimSpace(secrets["TELEGRAM_BOT_TOKEN"])
 	if token == "" {
-		log.Printf("[notify] GAGAL — TELEGRAM_BOT_TOKEN kosong di mr-flow")
+		token = strings.TrimSpace(os.Getenv("TELEGRAM_BOT_TOKEN"))
+	}
+	if token == "" {
+		token = strings.TrimSpace(os.Getenv("FLOWORK_TG_BOT_TOKEN"))
+	}
+	if token == "" {
+		log.Printf("[notify] SKIP — TELEGRAM_BOT_TOKEN kosong (telegram-channel store + env)")
 		return
 	}
 	if len(text) > 4000 {
