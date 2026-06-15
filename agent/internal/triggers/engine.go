@@ -5,7 +5,9 @@
 // 2026-06-15 (owner-approved, Schedule-Creator): runAction Deliver kini multi-tujuan
 //   (comma-separated) — "telegram" (existing) + "chat" (append hasil ke chat_session di
 //   Config → muncul di tab Chat). Backward-compatible (Deliver="telegram" tetap jalan).
-//   Re-locked.
+// 2026-06-15 (owner-approved, R4 extension points): logika deliver DICABUT ke deliver.go
+//   sbg REGISTRY plug-able (RegisterDeliverer) — runAction cukup panggil dispatchDeliver.
+//   Behavior identik; nambah channel = file baru, bukan edit engine. Re-locked.
 package triggers
 
 import (
@@ -13,7 +15,6 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
-	"strings"
 	"time"
 
 	"flowork-gui/internal/floworkdb"
@@ -123,29 +124,10 @@ func (e *Engine) runAction(r floworkdb.Trigger, ev Event, trigger string) int64 
 		status, errText = "error", ierr.Error()
 	} else {
 		reply = out
-		// Deliver = comma-separated destinations: "telegram" + "chat" (Schedule-Creator).
-		// Agent OK tapi deliver gagal → hasil tetap di history; error dicatat.
-		for _, d := range strings.Split(r.Deliver, ",") {
-			switch strings.TrimSpace(d) {
-			case "telegram":
-				if e.Notify != nil {
-					if nerr := e.Notify(cctx, "🔔 "+r.Name+"\n\n"+reply); nerr != nil {
-						errText = "deliver telegram: " + nerr.Error()
-					}
-				}
-			case "chat":
-				// append hasil ke chat_session di Config → muncul di tab Chat (history terjadwal).
-				var cfg struct {
-					ChatSession string `json:"chat_session"`
-				}
-				_ = json.Unmarshal([]byte(r.Config), &cfg)
-				if cfg.ChatSession != "" {
-					if _, cerr := e.Store.AddChatMessage(cfg.ChatSession, "assistant", "⏰ "+r.Name+"\n\n"+reply); cerr != nil {
-						errText = "deliver chat: " + cerr.Error()
-					}
-				}
-			}
-		}
+		// Deliver via REGISTRY (R4 extension point — lihat deliver.go). Channel plug-able:
+		// "telegram"+"chat" builtin; tambah channel = RegisterDeliverer, JANGAN edit engine.
+		// Agent OK tapi deliver gagal → hasil tetap di history; error channel terakhir dicatat.
+		errText = dispatchDeliver(cctx, e, r, reply)
 	}
 	_ = e.Store.FinishTriggerRun(runID, status, reply, errText)
 	_ = e.Store.MarkTriggerFired(r.ID, time.Now().UTC().Format(time.RFC3339), status)

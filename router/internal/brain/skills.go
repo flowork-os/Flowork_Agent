@@ -9,8 +9,11 @@
 //   embedded library — so agents the Architect builds can ship reusable skills that get
 //   injected. FAIL-OPEN: any read/parse error just skips dynamic skills (embedded still
 //   works). Read fresh per call (skills are few + small) so new ones appear w/o restart.
+// 2026-06-15 (owner-approved, R4 extension points): allSkills() kini iterasi REGISTRY
+//   SkillProvider (lihat skill_provider.go) — embedded + dynamic jadi provider builtin;
+//   nambah sumber skill = RegisterSkillProvider, bukan edit core. Behavior identik.
 
-// Embedded skill library + selector (+ dynamic on-disk skills).
+// Embedded skill library + selector (+ dynamic on-disk skills, + provider registry R4).
 
 package brain
 
@@ -69,24 +72,24 @@ func loadDynamicSkills() []SkillDoc {
 	return out
 }
 
-// allSkills = embedded library + dynamic on-disk skills (deduped by name; embedded wins).
+// allSkills = gabungan SEMUA SkillProvider terdaftar (embedded + dynamic on-disk +
+// eksternal masa depan), deduped by name (provider lebih awal menang). Lihat
+// skill_provider.go (R4 registry). Nambah sumber = RegisterSkillProvider, bukan edit sini.
 func allSkills() []SkillDoc {
-	base := Skills()
-	dyn := loadDynamicSkills()
-	if len(dyn) == 0 {
-		return base
-	}
 	seen := map[string]bool{}
-	for _, s := range base {
-		seen[strings.ToLower(s.Name)] = true
-	}
-	out := append([]SkillDoc(nil), base...)
-	for _, s := range dyn {
-		if s.Name == "" || seen[strings.ToLower(s.Name)] {
-			continue
+	var out []SkillDoc
+	for _, p := range skillProviders {
+		for _, s := range p() {
+			if s.Name == "" {
+				continue
+			}
+			k := strings.ToLower(s.Name)
+			if seen[k] {
+				continue
+			}
+			seen[k] = true
+			out = append(out, s)
 		}
-		seen[strings.ToLower(s.Name)] = true
-		out = append(out, s)
 	}
 	return out
 }
