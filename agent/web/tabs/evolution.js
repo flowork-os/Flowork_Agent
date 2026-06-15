@@ -23,6 +23,10 @@ export async function render(container) {
         <button id="ev-reflect" style="background:#6366f1;color:#fff;border:0;border-radius:8px;padding:8px 14px;cursor:pointer">${esc(L.reflectBtn)}</button>
       </div>
       <div id="ev-proposals" style="margin-top:12px">⏳…</div>
+      <div id="ev-stages-wrap" style="margin-top:24px;display:none">
+        <h3 style="margin:0 0 4px">${esc(L.stagedH)}</h3>
+        <div id="ev-stages" style="margin-top:8px"></div>
+      </div>
     </div>`;
 
   const statusEl = container.querySelector('#ev-status');
@@ -142,6 +146,56 @@ export async function render(container) {
     if (b) applyProposal(b.getAttribute('data-apply-id'), b);
   });
 
+  // ── STAGE review (Milestone C): perubahan core ter-stage (dev) → Approve(commit)/Reject ──
+  const stagesWrap = container.querySelector('#ev-stages-wrap');
+  const stagesEl = container.querySelector('#ev-stages');
+
+  async function loadStages() {
+    try {
+      const d = await (await fetch('/api/evolve/stages?limit=20')).json();
+      const items = (d.items || []).filter((s) => s.status === 'staged');
+      if (!items.length) { stagesWrap.style.display = 'none'; return; }
+      stagesWrap.style.display = 'block';
+      stagesEl.innerHTML = items.map((s) => `
+        <div style="background:#0f172a;border:1px solid #3b2410;border-radius:8px;padding:10px 12px;margin-bottom:10px">
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
+            <code style="color:#fbbf24;font-size:0.78rem">${esc(s.target_file || '')}</code>
+            <span style="color:#64748b;font-size:0.7rem">${esc(L.testGateLabel)}: ✓ ${esc((s.test_output || '').includes('OK') ? 'build+vet OK' : '')}</span>
+            <span style="margin-left:auto;color:#475569;font-size:0.7rem">${esc((s.diff || '').split('\n').length)} lines</span>
+          </div>
+          <details style="margin-bottom:8px"><summary style="cursor:pointer;color:#818cf8;font-size:0.76rem">${esc(L.viewDiff)}</summary>
+            <pre style="max-height:280px;overflow:auto;background:#020617;border-radius:6px;padding:8px;font-size:0.72rem;color:#cbd5e1;white-space:pre-wrap">${esc(s.diff || '')}</pre></details>
+          <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button data-stage-reject="${esc(s.id)}" style="background:#7f1d1d;color:#fff;border:0;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:0.76rem">${esc(L.rejectBtn)}</button>
+            <button data-stage-approve="${esc(s.id)}" style="background:#16a34a;color:#fff;border:0;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:0.76rem">${esc(L.approveBtn)}</button>
+          </div>
+        </div>`).join('');
+    } catch (e) { stagesWrap.style.display = 'block'; stagesEl.innerHTML = `<span style="color:#f87171">❌ ${esc(e.message)}</span>`; }
+  }
+
+  async function stageAction(id, action, btn) {
+    const msg = action === 'approve' ? L.confirmApprove : L.confirmReject;
+    if (!confirm(msg)) return;
+    const orig = btn.textContent;
+    btn.disabled = true; if (action === 'approve') btn.textContent = L.approveBusy;
+    try {
+      const r = await fetch('/api/evolve/stage-action?id=' + encodeURIComponent(id) + '&action=' + action, { method: 'POST' });
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+      await loadStages(); await loadProposals(); await loadConfig();
+    } catch (e) {
+      alert(L.errStageAction + e.message);
+      btn.disabled = false; btn.textContent = orig;
+    }
+  }
+
+  stagesEl.addEventListener('click', (e) => {
+    const a = e.target.closest('[data-stage-approve]');
+    const rj = e.target.closest('[data-stage-reject]');
+    if (a) stageAction(a.getAttribute('data-stage-approve'), 'approve', a);
+    else if (rj) stageAction(rj.getAttribute('data-stage-reject'), 'reject', rj);
+  });
+
   reflectBtn.addEventListener('click', async () => {
     reflectBtn.disabled = true; const o = reflectBtn.textContent; reflectBtn.textContent = L.reflectBusy;
     try {
@@ -154,4 +208,5 @@ export async function render(container) {
 
   await loadConfig();
   await loadProposals();
+  await loadStages();
 }

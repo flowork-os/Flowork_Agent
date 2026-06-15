@@ -846,6 +846,8 @@ func main() {
 	// codegen → test-gate → STAGE diff buat review. Edit existing/LOCKED/delete = error edukasi.
 	mux.HandleFunc("/api/evolve/core-apply", agentmgr.EvolveCoreApplyHandler(evolveGateDeps(), evolveCoreApplier()))
 	mux.HandleFunc("/api/evolve/stages", agentmgr.EvolveStagesHandler)
+	// Milestone C STAGE review: owner Approve (commit isi yg direview + maybe push) / Reject staged diff.
+	mux.HandleFunc("/api/evolve/stage-action", agentmgr.EvolveStageActionHandler(evolveGateDeps(), evolveStageCommitter()))
 	// B3 auto-push config: token GitHub organisme (lokal di ~/.flowork, ga ke-commit) + saklar.
 	mux.HandleFunc("/api/evolve/push-config", evolvePushConfigHandler())
 	// B3 boot-rollback: penyebab organisme hampir mati (commit letal di-revert watchdog) — biar dia tau.

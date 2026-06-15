@@ -123,7 +123,7 @@ func evolveCoreApplier() agentmgr.EvolveCoreApplier {
 			if !strong {
 				// Model jatuh lemah/lokal mid-operasi → JANGAN commit core. Turunin ke STAGE.
 				return agentmgr.EvolveCoreResult{
-					Staged: true, TargetFile: rel, Diff: diff, TestOutput: trimStr(testOut, 2000), Model: model,
+					Staged: true, TargetFile: rel, Diff: diff, Content: content, TestOutput: trimStr(testOut, 2000), Model: model,
 					Note: "re-probe model GAGAL (" + note + ") → diturunin ke STAGE, ga auto-commit core",
 				}, nil
 			}
@@ -142,7 +142,7 @@ func evolveCoreApplier() agentmgr.EvolveCoreApplier {
 			}, nil
 		}
 		return agentmgr.EvolveCoreResult{
-			Staged: true, TargetFile: rel, Diff: diff, TestOutput: trimStr(testOut, 2000), Model: model,
+			Staged: true, TargetFile: rel, Diff: diff, Content: content, TestOutput: trimStr(testOut, 2000), Model: model,
 			Note: "lolos test-gate",
 		}, nil
 	}

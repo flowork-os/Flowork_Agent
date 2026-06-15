@@ -56,7 +56,13 @@ func (s *Store) ensureEvolveSchema() error {
 		  created_at   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);
 	`)
-	return err
+	if err != nil {
+		return err
+	}
+	// Migrasi ADDITIVE (idempoten): kolom content = isi file utuh (buat commit-on-approve persis
+	// yg direview). ALTER gagal "duplicate column" kalau udah ada → diabaikan (aman).
+	_, _ = s.db.Exec(`ALTER TABLE evolve_stage ADD COLUMN content TEXT NOT NULL DEFAULT ''`)
+	return nil
 }
 
 // AddEvolveProposal — simpan 1 usulan (id wajib unik; caller bikin).
@@ -150,6 +156,7 @@ type EvolveStage struct {
 	ProposalID string `json:"proposal_id"`
 	TargetFile string `json:"target_file"`
 	Diff       string `json:"diff"`
+	Content    string `json:"content"` // isi file utuh — buat commit-on-approve persis yg direview
 	TestOutput string `json:"test_output"`
 	Status     string `json:"status"` // staged | approved | rejected | committed
 	Model      string `json:"model"`
@@ -168,11 +175,11 @@ func (s *Store) AddEvolveStage(st EvolveStage) error {
 		st.Status = "staged"
 	}
 	_, err := s.db.Exec(`
-		INSERT INTO evolve_stage (id, proposal_id, target_file, diff, test_output, status, model, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO evolve_stage (id, proposal_id, target_file, diff, content, test_output, status, model, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
-		  diff=excluded.diff, test_output=excluded.test_output, status=excluded.status;`,
-		st.ID, st.ProposalID, st.TargetFile, st.Diff, st.TestOutput, st.Status, st.Model, st.CreatedAt)
+		  diff=excluded.diff, content=excluded.content, test_output=excluded.test_output, status=excluded.status;`,
+		st.ID, st.ProposalID, st.TargetFile, st.Diff, st.Content, st.TestOutput, st.Status, st.Model, st.CreatedAt)
 	return err
 }
 
@@ -197,9 +204,9 @@ func (s *Store) GetEvolveStage(id string) (EvolveStage, bool, error) {
 		return st, false, err
 	}
 	row := s.db.QueryRow(`
-		SELECT id, proposal_id, target_file, diff, test_output, status, model, created_at
+		SELECT id, proposal_id, target_file, diff, content, test_output, status, model, created_at
 		FROM evolve_stage WHERE id=?`, id)
-	err := row.Scan(&st.ID, &st.ProposalID, &st.TargetFile, &st.Diff, &st.TestOutput, &st.Status, &st.Model, &st.CreatedAt)
+	err := row.Scan(&st.ID, &st.ProposalID, &st.TargetFile, &st.Diff, &st.Content, &st.TestOutput, &st.Status, &st.Model, &st.CreatedAt)
 	if err == sql.ErrNoRows {
 		return st, false, nil
 	}

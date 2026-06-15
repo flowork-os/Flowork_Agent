@@ -33,5 +33,15 @@
   "confirm_apply": "Apply this proposal? Flowork will build it into the behavior layer (~/.flowork) — additive & reversible (just delete the agent/app to undo). Continue?",
   "err_apply": "Apply failed: ",
   "status_applied_badge": "✅ applied",
-  "core_only_dev": "core change — needs DEV core-apply"
+  "core_only_dev": "core change — needs DEV core-apply",
+  "staged_h": "🧬 Staged core changes (review)",
+  "no_stages": "No staged core changes.",
+  "approve_btn": "✅ Approve & commit",
+  "reject_btn": "✖ Reject",
+  "approve_busy": "⏳ committing…",
+  "confirm_approve": "Approve & commit this change to core (local main)? It passed the test-gate (build+vet). If auto-push is enabled it will also push. Continue?",
+  "confirm_reject": "Reject this staged change? It will be discarded.",
+  "err_stage_action": "Action failed: ",
+  "view_diff": "view diff",
+  "test_gate_label": "test-gate"
 }

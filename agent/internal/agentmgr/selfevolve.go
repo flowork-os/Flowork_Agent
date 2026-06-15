@@ -251,6 +251,7 @@ type EvolveCoreResult struct {
 	Pushed      bool   `json:"pushed"`      // (B3) udah push upstream
 	TargetFile  string `json:"target_file"`
 	Diff        string `json:"diff"`
+	Content     string `json:"content"` // isi file utuh (buat commit-on-approve di STAGE review)
 	TestOutput  string `json:"test_output"`
 	Model       string `json:"model"`
 	Note        string `json:"note"`
@@ -328,7 +329,7 @@ func EvolveCoreApplyHandler(dep EvolveGateDeps, apply EvolveCoreApplier) http.Ha
 			stageID := newID()
 			_ = store.AddEvolveStage(agentdb.EvolveStage{
 				ID: stageID, ProposalID: id, TargetFile: res.TargetFile,
-				Diff: res.Diff, TestOutput: res.TestOutput, Status: "staged", Model: res.Model,
+				Diff: res.Diff, Content: res.Content, TestOutput: res.TestOutput, Status: "staged", Model: res.Model,
 			})
 			_ = store.SetEvolveProposalStatus(id, "staged")
 			_, _ = store.IncrementKarma("evolve_coreapply_staged", 1)
@@ -347,6 +348,93 @@ func EvolveCoreApplyHandler(dep EvolveGateDeps, apply EvolveCoreApplier) http.Ha
 			out["note"] = res.Note
 		} else {
 			out["note"] = res.Note
+		}
+		httpx.WriteJSON(w, out)
+	}
+}
+
+// EvolveStageCommitter — di-INJECT dari main: commit isi stage ke local main (+ maybe push).
+// Dipanggil pas owner APPROVE staged diff (commit PERSIS yg direview, bukan re-codegen).
+type EvolveStageCommitter func(ctx context.Context, st agentdb.EvolveStage) (map[string]any, error)
+
+// EvolveStageActionHandler — POST /api/evolve/stage-action?id=<stageID>&action=approve|reject.
+// Milestone C STAGE review: owner APPROVE (commit isi yg direview) / REJECT staged diff. DEV-only.
+func EvolveStageActionHandler(dep EvolveGateDeps, commit EvolveStageCommitter) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
+			return
+		}
+		id := strings.TrimSpace(r.URL.Query().Get("id"))
+		action := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("action")))
+		if id == "" || (action != "approve" && action != "reject") {
+			httpx.WriteJSON(w, map[string]any{"error": "param id + action(approve|reject) wajib"})
+			return
+		}
+		// Commit core = DEV-only + armed (owner udah review diff-nya; model-strong ga wajib di sini).
+		if evolveEdition(dep) != "dev" {
+			httpx.WriteJSON(w, map[string]any{"error": "core-apply DEV-only — public ga commit core"})
+			return
+		}
+		if action == "approve" && evolveMode(dep) == "off" {
+			httpx.WriteJSON(w, map[string]any{"error": "mode OFF — arm dulu sebelum commit staged"})
+			return
+		}
+		store, err := openAgentStore(defaultAgentID)
+		if err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+			return
+		}
+		defer store.Close()
+		st, found, gerr := store.GetEvolveStage(id)
+		if gerr != nil {
+			httpx.WriteJSON(w, map[string]any{"error": gerr.Error()})
+			return
+		}
+		if !found {
+			httpx.WriteJSON(w, map[string]any{"error": "stage " + id + " ga ketemu"})
+			return
+		}
+		if st.Status != "staged" {
+			httpx.WriteJSON(w, map[string]any{"error": "stage status '" + st.Status + "' — udah diproses"})
+			return
+		}
+		if action == "reject" {
+			_ = store.SetEvolveStageStatus(id, "rejected")
+			if st.ProposalID != "" {
+				_ = store.SetEvolveProposalStatus(st.ProposalID, "rejected")
+			}
+			_, _ = store.IncrementKarma("evolve_stage_rejected", 1)
+			httpx.WriteJSON(w, map[string]any{"ok": true, "id": id, "status": "rejected"})
+			return
+		}
+		// approve → commit isi yg direview.
+		if commit == nil {
+			httpx.WriteJSON(w, map[string]any{"error": "committer not wired"})
+			return
+		}
+		if strings.TrimSpace(st.Content) == "" {
+			httpx.WriteJSON(w, map[string]any{"error": "stage tanpa content (lama/korup) — tolak, jalanin core-apply ulang"})
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
+		defer cancel()
+		res, cerr := commit(ctx, st)
+		if cerr != nil {
+			_, _ = store.IncrementKarma("evolve_stage_commit_fail", 1)
+			httpx.WriteJSON(w, map[string]any{"error": "commit gagal: " + cerr.Error()})
+			return
+		}
+		_ = store.SetEvolveStageStatus(id, "committed")
+		if st.ProposalID != "" {
+			_ = store.SetEvolveProposalStatus(st.ProposalID, "applied")
+		}
+		_, _ = store.IncrementKarma("evolve_stage_committed", 1)
+		out := map[string]any{"ok": true, "id": id, "status": "committed"}
+		for k, v := range res {
+			if k != "ok" {
+				out[k] = v
+			}
 		}
 		httpx.WriteJSON(w, out)
 	}

@@ -33,5 +33,15 @@
   "confirm_apply": "Terapkan usulan ini? Flowork bakal bangun ke behavior-layer (~/.flowork) — additive & bisa dihapus (tinggal hapus agent/app buat undo). Lanjut?",
   "err_apply": "Apply gagal: ",
   "status_applied_badge": "✅ applied",
-  "core_only_dev": "perubahan core — perlu core-apply DEV"
+  "core_only_dev": "perubahan core — perlu core-apply DEV",
+  "staged_h": "🧬 Perubahan core ter-stage (review)",
+  "no_stages": "Belum ada perubahan core ter-stage.",
+  "approve_btn": "✅ Setujui & commit",
+  "reject_btn": "✖ Tolak",
+  "approve_busy": "⏳ commit…",
+  "confirm_approve": "Setujui & commit perubahan ini ke core (main lokal)? Udah lolos test-gate (build+vet). Kalau auto-push aktif bakal ke-push juga. Lanjut?",
+  "confirm_reject": "Tolak perubahan ter-stage ini? Bakal dibuang.",
+  "err_stage_action": "Aksi gagal: ",
+  "view_diff": "lihat diff",
+  "test_gate_label": "test-gate"
 }
