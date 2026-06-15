@@ -80,9 +80,13 @@ func loketCall(capName string, args any) (json.RawMessage, error) {
 	body, _ := json.Marshal(map[string]any{"cap": capName, "args": json.RawMessage(argsJSON)})
 
 	reqJSON, _ := json.Marshal(map[string]any{
-		"method":         "POST",
-		"url":            loketURL,
-		"timeout_ms":     120000,
+		"method": "POST",
+		"url":    loketURL,
+		// 240s (was 120s) — match the kernel loket CallHandler deadline (also 240s). The
+		// old 120s made the orchestrator give up on a slow LOCAL-model sub-call (e.g.
+		// ask_group / a multi-round tool loop) while the kernel was still willing to wait,
+		// turning a slow-but-fine call into a premature failure (OPS-1, owner-approved 2026-06-16).
+		"timeout_ms":     240000,
 		"max_resp_bytes": 4 << 20,
 		"headers":        map[string]string{"Content-Type": "application/json"},
 		"body_base64":    base64.StdEncoding.EncodeToString(body),
@@ -691,6 +695,7 @@ func askGroup(argsRaw json.RawMessage) string {
 // tool_calls), and pair each tool_call id with exactly one tool result.
 func runToolLoop(msgs []any, specs []json.RawMessage) (string, int) {
 	toolsUsed := 0
+	rescued := false
 	for iter := 0; iter < maxToolIters; iter++ {
 		llmArgs := map[string]any{"model": model(), "messages": msgs}
 		if len(specs) > 0 {
@@ -713,7 +718,26 @@ func runToolLoop(msgs []any, specs []json.RawMessage) (string, int) {
 		}
 		_ = json.Unmarshal(r, &resp)
 		if len(resp.ToolCalls) == 0 {
-			return strings.TrimSpace(resp.Content), toolsUsed // final text answer
+			final := strings.TrimSpace(resp.Content)
+			// LOCAL-model rescue: gemma sometimes WRITES the delegation as prose
+			// ("ask_group(group=…, subject=…)") instead of emitting a structured
+			// tool_call — which skips the crew entirely and leaks raw syntax to the
+			// user. If the "answer" is really an unexecuted ask_group, run it for real
+			// (once). Strictly better: the un-rescued path shows the user pure garbage.
+			if !rescued {
+				if g, subj, ok := parseTextAskGroup(final); ok {
+					rescued = true
+					res := askGroup(json.RawMessage(`{"group":` + jsonStr(g) + `,"subject":` + jsonStr(subj) + `}`))
+					var gr struct {
+						GroupResult string `json:"group_result"`
+					}
+					if json.Unmarshal([]byte(res), &gr) == nil && strings.TrimSpace(gr.GroupResult) != "" {
+						return plainify(strings.TrimSpace(gr.GroupResult)), toolsUsed + 1
+					}
+					return "Maaf bro, gw mau lempar ini ke tim " + g + " tapi gagal nyambung. Coba lagi bentar ya 🙏", toolsUsed
+				}
+			}
+			return final, toolsUsed // final text answer
 		}
 		tc := resp.ToolCalls[0] // serialize: one tool per turn
 		id := fmt.Sprintf("call_%d", iter)
@@ -734,12 +758,26 @@ func runToolLoop(msgs []any, specs []json.RawMessage) (string, int) {
 		}
 		// ask_group is loket-native (orchestration), handled locally; every other
 		// tool goes through the engine bridge (tool.run).
-		var result string
 		if tc.Function.Name == "ask_group" {
-			result = askGroup(argsRaw)
-		} else {
-			result = toolRun(tc.Function.Name, argsRaw)
+			result := askGroup(argsRaw)
+			toolsUsed++
+			// ask_group is TERMINAL delegation: the group (with its OWN synthesizer) already
+			// produced the user's answer, and the persona says "jawaban tim langsung sampe ke
+			// user, gak perlu nulis ulang". So on a real group_result, RETURN IT VERBATIM
+			// (plainified, like handleGroupChat) instead of burning ANOTHER slow LOCAL-model
+			// LLM round just to re-wrap it — that extra round-trip on the heaviest path is a
+			// big chunk of the OPS-1 latency. Only on an ERROR do we feed it back so the model
+			// can recover/explain.
+			var gr struct {
+				GroupResult string `json:"group_result"`
+			}
+			if json.Unmarshal([]byte(result), &gr) == nil && strings.TrimSpace(gr.GroupResult) != "" {
+				return plainify(strings.TrimSpace(gr.GroupResult)), toolsUsed
+			}
+			msgs = append(msgs, map[string]any{"role": "tool", "tool_call_id": id, "content": result})
+			continue
 		}
+		result := toolRun(tc.Function.Name, argsRaw)
 		toolsUsed++
 		msgs = append(msgs, map[string]any{
 			"role": "tool", "tool_call_id": id, "content": result,
@@ -768,6 +806,45 @@ func jsonEsc(s string) string {
 
 // jsonStr marshals a string to a JSON string literal (with quotes).
 func jsonStr(s string) string { b, _ := json.Marshal(s); return string(b) }
+
+// parseTextAskGroup rescues an ask_group call the LOCAL model wrote as PROSE
+// instead of a structured tool_call (gemma does this intermittently — it narrates
+// "ask_group(group=…, subject=…)" as text). It recognises the common shapes:
+//
+//	ask_group(group="investment", subject="analisa BBCA")
+//	ask_group({"group":"investment","subject":"…"})
+//
+// and returns (group, subject, true) only when BOTH keys are present after the
+// literal "ask_group" token — so a mere passing mention never triggers a crew.
+func parseTextAskGroup(s string) (string, string, bool) {
+	i := strings.Index(s, "ask_group")
+	if i < 0 {
+		return "", "", false
+	}
+	seg := s[i+len("ask_group"):]
+	g := extractKV(seg, "group")
+	subj := extractKV(seg, "subject")
+	if g == "" || subj == "" {
+		return "", "", false
+	}
+	return g, subj, true
+}
+
+// extractKV pulls the value of key from a loose "key=val" / "key: val" /
+// "\"key\":\"val\"" snippet: it finds key, skips the separators/quotes after it,
+// and reads up to the next quote, comma, or closing paren/brace. "" if absent.
+func extractKV(s, key string) string {
+	idx := strings.Index(s, key)
+	if idx < 0 {
+		return ""
+	}
+	r := strings.TrimLeft(s[idx+len(key):], " \t:=\"'")
+	end := strings.IndexAny(r, "\"',)}\n")
+	if end < 0 {
+		end = len(r)
+	}
+	return strings.TrimSpace(r[:end])
+}
 
 // plainify strips markdown to clean chat text (Telegram renders no markdown, so
 // "##" / "**" / "---" would show raw). Done in code because the model keeps using

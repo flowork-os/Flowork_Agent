@@ -3,6 +3,9 @@
 // Status: STABLE — live-proven (tested via realistic mock harness + live Telegram token 2026-06-07).
 // Plug-and-play connector: to change behavior swap the folder; do not hand-edit without owner approval.
 // Owner: Aola Sahidin (Mr.Dev). Locked: 2026-06-07.
+// 2026-06-16 (owner-approved, autonomous sprint OPS-1): graceful UX on the slow LOCAL model —
+//   show "typing…" before the agent call + replace the raw transport error ("loket: no response")
+//   with a human "lagi mikir, coba lagi" message. Isolated to this plugin; no ABI/contract change.
 
 // Package main is the Flowork Telegram CHANNEL — a loket-native adapter.
 //
@@ -162,7 +165,11 @@ func forwardToAgent(target, text string, chatID int64, user string) string {
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[%s] bus.request failed after retries: %v\n", selfID(), err)
-		return "[channel] agent error: " + err.Error()
+		// User-facing: never leak the raw transport error ("loket: no response"). On the
+		// LOCAL model a heavy multi-agent request can simply outlast the call deadline —
+		// that's "busy", not "broken". Reassure the user (OPS-1); stderr keeps the real err.
+		return "⏳ Wah, yang ini berat bro — gw lagi mikir keras (model lokal, agak lemot). " +
+			"Coba kirim lagi bentar, atau pecah jadi pertanyaan yang lebih kecil ya. Gw masih idup kok 🙏"
 	}
 	// bus.request returns {"reply": <agent's raw emit>}; the agent's emit is itself
 	// {"reply": "...", "agent": "..."}. Unwrap one level, then read the text.
@@ -396,6 +403,15 @@ func registerCommands(token, target string) bool {
 // for the dedup above). Empty until the first successful sync.
 var lastSlashBody string
 
+// sendChatAction shows the native "typing…" indicator in the chat — instant,
+// non-intrusive feedback so the bot never feels DEAD while the agent (slow on the
+// LOCAL model) is still thinking (OPS-1). Best-effort: any failure is ignored, it
+// is purely cosmetic and must never block or fail the real reply.
+func sendChatAction(token string, chatID int64, action string) {
+	body, _ := json.Marshal(map[string]any{"chat_id": chatID, "action": action})
+	_, _ = hostFetch("POST", fmt.Sprintf("%s/bot%s/sendChatAction", tgBase(), token), map[string]string{"Content-Type": "application/json"}, body)
+}
+
 func sendMessage(token string, chatID int64, text string) error {
 	// Telegram caps a message at 4096 chars; a long answer must be SPLIT into
 	// several messages (not truncated). Send each chunk in order.
@@ -514,6 +530,9 @@ func boot() {
 			if text == "" {
 				continue
 			}
+			// Instant feedback: show "typing…" before the (possibly slow) agent call so
+			// the user sees the bot is working, not dead, on the LOCAL model (OPS-1).
+			sendChatAction(token, chatID, "typing")
 			reply := forwardToAgent(target, text, chatID, u.Message.From.Username)
 			if reply == "" {
 				continue
