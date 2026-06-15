@@ -837,6 +837,8 @@ func main() {
 	mux.HandleFunc("/api/evolve/proposals", agentmgr.EvolveProposalsHandler)
 	// R7 fase-2 control-plane: saklar self-modify (off|stage|auto) + gate berlapis (KRUSIAL).
 	mux.HandleFunc("/api/evolve/config", agentmgr.EvolveConfigHandler(evolveGateDeps()))
+	// Capability eval: buktiin model layak self-modify (compile+run, kalibrasi Opus 4.7).
+	mux.HandleFunc("/api/evolve/eval", evolveEvalHandler())
 	mux.HandleFunc("/api/agents/protector/approval/queue", agentmgr.ApprovalQueueHandler)
 	mux.HandleFunc("/api/agents/protector/approve_pending", agentmgr.ApproveHandler)
 	mux.HandleFunc("/api/agents/protector/reject_pending", agentmgr.RejectHandler)

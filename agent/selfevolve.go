@@ -10,38 +10,29 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	"flowork-gui/internal/agentmgr"
 	"flowork-gui/internal/floworkdb"
 )
 
-// evolveModelStrong — GUARD ANTI-LLM-LOKAL (concern owner: token Claude habis → Gemma
-// lokal → auto-modify bisa NGERUSAK). Strong = model default Claude DAN provider cloud
-// aktif di router (/v1/models nyebut claude). Lemah/lokal → false (auto-commit diblok).
-// Cheap (no LLM call). Eksekusi (fase-2b) re-probe model ASLI sebelum commit (catch quota).
-func evolveModelStrong() (bool, string) {
-	model := coderModel("")
-	if !strings.HasPrefix(strings.ToLower(model), "claude") {
-		return false, "model default bukan Claude (lemah/lokal): " + model
+// evolveEvalHandler — POST /api/evolve/eval. Jalanin capability eval (model aktif disuruh
+// nulis kode Go → compile+run deterministik; bar kalibrasi kelas Opus 4.7, NO hardcode nama)
+// → cache. On-demand (tombol GUI), bukan tiap status-poll (eval ~90s). Owner-loopback.
+func evolveEvalHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			tfWriteJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "POST only"})
+			return
+		}
+		res := evolveEvalAndCache()
+		tfWriteJSON(w, 0, map[string]any{
+			"ok": true, "model": res.Model, "passed": res.Passed,
+			"score": res.Score, "total": res.Total, "detail": res.Detail,
+		})
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
-	defer cancel()
-	req, _ := http.NewRequestWithContext(ctx, "GET", "http://127.0.0.1:2402/v1/models", nil)
-	resp, err := (&http.Client{Timeout: 8 * time.Second}).Do(req)
-	if err != nil {
-		return false, "router tak terjangkau"
-	}
-	defer resp.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if !strings.Contains(strings.ToLower(string(raw)), "claude") {
-		return false, "provider cloud (Claude) tidak aktif — kemungkinan mode lokal"
-	}
-	return true, "cloud (Claude) aktif: " + model
 }
 
 // evolveGateDeps — rakit dependency gate (KV toggle + guard model) buat handler config.
@@ -61,7 +52,7 @@ func evolveGateDeps() agentmgr.EvolveGateDeps {
 			}
 			return db.SetKV(k, v)
 		},
-		ModelStrong: evolveModelStrong,
+		ModelStrong: capabilityMeetsBar, // eval-based (no hardcode nama), cache-only di status
 		Edition: func() string {
 			// FLOWORK_EDITION=dev → evolusi penuh (core+behavior). Default public = aman
 			// (behavior-layer aja, core via auto-update). make-distributable set ini per profil.
