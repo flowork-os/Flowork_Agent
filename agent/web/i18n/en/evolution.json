@@ -43,5 +43,13 @@
   "confirm_reject": "Reject this staged change? It will be discarded.",
   "err_stage_action": "Action failed: ",
   "view_diff": "view diff",
-  "test_gate_label": "test-gate"
+  "test_gate_label": "test-gate",
+  "schedule_h": "⏰ Scheduled self-reflection",
+  "schedule_hint": "Reflect automatically every N hours (0 = off). When mode = AUTO, behavior proposals auto-apply; core changes still wait for your review.",
+  "schedule_hours": "Every (hours)",
+  "schedule_save": "Save",
+  "schedule_run": "▶ Run now",
+  "schedule_running": "⏳ running…",
+  "schedule_last": "last run",
+  "err_schedule": "Schedule error: "
 }

@@ -43,5 +43,13 @@
   "confirm_reject": "Tolak perubahan ter-stage ini? Bakal dibuang.",
   "err_stage_action": "Aksi gagal: ",
   "view_diff": "lihat diff",
-  "test_gate_label": "test-gate"
+  "test_gate_label": "test-gate",
+  "schedule_h": "⏰ Refleksi-diri terjadwal",
+  "schedule_hint": "Refleksi otomatis tiap N jam (0 = mati). Saat mode = AUTO, proposal behavior auto-apply; perubahan core tetap nunggu review kamu.",
+  "schedule_hours": "Tiap (jam)",
+  "schedule_save": "Simpan",
+  "schedule_run": "▶ Jalankan sekarang",
+  "schedule_running": "⏳ jalan…",
+  "schedule_last": "terakhir jalan",
+  "err_schedule": "Error jadwal: "
 }

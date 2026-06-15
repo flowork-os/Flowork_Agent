@@ -852,6 +852,9 @@ func main() {
 	mux.HandleFunc("/api/evolve/push-config", evolvePushConfigHandler())
 	// B3 boot-rollback: penyebab organisme hampir mati (commit letal di-revert watchdog) — biar dia tau.
 	mux.HandleFunc("/api/evolve/rollback-log", evolveRollbackLogHandler())
+	// Milestone D trigger terjadwal: refleksi-diri otomatis tiap N jam (+ auto-apply behavior pas auto).
+	mux.HandleFunc("/api/evolve/schedule", evolveScheduleHandler(host, fdb, groupsAPI))
+	startEvolveScheduler(ctx, host, fdb, groupsAPI) // goroutine: cron refleksi (interval dari KV; 0=off)
 	mux.HandleFunc("/api/agents/protector/approval/queue", agentmgr.ApprovalQueueHandler)
 	mux.HandleFunc("/api/agents/protector/approve_pending", agentmgr.ApproveHandler)
 	mux.HandleFunc("/api/agents/protector/reject_pending", agentmgr.RejectHandler)

@@ -17,7 +17,18 @@ export async function render(container) {
       <p style="color:#94a3b8;margin:0 0 16px;font-size:0.88rem">${esc(L.intro)}</p>
       <div id="ev-status" style="background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:14px;margin-bottom:14px">⏳ ${esc(L.loading)}</div>
       <div id="ev-modes" style="display:flex;gap:10px;margin-bottom:8px"></div>
-      <div id="ev-modehint" style="color:#64748b;font-size:0.78rem;margin-bottom:20px"></div>
+      <div id="ev-modehint" style="color:#64748b;font-size:0.78rem;margin-bottom:14px"></div>
+      <div style="background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:12px 14px;margin-bottom:20px">
+        <div style="font-weight:600;margin-bottom:4px">${esc(L.scheduleH)}</div>
+        <div style="color:#64748b;font-size:0.78rem;margin-bottom:10px">${esc(L.scheduleHint)}</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <label style="font-size:0.85rem">${esc(L.scheduleHours)}:</label>
+          <input id="ev-sched-hours" type="number" min="0" step="1" style="width:80px;background:#020617;border:1px solid #334155;border-radius:6px;color:#e2e8f0;padding:5px 8px">
+          <button id="ev-sched-save" style="background:#334155;color:#fff;border:0;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:0.8rem">${esc(L.scheduleSave)}</button>
+          <button id="ev-sched-run" style="background:#6366f1;color:#fff;border:0;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:0.8rem">${esc(L.scheduleRun)}</button>
+          <span id="ev-sched-last" style="margin-left:auto;color:#475569;font-size:0.74rem"></span>
+        </div>
+      </div>
       <div style="display:flex;align-items:center;justify-content:space-between">
         <h3 style="margin:0">📋 ${esc(L.backlogH)}</h3>
         <button id="ev-reflect" style="background:#6366f1;color:#fff;border:0;border-radius:8px;padding:8px 14px;cursor:pointer">${esc(L.reflectBtn)}</button>
@@ -196,6 +207,37 @@ export async function render(container) {
     else if (rj) stageAction(rj.getAttribute('data-stage-reject'), 'reject', rj);
   });
 
+  // ── Scheduled self-reflection (Milestone D) ──────────────────────────────────────
+  const schedHours = container.querySelector('#ev-sched-hours');
+  const schedSave = container.querySelector('#ev-sched-save');
+  const schedRun = container.querySelector('#ev-sched-run');
+  const schedLast = container.querySelector('#ev-sched-last');
+
+  async function loadSchedule() {
+    try {
+      const d = await (await fetch('/api/evolve/schedule')).json();
+      if (schedHours) schedHours.value = d.hours || 0;
+      if (schedLast) schedLast.textContent = d.last_run ? `${L.scheduleLast}: ${d.last_run}` : '';
+    } catch (e) { /* non-fatal */ }
+  }
+  schedSave.addEventListener('click', async () => {
+    try {
+      const hours = parseFloat(schedHours.value) || 0;
+      const r = await fetch('/api/evolve/schedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hours }) });
+      const d = await r.json(); if (d.error) throw new Error(d.error);
+      await loadSchedule();
+    } catch (e) { alert(L.errSchedule + e.message); }
+  });
+  schedRun.addEventListener('click', async () => {
+    schedRun.disabled = true; const o = schedRun.textContent; schedRun.textContent = L.scheduleRunning;
+    try {
+      const d = await (await fetch('/api/evolve/schedule?run=1', { method: 'POST' })).json();
+      if (d.error) throw new Error(d.error);
+      await loadProposals(); await loadStages(); await loadConfig(); await loadSchedule();
+    } catch (e) { alert(L.errSchedule + e.message); }
+    finally { schedRun.disabled = false; schedRun.textContent = o; }
+  });
+
   reflectBtn.addEventListener('click', async () => {
     reflectBtn.disabled = true; const o = reflectBtn.textContent; reflectBtn.textContent = L.reflectBusy;
     try {
@@ -209,4 +251,5 @@ export async function render(container) {
   await loadConfig();
   await loadProposals();
   await loadStages();
+  await loadSchedule();
 }

@@ -1,3 +1,8 @@
+// === LOCKED FILE (soft) === Status: STABLE — DO NOT MODIFY without owner approval (LOCKED ≠ FREEZE).
+// Owner: Aola Sahidin (Mr.Dev) · Locked 2026-06-16. Reason: R7 fase-2b LENGKAP (gate berlapis +
+// behavior-apply + core-apply handler + stage review + reflect-once + schedule auto-apply). Semua
+// VERIFIED E2E. Inti self-evolution agentmgr — store + gate + lifecycle; builder di-inject dari main.
+//
 // selfevolve.go — R7 SELF-EVOLUTION fase-1 (refleksi-diri → backlog usulan). Plug-in.
 // Owner-approved 2026-06-15 (FASE 2 autonomi). Organisme BACA self-map semantik (R6) →
 // architect/LLM USULIN perbaikan konkret → simpan ke evolve_proposal. FASE-1 = USULAN
@@ -574,46 +579,112 @@ func EvolveReflectHandler(propose EvolveProposer) http.HandlerFunc {
 			return
 		}
 		focus := strings.TrimSpace(r.URL.Query().Get("focus"))
-		store, err := openAgentStore(defaultAgentID)
+		ctx, cancel := context.WithTimeout(r.Context(), 200*time.Second)
+		defer cancel()
+		saved, err := EvolveReflectOnce(ctx, propose, focus)
 		if err != nil {
 			httpx.WriteJSON(w, map[string]any{"error": err.Error()})
 			return
 		}
-		defer store.Close()
-		selfMap := buildSelfMapContext(store)
-		if selfMap == "" {
-			httpx.WriteJSON(w, map[string]any{"error": "self-map semantik kosong — jalanin /api/codemap/reindex + /api/codemap/enrich dulu"})
-			return
-		}
-		ctx, cancel := context.WithTimeout(r.Context(), 200*time.Second)
-		defer cancel()
-		drafts, perr := propose(ctx, selfMap, focus)
-		if perr != nil {
-			_, _ = store.IncrementKarma("evolve_reflect_fail", 1)
-			httpx.WriteJSON(w, map[string]any{"error": "propose: " + perr.Error()})
-			return
-		}
-		saved := []map[string]any{}
-		for _, d := range drafts {
-			if strings.TrimSpace(d.Rationale) == "" {
-				continue
-			}
-			p := agentdb.EvolveProposal{
-				ID: newID(), Goal: focus, TargetFile: d.TargetFile, Kind: d.Kind,
-				Rationale: d.Rationale, Risk: strings.ToLower(strings.TrimSpace(d.Risk)), Model: d.Model,
-			}
-			if err := store.AddEvolveProposal(p); err == nil {
-				saved = append(saved, map[string]any{
-					"id": p.ID, "target_file": p.TargetFile, "kind": p.Kind,
-					"rationale": p.Rationale, "risk": p.Risk,
-				})
-			}
-		}
-		// Karma: 1 siklus refleksi sukses + counter jumlah usulan (track-record).
-		_, _ = store.IncrementKarma("evolve_reflect_ok", 1)
-		_, _ = store.IncrementKarma("evolve_proposals_total", float64(len(saved)))
 		httpx.WriteJSON(w, map[string]any{"ok": true, "proposed": len(saved), "proposals": saved})
 	}
+}
+
+// EvolveReflectOnce — INTI satu siklus refleksi (dipakai handler manual + scheduler terjadwal):
+// baca self-map → LLM usulin perbaikan additive → simpan backlog + karma. AMAN (nol ubah kode).
+// Balikin daftar proposal yg kesimpen. Decouple dari HTTP biar bisa dipanggil cron.
+func EvolveReflectOnce(ctx context.Context, propose EvolveProposer, focus string) ([]map[string]any, error) {
+	if propose == nil {
+		return nil, fmt.Errorf("proposer not wired")
+	}
+	store, err := openAgentStore(defaultAgentID)
+	if err != nil {
+		return nil, err
+	}
+	defer store.Close()
+	selfMap := buildSelfMapContext(store)
+	if selfMap == "" {
+		return nil, fmt.Errorf("self-map semantik kosong — jalanin /api/codemap/reindex + /api/codemap/enrich dulu")
+	}
+	drafts, perr := propose(ctx, selfMap, focus)
+	if perr != nil {
+		_, _ = store.IncrementKarma("evolve_reflect_fail", 1)
+		return nil, fmt.Errorf("propose: %w", perr)
+	}
+	saved := []map[string]any{}
+	for _, d := range drafts {
+		if strings.TrimSpace(d.Rationale) == "" {
+			continue
+		}
+		p := agentdb.EvolveProposal{
+			ID: newID(), Goal: focus, TargetFile: d.TargetFile, Kind: d.Kind,
+			Rationale: d.Rationale, Risk: strings.ToLower(strings.TrimSpace(d.Risk)), Model: d.Model,
+		}
+		if err := store.AddEvolveProposal(p); err == nil {
+			saved = append(saved, map[string]any{
+				"id": p.ID, "target_file": p.TargetFile, "kind": p.Kind,
+				"rationale": p.Rationale, "risk": p.Risk,
+			})
+		}
+	}
+	_, _ = store.IncrementKarma("evolve_reflect_ok", 1)
+	_, _ = store.IncrementKarma("evolve_proposals_total", float64(len(saved)))
+	return saved, nil
+}
+
+// EvolveScheduleAutoApply — auto-apply proposal BEHAVIOR (add-agent/skill/app) yg baru
+// direfleksi terjadwal, KALAU gate auto lolos (mode=auto+karma+model). Dipanggil scheduler.
+// Core proposals di-SKIP (di-stage/review owner — terlalu deliberate buat auto-cron). AMAN:
+// additive ke ~/.flowork, reversible. Gate dicek di sini (return kosong kalau belum auto).
+func EvolveScheduleAutoApply(dep EvolveGateDeps, apply EvolveApplier, proposals []map[string]any) []map[string]any {
+	results := []map[string]any{}
+	if apply == nil {
+		return results
+	}
+	if ok, _ := EvolveBehaviorApplyAllowed(dep, true); !ok { // auto gate penuh
+		return results
+	}
+	store, err := openAgentStore(defaultAgentID)
+	if err != nil {
+		return results
+	}
+	defer store.Close()
+	for _, pm := range proposals {
+		kind, _ := pm["kind"].(string)
+		switch strings.ToLower(strings.TrimSpace(kind)) {
+		case "add-agent", "add-skill", "add-app":
+		default:
+			continue // core/lainnya → skip (review owner)
+		}
+		id, _ := pm["id"].(string)
+		if id == "" {
+			continue
+		}
+		p, found, gerr := store.GetEvolveProposal(id)
+		if gerr != nil || !found || p.Status != "proposed" {
+			continue
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 290*time.Second)
+		res, aerr := apply(ctx, p)
+		cancel()
+		if aerr != nil {
+			_, _ = store.IncrementKarma("evolve_apply_fail", 1)
+			results = append(results, map[string]any{"id": id, "kind": kind, "error": aerr.Error()})
+			continue
+		}
+		_ = store.SetEvolveProposalStatus(id, "applied")
+		_, _ = store.IncrementKarma("evolve_apply_ok", 1)
+		entry := map[string]any{"id": id, "kind": kind, "applied": true}
+		if name, ok := res["group_id"]; ok {
+			entry["built"] = name
+		} else if name, ok := res["app_id"]; ok {
+			entry["built"] = name
+		} else if name, ok := res["skill"]; ok {
+			entry["built"] = name
+		}
+		results = append(results, entry)
+	}
+	return results
 }
 
 // EvolveProposalsHandler — GET /api/evolve/proposals → backlog usulan evolusi.
