@@ -211,6 +211,11 @@ func (r *Runtime) Start(modelName, ggufPath string) error {
 		args = append(args, "-ngl", ngl)
 	}
 	cmd := exec.Command(r.binPath, args...)
+	// PORTABLE (audit #10 2026-06-15): prefer shared libs (libggml/libllama .so) yang
+	// se-folder sama binary (router/bin/), biar self-contained — gak gantung ke build dir
+	// luar (mis. /home/mrflow/llama.cpp). make-distributable bundle binary+libs per-OS.
+	binDir := filepath.Dir(r.binPath)
+	cmd.Env = append(os.Environ(), "LD_LIBRARY_PATH="+binDir+string(os.PathListSeparator)+os.Getenv("LD_LIBRARY_PATH"))
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start llama-server: %w", err)
 	}

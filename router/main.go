@@ -247,14 +247,15 @@ func main() {
 // change the gating (active :8088 provider) or resolution without re-testing a cold
 // boot — the whole "Start Flowork = sovereign model ready" UX depends on it.
 //
-// maybeAutostartLocalAI brings the local llama-server up on boot when the user has
-// a local model configured (an active provider pointing at the runtime port :8088)
-// AND both the GGUF + the llama-server binary resolve. Cross-OS / all editions
-// (lives in the router binary, same on Linux/Mac/Win). Sets the shared runtime ref
-// so the GUI's status/stop controls the same instance. No-op for cloud-only setups
-// or a missing model/binary. Disable entirely with FLOWORK_LOCALAI_AUTOSTART=0.
+// maybeAutostartLocalAI — OPT-IN (audit #10 2026-06-15): LLM lokal BERAT + kebanyakan user
+// pakai API/cloud, lagian target Android gak pake LLM lokal. Jadi DEFAULT = TIDAK auto-start.
+// User aktifin lewat TOMBOL GUI router (POST /api/localai/runtime {action:start}) saat mau
+// pakai lokal, atau set FLOWORK_LOCALAI_AUTOSTART=1 buat opt-in auto-start tiap boot.
+// "Provider local active" (failover chain) != auto-spawn proses (beda concern, lihat audit #6).
+// GUI status/stop kontrol instance yg sama (shared runtime ref). Cross-OS / semua edisi.
 func maybeAutostartLocalAI(providers []store.ProviderConnection) {
-	if strings.TrimSpace(os.Getenv("FLOWORK_LOCALAI_AUTOSTART")) == "0" {
+	if strings.TrimSpace(os.Getenv("FLOWORK_LOCALAI_AUTOSTART")) != "1" {
+		log.Printf("localai autostart: OFF (opt-in) — start lewat tombol GUI router atau FLOWORK_LOCALAI_AUTOSTART=1")
 		return
 	}
 	want := false
