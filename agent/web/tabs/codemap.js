@@ -41,6 +41,7 @@ export async function render(container) {
   // ── State ──────────────────────────────────────────────────────────────
   const S = {
     nodes: [], edges: [],
+    semantic: {},          // R6: path → {summary,domain,role} (lapisan makna self-map)
     selected: null,
     colorMode: 'health',  // 'health' | 'folder' | 'blast'
     blastSet: new Map(),   // path → degree (1,2,3...)
@@ -57,6 +58,7 @@ export async function render(container) {
   const searchIn  = container.querySelector('#cm-search');
   const statusTxt = container.querySelector('#cm-status');
   const reindexBtn = container.querySelector('#cm-reindex');
+  const enrichBtn  = container.querySelector('#cm-enrich');
   const colorBtns  = container.querySelectorAll('.cm-color-btn');
   const zombieBtn  = container.querySelector('#cm-zombie-btn');
 
@@ -100,12 +102,30 @@ export async function render(container) {
       const data = await r.json();
       S.nodes = data.nodes || [];
       S.edges = data.edges || [];
+      await loadSemantic();
       buildFolderPalette();
       initSimulation();
       setDetail(emptyDetail());
     } catch (e) {
       setDetail(`<div class="cm-err">❌ ${e.message}<br><small>${L.clickReindex}</small></div>`);
     }
+  }
+
+  // R6: muat lapisan makna (path → {summary,domain,role}). Fail-open (kosong = ok).
+  async function loadSemantic() {
+    try {
+      const r = await fetch('/api/codemap/semantic');
+      if (!r.ok) return;
+      const d = await r.json();
+      S.semantic = {};
+      (d.items || []).forEach(m => { if (m.path) S.semantic[m.path] = m; });
+    } catch (_) { /* fail-open: struktur tetap jalan tanpa makna */ }
+  }
+
+  // esc — escape HTML (XSS-safe) buat teks makna dari LLM.
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+      ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   }
 
   async function loadStatus() {
@@ -435,6 +455,19 @@ export async function render(container) {
         </div>
       </div>
 
+      ${(() => {
+        const sm = S.semantic[n.path];
+        return sm && sm.summary ? `
+      <div class="cm-d-sec" style="background:#1e293b;border-radius:6px;padding:8px;margin:6px 0">
+        <div class="cm-d-lbl">🧠 Makna <span style="opacity:.5;font-weight:normal">(self-map R6)</span></div>
+        <div style="font-size:0.82rem;line-height:1.45">${esc(sm.summary)}</div>
+        <div style="margin-top:6px">
+          ${sm.domain ? `<span class="cm-chip">domain: ${esc(sm.domain)}</span>` : ''}
+          ${sm.role ? `<span class="cm-chip">role: ${esc(sm.role)}</span>` : ''}
+        </div>
+      </div>` : '';
+      })()}
+
       <div class="cm-d-hbar-wrap">
         <div class="cm-d-hbar"><div style="width:${n.health_score}%;background:${hc}"></div></div>
         <span style="color:${hc}">${(n.health_score||0).toFixed(0)}/100</span>
@@ -567,6 +600,7 @@ export async function render(container) {
       }
       zombieEl.innerHTML = `
         <div class="cm-z-title">🧟 ${d.count} ${L.zombiePanel}</div>
+        ${d.advisory ? `<div style="background:#3b2410;border:1px solid #b45309;border-radius:6px;padding:7px 9px;margin:6px 0;font-size:0.72rem;color:#fbbf24">⚠️ ${d.note || 'Heuristik lemah — KANDIDAT review manual, JANGAN auto-delete.'}</div>` : ''}
         <table class="cm-z-table">
           <thead><tr><th>File</th><th>Type</th><th>Lines</th><th></th></tr></thead>
           <tbody>${(d.zombies||[]).map(z => `
@@ -619,6 +653,26 @@ export async function render(container) {
     } catch (_) {
       reindexBtn.disabled = false;
       reindexBtn.textContent = '🔄 Reindex';
+    }
+  });
+
+  // ── R6 Enrich: tambah lapisan makna (LLM) ke self-map, batch incremental ──
+  enrichBtn?.addEventListener('click', async () => {
+    enrichBtn.disabled = true;
+    const orig = enrichBtn.textContent;
+    enrichBtn.textContent = '⏳ enrich…';
+    try {
+      const rr = await fetch('/api/codemap/enrich?limit=20', { method: 'POST' });
+      const d = await rr.json();
+      if (!rr.ok || d.error) throw new Error(d.error || `enrich: ${rr.status}`);
+      await loadSemantic();
+      if (S.selected) renderDetail(S.selected); // refresh panel kalau ada node kepilih
+      statusTxt.textContent = `🧠 enriched ${d.enriched} · sisa ${d.remaining}/${d.total_files}`;
+    } catch (e) {
+      statusTxt.textContent = `enrich gagal: ${e.message}`;
+    } finally {
+      enrichBtn.disabled = false;
+      enrichBtn.textContent = orig;
     }
   });
 
@@ -872,6 +926,7 @@ function skeleton() {
     <div class="cmf-toolbar">
       <input id="cm-search" class="cmf-search" type="search" placeholder="${L.searchPh}" title="${L.tipSearch}" />
       <button id="cm-reindex" class="cmf-btn" title="${L.tipReindex}">🔄 Reindex</button>
+      <button id="cm-enrich" class="cmf-btn" title="Tambah lapisan MAKNA (LLM) ke self-map: summary/domain/role per file (R6)">🧠 Enrich</button>
       <button id="cm-fit" class="cmf-btn" title="${L.tipFit}">⊞ Fit</button>
       <div class="cmf-color-grp">
         <button class="cm-color-btn active" data-mode="health" title="${L.tipHealth}">❤️ Health</button>

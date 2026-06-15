@@ -829,6 +829,9 @@ func main() {
 	mux.HandleFunc("/api/codemap/reindex", agentmgr.CodemapReindexCompatHandler)
 	mux.HandleFunc("/api/codemap/roots", agentmgr.CodemapRootsCompatHandler)
 	mux.HandleFunc("/api/codemap/docs", agentmgr.CodemapDocsCompatHandler)
+	// R6 self-map semantik: lapisan MAKNA di atas self-map deterministik (LLM di-inject).
+	mux.HandleFunc("/api/codemap/enrich", agentmgr.CodemapEnrichHandler(codemapSemanticSummarizer()))
+	mux.HandleFunc("/api/codemap/semantic", agentmgr.CodemapSemanticHandler)
 	mux.HandleFunc("/api/agents/protector/approval/queue", agentmgr.ApprovalQueueHandler)
 	mux.HandleFunc("/api/agents/protector/approve_pending", agentmgr.ApproveHandler)
 	mux.HandleFunc("/api/agents/protector/reject_pending", agentmgr.RejectHandler)

@@ -493,33 +493,76 @@ func CodemapZombiesCompatHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer store.Close()
-	// Zombie file-level = node yang ngga ada yang import (dependent_count=0)
-	// DAN ngga import internal siapa pun (ngga jadi `from` edge manapun).
-	// Sesuai judul tab: "tidak ada yang import, tidak import siapapun".
+	// Zombie file-level — HEURISTIK LEMAH (ADVISORY): KANDIDAT buat review manual,
+	// BUKAN vonis "hapus". ⚠️ Import Go = level-PAKET (cuma 1 file wakil/paket dapet
+	// incoming edge) → naif "dependent=0 && no-outgoing" salah-vonis ratusan file hidup
+	// (cth nyata 2026-06-15: agentdb/*, llm.go, walker.go divonis zombie padahal AKTIF).
+	// FIX paket-aware: file = kandidat HANYA kalau (a) gak ada incoming, (b) gak outgoing,
+	// (c) SELURUH PAKET-nya (dir) gak di-import paket lain, (d) BUKAN package main / dir
+	// punya main.go (intra-package call gak ke-track edge), (e) bukan entry/test/GOOS.
+	// Owner-flagged: AI/self-evolution DILARANG auto-delete dari sinyal ini.
 	files, err := store.ListCodemapFiles()
 	if err != nil {
 		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
 		return
 	}
 	edges, _ := store.ListCodemapFileEdges()
+	dirOf := func(p string) string {
+		if i := strings.LastIndexByte(p, '/'); i >= 0 {
+			return p[:i]
+		}
+		return ""
+	}
+	baseOf := func(p string) string {
+		if i := strings.LastIndexByte(p, '/'); i >= 0 {
+			return p[i+1:]
+		}
+		return p
+	}
 	hasOutgoing := map[string]bool{}
+	dirImported := map[string]bool{} // paket (dir) yang di-import paket LAIN → kepake
 	for _, e := range edges {
 		hasOutgoing[e.From] = true
+		if dirOf(e.From) != dirOf(e.To) {
+			dirImported[dirOf(e.To)] = true
+		}
+	}
+	dirHasMain := map[string]bool{} // dir = package main (executable) → intra-package, skip
+	for _, f := range files {
+		if p, _ := f["path"].(string); baseOf(p) == "main.go" {
+			dirHasMain[dirOf(p)] = true
+		}
+	}
+	skipFile := func(p string) bool {
+		b := baseOf(p)
+		if b == "main.go" || strings.HasSuffix(b, "_test.go") {
+			return true
+		}
+		for _, suf := range []string{"_linux.go", "_darwin.go", "_windows.go", "_other.go", "_wasm.go", "_js.go", "_unix.go", "_amd64.go", "_arm64.go"} {
+			if strings.HasSuffix(b, suf) {
+				return true // build-constrained (GOOS/arch) — edge graph gak lengkap
+			}
+		}
+		return false
 	}
 	zombies := []map[string]any{}
 	for _, f := range files {
 		path, _ := f["path"].(string)
 		dep, _ := f["dependent_count"].(int)
-		if dep == 0 && !hasOutgoing[path] {
+		if dep == 0 && !hasOutgoing[path] && !dirImported[dirOf(path)] && !dirHasMain[dirOf(path)] && !skipFile(path) {
 			zombies = append(zombies, map[string]any{
-				"path":      path,
-				"name":      f["name"],
-				"file_type": f["file_type"],
+				"path":       path,
+				"name":       f["name"],
+				"file_type":  f["file_type"],
 				"line_count": f["line_count"],
 			})
 		}
 	}
-	httpx.WriteJSON(w, map[string]any{"zombies": zombies, "count": len(zombies)})
+	httpx.WriteJSON(w, map[string]any{
+		"zombies": zombies, "count": len(zombies),
+		"advisory": true,
+		"note":     "HEURISTIK LEMAH (import Go = level-paket): KANDIDAT review manual, JANGAN auto-delete. Verifikasi pakai grep/go build dulu.",
+	})
 }
 
 // CodemapReindexCompatHandler — POST /api/codemap/reindex
