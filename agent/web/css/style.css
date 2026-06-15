@@ -108,6 +108,26 @@ nav {
   flex-shrink: 0;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   padding: 12px 8px;
+  display: flex;
+  flex-direction: column;
+}
+/* Flowork brand icon — fills the empty space at the bottom of the sidebar, responsive. */
+.nav-brand {
+  flex: 1 1 auto;
+  min-height: 90px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 12px;
+  opacity: 0.8;
+}
+.nav-brand img {
+  width: 78%;
+  max-width: 172px;
+  max-height: 172px;
+  height: auto;
+  object-fit: contain;
+  border-radius: 18px;
 }
 
 nav button {
