@@ -70,11 +70,13 @@ const CSS = `
 /* ── colony cards — responsive GRID (row-major: kartu mengalir kiri→kanan lalu turun,
    kolom rapi sejajar). align-items:start = tiap kartu setinggi isinya, baris gak maksa
    sama-tinggi. Lebih intuitif drpd column-masonry (yg ngurut kolom-dulu = bikin bingung). */
-#grList { display:grid; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr)); gap:20px; align-items:start; }
+#grList { display:grid; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr)); gap:20px; align-items:stretch; }
 #grList > .gr-empty { grid-column:1 / -1; }
+/* display:flex+column + footer margin-top:auto = kartu se-baris SAMA TINGGI, tombol nempel di
+   bawah & rata sejajar (baris rapi, gak ragged). */
 .gr-card { background:rgba(15,23,42,0.6); border:1px solid rgba(148,163,184,0.18); border-radius:16px; padding:20px 22px;
   backdrop-filter:blur(4px); transition:border-color .18s, transform .18s, box-shadow .18s;
-  min-width:0; }
+  min-width:0; display:flex; flex-direction:column; }
 .gr-card:hover { border-color:rgba(167,139,250,0.5); transform:translateY(-2px); box-shadow:0 16px 40px -26px rgba(124,58,237,0.5); }
 
 .gr-head { display:flex; align-items:center; gap:13px; }
@@ -102,7 +104,7 @@ const CSS = `
 .gr-sched { font-size:0.78rem; color:#7dd3fc; margin-top:14px; display:flex; align-items:center; gap:6px; }
 
 /* ── buttons ── */
-.gr-foot { display:flex; align-items:center; gap:10px; margin-top:18px; }
+.gr-foot { display:flex; align-items:center; gap:10px; margin-top:auto; padding-top:18px; flex-wrap:wrap; }
 .gr-btn { padding:8px 16px; border-radius:9px; font:inherit; font-size:0.84rem; font-weight:600; cursor:pointer;
   border:1px solid rgba(148,163,184,0.25); background:rgba(56,189,248,0.14); color:#7dd3fc; transition:all .15s; }
 .gr-btn:hover { background:rgba(56,189,248,0.24); border-color:rgba(125,211,252,0.5); }
