@@ -107,6 +107,13 @@ func main() {
 				rows.Close()
 				log.Fatalf("scan: %v", err)
 			}
+			// Truncate konten kepanjangan (rune-safe) → cegah Ollama 400 "input length exceeds
+			// the context length" (bge-m3 ctx 4096 tok). Tanpa ini, 1 drawer kepanjangan = embed
+			// gagal → resume retry rowid SAMA → loop infinite (re-embed stuck, gak pernah DONE).
+			// 3000 rune aman utk semua bahasa; prefix cukup representatif buat embedding makna.
+			if r := []rune(it.txt); len(r) > 3000 {
+				it.txt = string(r[:3000])
+			}
 			items = append(items, it)
 		}
 		rows.Close()
