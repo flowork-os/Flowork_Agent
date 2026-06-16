@@ -1,5 +1,8 @@
 // === LOCKED FILE (soft) === Status: STABLE — owner-approved 2026-06-16 (autonomous sprint A2 fase-1).
 // LOCKED ≠ FREEZE (boleh diedit dgn izin owner).
+// 2026-06-17 (owner-approved P2 fase-2a gerbang #2): import sekarang lewat
+//   skillgate.Verify (scan KONTEN body — syscall berbahaya + prompt-injection), bukan
+//   cuma cek struktur. Skill tak-aman ditolak sebelum ditulis ke disk.
 //
 // skills_exchange.go — A2 BURSA MEMETIK fase-1: export/import skill pack (.fwskill) antar-instance.
 //
@@ -22,6 +25,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"flowork-gui/internal/skillgate"
 )
 
 type fwskillEntry struct {
@@ -125,6 +130,11 @@ func skillsImportHandler(w http.ResponseWriter, r *http.Request) {
 			v["status"], v["reason"] = "rejected", "kosong atau >64KB"
 		case !strings.HasPrefix(strings.TrimSpace(s.Content), "---"):
 			v["status"], v["reason"] = "rejected", "bukan SKILL.md (frontmatter '---' wajib)"
+		case len(skillgate.Verify(s.Content)) > 0:
+			// Gerbang #2 (P2 fase-2a): skill UNTRUSTED → scan KONTEN body untuk pola
+			// syscall berbahaya + prompt-injection sebelum boleh masuk (skill = teks
+			// yang di-inject ke prompt tiap turn). Mirror anti-poison gate skill_author.
+			v["status"], v["reason"] = "rejected", "unsafe content: "+strings.Join(skillgate.Verify(s.Content), "; ")
 		default:
 			path := filepath.Join(dir, name+".md")
 			if !strings.HasPrefix(filepath.Clean(path), cleanDir+string(os.PathSeparator)) {
