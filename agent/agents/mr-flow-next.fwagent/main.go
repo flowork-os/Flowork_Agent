@@ -27,6 +27,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"unsafe"
@@ -644,7 +645,70 @@ func availableGroups() []groupRef {
 		}
 		out = append(out, g)
 	}
+	// A3 (karma-aware routing): order by track-record — a group that consistently
+	// DELIVERS floats to the top of the ask_group menu / slash list; a group that keeps
+	// failing sinks. Soft signal only: EVERY group stays reachable (the model still picks
+	// by relevance), and a new/unknown group starts NEUTRAL so it's never buried (fair-chance).
+	if len(out) > 1 {
+		km := loadGroupKarma()
+		sort.SliceStable(out, func(i, j int) bool {
+			return groupKarmaScore(km, out[i].ID) > groupKarmaScore(km, out[j].ID)
+		})
+	}
 	return out
+}
+
+// ── A3: karma-aware group routing (per-group track-record) ───────────────────
+// Kept in OUR OWN kv as a single JSON map "group_karma" (id→score) — one read per
+// availableGroups, no cross-agent writes (isolation holds). Bumped on each delegation
+// outcome in askGroup. Clamped so one streak can't permanently exalt/bury a group.
+const groupKarmaNeutral = 1.0
+
+func loadGroupKarma() map[string]float64 {
+	m := map[string]float64{}
+	r, err := loketCall("store.kv.get", map[string]any{"k": "group_karma"})
+	if err != nil {
+		return m
+	}
+	var s struct {
+		Value string `json:"value"`
+	}
+	if json.Unmarshal(r, &s) == nil && strings.TrimSpace(s.Value) != "" {
+		_ = json.Unmarshal([]byte(s.Value), &m)
+	}
+	return m
+}
+
+// groupKarmaScore — score for id; unknown = neutral (fair start, not buried).
+func groupKarmaScore(km map[string]float64, id string) float64 {
+	if v, ok := km[id]; ok {
+		return v
+	}
+	return groupKarmaNeutral
+}
+
+// bumpGroupKarma — +1 on a delivered result, -1 on failure. Clamped [-5, 20].
+func bumpGroupKarma(id string, ok bool) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return
+	}
+	m := loadGroupKarma()
+	cur := groupKarmaScore(m, id)
+	if ok {
+		cur += 1.0
+	} else {
+		cur -= 1.0
+	}
+	if cur > 20 {
+		cur = 20
+	}
+	if cur < -5 {
+		cur = -5
+	}
+	m[id] = cur
+	b, _ := json.Marshal(m)
+	_, _ = loketCall("store.kv.set", map[string]any{"k": "group_karma", "v": string(b)})
 }
 
 // askGroup is the orchestrator hop: mr-flow → GROUP → member ants → synthesizer →
@@ -678,6 +742,7 @@ func askGroup(argsRaw json.RawMessage) string {
 		"payload": map[string]any{"text": a.Subject},
 	})
 	if err != nil {
+		bumpGroupKarma(a.Group, false) // A3: delegation failed → lower this group's track-record
 		return `{"error":"group error: ` + jsonEsc(err.Error()) + `"}`
 	}
 	// bus.request → {reply:<group emit>}; the group emit → {reply:"…", …}. Unwrap.
@@ -689,6 +754,7 @@ func askGroup(argsRaw json.RawMessage) string {
 		Reply string `json:"reply"`
 	}
 	if json.Unmarshal(outer.Reply, &inner) == nil && inner.Reply != "" {
+		bumpGroupKarma(a.Group, true) // A3: delivered → raise this group's track-record
 		// jsonStr (proper JSON marshal) preserves newlines as \n — using jsonEsc here
 		// flattened them to spaces, turning a formatted answer into one wall of text.
 		return `{"group_result":` + jsonStr(inner.Reply) + `}`
