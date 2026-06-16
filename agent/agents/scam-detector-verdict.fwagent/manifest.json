@@ -1,0 +1,18 @@
+{
+  "id": "scam-detector-verdict",
+  "version": "1.0.0",
+  "kind": "agent",
+  "display_name": "Scam Detector — Verdict",
+  "description": "Scam Detector colony member. Analyzes ONE angle of crypto-token scam risk from FACTUAL data; never fabricates.",
+  "min_kernel_version": "0.1.0",
+  "abi_version": 1,
+  "author": "@flowork-os",
+  "license": "AGPL-3.0",
+  "entry": "agent.wasm",
+  "memory_max_mb": 16,
+  "timeout_call_ms": 120000,
+  "capabilities_required": [ "net:fetch:http://127.0.0.1:1987/api/kernel/call", "state:read", "state:write", "time:read" ],
+  "exposes_rpc": [
+    { "name": "handle_message", "description": "Analyze the given token security data through this member's lens.", "input_schema": { "type": "object", "properties": {} } }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "id": "scam-detector",
+  "kind": "app",
+  "name": "Scam Detector",
+  "description": "Hacker-terminal crypto token scam/rug scanner. Factual on-chain check (GoPlus/RugCheck) grounds a multi-agent colony that debates and returns one verdict — anti-hallucination by design.",
+  "icon": "ui/icon.svg",
+  "version": "1.0.0",
+  "runtime": "process",
+  "core_entry": "python3 core.py",
+  "gui_entry": "ui/index.html",
+  "operations": [
+    {
+      "name": "scan_token",
+      "description": "Scan ONE crypto token for scam/rug risk: factual check_token grounding, then the scam-detector agent group debates and returns a verdict.",
+      "tool": true,
+      "gui": true,
+      "mutates": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "chain": { "type": "string", "description": "eth, bsc, polygon, base, arbitrum, optimism, avalanche, fantom, or solana" },
+          "address": { "type": "string", "description": "token contract address (EVM 0x... or Solana mint address)" }
+        },
+        "required": ["chain", "address"]
+      }
+    }
+  ]
+}

@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Scam Detector</title>
+<style>
+  :root{ --bg:#04100a; --panel:#02120c; --fg:#bdf5d6; --dim:#5f8f7c; --green:#22ff88; --cyan:#36e6ff; }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);
+    font-family:ui-monospace,'JetBrains Mono',Consolas,monospace;font-size:13px}
+  .wrap{display:flex;flex-direction:column;height:100%;padding:14px;gap:10px}
+  .h{color:var(--green);letter-spacing:3px;font-size:14px;text-shadow:0 0 12px rgba(34,255,136,.45)}
+  .sub{color:var(--dim);font-size:11px;margin-top:-4px}
+  .bar{display:flex;gap:8px;flex-wrap:wrap}
+  select,input{background:var(--panel);color:#dffaf0;border:1px solid rgba(34,255,136,.3);
+    border-radius:6px;padding:9px 11px;font:inherit;outline:none}
+  input{flex:1;min-width:220px}
+  select:focus,input:focus{border-color:var(--green);box-shadow:0 0 0 1px var(--green)}
+  button{background:linear-gradient(90deg,var(--green),var(--cyan));color:#001a14;border:0;
+    border-radius:6px;padding:9px 20px;font:inherit;font-weight:700;letter-spacing:1px;cursor:pointer}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .out{flex:1;overflow:auto;background:var(--panel);border:1px solid rgba(34,255,136,.2);
+    border-radius:8px;padding:12px;white-space:pre-wrap;line-height:1.55}
+  .badge{display:inline-block;padding:3px 12px;border-radius:5px;font-weight:700;letter-spacing:1px}
+  .SCAM,.HIGH-RISK{background:#3a0d0d;color:#ff6a6a;border:1px solid #ff4444}
+  .CAUTION{background:#3a2c0a;color:#ffcc55;border:1px solid #ffaa33}
+  .LOOKS-OK{background:#0b2e1c;color:var(--green);border:1px solid var(--green)}
+  .UNKNOWN{background:#1d2630;color:#9fb6c8;border:1px solid #51687a}
+  .flag{margin:2px 0}
+  .crit{color:#ff5252}.high{color:#ff8a3d}.medium{color:#ffcc55}.info{color:var(--dim)}
+  .dim{color:var(--dim)}
+  .blink{animation:b 1s steps(2) infinite}@keyframes b{50%{opacity:.35}}
+  .verdict{margin-top:8px;padding-top:8px;border-top:1px dashed rgba(34,255,136,.25)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="h">🛡 SCAM DETECTOR</div>
+  <div class="sub">factual on-chain check (GoPlus / RugCheck) → agent colony debate → one verdict. anti-hallucination by design.</div>
+  <div class="bar">
+    <select id="chain">
+      <option value="eth">ethereum</option>
+      <option value="bsc">bsc</option>
+      <option value="polygon">polygon</option>
+      <option value="base">base</option>
+      <option value="arbitrum">arbitrum</option>
+      <option value="optimism">optimism</option>
+      <option value="avalanche">avalanche</option>
+      <option value="fantom">fantom</option>
+      <option value="solana">solana</option>
+    </select>
+    <input id="addr" placeholder="token address — 0x… (EVM) or mint (Solana)" autocomplete="off" spellcheck="false">
+    <button id="scan">SCAN</button>
+  </div>
+  <div class="out" id="out"><span class="dim">$ awaiting target… enter a token address and hit SCAN.</span></div>
+</div>
+<script>
+  // Bridge to the Flowork host (sandboxed iframe → postMessage; cannot fetch itself).
+  let rq = 0; const pending = {};
+  function call(op, args){
+    return new Promise((res)=>{ const id=++rq; pending[id]=res;
+      parent.postMessage({fw:1,kind:'op',reqId:id,op,args:args||{}},'*'); });
+  }
+  window.addEventListener('message',(e)=>{ const d=e.data||{};
+    if(d.fw!==1) return;
+    if(d.kind==='res' && pending[d.reqId]){ pending[d.reqId](d); delete pending[d.reqId]; }
+  });
+
+  const out = document.getElementById('out');
+  const esc = (s)=>String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+  function render(r){
+    const lvl = (r.risk_level||'UNKNOWN').toUpperCase();
+    let h = `<span class="dim">$ target </span>${esc(r.chain)}:${esc(r.address)}\n`;
+    h += `<span class="dim">source </span>${esc(r.source||'—')}  `;
+    h += `<span class="dim">score </span>${esc(r.score)}/100\n\n`;
+    h += `<span class="badge ${lvl}">${esc(lvl)}</span>\n`;
+    h += `\n<span class="dim">flags (${(r.flags||[]).length}):</span>\n`;
+    if(!r.flags || !r.flags.length){ h += `  <span class="info">— none reported —</span>\n`; }
+    else r.flags.forEach(f=>{ const sev=(f.severity||'info');
+      const ic = sev==='critical'?'⛔':sev==='high'?'🔴':sev==='medium'?'🟠':'ℹ';
+      h += `  <span class="${sev==='critical'?'crit':sev}">${ic} [${esc(sev)}] ${esc(f.label)}</span> — ${esc(f.detail||'')}\n`;
+    });
+    h += `<div class="verdict"><span class="dim">colony verdict ▼</span>\n${esc(r.verdict||'—')}</div>`;
+    out.innerHTML = h;
+  }
+
+  const btn = document.getElementById('scan');
+  async function scan(){
+    const chain = document.getElementById('chain').value.trim();
+    const addr = document.getElementById('addr').value.trim();
+    if(!addr){ out.innerHTML = '<span class="high">! token address required</span>'; return; }
+    btn.disabled = true;
+    out.innerHTML = `<span class="dim">$ scanning </span>${esc(chain)}:${esc(addr)}<span class="blink"> ▋</span>\n<span class="dim">  grounding on-chain… colony debating… (this can take ~10-20s)</span>`;
+    const r = await call('scan_token',{chain,address:addr});
+    btn.disabled = false;
+    if(!r.ok){ out.innerHTML = `<span class="crit">✕ ${esc(r.error||'scan failed')}</span>`; return; }
+    render(r.result||{});
+  }
+  btn.onclick = scan;
+  document.getElementById('addr').addEventListener('keydown',(e)=>{ if(e.key==='Enter') scan(); });
+</script>
+</body>
+</html>

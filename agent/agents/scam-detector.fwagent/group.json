@@ -1,0 +1,9 @@
+{
+  "members": [
+    "scam-detector-onchain",
+    "scam-detector-pattern"
+  ],
+  "synthesizer": "scam-detector-verdict",
+  "task": "Crypto scam-detection colony. You are GIVEN a token FACTUAL security report (GoPlus/RugCheck). Assess scam/rug risk from THIS DATA ONLY — never invent. Synthesizer returns ONE verdict.",
+  "display_name": "Scam Detector"
+}
