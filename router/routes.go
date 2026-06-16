@@ -197,6 +197,11 @@ func registerManagementRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/skills/karma", skillKarmaListHandler)
 	mux.HandleFunc("/api/skills/karma/record", skillKarmaRecordHandler)
 	mux.HandleFunc("/api/skills/karma/endorse", skillKarmaEndorseHandler)
+	// P2 A2 fase-2b: transport registry komunitas (browse/pull public, publish loopback+token)
+	mux.HandleFunc("/api/skills/registry/status", skillRegistryStatusHandler)
+	mux.HandleFunc("/api/skills/registry/browse", skillRegistryBrowseHandler)
+	mux.HandleFunc("/api/skills/registry/pull", skillRegistryPullHandler)
+	mux.HandleFunc("/api/skills/registry/publish", skillRegistryPublishHandler)
 	mux.HandleFunc("/api/sensors/webhook", sensorsWebhookHandler)            // section 9 roadmap
 	mux.HandleFunc("/api/recordings", func(w http.ResponseWriter, r *http.Request) {
 		// route POST → post handler, GET → list handler
