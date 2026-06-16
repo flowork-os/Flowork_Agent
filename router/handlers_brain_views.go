@@ -4,6 +4,9 @@
 // Repo: https://github.com/flowork-os/Flowork-OS
 // Locked at: 2026-05-30
 // Reason: Audit pass — HTTP handler.
+// Update 2026-06-16 (owner-approved #6): brainSearchDrawersHandler pakai brain.SemanticRetrieve
+// (vector by-MAKNA / Quantum Recall — arsitek baru, BUKAN hybrid). FTS cuma fallback sementara
+// selama index belum jadi. Owner: "fokus arsitek baru saja, jangan hybrid". Re-locked.
 
 // Brain views + flowork-compat + ingest endpoints.
 
@@ -185,7 +188,7 @@ func brainSearchDrawersHandler(w http.ResponseWriter, r *http.Request) {
 	hits := []map[string]any{}
 	if brain.Available() {
 		if db, err := brain.Open(); err == nil {
-			snips, _ := brain.Retrieve(r.Context(), db, query, brain.RetrieveOpts{Limit: k})
+			snips, _ := brain.SemanticRetrieve(r.Context(), db, query, brain.RetrieveOpts{Limit: k})
 			for _, sn := range snips {
 				hits = append(hits, map[string]any{
 					"wing": sn.Wing, "room": sn.Room, "content": sn.Content,
