@@ -2,6 +2,10 @@
 // Owner: Aola Sahidin (Mr.Dev) · Locked 2026-06-16. Reason: R7 fase-2b LENGKAP (gate berlapis +
 // behavior-apply + core-apply handler + stage review + reflect-once + schedule auto-apply). Semua
 // VERIFIED E2E. Inti self-evolution agentmgr — store + gate + lifecycle; builder di-inject dari main.
+// Update 2026-06-16 (owner "autonomy penuh" + go-reviewer adversarial-pass): cap-by-'proposed' (karma
+// bisa matang) · EvolveBehaviorAutoApplyAllowed (gerbang behavior auto LEBIH RENDAH dari core; CORE git
+// TETEP EvolveAutoCommitAllowed ≥20) · EvolveScheduleAutoApply = DRAIN backlog (council→apply/reject/
+// hold) + retry-apply 'approved' (strike-2→reject) · fail-CLOSED ModelStrong==nil. Loop nutup & konvergen.
 //
 // selfevolve.go — R7 SELF-EVOLUTION fase-1 (refleksi-diri → backlog usulan). Plug-in.
 // Owner-approved 2026-06-15 (FASE 2 autonomi). Organisme BACA self-map semantik (R6) →
@@ -27,9 +31,19 @@ import (
 	"flowork-gui/internal/httpx"
 )
 
-// EvolveKarmaThreshold — minimum siklus refleksi sukses sebelum mode AUTO boleh commit.
-// Owner-default 2026-06-15: ≥20 sukses + rasio ≥90%. Gate berlapis: GUI toggle + karma + model.
+// EvolveKarmaThreshold — minimum siklus refleksi sukses sebelum CORE-COMMIT (🔴 di-git) boleh
+// otomatis. Owner-default 2026-06-15: ≥20 sukses + rasio ≥90%. Gate berlapis: GUI + karma + model.
 const EvolveKarmaThreshold = 20
+
+// EvolveBehaviorKarmaFloor — LANTAI karma buat AUTO-APPLY BEHAVIOR-LAYER (add-agent/skill/app ke
+// ~/.flowork: additive, di luar git, reversible). Owner 2026-06-16 (autonomy penuh): behavior jauh
+// lebih aman dari core-commit, jadi lantainya lebih rendah — cukup ada SEDIKIT track-record (model
+// kuat udah bisa reflect) biar evolusi jalan walau owner gak ada. CORE git TETEP butuh ≥20.
+const EvolveBehaviorKarmaFloor = 3
+
+// evolveApprovedRetryMax — maks 'approved' behavior yg di-retry-apply per siklus (apply-gagal /
+// gerbang baru kebuka). Bounded (hemat token). Gagal lagi (strike-2) → 'rejected' (stop, gak loop).
+const evolveApprovedRetryMax = 2
 
 // EvolveGateDeps — di-inject dari main: KV (mode toggle) + cek model kuat (anti-lokal)
 // + edisi (dev = evolusi penuh termasuk core; public = behavior-layer aja, core auto-update).
@@ -97,9 +111,38 @@ func EvolveAutoCommitAllowed(dep EvolveGateDeps) (bool, string) {
 	if !ready {
 		return false, fmt.Sprintf("karma belum matang (%.0f/%d sukses)", okV, EvolveKarmaThreshold)
 	}
-	if dep.ModelStrong != nil {
-		if strong, note := dep.ModelStrong(); !strong {
-			return false, "model lemah/lokal — auto-commit diblok: " + note
+	if dep.ModelStrong == nil { // fail-CLOSED: tanpa guard model, JANGAN commit (anti misconfig)
+		return false, "ModelStrong belum di-wire — auto-commit diblok (misconfiguration)"
+	}
+	if strong, note := dep.ModelStrong(); !strong {
+		return false, "model lemah/lokal — auto-commit diblok: " + note
+	}
+	return true, "ok"
+}
+
+// EvolveBehaviorAutoApplyAllowed — GATE AUTO buat behavior-layer (cron, owner gak ada). LEBIH
+// LONGGAR dari core-commit karena ~/.flowork additive + reversible: mode=AUTO + model kuat (anti
+// LLM-lokal bikin sampah) + lantai karma RENDAH (EvolveBehaviorKarmaFloor) + rasio ≥0.5 (mayoritas
+// reflect sukses). Owner 2026-06-16 (autonomy penuh): biar Flowork beneran evolusi sendiri walau
+// owner gak ada, TANPA nungguin karma core ≥20. CORE git tetep di EvolveAutoCommitAllowed (≥20).
+func EvolveBehaviorAutoApplyAllowed(dep EvolveGateDeps) (bool, string) {
+	if evolveMode(dep) != "auto" {
+		return false, "mode bukan AUTO"
+	}
+	if dep.ModelStrong == nil { // fail-CLOSED: tanpa guard model, JANGAN auto-apply (anti misconfig)
+		return false, "ModelStrong belum di-wire — auto-apply behavior diblok"
+	}
+	if strong, note := dep.ModelStrong(); !strong {
+		return false, "model lemah/lokal — auto-apply behavior diblok: " + note
+	}
+	ready, okV, failV := evolveKarmaReady()
+	if !ready { // belum lolos gate core ≥20 → cek lantai behavior yg lebih rendah
+		ratio := 1.0
+		if okV+failV > 0 {
+			ratio = okV / (okV + failV)
+		}
+		if okV < EvolveBehaviorKarmaFloor || ratio < 0.5 {
+			return false, fmt.Sprintf("track-record behavior belum cukup (%.0f sukses, rasio %.2f; butuh ≥%d & ≥0.5)", okV, ratio, EvolveBehaviorKarmaFloor)
 		}
 	}
 	return true, "ok"
@@ -110,11 +153,11 @@ func EvolveAutoCommitAllowed(dep EvolveGateDeps) (bool, string) {
 // longgar dari core-commit:
 //   - manual (owner klik tombol Apply): cukup mode != off (armed) + model kuat (anti-lokal —
 //     jangan biarin Gemma rusak bikin agent sampah). Owner in-the-loop → karma TIDAK diwajibin.
-//   - auto (cron/terjadwal): full gate EvolveAutoCommitAllowed (mode=auto + karma + model).
+//   - auto (cron/terjadwal): EvolveBehaviorAutoApplyAllowed (mode=auto + model + lantai karma rendah).
 // Beda dari core-apply (EvolveCoreChangeAllowed) yg 🔴 di-git + DEV-only.
 func EvolveBehaviorApplyAllowed(dep EvolveGateDeps, auto bool) (bool, string) {
 	if auto {
-		return EvolveAutoCommitAllowed(dep)
+		return EvolveBehaviorAutoApplyAllowed(dep)
 	}
 	if evolveMode(dep) == "off" {
 		return false, "mode OFF — arm dulu (stage/auto) di tab Evolution sebelum apply"
@@ -606,13 +649,14 @@ func EvolveReflectOnce(ctx context.Context, propose EvolveProposer, focus string
 		return nil, err
 	}
 	defer store.Close()
-	// BACKLOG CAP (anti-numpuk): cek SEBELUM propose biar HEMAT TOKEN — kalau usulan aktif
-	// (proposed/staged/approved) udah penuh, JANGAN reflect nambah. Owner bersihin dulu (tombol
-	// "Clear backlog") atau Dewan+janitor kurangin, baru reflect ngisi lagi. Cegah numpuk berulang.
-	existing, _ := store.ActiveProposalTargets() // DEDUP target + dipakai cap
-	if len(existing) >= evolveBacklogCap {
+	// BACKLOG CAP (anti-numpuk): cek SEBELUM propose biar HEMAT TOKEN. Ngitung 'proposed' AJA —
+	// approved/staged yg lagi nunggu apply SENGAJA gak dihitung, biar reflect (→ karma) tetep
+	// jalan & matang walau ada usulan bagus yg nunggu gerbang. Cron DRAIN proposed tiap siklus →
+	// numpuk gak nyangkut. Owner juga bisa "Clear backlog" manual.
+	existing, _ := store.ActiveProposalTargets() // DEDUP target (proposed/staged/approved)
+	if n, _ := store.CountProposalsByStatus("proposed"); n >= evolveBacklogCap {
 		_, _ = store.IncrementKarma("evolve_reflect_skip_full", 1)
-		return []map[string]any{}, nil // backlog penuh → skip (bukan error)
+		return []map[string]any{}, nil // proposed penuh → skip (bukan error)
 	}
 	selfMap := buildSelfMapContext(store)
 	if selfMap == "" {
@@ -661,30 +705,48 @@ func EvolveReflectOnce(ctx context.Context, propose EvolveProposer, focus string
 	return saved, nil
 }
 
-// EvolveScheduleAutoApply — auto-apply proposal BEHAVIOR (add-agent/skill/app) yg baru
-// direfleksi terjadwal, KALAU gate auto lolos (mode=auto+karma+model). Dipanggil scheduler.
-// Core proposals di-SKIP (di-stage/review owner — terlalu deliberate buat auto-cron). AMAN:
-// additive ke ~/.flowork, reversible. Gate dicek di sini (return kosong kalau belum auto).
+// EvolvePendingForDrain — ambil usulan 'proposed' TERTUA (FIFO), bounded, buat di-drain cron.
+// limit ngebatesin biaya Dewan per-siklus (hemat token).
+func EvolvePendingForDrain(limit int) []map[string]any {
+	store, err := openAgentStore(defaultAgentID)
+	if err != nil {
+		return nil
+	}
+	defer store.Close()
+	out, _ := store.PendingProposals(limit)
+	return out
+}
+
+// EvolveScheduleAutoApply — DRAIN BACKLOG otonom (owner 2026-06-16: autonomy penuh). Tiap siklus
+// cron, proses usulan 'proposed' (di-pass dari cron, bounded biar hemat token) lewat DEWAN:
+//   reject → 'rejected' (janitor buang) · stage → 'staged' · approve →
+//     • behavior (add-agent/skill/app): APPLY ke ~/.flowork KALAU gerbang behavior-auto lolos
+//       (mode=auto+model+lantai-karma-rendah); kalau belum → 'approved' (NUNGGU gerbang, lepas
+//       dari cap 'proposed' biar reflect/karma tetep jalan sampe matang).
+//     • core (fix/refactor/doc/test): JANGAN auto-apply di sini → 'approved' (owner/core-apply
+//       yang handle; tetep lepas dari cap). Core git commit = jalur EvolveCoreChangeAllowed (≥20).
+// DRAIN butuh MODEL KUAT (Dewan + apply jangan pake LLM lokal). Mode != auto → diem.
 func EvolveScheduleAutoApply(dep EvolveGateDeps, apply EvolveApplier, judge CouncilJudge, proposals []map[string]any) []map[string]any {
 	results := []map[string]any{}
-	if apply == nil {
+	if apply == nil || judge == nil {
 		return results
 	}
-	if ok, _ := EvolveBehaviorApplyAllowed(dep, true); !ok { // auto gate penuh
+	if evolveMode(dep) != "auto" {
 		return results
 	}
+	// Model kuat WAJIB buat drain (judge + codegen). Lemah/lokal → diem (jangan bikin sampah).
+	if dep.ModelStrong != nil {
+		if strong, _ := dep.ModelStrong(); !strong {
+			return results
+		}
+	}
+	applyAllowed, _ := EvolveBehaviorApplyAllowed(dep, true) // boleh APPLY behavior sekarang?
 	store, err := openAgentStore(defaultAgentID)
 	if err != nil {
 		return results
 	}
 	defer store.Close()
 	for _, pm := range proposals {
-		kind, _ := pm["kind"].(string)
-		switch strings.ToLower(strings.TrimSpace(kind)) {
-		case "add-agent", "add-skill", "add-app":
-		default:
-			continue // core/lainnya → skip (review owner)
-		}
 		id, _ := pm["id"].(string)
 		if id == "" {
 			continue
@@ -693,34 +755,41 @@ func EvolveScheduleAutoApply(dep EvolveGateDeps, apply EvolveApplier, judge Coun
 		if gerr != nil || !found || p.Status != "proposed" {
 			continue
 		}
-		// A1 DEWAN ADVERSARIAL (gerbang otomatis): sebelum auto-commit, proposal WAJIB lolos dewan
-		// (Pembela/Penantang/Hakim). Cuma "approve" yang auto-apply; "stage" → review owner; "reject" → buang.
-		if judge != nil {
-			jctx, jcancel := context.WithTimeout(context.Background(), 290*time.Second)
-			v, jerr := judge(jctx, p)
-			jcancel()
-			if jerr != nil {
-				results = append(results, map[string]any{"id": id, "council_error": jerr.Error()})
-				continue
-			}
-			switch v.Decision {
-			case "approve":
-				_ = store.SetEvolveProposalStatus(id, "approved") // lanjut auto-apply di bawah
-			case "stage":
-				_ = store.SetEvolveProposalStatus(id, "staged")
-				results = append(results, map[string]any{"id": id, "council": "stage", "reason": v.Reasoning})
-				continue
-			default: // reject
-				_ = store.SetEvolveProposalStatus(id, "rejected")
-				results = append(results, map[string]any{"id": id, "council": "reject", "reason": v.Reasoning})
-				continue
-			}
+		kind := strings.ToLower(strings.TrimSpace(p.Kind))
+		isBehavior := kind == "add-agent" || kind == "add-skill" || kind == "add-app"
+		// A1 DEWAN ADVERSARIAL (gerbang otomatis): sebelum apply/hold, usulan WAJIB lolos dewan.
+		jctx, jcancel := context.WithTimeout(context.Background(), 290*time.Second)
+		v, jerr := judge(jctx, p)
+		jcancel()
+		if jerr != nil {
+			results = append(results, map[string]any{"id": id, "council_error": jerr.Error()})
+			continue
 		}
+		switch v.Decision {
+		case "approve":
+			// lanjut: behavior→apply/hold, core→hold. (di bawah switch)
+		case "stage":
+			_ = store.SetEvolveProposalStatus(id, "staged")
+			results = append(results, map[string]any{"id": id, "council": "stage", "reason": v.Reasoning})
+			continue
+		default: // reject → buang (janitor prune)
+			_ = store.SetEvolveProposalStatus(id, "rejected")
+			results = append(results, map[string]any{"id": id, "council": "reject", "reason": v.Reasoning})
+			continue
+		}
+		// APPROVE. Core / behavior-tapi-gerbang-belum-buka → 'approved' (NUNGGU, lepas dari cap).
+		if !isBehavior || !applyAllowed {
+			_ = store.SetEvolveProposalStatus(id, "approved")
+			results = append(results, map[string]any{"id": id, "kind": kind, "council": "approve", "held": true})
+			continue
+		}
+		// behavior + gerbang buka → APPLY beneran ke ~/.flowork.
 		ctx, cancel := context.WithTimeout(context.Background(), 290*time.Second)
 		res, aerr := apply(ctx, p)
 		cancel()
 		if aerr != nil {
 			_, _ = store.IncrementKarma("evolve_apply_fail", 1)
+			_ = store.SetEvolveProposalStatus(id, "approved") // udah di-approve dewan; tahan buat retry, jangan balik 'proposed'
 			results = append(results, map[string]any{"id": id, "kind": kind, "error": aerr.Error()})
 			continue
 		}
@@ -735,6 +804,34 @@ func EvolveScheduleAutoApply(dep EvolveGateDeps, apply EvolveApplier, judge Coun
 			entry["built"] = name
 		}
 		results = append(results, entry)
+	}
+	// RETRY-APPLY 'approved' BEHAVIOR (apply-gagal strike-1 / gerbang baru kebuka) — TANPA re-judge
+	// (udah lolos Dewan). Nutup pile 'approved' biar gak numpuk diam. Strike-2 gagal → 'rejected'
+	// (stop, gak loop tak-hingga). Cuma kalau gerbang apply lagi kebuka.
+	if applyAllowed {
+		appr, _ := store.ApprovedBehaviorProposals(evolveApprovedRetryMax)
+		for _, pm := range appr {
+			id, _ := pm["id"].(string)
+			if id == "" {
+				continue
+			}
+			p, found, gerr := store.GetEvolveProposal(id)
+			if gerr != nil || !found || p.Status != "approved" {
+				continue
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 290*time.Second)
+			_, aerr := apply(ctx, p)
+			cancel()
+			if aerr != nil {
+				_, _ = store.IncrementKarma("evolve_apply_fail", 1)
+				_ = store.SetEvolveProposalStatus(id, "rejected") // strike-2 → buang (anti loop tak-hingga)
+				results = append(results, map[string]any{"id": id, "kind": p.Kind, "retry_error": aerr.Error(), "dropped": true})
+				continue
+			}
+			_ = store.SetEvolveProposalStatus(id, "applied")
+			_, _ = store.IncrementKarma("evolve_apply_ok", 1)
+			results = append(results, map[string]any{"id": id, "kind": p.Kind, "applied": true, "retry": true})
+		}
 	}
 	return results
 }

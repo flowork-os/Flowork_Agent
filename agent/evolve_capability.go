@@ -1,3 +1,7 @@
+// === LOCKED FILE (soft) === Status: STABLE — owner-approved 2026-06-16 (LOCKED ≠ FREEZE). AI lain:
+// JANGAN otak-atik tanpa izin owner. Update 2026-06-16: cache eval PERSISTEN (KV) + self-bootstrap
+// + capEvalDue cooldown (anti-thrash model gagal-permanen). go-reviewer adversarial-pass.
+//
 // evolve_capability.go — R7 CAPABILITY FLOOR. Owner-approved 2026-06-15 (keputusan
 // didelegasikan ke AI). "Buktikan, jangan asumsi." Ganti cek-nama dangkal (model=claude).
 //
@@ -161,17 +165,29 @@ func capabilityMeetsBar() (bool, string) {
 	return false, model + ": belum dievaluasi — klik Evaluate"
 }
 
-// capabilityEvaluated — true kalau model AKTIF udah pernah dievaluasi (lulus ATAU gagal), in-memory
-// atau persisten. Dipakai self-bootstrap cron biar eval cuma jalan SEKALI (gak ngulang tiap siklus).
-func capabilityEvaluated() bool {
-	model := coderModel("")
-	if _, ok := capCache.Load(model); ok {
-		return true
+// capEvalRetryCooldown — jeda minimal sebelum eval bootstrap DICOBA LAGI kalau belum LULUS.
+// Cegah THRASH: model gagal-permanen (mis. lokal) gak ngabisin ~300s + token tiap siklus cron.
+// Gagal transient (router blip) tetep self-heal, cuma nunggu cooldown. Owner-fix 2026-06-16.
+const capEvalRetryCooldown = 2 * time.Hour
+
+// capEvalDue — true kalau eval bootstrap perlu (di)jalanin: model AKTIF belum LULUS, DAN (belum
+// pernah dicoba ATAU cooldown udah lewat). Stamp waktu-coba pas balikin true (anti-thrash).
+func capEvalDue() bool {
+	if passed, _ := capabilityMeetsBar(); passed {
+		return false // udah lulus → gak usah
 	}
-	if _, ok := capCacheLoad(model); ok {
-		return true
+	db, err := floworkdb.Shared()
+	if err != nil {
+		return true // best-effort: DB error → coba aja
 	}
-	return false
+	key := "evolve_capeval_attempt:" + coderModel("")
+	if v, _ := db.GetKV(key); strings.TrimSpace(v) != "" {
+		if last, e := time.Parse(time.RFC3339, strings.TrimSpace(v)); e == nil && time.Since(last) < capEvalRetryCooldown {
+			return false // baru aja nyoba → jangan thrash
+		}
+	}
+	_ = db.SetKV(key, time.Now().UTC().Format(time.RFC3339)) // stamp percobaan
+	return true
 }
 
 // capCacheKey — KV key hasil eval per-model.

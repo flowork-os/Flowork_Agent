@@ -1,7 +1,9 @@
 // === LOCKED FILE (soft) === Status: STABLE — DO NOT MODIFY without owner approval (LOCKED ≠ FREEZE).
 // Owner: Aola Sahidin (Mr.Dev) · Locked 2026-06-16. Reason: R7 Milestone D trigger terjadwal. VERIFIED
 // Update 2026-06-16 (owner-approved): + JANITOR anti-numpuk tiap siklus (prune usulan rejected)
-// + SELF-BOOTSTRAP eval strong-model (sekali, otonom, cache persisten) biar gerbang nyalain diri.
+// + SELF-BOOTSTRAP eval strong-model (otonom, cache persisten) biar gerbang nyalain diri
+// + DRAIN BACKLOG (autonomy penuh): proses 'proposed' tertua via Dewan tiap siklus (bounded) →
+//   loop nutup: reflect ngisi → drain (apply/reject) → karma numbuh → matang. CORE git tetep ≥20.
 // E2E: schedule config get/set; run=1 mode=off→reflect 5, no auto-apply (gate closed); run=1 mode=auto→
 // reflect + AUTO-APPLY 3 behavior (2 skill+1 agent), 2 core di-skip (review). Loop otonom penuh nyala.
 //
@@ -32,6 +34,10 @@ import (
 )
 
 const evolveScheduleTick = 10 * time.Minute // tick kasar; interval sebenernya dari KV (jam)
+
+// evolveDrainPerCycle — maks usulan 'proposed' yg di-Dewan-kan + drain per siklus cron. Bounded
+// biar HEMAT TOKEN (tiap Dewan = ~5 panggil Opus). ~sebanding output reflect → backlog konvergen.
+const evolveDrainPerCycle = 4
 
 // evolveCycleMu — guard ANTI-CONCURRENT: cegah dua siklus jalan barengan (tick goroutine +
 // tombol "run now" manual) → dobel proposal/apply. TryLock: kalau lagi jalan, skip.
@@ -68,11 +74,12 @@ func runEvolveScheduledCycle(host *kernelhost.Host, fdb *floworkdb.Store, groups
 	}
 	_ = db.SetKV("evolve_schedule_last", time.Now().UTC().Format(time.RFC3339))
 
-	// SELF-BOOTSTRAP EVAL (otonom): kalau model kuat belum pernah dievaluasi, jalanin SEKALI di sini —
-	// gak nyuruh owner klik "Evaluate". Hasil di-cache PERSISTEN (DB) → cuma sekali walau restart.
-	// Visi owner: Flowork tetep berevolusi walau owner gak ada → gerbang strong-model nyalain diri.
+	// SELF-BOOTSTRAP EVAL (otonom): kalau model kuat belum LULUS eval, jalanin di sini — gak nyuruh
+	// owner klik "Evaluate". LULUS → cache PERSISTEN (DB) → gak diulang (walau restart). Belum lulus →
+	// dicoba lagi TAPI dengan COOLDOWN (capEvalDue) biar model gagal-permanen gak thrash 300s/token
+	// tiap siklus. Visi owner: Flowork tetep berevolusi walau owner gak ada → gerbang nyalain diri.
 	var evalBootstrap map[string]any
-	if !capabilityEvaluated() {
+	if capEvalDue() {
 		er := evolveEvalAndCache()
 		evalBootstrap = map[string]any{"model": er.Model, "passed": er.Passed, "score": er.Score, "total": er.Total}
 	}
@@ -87,8 +94,11 @@ func runEvolveScheduledCycle(host *kernelhost.Host, fdb *floworkdb.Store, groups
 	if evalBootstrap != nil {
 		out["eval_bootstrap"] = evalBootstrap
 	}
-	// mode=auto → auto-apply behavior (gated internal; return kosong kalau belum auto).
-	applied := agentmgr.EvolveScheduleAutoApply(evolveGateDeps(), evolveApplier(host, fdb, groups), evolveCouncilJudge(), saved)
+	// DRAIN BACKLOG otonom (autonomy penuh): proses usulan 'proposed' TERTUA (bukan cuma yg fresh)
+	// lewat Dewan → approve→apply/hold · reject→prune · stage. Bounded per-siklus biar hemat token.
+	// Loop nutup: reflect ngisi → drain ngosongin (apply/reject) → karma numbuh → matang → core kebuka.
+	drainBatch := agentmgr.EvolvePendingForDrain(evolveDrainPerCycle)
+	applied := agentmgr.EvolveScheduleAutoApply(evolveGateDeps(), evolveApplier(host, fdb, groups), evolveCouncilJudge(), drainBatch)
 	if len(applied) > 0 {
 		out["auto_applied"] = applied
 	}

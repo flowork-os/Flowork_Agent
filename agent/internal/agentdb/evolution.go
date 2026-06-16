@@ -1,3 +1,8 @@
+// === LOCKED FILE (soft) === Status: STABLE — owner-approved 2026-06-16 (LOCKED ≠ FREEZE). AI lain:
+// JANGAN otak-atik tanpa izin owner. Store usulan evolusi + query (dedup/cap/drain/janitor).
+// Update 2026-06-16: CountProposalsByStatus, PendingProposals, ApprovedBehaviorProposals,
+// DeleteEvolveProposal(s), ActiveProposalTargets — penopang loop autonomy. go-reviewer adversarial-pass.
+//
 // evolution.go — R7 SELF-EVOLUTION fase-1 (plug-in, additive). Owner-approved 2026-06-15.
 // Backlog usulan evolusi: organisme refleksi diri (baca self-map R6) → usulin perbaikan
 // konkret → SIMPAN di sini buat review/eksekusi. FASE-1 = usulan doang (NOL ubah kode);
@@ -165,6 +170,71 @@ func (s *Store) ActiveProposalTargets() (map[string]bool, error) {
 		if rows.Scan(&tf) == nil {
 			out[strings.ToLower(strings.TrimSpace(tf))] = true
 		}
+	}
+	return out, rows.Err()
+}
+
+// CountProposalsByStatus — jumlah usulan berstatus tertentu. Dipakai BACKLOG CAP (ngitung
+// 'proposed' aja → approved/staged yg nunggu apply gak nge-stall reflect/karma).
+func (s *Store) CountProposalsByStatus(status string) (int, error) {
+	if err := s.ensureEvolveSchema(); err != nil {
+		return 0, err
+	}
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM evolve_proposal WHERE status=?`, status).Scan(&n)
+	return n, err
+}
+
+// PendingProposals — usulan 'proposed' (TERTUA dulu — FIFO biar adil) buat DRAIN otonom di cron:
+// id+kind aja (cukup buat auto-apply lookup ulang). limit ngebatesin biaya Dewan per-siklus.
+func (s *Store) PendingProposals(limit int) ([]map[string]any, error) {
+	if err := s.ensureEvolveSchema(); err != nil {
+		return nil, err
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	rows, err := s.db.Query(`SELECT id, kind FROM evolve_proposal WHERE status='proposed' ORDER BY created_at ASC LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []map[string]any
+	for rows.Next() {
+		var id, kind string
+		if err := rows.Scan(&id, &kind); err != nil {
+			return nil, err
+		}
+		out = append(out, map[string]any{"id": id, "kind": kind})
+	}
+	return out, rows.Err()
+}
+
+// ApprovedBehaviorProposals — usulan 'approved' kind BEHAVIOR (add-agent/skill/app) TERTUA dulu.
+// Buat RETRY-APPLY otonom: udah lolos Dewan, tinggal di-build (tanpa re-judge) — nutup kasus
+// apply-gagal / gerbang-baru-kebuka biar 'approved' behavior gak numpuk diam. Core 'approved'
+// SENGAJA gak diambil (butuh review owner). Balik id+kind.
+func (s *Store) ApprovedBehaviorProposals(limit int) ([]map[string]any, error) {
+	if err := s.ensureEvolveSchema(); err != nil {
+		return nil, err
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	rows, err := s.db.Query(`SELECT id, kind FROM evolve_proposal
+		WHERE status='approved' AND kind IN ('add-agent','add-skill','add-app')
+		ORDER BY created_at ASC LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []map[string]any
+	for rows.Next() {
+		var id, kind string
+		if err := rows.Scan(&id, &kind); err != nil {
+			return nil, err
+		}
+		out = append(out, map[string]any{"id": id, "kind": kind})
 	}
 	return out, rows.Err()
 }
