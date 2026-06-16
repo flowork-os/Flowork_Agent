@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "exportedAt": "2026-06-11T17:14:43Z",
+  "exportedAt": "2026-06-16T20:43:09Z",
   "providers": [
     {
       "id": "a899fd00-d526-4c79-80bd-2e6f0f008ca5",
@@ -25,25 +25,20 @@
         "tokenSource": "claude_credentials"
       },
       "createdAt": "2026-05-27T04:32:17Z",
-      "updatedAt": "2026-05-28T14:41:04Z"
+      "updatedAt": "2026-06-16T09:28:32Z"
     },
     {
       "id": "fdb37427-ea65-4736-b42a-2e4d3c9e3667",
       "provider": "local-llama",
       "authType": "none",
-      "name": "Qwen Abliterate (local sovereign)",
+      "name": "LocalAI",
       "priority": 20,
-      "isActive": true,
+      "isActive": false,
       "data": {
-        "baseUrl": "http://127.0.0.1:11434/v1",
+        "baseUrl": "http://127.0.0.1:8088/v1",
         "format": "openai",
         "models": [
-          "flowork-brain",
-          "flowork-brain:latest",
-          "qwen2.5:14b",
-          "qwen-flowork",
-          "qwen-flowork:latest",
-          "qwen-abliterate"
+          "flowork-brain"
         ],
         "tags": [
           "local",
@@ -53,7 +48,7 @@
         ]
       },
       "createdAt": "2026-06-03T15:33:59Z",
-      "updatedAt": "2026-06-03T15:33:59Z"
+      "updatedAt": "2026-06-16T09:28:36Z"
     }
   ],
   "combos": [
@@ -76,7 +71,7 @@
       "name": "Faster-Whisper (local)",
       "provider": "openai",
       "baseUrl": "http://127.0.0.1:5060/v1",
-      "apiKey": "PASTE_YOUR_KEY_HERE",
+      "apiKey": "change_this_token",
       "models": [
         "base"
       ],
@@ -246,8 +241,28 @@
       "createdAt": "2026-05-27T08:58:55Z"
     }
   ],
+  "modelAliases": [
+    {
+      "alias": "claude-haiku-4-5",
+      "providerId": "",
+      "model": "claude-haiku-4-5",
+      "createdAt": "2026-06-15T17:17:02Z"
+    },
+    {
+      "alias": "claude-opus-4-7",
+      "providerId": "",
+      "model": "claude-opus-4-7",
+      "createdAt": "2026-06-15T17:16:10Z"
+    },
+    {
+      "alias": "claude-opus-4-8",
+      "providerId": "",
+      "model": "claude-opus-4-8",
+      "createdAt": "2026-06-15T17:16:40Z"
+    }
+  ],
   "dispatch": {
-    "defaultModel": "claude-haiku-4-5",
+    "defaultModel": "claude-opus-4-8",
     "fallbackStrategy": "priority_ordered",
     "rtkTokenSaver": true,
     "intentRouting": {
