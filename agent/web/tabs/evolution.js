@@ -1,3 +1,9 @@
+// === LOCKED FILE (soft) === Status: STABLE — owner VISUAL-VERIFIED 2026-06-16 ("TAMPILAN SUDAH OK").
+// Owner: Aola Sahidin (Mr.Dev). LOCKED ≠ FREEZE (boleh diedit DENGAN izin owner). AI lain: JANGAN otak-atik.
+// Verified GUI: mode AUTO sembunyiin tombol Approve/Reject MANUSIA di STAGE (keputusan ada di Dewan +
+// gerbang auto-commit, manusia hands-off) · tombol 🧹 Bersihkan ditolak (janitor anti-numpuk) ·
+// pagination Prev/Next (8/hal) · 🏛️ Dewan per-usulan (verdict inline) · 🗑️ delete per-usulan.
+//
 // evolution.js — R7 SELF-EVOLUTION control panel. Owner-approved 2026-06-15 (FASE 2).
 // SAKLAR self-modify (OFF/STAGE/AUTO) + status gate berlapis + backlog usulan. KRUSIAL:
 // owner pegang penuh. Auto-commit cuma jalan kalau mode=AUTO + karma matang + model cloud
@@ -31,7 +37,10 @@ export async function render(container) {
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between">
         <h3 style="margin:0">📋 ${esc(L.backlogH)}</h3>
-        <button id="ev-reflect" style="background:#6366f1;color:#fff;border:0;border-radius:8px;padding:8px 14px;cursor:pointer">${esc(L.reflectBtn)}</button>
+        <div style="display:flex;gap:8px">
+          <button id="ev-clean" title="Buang semua usulan yang ditolak Dewan (anti-numpuk)" style="background:#3f1d1d;color:#fca5a5;border:1px solid #7f1d1d;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:0.82rem">🧹 Bersihkan ditolak</button>
+          <button id="ev-reflect" style="background:#6366f1;color:#fff;border:0;border-radius:8px;padding:8px 14px;cursor:pointer">${esc(L.reflectBtn)}</button>
+        </div>
       </div>
       <div id="ev-proposals" style="margin-top:12px">⏳…</div>
       <div id="ev-stages-wrap" style="margin-top:24px;display:none">
@@ -45,6 +54,7 @@ export async function render(container) {
   const hintEl = container.querySelector('#ev-modehint');
   const propEl = container.querySelector('#ev-proposals');
   const reflectBtn = container.querySelector('#ev-reflect');
+  const cleanBtn = container.querySelector('#ev-clean');
 
   const MODES = [
     { k: 'off', label: () => L.modeOff, hint: () => L.hintOff },
@@ -59,6 +69,8 @@ export async function render(container) {
       const k = d.karma || {}, m = d.model || {};
       const yn = (b) => (b ? `<span style="color:#4ade80">${esc(L.valYes)}</span>` : `<span style="color:#f87171">${esc(L.valNo)}</span>`);
       const allow = d.autocommit_allowed;
+      currentMode = (d.mode || 'off').toLowerCase();
+      autocommitAllowed = !!allow;
       const ed = (d.edition || 'public') === 'dev';
       statusEl.innerHTML = `
         <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
@@ -95,6 +107,7 @@ export async function render(container) {
       const d = await r.json();
       if (d.error) throw new Error(d.error);
       await loadConfig();
+      await loadStages(); // mode ganti → render ulang tombol approve/dewan staged
     } catch (e) { alert(L.errSetmode + e.message); }
   }
 
@@ -105,6 +118,10 @@ export async function render(container) {
   let allProposals = [];
   let propPage = 0;
   const PROP_PER_PAGE = 8;
+  // Mode aktif + status gerbang auto-commit — dipakai loadStages biar di mode AUTO tombol
+  // approve MANUSIA disembunyiin (keputusan ada di Dewan + gerbang, manusia hands-off).
+  let currentMode = 'off';
+  let autocommitAllowed = false;
 
   async function loadProposals() {
     try {
@@ -237,6 +254,12 @@ export async function render(container) {
       const items = (d.items || []).filter((s) => s.status === 'staged');
       if (!items.length) { stagesWrap.style.display = 'none'; return; }
       stagesWrap.style.display = 'block';
+      // MODE AUTO → keputusan ada di DEWAN + gerbang auto-commit, MANUSIA HANDS-OFF.
+      // Tombol Approve/Reject manusia cuma muncul di mode OFF/STAGE (human-in-the-loop).
+      const autoMode = currentMode === 'auto';
+      const autoFoot = autocommitAllowed
+        ? `<span style="color:#4ade80;font-size:0.76rem">🏛️ Mode AUTO — Dewan + gerbang setuju → commit otomatis (manusia hands-off)</span>`
+        : `<span style="color:#fbbf24;font-size:0.76rem">🏛️ Mode AUTO — keputusan di Dewan + gerbang (manusia hands-off). Auto-commit masih 🔒 terkunci (karma/model belum matang) → nunggu di sini, bukan butuh approve manusia.</span>`;
       stagesEl.innerHTML = items.map((s) => `
         <div style="background:#0f172a;border:1px solid #3b2410;border-radius:8px;padding:10px 12px;margin-bottom:10px">
           <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
@@ -246,9 +269,10 @@ export async function render(container) {
           </div>
           <details style="margin-bottom:8px"><summary style="cursor:pointer;color:#818cf8;font-size:0.76rem">${esc(L.viewDiff)}</summary>
             <pre style="max-height:280px;overflow:auto;background:#020617;border-radius:6px;padding:8px;font-size:0.72rem;color:#cbd5e1;white-space:pre-wrap">${esc(s.diff || '')}</pre></details>
-          <div style="display:flex;gap:8px;justify-content:flex-end">
+          <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center">
+            ${autoMode ? autoFoot : `
             <button data-stage-reject="${esc(s.id)}" style="background:#7f1d1d;color:#fff;border:0;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:0.76rem">${esc(L.rejectBtn)}</button>
-            <button data-stage-approve="${esc(s.id)}" style="background:#16a34a;color:#fff;border:0;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:0.76rem">${esc(L.approveBtn)}</button>
+            <button data-stage-approve="${esc(s.id)}" style="background:#16a34a;color:#fff;border:0;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:0.76rem">${esc(L.approveBtn)}</button>`}
           </div>
         </div>`).join('');
     } catch (e) { stagesWrap.style.display = 'block'; stagesEl.innerHTML = `<span style="color:#f87171">❌ ${esc(e.message)}</span>`; }
@@ -316,6 +340,19 @@ export async function render(container) {
       await loadProposals(); await loadConfig();
     } catch (e) { alert(L.errReflect + e.message); }
     finally { reflectBtn.disabled = false; reflectBtn.textContent = o; }
+  });
+
+  // 🧹 Bersihkan ditolak — janitor manual: buang semua usulan status "rejected" (anti-numpuk).
+  if (cleanBtn) cleanBtn.addEventListener('click', async () => {
+    if (!confirm('Buang semua usulan yang DITOLAK Dewan dari backlog? (yang masih hidup aman)')) return;
+    cleanBtn.disabled = true; const o = cleanBtn.textContent; cleanBtn.textContent = '⏳…';
+    try {
+      const d = await (await fetch('/api/evolve/proposal/delete?status=rejected', { method: 'POST' })).json();
+      if (d.error) throw new Error(d.error);
+      await loadProposals();
+      cleanBtn.textContent = `✓ ${d.deleted_count || 0} dibuang`;
+      setTimeout(() => { cleanBtn.textContent = o; cleanBtn.disabled = false; }, 1800);
+    } catch (e) { alert('Bersihkan gagal: ' + e.message); cleanBtn.textContent = o; cleanBtn.disabled = false; }
   });
 
   await loadConfig();

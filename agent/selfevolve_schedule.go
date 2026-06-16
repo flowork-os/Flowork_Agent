@@ -1,5 +1,6 @@
 // === LOCKED FILE (soft) === Status: STABLE — DO NOT MODIFY without owner approval (LOCKED ≠ FREEZE).
 // Owner: Aola Sahidin (Mr.Dev) · Locked 2026-06-16. Reason: R7 Milestone D trigger terjadwal. VERIFIED
+// Update 2026-06-16 (owner-approved): + JANITOR anti-numpuk tiap siklus (prune usulan rejected).
 // E2E: schedule config get/set; run=1 mode=off→reflect 5, no auto-apply (gate closed); run=1 mode=auto→
 // reflect + AUTO-APPLY 3 behavior (2 skill+1 agent), 2 core di-skip (review). Loop otonom penuh nyala.
 //
@@ -77,6 +78,11 @@ func runEvolveScheduledCycle(host *kernelhost.Host, fdb *floworkdb.Store, groups
 	applied := agentmgr.EvolveScheduleAutoApply(evolveGateDeps(), evolveApplier(host, fdb, groups), evolveCouncilJudge(), saved)
 	if len(applied) > 0 {
 		out["auto_applied"] = applied
+	}
+	// JANITOR anti-numpuk: tiap siklus buang usulan yg udah ditolak Dewan (self-cleaning).
+	// Backlog ga numpuk sampah keputusan. (Cuma baris DB — bukan file source; lihat EvolveJanitorPrune.)
+	if pruned, _ := agentmgr.EvolveJanitorPrune(); pruned > 0 {
+		out["pruned_rejected"] = pruned
 	}
 	return out
 }

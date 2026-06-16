@@ -95,6 +95,21 @@ func EvolveCouncilHandler(judge CouncilJudge) http.HandlerFunc {
 	}
 }
 
+// EvolveJanitorPrune — ANTI-NUMPUK otomatis. Buang usulan MATI biar backlog ga numpuk:
+// status "rejected" (Dewan udah nolak = nol nilai disimpen). Dipanggil tiap siklus cron
+// + bisa manual via tombol GUI. Self-cleaning: organisme paham buang sampah keputusannya
+// sendiri. CATATAN HUKUM: ini cuma bersih BACKLOG USULAN (baris DB) — BUKAN hapus file
+// source. Hapus "zombie file" source otomatis DILARANG (heuristik codemap 100% false-positive,
+// pernah hapus kode hidup) — itu tetep advisory manusia. Balikin jumlah yg dibuang.
+func EvolveJanitorPrune() (int64, error) {
+	store, err := openAgentStore(defaultAgentID)
+	if err != nil {
+		return 0, err
+	}
+	defer store.Close()
+	return store.DeleteEvolveProposalsByStatus("rejected")
+}
+
 // EvolveProposalDeleteHandler — POST /api/evolve/proposal/delete?id=<id> (hapus 1 usulan) ATAU
 // ?status=<status> (hapus SEMUA berstatus itu, mis. ?status=rejected buat bersih-bersih). Owner-gated.
 func EvolveProposalDeleteHandler(w http.ResponseWriter, r *http.Request) {
