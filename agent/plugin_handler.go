@@ -148,6 +148,16 @@ type pluginInstallResult struct {
 	body   map[string]any
 }
 
+// workerAgentIDs — daftar agent-id worker (buat coder-approve → groupsapi.CreateGroup,
+// P3: tiap agent WAJIB jadi group, gak ada agent lepas).
+func workerAgentIDs(workers []floworkdb.TaskAgent) []string {
+	out := make([]string, 0, len(workers))
+	for _, w := range workers {
+		out = append(out, w.AgentID)
+	}
+	return out
+}
+
 // installPluginPack — CORE install (dipakai HTTP handler + watcher drop-folder).
 // approveCaps=true → lewatin consent gate (owner-trusted, mis. drop-folder).
 func installPluginPack(host *kernelhost.Host, store *floworkdb.Store, raw []byte, approveCaps bool) pluginInstallResult {
@@ -331,6 +341,8 @@ func installPluginPack(host *kernelhost.Host, store *floworkdb.Store, raw []byte
 		"enabled":        smoke != "not_loaded",
 		"synth":          synth,
 		"workers":        len(workers),
+		"crew_workers":   workerAgentIDs(workers), // P3: coder-approve → CreateGroup (agent WAJIB group)
+		"cat_name":       cat.Name,
 		"agents_extract": installed,
 		"persona_set":    personaSet,
 		"verify":         verifyPackStatic(raw), // VERIFIER verdict (advisory) — gerbang deploy

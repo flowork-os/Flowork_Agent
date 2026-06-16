@@ -37,6 +37,7 @@ import (
 	"time"
 
 	"flowork-gui/internal/floworkdb"
+	"flowork-gui/internal/groupsapi"
 	"flowork-gui/internal/kernel/loader"
 	"flowork-gui/internal/kernelhost"
 )
@@ -378,7 +379,7 @@ func coderPendingHandler() http.HandlerFunc {
 
 // coderApproveHandler — POST ?id=<cat>. Owner approve → install via pipeline yg
 // UDAH ada (installPluginPack), TRANSAKSIONAL. Sukses → buang pending.
-func coderApproveHandler(host *kernelhost.Host, store *floworkdb.Store) http.HandlerFunc {
+func coderApproveHandler(host *kernelhost.Host, store *floworkdb.Store, groups *groupsapi.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			tfWriteJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "POST only"})
@@ -415,6 +416,25 @@ func coderApproveHandler(host *kernelhost.Host, store *floworkdb.Store) http.Han
 		if res.status != 0 {
 			tfWriteJSON(w, res.status, res.body)
 			return
+		}
+		// P3 (owner rule): agent WAJIB jadi GROUP — alur mr-flow → group → agent → lapor TG.
+		// Coder dulu cuma bikin category-crew (lepas dari orchestrator group). Sekarang
+		// auto-promote ke group (CreateGroup set kv group=1 + roster + sync). Best-effort:
+		// gagal-group → log, install tetap sukses (gak rollback agent yg udah ke-install).
+		if groups != nil {
+			catID, _ := res.body["category"].(string)
+			catName, _ := res.body["cat_name"].(string)
+			synth, _ := res.body["synth"].(string)
+			members, _ := res.body["crew_workers"].([]string)
+			if catID != "" {
+				if gerr := groups.CreateGroup(catID, catName, members, synth, ""); gerr != nil {
+					fmt.Fprintf(os.Stderr, "[coder] WARN auto-group %q gagal: %v (install tetap sukses)\n", catID, gerr)
+					res.body["grouped"] = false
+				} else {
+					groups.SyncToOrchestrator()
+					res.body["grouped"] = true
+				}
+			}
 		}
 		// sukses → buang pending (pack + meta).
 		_ = os.Remove(packPath)

@@ -690,7 +690,7 @@ func main() {
 	// CODER (AI Utama 2.2): generate agent baru → verify → Approval Queue (owner-gated).
 	mux.HandleFunc("/api/coder/generate", coderGenerateHandler())
 	mux.HandleFunc("/api/coder/pending", coderPendingHandler())
-	mux.HandleFunc("/api/coder/approve", coderApproveHandler(host, fdb))
+	mux.HandleFunc("/api/coder/approve", coderApproveHandler(host, fdb, groupsAPI)) // P3: auto-group (agent WAJIB group)
 	mux.HandleFunc("/api/coder/reject", coderRejectHandler())
 	// ARCHITECT (group/team creator): bikin TIM utuh dari 1 prompt → design (Opus) →
 	// generate tiap specialist+lead (mesin coder yg sama) → groupsapi.CreateGroup.
