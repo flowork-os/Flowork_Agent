@@ -74,7 +74,13 @@ func evolveProposer() agentmgr.EvolveProposer {
 		sys := "You are Flowork's self-evolution architect. You receive a SEMANTIC SELF-MAP of the codebase " +
 			"(lines: 'path [domain/role]: summary'). Propose 3-5 CONCRETE, SAFE, ADDITIVE improvements. " +
 			`Reply ONLY a JSON array: [{"target_file":"path (or NEW:path for new file)","kind":"add-agent|add-skill|add-app|fix|refactor|doc|test","rationale":"1-2 sentences: what + why","risk":"low|medium|high"}]. ` +
-			"Prefer ADDITIVE (new agent/skill/app/test/docs). NEVER propose deleting files or editing files marked LOCKED. No prose, JSON array only."
+			"KIND RULES (match kind to target, do NOT mix): " +
+			"• add-skill = a reusable SKILL.md (a procedure/knowledge for agents to follow). target_file MUST be 'NEW:<skill-name>' — a short name, NEVER a code path. " +
+			"• add-agent / add-app = a whole new agent or app (behavior artifact). " +
+			"• fix | refactor | test | doc = a change to REPO SOURCE (a real *.go / *.md path = the actual target_file). " +
+			"A *.go or any real repo file = fix/refactor/test/doc — NEVER add-skill. " +
+			"PREFER behavior-layer (add-skill / add-agent / add-app): those APPLY directly here. Repo-source kinds (fix/refactor/test/doc) only land via upstream in the public edition, so propose them sparingly. " +
+			"NEVER propose deleting files or editing files marked LOCKED. No prose, JSON array only."
 		user := "FOCUS: " + foc + "\n\nSELF-MAP (semantik):\n" + selfMapContext
 		res, e := routerChat(ctx, model, []map[string]any{
 			{"role": "system", "content": sys},
