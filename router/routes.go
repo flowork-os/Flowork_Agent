@@ -4,6 +4,9 @@
 // Repo: https://github.com/flowork-os/Flowork-OS
 // Locked at: 2026-05-30
 // Reason: Audit pass — audit pass surface review.
+// 2026-06-17 (owner-approved, PRYORITY.MD P1): +3 route additive untuk
+//   constitution AMENDMENT phase 2 (amend / amendments / amend/vote).
+//   Handler di handlers_brain_amend.go, engine di internal/constitution/amendments.go.
 
 // HTTP route registry.
 
@@ -182,6 +185,9 @@ func registerManagementRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/brain/constitution/propose", brainProposeHandler)   // section 12 roadmap
 	mux.HandleFunc("/api/brain/constitution/proposals", brainProposalsListHandler) // section 12 roadmap
 	mux.HandleFunc("/api/brain/constitution/vote", brainVoteHandler)         // section 12 roadmap
+	mux.HandleFunc("/api/brain/constitution/amend", brainAmendProposeHandler)        // section 12 phase 2 (P1 amend)
+	mux.HandleFunc("/api/brain/constitution/amendments", brainAmendListHandler)      // section 12 phase 2 (P1 amend)
+	mux.HandleFunc("/api/brain/constitution/amend/vote", brainAmendVoteHandler)      // section 12 phase 2 (P1 amend)
 	mux.HandleFunc("/api/sensors/webhook", sensorsWebhookHandler)            // section 9 roadmap
 	mux.HandleFunc("/api/recordings", func(w http.ResponseWriter, r *http.Request) {
 		// route POST → post handler, GET → list handler

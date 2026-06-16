@@ -476,6 +476,11 @@ done &lt; my_knowledge.jsonl</pre>
           <h3 class="font-semibold text-purple-300 mb-3" data-i18n="brain.con.listTitle">Constitution — sacred rules</h3>
           <div id="brainConstitution" class="text-sm text-slate-400" data-i18n="brain.status.loading">Loading…</div>
         </div>
+        <div class="glass p-5 mt-4">
+          <h3 class="font-semibold text-amber-300 mb-1" data-i18n="brain.con.amendTitle">Pending amendments — owner approval</h3>
+          <p class="text-xs text-slate-500 mb-3" data-i18n="brain.con.amendHint">Governance-gated edits to existing sacred rules. Nothing applies until you approve.</p>
+          <div id="brainAmendments" class="text-sm text-slate-400" data-i18n="brain.status.loading">Loading…</div>
+        </div>
       </div>
 
       <!-- TYPED MEMORY -->
@@ -2180,6 +2185,20 @@ done &lt; my_knowledge.jsonl</pre>
         "brain.con.deleteBody": "This tombstones the rule (reversible) — it stops being injected but the row stays for audit.",
         "brain.con.updated": "updated",
         "brain.con.deleted": "deleted",
+        // Brain — Constitution amendments (governance-gated edits to existing rules)
+        "brain.con.amendTitle": "Pending amendments — owner approval",
+        "brain.con.amendHint": "Governance-gated edits to existing sacred rules. Nothing applies until you approve.",
+        "brain.con.amendEmpty": "no pending amendments.",
+        "brain.con.amendApprove": "approve",
+        "brain.con.amendReject": "reject",
+        "brain.con.amendDelNote": "Soft-delete this rule (tombstone, reversible — kept for audit).",
+        "brain.con.amendApproveTitle": "Apply amendment?",
+        "brain.con.amendApproveBody": "This applies the change to the sacred rule (append-only; the old version is archived to history). Proceed?",
+        "brain.con.amendRejectTitle": "Reject amendment?",
+        "brain.con.amendRejectBody": "This discards the pending amendment. The rule stays unchanged.",
+        "brain.amend.approved": "amendment applied",
+        "brain.amend.rejected": "amendment rejected",
+        "brain.amend.err": "amendment error",
         // Brain — Typed Memory
         "brain.typed.title": "Typed Memory",
         "brain.typed.empty": "no drawers of type",
@@ -2516,7 +2535,7 @@ done &lt; my_knowledge.jsonl</pre>
     function brainSub(name) {
       document.querySelectorAll('#tab-brain .brain-sub').forEach(p => p.classList.toggle('hidden', p.dataset.sub !== name));
       document.querySelectorAll('#tab-brain .brain-subtab').forEach(b => b.classList.toggle('active', b.dataset.sub === name));
-      if (name === 'constitution') loadBrainConstitution();
+      if (name === 'constitution') { loadBrainConstitution(); loadBrainAmendments(); }
       if (name === 'typed') loadBrainTyped();
       if (name === 'personas') loadBrainPersonas();
     }
@@ -2783,6 +2802,51 @@ done &lt; my_knowledge.jsonl</pre>
         uiToast(t('brain.con.deleted'), 'success');
         loadBrainConstitution();
       } catch (e) { uiToast(t('brain.msg.deleteErr') + ': ' + e, 'error'); }
+    }
+    async function loadBrainAmendments() {
+      const el = document.getElementById('brainAmendments');
+      if (!el) return;
+      el.textContent = t('brain.msg.loading');
+      try {
+        const r = await (await fetch('/api/brain/constitution/amendments?status=pending&limit=200')).json();
+        const items = r.items || [];
+        if (!items.length) { el.textContent = t('brain.con.amendEmpty'); return; }
+        el.innerHTML = items.map(a => {
+          const head = '<div class="flex items-center justify-between mb-0.5">'
+            + '<div class="text-xs text-amber-300">#' + a.id + ' · ' + _escHtml(a.kind) + ' → ' + _escHtml(a.target_section || ('id ' + a.target_id)) + '</div>'
+            + '<div class="flex gap-1">'
+            + '<button class="btn-primary" style="padding:2px 8px;font-size:0.7rem" onclick="voteAmendment(' + a.id + ',1)" data-i18n="brain.con.amendApprove">approve</button>'
+            + '<button class="btn-danger" style="padding:2px 8px;font-size:0.7rem" onclick="voteAmendment(' + a.id + ',0)" data-i18n="brain.con.amendReject">reject</button></div></div>';
+          let bodyHtml = '';
+          if (a.kind === 'delete') {
+            bodyHtml = '<div class="text-xs text-red-300">' + _escHtml(t('brain.con.amendDelNote')) + '</div>';
+          } else if (a.kind === 'amplitude') {
+            bodyHtml = '<div class="text-xs text-slate-400">amp ' + a.old_amplitude + ' → <span class="text-green-300">' + a.new_amplitude + '</span></div>';
+          } else {
+            bodyHtml = '<div class="text-xs text-slate-500 whitespace-pre-wrap" style="text-decoration:line-through">' + _escHtml(a.old_content || '') + '</div>'
+              + '<div class="text-xs text-green-300 whitespace-pre-wrap mt-1">' + _escHtml(a.new_content || '') + '</div>';
+          }
+          const why = a.rationale ? '<div class="text-slate-500 mt-1" style="font-size:0.65rem">↳ ' + _escHtml(a.rationale) + '</div>' : '';
+          return '<div class="mb-2 p-2 rounded bg-black/20">' + head + bodyHtml + why + '</div>';
+        }).join('');
+        applyI18n(el);
+      } catch (e) { el.textContent = t('brain.amend.err') + ': ' + e; }
+    }
+    async function voteAmendment(id, approve) {
+      const ok = await uiConfirm({
+        title: approve ? t('brain.con.amendApproveTitle') : t('brain.con.amendRejectTitle'),
+        body: approve ? t('brain.con.amendApproveBody') : t('brain.con.amendRejectBody'),
+        dangerous: !approve,
+      });
+      if (!ok) return;
+      try {
+        const resp = await fetch('/api/brain/constitution/amend/vote?id=' + id + '&approve=' + (approve ? 1 : 0), { method: 'POST', headers: { 'X-Voter-ID': 'owner-gui' } });
+        const j = await resp.json();
+        if (!resp.ok || j.error) throw new Error(j.error || ('HTTP ' + resp.status));
+        uiToast(approve ? t('brain.amend.approved') : t('brain.amend.rejected'), 'success');
+        loadBrainAmendments();
+        loadBrainConstitution();
+      } catch (e) { uiToast(t('brain.amend.err') + ': ' + e, 'error'); }
     }
     async function loadBrain() {
       brainSub('overview');
