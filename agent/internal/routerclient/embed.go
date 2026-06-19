@@ -1,3 +1,10 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval (autonomy grant 2026-06-19).
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/Flowork-OS
+// Locked at: 2026-06-19
+// Reason: CGM router embedding client (/v1/embeddings) — built + unit-tested (build/vet/test green). Extend = new file, jangan modify ini.
+//
 // embed.go — agent → router embedding client (CGM entity-resolution, roadmap §4.4).
 //
 // Reuse existing Client (routerclient.go, locked) — file baru, JANGAN modify yg locked.

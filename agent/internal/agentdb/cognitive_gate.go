@@ -1,3 +1,10 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval (autonomy grant 2026-06-19).
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/Flowork-OS
+// Locked at: 2026-06-19
+// Reason: CGM validation gate (antibody + confidence + contradiction) — built + unit-tested (build/vet/test green). Extend = new file, jangan modify ini.
+//
 // cognitive_gate.go — Validation Gate buat CGM (roadmap §4.5, JANTUNG anti-halu).
 //
 // Sebelum triple jadi 'active': (1) scan antibody (reuse immune.go) → kena pola

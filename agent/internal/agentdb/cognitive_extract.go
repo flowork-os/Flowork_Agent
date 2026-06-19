@@ -1,3 +1,10 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval (autonomy grant 2026-06-19).
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/Flowork-OS
+// Locked at: 2026-06-19
+// Reason: CGM constrained LLM extractor parse+validate — built + unit-tested (build/vet/test green). Extend = new file, jangan modify ini.
+//
 // cognitive_extract.go — Cognitive Digestion extractor (roadmap §4.3, GANTI mock Gemini).
 //
 // Ubah ringkasan percakapan → triple terstruktur (node+edge 5W1H) lewat 1 panggilan

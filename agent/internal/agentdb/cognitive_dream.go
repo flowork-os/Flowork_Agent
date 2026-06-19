@@ -1,3 +1,10 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval (autonomy grant 2026-06-19).
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/Flowork-OS
+// Locked at: 2026-06-19
+// Reason: CGM 2-tier digestion orchestration (no-delete, idempotent) — built + unit-tested (build/vet/test green). Extend = new file, jangan modify ini.
+//
 // cognitive_dream.go — Cognitive Digestion orchestration, 2-TIER (roadmap §4.6, D16).
 //
 // Nyatuin extract (§4.3) → resolve (§4.4) → gate (§4.5) → simpan ke graph. Anti

@@ -1,3 +1,10 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval (autonomy grant 2026-06-19).
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/Flowork-OS
+// Locked at: 2026-06-19
+// Reason: CGM retrieval/grounding fact-sheet (budget-capped) — built + unit-tested (build/vet/test green). Extend = new file, jangan modify ini.
+//
 // cognitive_recall.go — Retrieval / Grounding dari cognitive graph (roadmap §4.8, D6, D1b).
 //
 // Anti muntah prompt: graph GAK PERNAH masuk konteks utuh. Alur: query → cari SEED

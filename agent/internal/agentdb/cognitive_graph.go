@@ -1,3 +1,10 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval (autonomy grant 2026-06-19).
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/Flowork-OS
+// Locked at: 2026-06-19
+// Reason: CGM schema + CRUD (node/edge/digest_log/tension) + relation vocab — built + unit-tested (build/vet/test green). Extend = new file, jangan modify ini.
+//
 // cognitive_graph.go — Cognitive Graph Memory (CGM) lokal per-agent (di state.db).
 //
 // Roadmap: /home/mrflow/Documents/roadmap_opus8.md (§4.1, §4.2, D14, D16).

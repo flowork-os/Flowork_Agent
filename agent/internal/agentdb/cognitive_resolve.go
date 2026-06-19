@@ -1,3 +1,10 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval (autonomy grant 2026-06-19).
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/Flowork-OS
+// Locked at: 2026-06-19
+// Reason: CGM entity resolution (8-bit quantize + cosine) — built + unit-tested (build/vet/test green). Extend = new file, jangan modify ini.
+//
 // cognitive_resolve.go — Entity Resolution buat CGM (roadmap §4.4).
 //
 // Masalah: entitas sama disebut beda ("mobil"/"kendaraan"/"car") → kalau tiap kali

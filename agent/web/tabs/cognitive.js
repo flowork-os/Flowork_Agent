@@ -1,3 +1,10 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval (autonomy grant 2026-06-19).
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/Flowork-OS
+// Locked at: 2026-06-19
+// Reason: CGM GUI tab (D3 force-graph) — verified live login+screenshot — built + unit-tested (build/vet/test green). Extend = new file, jangan modify ini.
+//
 // cognitive.js — Cognitive Graph (CGM) tab. D3 force-directed "balls connected"
 // view of an agent's per-agent twin graph (roadmap_opus8.md §4.9, D14).
 // Reads /api/agents/cognitive/graph?id=<agent> + /api/agents/cognitive/tensions.
