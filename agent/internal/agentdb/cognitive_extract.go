@@ -3,6 +3,9 @@
 // Owner: Aola Sahidin (Mr.Dev)
 // Repo: https://github.com/flowork-os/Flowork-OS
 // Locked at: 2026-06-19
+// Update 2026-06-20 (owner autonomy-grant): ParseExtraction anti-junk gate — drop
+//   edge yg endpoint-nya kata-relasi (extractor 26B kadang naro to_label="is_a" →
+//   node sampah) + drop self-loop. P1 prove-loop finding. +test. Re-locked.
 // Reason: CGM constrained LLM extractor parse+validate — built + unit-tested (build/vet/test green). Extend = new file, jangan modify ini.
 //
 // cognitive_extract.go — Cognitive Digestion extractor (roadmap §4.3, GANTI mock Gemini).
@@ -127,6 +130,18 @@ func ParseExtraction(raw string) (ExtractResult, error) {
 		}
 		if !ValidRelations[e.RelationType] {
 			res.Dropped = append(res.Dropped, "edge: relation invalid '"+e.RelationType+"'")
+			continue
+		}
+		// Anti-junk (P1 finding 2026-06-20): extractor 26B kadang naro NAMA RELASI
+		// sebagai endpoint (mis. to_label="is_a") → edgeEndpointID bikin node sampah
+		// bernama relasi. Drop kalau endpoint = kata-relasi, atau self-loop. Aman:
+		// gak ada entitas sah yang labelnya persis "is_a"/"has_property"/dst.
+		if ValidRelations[strings.ToLower(e.FromLabel)] || ValidRelations[strings.ToLower(e.ToLabel)] {
+			res.Dropped = append(res.Dropped, "edge: endpoint adalah kata-relasi (malformed)")
+			continue
+		}
+		if strings.EqualFold(e.FromLabel, e.ToLabel) {
+			res.Dropped = append(res.Dropped, "edge: self-loop (from==to)")
 			continue
 		}
 		e.SourceKind = normSourceKind(e.SourceKind)

@@ -45,6 +45,32 @@ func TestParseExtraction_ValidatesAndDrops(t *testing.T) {
 	}
 }
 
+// P1 finding (2026-06-20): extractor 26B kadang naro nama-relasi sebagai endpoint
+// (to_label="is_a") atau self-loop → gate harus buang biar gak ada node sampah.
+func TestParseExtraction_DropsRelationKeywordEndpoints(t *testing.T) {
+	raw := `{
+	  "nodes":[{"label":"Flowork","type":"project","source_kind":"user_said","confidence":1.0},
+	           {"label":"Go","type":"skill","source_kind":"user_said","confidence":1.0}],
+	  "edges":[
+	    {"from_label":"Flowork","to_label":"is_a","relation_type":"is_a","confidence":1.0},
+	    {"from_label":"has_property","to_label":"Flowork","relation_type":"uses","confidence":1.0},
+	    {"from_label":"Flowork","to_label":"Flowork","relation_type":"related_to","confidence":1.0},
+	    {"from_label":"Flowork","to_label":"Go","relation_type":"uses","confidence":1.0}
+	  ]
+	}`
+	res, err := ParseExtraction(raw)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	// only the clean Flowork->Go edge survives; 3 dropped (relation-kw to, relation-kw from, self-loop)
+	if len(res.Edges) != 1 {
+		t.Fatalf("edges = %d, want 1 (%+v)", len(res.Edges), res.Edges)
+	}
+	if res.Edges[0].FromLabel != "Flowork" || res.Edges[0].ToLabel != "Go" {
+		t.Fatalf("surviving edge wrong: %+v", res.Edges[0])
+	}
+}
+
 func TestParseExtraction_BadJSON(t *testing.T) {
 	if _, err := ParseExtraction("not json at all"); err == nil {
 		t.Fatal("expected error on bad JSON")

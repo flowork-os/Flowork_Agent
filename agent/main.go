@@ -2,6 +2,11 @@
 // Status: STABLE — DO NOT MODIFY without owner approval.
 // Owner: Aola Sahidin (Mr.Dev)
 // Repo: https://github.com/flowork-os/Flowork-OS
+// 2026-06-20 OWNER-APPROVED (autonomy grant, not hash-frozen): wire CGM digestion —
+//   (1) route POST /api/agents/cognitive/digest (manual trigger, owner-controlled),
+//   (2) Tier-2 deep digest hook in the existing 12h dream cron (gated by env
+//   FLOWORK_CGM_AUTODIGEST=1, default OFF). Deploy of P1 proven loop. Additive; logic
+//   in non-locked agentmgr/cognitive_digest_cron.go. No new exec surface, manifest unchanged.
 // Locked at: 2026-05-30 (re-locked 2026-06-11; +group seed & secret-central 2026-06-12)
 // 2026-06-12 OWNER-APPROVED: boot migrates connector secrets to Settings → API Keys
 //   (connections.MigrateSchemaSecretsToGlobal) and wires the frozen env-forward hook
@@ -379,6 +384,12 @@ func main() {
 					}
 					if formed > 0 {
 						log.Printf("dream: total %d eureka baru lintas agent", formed)
+					}
+					// CGM Tier-2 deep digestion (roadmap §4.6/D16) — percakapan → cognitive
+					// graph. Gated by env FLOWORK_CGM_AUTODIGEST=1 (default OFF, owner opt-in).
+					// Resilient: per-agent error di-skip (lihat agentmgr.DigestAllAgents).
+					if dg := agentmgr.DigestAllAgents(host.AgentIDs()); dg > 0 {
+						log.Printf("cgm: %d interactions dicerna ke cognitive graph (Tier-2)", dg)
 					}
 				}()
 			}
@@ -806,6 +817,9 @@ func main() {
 	// reason = wire 2 read-only handlers for the new Cognitive Graph GUI tab.
 	mux.HandleFunc("/api/agents/cognitive/graph", agentmgr.CognitiveGraphHandler)
 	mux.HandleFunc("/api/agents/cognitive/tensions", agentmgr.CognitiveTensionsHandler)
+	// CGM digestion manual trigger (POST) — deploy proven loop (P1, 2026-06-20).
+	// Owner-controlled; always runs. Auto-digest in dream cron gated by env.
+	mux.HandleFunc("/api/agents/cognitive/digest", agentmgr.CognitiveDigestHandler)
 	mux.HandleFunc("/api/agents/zombie/findings", agentmgr.ZombieFindingsHandler)
 	mux.HandleFunc("/api/agents/zombie/ack", agentmgr.ZombieAckHandler)
 	mux.HandleFunc("/api/agents/zombie/scan", agentmgr.ZombieScanHandler)
