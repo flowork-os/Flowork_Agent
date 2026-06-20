@@ -43,8 +43,11 @@ di wasm) — ditandai 🤖; sebagian di **manifest/persona** — ditandai 📝.
 6. 📝 **Capability `rpc:router:brain`** di manifest.
 7. 🤖 **Schedule per-agent** — cron→task (agentdb `schedules` + engine auto-tick/menit).
    Fungsional, KEEP (beda dari global schedule).
-8. 📝🤖 **Autonomus: loop + sleep + anti-ghosting** — ScheduleWakeup (tidur→bangun via
-   RunDueWakeups) + ghost-guard (harness, anti janji-tanpa-aksi) + aturan autonomy-mode.
+8. 🤖 **Autonomus PENUH (loop/wait/awake/auto-continue)** — embedded di wasm template
+   (§8): tool-loop (chain), ghost-guard, ScheduleWakeup (tidur→bangun via RunDueWakeups),
+   loop TIME-BOUND (bukan cap-angka), + AUTO-CONTINUE deterministik (budget abis →
+   harness jadwalin lanjutan sendiri → nyambung lintas-turn sampe SELESAI). Worker baru
+   dari template otomatis dapat semua ini. Detail = §8.
 
 ---
 
@@ -101,12 +104,33 @@ Caps app (`app:*`) JANGAN ditaruh manifest — itu di-grant lewat **app_grants/G
 Caps tool subscribed (net:fetch:*/exec:*) buat agent privileged auto-grant dari subscription
 (`grantSubscribedToolCaps`, main.go).
 
-## 8. KONTRAK WASM (agent code)
-Agent = "bodoh, engine pinter" — behavior dari persona DB + DNA, bukan wasm. Wasm minimal:
+## 8. KONTRAK WASM + AUTONOMY (agent code)
+Agent = "bodoh, engine pinter" — behavior dari persona DB + DNA, bukan wasm. Tapi
+**autonomy-loop ada DI wasm** (harness), dan **template `templates/agent-template/` udah
+embed semua ini** (2026-06-20, sama kayak mr-flow) → tiap agent baru langsung bisa
+looping/wait/awake:
 - `selfID()` baca `FLOWORK_AGENT_ID` (= manifest.id) → wasm SAMA jalan buat agent apa pun.
-- RPC `handle_message`: fetch persona(config.prompt) + self_prompt + tools/specs + history
-  → tool-loop callLLM (panggil tool sampe jawab) → reply. Ghost-guard di loop.
+- RPC `handle_message`: system = persona(config.prompt) + **DNA** (`/api/agents/self-prompt/
+  render` field `rendered` = konstitusi sacred + directive) ; tools = `/api/agents/tools/specs`
+  (subscription). → **callLLM TOOL-LOOP**.
+- **LOOPING**: LLM → eksekusi tool (`/api/agents/tools/run`) → feed hasil → ulang (chain),
+  1 tool/iter (`parallel_tool_calls:false`, anti router-400). Bukan 1 call doang.
+- **GHOST-GUARD**: model narasi "mau ngapain / lanjut ke X" TANPA manggil tool → PAKSA 1
+  putaran (panggil tool / ScheduleWakeup), bounded `maxGhostNudges`. Anti janji-kosong.
+- **WAIT/AWAKE (sleep→wake)**: tool `ScheduleWakeup(delaySeconds, reason, prompt)` → tulis
+  row `wakeups` durable → host `RunDueWakeups` (per-menit) re-invoke agent dgn `prompt`.
+  Agent kebangun sendiri & lanjut. Ini kunci kerja-nunggu tanpa ghosting.
+- **TIME-BOUND, BUKAN cap-angka** (`loopBudgetMs≈200s`): loop jalan TERUS dalam budget
+  waktu turn (turn-timeout 290s = backstop). Kerja autonomus panjang ga dikerangkeng angka.
+- **AUTO-CONTINUE deterministik (unbounded over time)**: budget abis & BELUM kelar →
+  HARNESS sendiri jadwalin ScheduleWakeup (`[LANJUTAN OTOMATIS #N] ...===TUGAS===<task>`)
+  → nyambung lintas-turn sampe model bilang `SELESAI` (kelar dalam budget) ATAU `maxAuto
+  Continue=50` (anti-runaway). Counter #N ride di prompt (stateless). GA ngandelin model
+  milih (deterministik). = "kerja seharian" dipotong chunk yang nyambung otomatis.
 - Build: **standard wasip1** (`GOWORK=off GOOS=wasip1 GOARCH=wasm go build`), BUKAN tinygo.
+
+> Manifest WAJIB subscribe `ScheduleWakeup` (+ tools/specs, tools/run, router) biar
+> wait/awake + loop jalan. Worker baru dari template otomatis dapat semua ini.
 
 ## 9. BUILD + DEPLOY
 Repo ga simpan `agent.wasm` (gitignore). Build → deploy ke `~/.flowork/agents/<id>.fwagent/

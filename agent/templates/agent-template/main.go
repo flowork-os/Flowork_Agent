@@ -1,18 +1,20 @@
-// Package main — TEMPLATE AGENT FLOWORK (worker generic, "pasukan semut").
+// Package main — TEMPLATE AGENT FLOWORK (worker autonomus, "pasukan semut").
 //
 // Ini CETAKAN agent baru sesuai STANDAR Flowork (lihat AGENT_STANDARD.md +
 // ../../agents/readme.md). Prinsip: "agent bodoh, engine pinter" — wasm SAMA jadi
 // agent beda cukup ganti manifest.id + config (persona DB), TANPA edit kode.
 //
-// STANDAR yang DIPATUHI di sini:
-//   - Persona DB-BASED (FLOWORK_AGENT_CONFIG, di-inject host dari config agent) —
-//     BUKAN file .md. GUI = kebenaran; edit persona di GUI langsung kepakai.
-//   - Akses dunia lewat SATU pintu loket (call(cap,args) ke /api/kernel/call) —
-//     kapabilitas digate broker (manifest.capabilities_required).
-//   - Brain dua-lapis: lokal (store.brain.*) + shared router (brain.search.shared)
-//     lewat genome pipe (auto dari host coreExposedTools).
-//   - DNA (konstitusi sacred + cognitive graph) di-seed HOST via ProvisionAgentDNA
-//     pas boot/install — TIDAK perlu di-kode di wasm ini.
+// AUTONOMY (sama kayak mr-flow — owner 2026-06-20 "biar bisa looping, wait, awake"):
+//   - TOOL-LOOP: panggil tool berkali-kali (chain) sampe jawab — bukan 1 call doang.
+//   - GHOST-GUARD: narasi "mau ngapain" tanpa manggil tool → DIPAKSA bertindak.
+//   - TIME-BOUND (bukan cap-angka): loop jalan terus dalam budget waktu turn.
+//   - AUTO-CONTINUE (wait→awake): budget abis & belum kelar → HARNESS jadwalin
+//     ScheduleWakeup sendiri (deterministik) → nyambung lintas-turn sampe SELESAI =
+//     unbounded over time. Counter #N (di marker prompt) = anti-runaway (max 50).
+//
+// Persona DB-BASED (FLOWORK_AGENT_CONFIG) + DNA/konstitusi sacred (di-render host via
+// /api/agents/self-prompt/render — incl anti-halu/sync-honest/autonomy-mode). Tools
+// dari subscription agent (/api/agents/tools/specs). NO file .md.
 //
 // Build: GOWORK=off GOOS=wasip1 GOARCH=wasm go build -o agent.wasm .
 package main
@@ -29,7 +31,10 @@ import (
 //go:wasmimport flowork host_net_fetch
 func hostNetFetch(reqPtr, reqLen, outPtr, outMax uint32) uint32
 
-var outBuf [262144]byte
+//go:wasmimport flowork host_time_now_ms
+func hostTimeNowMs() uint64
+
+var outBuf [1 << 20]byte // 1MB: muat tool-specs + response LLM
 
 func bytesPtr(b []byte) uint32 {
 	if len(b) == 0 {
@@ -38,51 +43,53 @@ func bytesPtr(b []byte) uint32 {
 	return uint32(uintptr(unsafe.Pointer(&b[0])))
 }
 
-func emit(v any) { b, _ := json.Marshal(v); fmt.Println(string(b)) }
-
+func emit(v any)     { b, _ := json.Marshal(v); fmt.Println(string(b)) }
 func selfID() string { return os.Getenv("FLOWORK_AGENT_ID") }
 
-const loketURL = "http://127.0.0.1:1987/api/kernel/call"
+const (
+	routerURL = "http://127.0.0.1:2402/v1/chat/completions"
+	specsURL  = "http://127.0.0.1:1987/api/agents/tools/specs?id="
+	toolRun   = "http://127.0.0.1:1987/api/agents/tools/run?id="
+	selfPromp = "http://127.0.0.1:1987/api/agents/self-prompt/render?id="
 
-// loketCall — SATU pintu agent ke dunia: minta kapabilitas ke kernel by-name.
-// Balik field "result" kalau sukses; error kalau broker nolak (cap ga di-grant)
-// atau provider gagal. Host inject id + loopback-secret tiap request (un-forgeable).
-func loketCall(capName string, args any) (json.RawMessage, error) {
-	argsJSON, _ := json.Marshal(args)
-	body, _ := json.Marshal(map[string]any{"cap": capName, "args": json.RawMessage(argsJSON)})
-	reqJSON, _ := json.Marshal(map[string]any{
-		"method": "POST", "url": loketURL,
-		"timeout_ms": 240000, "max_resp_bytes": 4 << 20,
-		"headers":     map[string]string{"Content-Type": "application/json"},
-		"body_base64": base64.StdEncoding.EncodeToString(body),
-	})
+	maxToolIters         = 100    // backstop anti pure-infinite; batas NYATA = loopBudgetMs
+	loopBudgetMs  uint64 = 200000 // budget waktu in-turn (~200s); turn-timeout 290s = backstop keras
+	maxGhostNudges       = 6      // ghost-guard: max paksa-lanjut pas narasi-tanpa-tool (bounded)
+	maxAutoContinue      = 50     // anti-runaway: max chunk auto-continue (≈2.7 jam) — BUKAN batas kerja
+	autoContDelim        = "\n===TUGAS===\n"
+)
+
+type httpResp struct {
+	Status int
+	Body   []byte
+}
+
+func fetch(method, url string, headers map[string]string, body []byte, timeoutMS int) (*httpResp, error) {
+	req := map[string]any{"method": method, "url": url, "timeout_ms": timeoutMS, "max_resp_bytes": 4 << 20}
+	if len(headers) > 0 {
+		req["headers"] = headers
+	}
+	if len(body) > 0 {
+		req["body_base64"] = base64.StdEncoding.EncodeToString(body)
+	}
+	reqJSON, _ := json.Marshal(req)
 	n := hostNetFetch(bytesPtr(reqJSON), uint32(len(reqJSON)), bytesPtr(outBuf[:]), uint32(len(outBuf)))
 	if n == 0 {
-		return nil, fmt.Errorf("host_net_fetch: 0 bytes")
+		return nil, fmt.Errorf("host_net_fetch 0 bytes")
 	}
-	var host struct {
+	var hr struct {
+		Status  int    `json:"status"`
 		BodyB64 string `json:"body_base64"`
 		Error   string `json:"error"`
 	}
-	if err := json.Unmarshal(outBuf[:n], &host); err != nil {
-		return nil, fmt.Errorf("host decode: %w", err)
+	if err := json.Unmarshal(outBuf[:n], &hr); err != nil {
+		return nil, err
 	}
-	if host.Error != "" {
-		return nil, fmt.Errorf("host: %s", host.Error)
+	if hr.Error != "" {
+		return nil, fmt.Errorf("host: %s", hr.Error)
 	}
-	raw, _ := base64.StdEncoding.DecodeString(host.BodyB64)
-	var res struct {
-		OK     bool            `json:"ok"`
-		Result json.RawMessage `json:"result"`
-		Error  string          `json:"error"`
-	}
-	if err := json.Unmarshal(raw, &res); err != nil {
-		return nil, fmt.Errorf("loket decode: %w (body=%s)", err, string(raw))
-	}
-	if !res.OK {
-		return nil, fmt.Errorf("loket refused: %s", res.Error)
-	}
-	return res.Result, nil
+	b, _ := base64.StdEncoding.DecodeString(hr.BodyB64)
+	return &httpResp{Status: hr.Status, Body: b}, nil
 }
 
 func main() {
@@ -94,7 +101,7 @@ func main() {
 		args = os.Args[2]
 	}
 	switch os.Args[1] {
-	case "handle_message": // RPC/direct: args = payload {"text":...}
+	case "handle_message":
 		handleMessage(args)
 	case "handle": // loket-bus (group route): unwrap payload
 		var msg struct {
@@ -106,15 +113,12 @@ func main() {
 		}
 		handleMessage(string(msg.Payload))
 	case "boot":
-		emit(map[string]any{"ok": true}) // worker = no daemon (orchestrator yg punya daemon)
+		emit(map[string]any{"ok": true}) // worker = no daemon
 	default:
 		emit(map[string]any{"error": "unknown function: " + os.Args[1]})
 	}
 }
 
-// agentConfig — persona + model, di-inject host dari config DB agent
-// (FLOWORK_AGENT_CONFIG). INI resep "copas": wasm sama → agent beda cukup ganti
-// config. GUI = kebenaran (edit persona di GUI menang). TIDAK baca .md.
 type agentConfig struct {
 	Prompt string `json:"prompt"`
 	Model  string `json:"model"`
@@ -122,7 +126,7 @@ type agentConfig struct {
 
 func loadConfig() agentConfig {
 	c := agentConfig{
-		Prompt: "Lo agent spesialis Flowork. Kerjain SATU tugas dengan jelas + jujur (anti-halu). Persona ini placeholder — ganti di GUI/config.",
+		Prompt: "Lo agent spesialis Flowork. Kerjain tugas dengan jelas + jujur (anti-halu). Ganti persona ini di GUI/config.",
 		Model:  "flowork-brain",
 	}
 	if raw := os.Getenv("FLOWORK_AGENT_CONFIG"); raw != "" {
@@ -139,9 +143,6 @@ func loadConfig() agentConfig {
 	return c
 }
 
-// handleMessage — tugas worker: ingat pesan (brain lokal) → recall (lokal + shared
-// router via genome) → jawab LLM → catat pengalaman. Konstitusi sacred (anti-halu/
-// sync-honest/autonomy-mode) di-inject HOST ke konteks (DNA), ga perlu hardcode.
 func handleMessage(argsJSON string) {
 	var in struct {
 		Text string `json:"text"`
@@ -152,51 +153,188 @@ func handleMessage(argsJSON string) {
 		emit(map[string]any{"reply": "(pesan kosong)"})
 		return
 	}
-	cfg := loadConfig()
+	emit(map[string]any{"reply": callLLM(loadConfig(), in.Text), "agent": selfID()})
+}
 
-	// 1. Ingat pesan ke brain LOKAL (terisolasi).
-	_, _ = loketCall("store.brain.add", map[string]any{"content": in.Text, "wing": "experience"})
-
-	// 2. Recall relevan — lokal dulu, lalu shared router (genome) buat ground jawaban.
-	ctx := ""
-	if r, err := loketCall("store.brain.search", map[string]any{"query": in.Text, "k": 3}); err == nil {
-		ctx += "[recall-lokal] " + trunc(string(r), 600) + "\n"
+// callLLM — TOOL-LOOP autonomus (inti standar Flowork). Persona DB + DNA (self-prompt
+// render) jadi system; tools dari subscription. Loop: LLM → tool → feed → ulang, dengan
+// ghost-guard + time-bound + auto-continue. Balik teks final (atau konfirmasi lanjutan).
+func callLLM(cfg agentConfig, userText string) string {
+	sys := cfg.Prompt
+	if dna := fetchSelfPrompt(); dna != "" { // konstitusi sacred + doktrin (anti-halu/sync-honest/autonomy-mode)
+		sys = sys + "\n\n" + dna
 	}
-	if r, err := loketCall("brain.search.shared", map[string]any{"query": in.Text, "k": 3}); err == nil {
-		ctx += "[recall-shared] " + trunc(string(r), 600) + "\n"
+	msgs := []map[string]any{
+		{"role": "system", "content": sys},
+		{"role": "user", "content": userText},
 	}
+	toolSpecs := fetchToolSpecs()
+	ghostNudges := 0
+	loopStartMs := hostTimeNowMs()
+	budgetNudged := false
 
-	// 3. Jawab LLM (persona DB + konteks recall). Konstitusi/DNA di-inject host.
-	msgs := []map[string]string{{"role": "system", "content": cfg.Prompt}}
-	if ctx != "" {
-		msgs = append(msgs, map[string]string{"role": "system", "content": "GROUNDING (recall brain, pakai kalau relevan; jangan halu):\n" + ctx})
-	}
-	msgs = append(msgs, map[string]string{"role": "user", "content": in.Text})
-
-	reply := ""
-	if r, err := loketCall("llm.complete", map[string]any{"model": cfg.Model, "messages": msgs}); err == nil {
-		var s struct {
-			Content string `json:"content"`
+	for iter := 0; iter < maxToolIters; iter++ {
+		// AUTO-CONTINUE deterministik: budget abis & belum kelar → harness jadwalin
+		// lanjutan sendiri (ScheduleWakeup), nyambung lintas-turn = unbounded over time.
+		if !budgetNudged && hostTimeNowMs()-loopStartMs > loopBudgetMs {
+			budgetNudged = true
+			base, cont := parseAutoCont(userText)
+			next := cont + 1
+			if next > maxAutoContinue {
+				return fmt.Sprintf("⏳ Udah %d kali nyambung otomatis tapi belum kelar — kemungkinan tugasnya kegedean/muter. Gw STOP biar ga infinite. Pecah jadi lebih kecil ya.", cont)
+			}
+			contPrompt := fmt.Sprintf("[LANJUTAN OTOMATIS #%d] Lo lagi di tengah ngerjain tugas ini & BELUM kelar. LANJUTIN dari progres terakhir (cek memori/hasil sebelumnya — JANGAN ulang dari nol, JANGAN ngaku kelar kalau belum). Pas beneran kelar, jawab hasil FINAL + tutup 'SELESAI'.%s%s", next, autoContDelim, base)
+			_ = runTool("ScheduleWakeup", map[string]any{"delaySeconds": 5, "reason": "auto-continue tugas panjang", "prompt": contPrompt})
+			return fmt.Sprintf("⏳ Tugasnya panjang — chunk %d kelar, gw jadwalin lanjutan OTOMATIS (nyambung sendiri sampe SELESAI).", next)
 		}
-		_ = json.Unmarshal(r, &s)
-		reply = strings.TrimSpace(s.Content)
-		learn("experience", "job", "Did: "+trunc(in.Text, 200)+"\n→ "+trunc(reply, 400))
-	} else {
-		reply = fmt.Sprintf("[%s] pesan ke-ingat, tapi LLM offline (%s).", selfID(), trunc(err.Error(), 120))
-		learn("experience", "mistake", "LLM gagal buat: "+trunc(in.Text, 200)+" — "+trunc(err.Error(), 160))
+
+		reqMap := map[string]any{"model": cfg.Model, "messages": msgs}
+		if len(toolSpecs) > 0 {
+			reqMap["tools"] = toolSpecs
+			reqMap["parallel_tool_calls"] = false // 1 tool/iter → router aman (anti 400 multi tool_result)
+		}
+		reqJSON, _ := json.Marshal(reqMap)
+		resp, err := fetch("POST", routerURL, map[string]string{"Content-Type": "application/json"}, reqJSON, 240000)
+		if err != nil || resp == nil {
+			return "router error"
+		}
+		var o struct {
+			Choices []struct {
+				Message struct {
+					Content   string `json:"content"`
+					ToolCalls []struct {
+						ID       string `json:"id"`
+						Function struct {
+							Name      string `json:"name"`
+							Arguments string `json:"arguments"`
+						} `json:"function"`
+					} `json:"tool_calls"`
+				} `json:"message"`
+			} `json:"choices"`
+		}
+		if json.Unmarshal(resp.Body, &o) != nil || len(o.Choices) == 0 {
+			return "(no response)"
+		}
+		m := o.Choices[0].Message
+		if len(m.ToolCalls) == 0 {
+			// GHOST-GUARD: narasi niat-aksi tanpa tool → paksa 1 putaran (bounded).
+			if ghostNudges < maxGhostNudges && looksLikeGhostPromise(m.Content) {
+				ghostNudges++
+				c := m.Content
+				if strings.TrimSpace(c) == "" {
+					c = "(niat tanpa tool)"
+				}
+				msgs = append(msgs, map[string]any{"role": "assistant", "content": c})
+				msgs = append(msgs, map[string]any{"role": "user", "content": ghostNudgeMsg})
+				continue
+			}
+			return m.Content // jawaban final
+		}
+		// SERIALIZE: proses tool_call PERTAMA aja per iterasi (router aman).
+		tc := m.ToolCalls[0]
+		id := fmt.Sprintf("call_%d", iter)
+		content := m.Content
+		if strings.TrimSpace(content) == "" {
+			content = "(memanggil tool)"
+		}
+		msgs = append(msgs, map[string]any{"role": "assistant", "content": content,
+			"tool_calls": []any{map[string]any{"id": id, "type": "function",
+				"function": map[string]any{"name": tc.Function.Name, "arguments": tc.Function.Arguments}}}})
+		var targs map[string]any
+		if tc.Function.Arguments != "" {
+			_ = json.Unmarshal([]byte(tc.Function.Arguments), &targs)
+		}
+		result := runTool(tc.Function.Name, targs)
+		msgs = append(msgs, map[string]any{"role": "tool", "tool_call_id": id, "content": result})
 	}
-	emit(map[string]any{"reply": reply, "agent": selfID()})
+	return "(tool loop limit — coba lagi/perjelas)"
 }
 
-// learn — tulis drawer ke brain LOKAL (lapis bawah brain dua-lapis; router pegang
-// brain shared). wing=kategori (experience/eureka), room=tag halus (job/mistake).
-func learn(wing, room, content string) {
-	_, _ = loketCall("store.brain.add", map[string]any{"content": content, "wing": wing, "room": room})
+func fetchSelfPrompt() string {
+	resp, err := fetch("GET", selfPromp+selfID(), nil, nil, 2500)
+	if err != nil || resp == nil || resp.Status >= 400 {
+		return ""
+	}
+	var out struct {
+		Rendered string `json:"rendered"` // self-prompt render (directive + DNA) — field "rendered"
+	}
+	if json.Unmarshal(resp.Body, &out) != nil {
+		return ""
+	}
+	return out.Rendered
 }
 
-func trunc(s string, n int) string {
-	if len(s) <= n {
-		return s
+func fetchToolSpecs() []json.RawMessage {
+	resp, err := fetch("GET", specsURL+selfID(), nil, nil, 2500)
+	if err != nil || resp == nil || resp.Status >= 400 {
+		return nil
 	}
-	return s[:n] + "…"
+	var out struct {
+		Tools []json.RawMessage `json:"tools"`
+	}
+	if json.Unmarshal(resp.Body, &out) != nil {
+		return nil
+	}
+	return out.Tools
+}
+
+func runTool(name string, args map[string]any) string {
+	reqBody, _ := json.Marshal(map[string]any{"tool_name": name, "args": args, "caller": selfID() + "-loop"})
+	resp, err := fetch("POST", toolRun+selfID(), map[string]string{"Content-Type": "application/json"}, reqBody, 30000)
+	if err != nil || resp == nil {
+		return `{"error":"tool dispatch gagal"}`
+	}
+	if resp.Status >= 400 {
+		return fmt.Sprintf(`{"error":"tool http %d"}`, resp.Status)
+	}
+	out := string(resp.Body)
+	if len(out) > 8*1024 {
+		out = out[:8*1024] + " …[truncated]"
+	}
+	return out
+}
+
+// parseAutoCont — pesan LANJUTAN ("[LANJUTAN OTOMATIS #N] ...===TUGAS===<task>") →
+// (task asli, N). Fresh (tanpa marker) → (s, 0). Counter ride di prompt (stateless).
+func parseAutoCont(s string) (base string, count int) {
+	const pfx = "[LANJUTAN OTOMATIS #"
+	if !strings.HasPrefix(s, pfx) {
+		return s, 0
+	}
+	end := strings.IndexByte(s, ']')
+	if end < 0 || end <= len(pfx) {
+		return s, 0
+	}
+	for _, r := range s[len(pfx):end] {
+		if r >= '0' && r <= '9' {
+			count = count*10 + int(r-'0')
+		}
+	}
+	if k := strings.Index(s, autoContDelim); k >= 0 {
+		return strings.TrimSpace(s[k+len(autoContDelim):]), count
+	}
+	return s, count
+}
+
+const ghostNudgeMsg = "⚠️ Lo barusan bilang mau ngelakuin sesuatu (cek/list/scan/cari/tunggu) TAPI GA manggil tool. Itu ghosting — DILARANG. LAKUIN SEKARANG: panggil tool yang lo maksud. Kalau harus nunggu kerja lama, panggil ScheduleWakeup(delaySeconds, reason, prompt) biar kebangun otomatis & lanjut. JANGAN jawab teks doang."
+
+// ghostPhrases — sinyal niat-aksi/kelanjutan khas ghosting (substring match, no regexp).
+var ghostPhrases = []string{
+	"tunggu bentar", "tunggu sebentar", "tunggu ya", "bentar gw", "bentar ya",
+	"gw cek dulu", "cek dulu ya", "gw lihat dulu", "gw list dulu", "gw scan dulu",
+	"gw cari dulu", "gw proses dulu", "lagi gw cek", "hasilnya nyusul", "nyusul ya",
+	"stay tuned", "nanti gw kabarin", "nanti gw lapor",
+	"lanjut ke huruf", "mulai ke huruf", "lanjut ke pencarian", "berikutnya...",
+	"berikutnya…", "scan berikutnya", "lanjut scan", "mulai scanning", "iterasi berikutnya",
+	"lanjut ke tahap berikutnya", "lanjut ke iterasi",
+}
+
+func looksLikeGhostPromise(s string) bool {
+	low := strings.ToLower(s)
+	for _, p := range ghostPhrases {
+		if strings.Contains(low, p) {
+			return true
+		}
+	}
+	return false
 }
