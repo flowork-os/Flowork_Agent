@@ -144,7 +144,7 @@ func evolvePushConfigHandler() http.HandlerFunc {
 			"remote":    cfg.Remote,
 			"branch":    cfg.Branch,
 			"has_token": strings.TrimSpace(cfg.Token) != "",
-			"note":      "Token GitHub disimpan lokal (~/.flowork, ga ke-commit). Auto-push cuma jalan kalau enabled + token ada + lolos semua gate auto.",
+			"note":      "Token GitHub disimpan TERENKRIPSI (AES-256-GCM) di ~/.flowork, ga ke-commit, write-only. Auto-push cuma jalan kalau enabled + token ada + lolos semua gate auto.",
 		})
 	}
 }

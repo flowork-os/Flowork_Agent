@@ -115,3 +115,35 @@ func newGCM(key []byte) (cipher.AEAD, error) {
 	}
 	return cipher.NewGCM(block)
 }
+
+// MigrateSecretsEncrypt — enkripsi paksa SEMUA secret plaintext lama yg masih telanjang
+// (owner 2026-06-20 "pindahin saja"). Idempotent: yg udah enc:v1: di-skip; owner_password_hash
+// di-skip (exclude-list). Key mati → no-op. Aman: baca-dulu-baru-update (ga update saat iterate).
+func (s *Store) MigrateSecretsEncrypt() (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if loadSecretKey() == nil {
+		return 0, nil
+	}
+	rows, err := s.db.Query(`SELECT k, v FROM secrets`)
+	if err != nil {
+		return 0, err
+	}
+	type kv struct{ k, v string }
+	var todo []kv
+	for rows.Next() {
+		var k, v string
+		if rows.Scan(&k, &v) == nil &&
+			!plaintextSecretKeys[k] && v != "" && !strings.HasPrefix(v, secretEncPrefix) {
+			todo = append(todo, kv{k, v})
+		}
+	}
+	rows.Close()
+	n := 0
+	for _, e := range todo {
+		if _, err := s.db.Exec(`UPDATE secrets SET v=? WHERE k=?`, secretEnc(e.v), e.k); err == nil {
+			n++
+		}
+	}
+	return n, nil
+}

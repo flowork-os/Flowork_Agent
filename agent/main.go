@@ -203,6 +203,11 @@ func main() {
 	// injected them after kernelhost.Boot, an architectural defect). floworkdb.Shared() is an
 	// idempotent singleton, safe to open here. UPPER_SNAKE only; reserved/sensitive names skipped.
 	if fdbEarly, ferr := floworkdb.Shared(); ferr == nil {
+		// Migrasi sekali: enkripsi secret plaintext lama (privkey/API key) at-rest (owner
+		// 2026-06-20 "pindahin saja"). Idempotent — yg udah enc + password-hash di-skip.
+		if n, merr := fdbEarly.MigrateSecretsEncrypt(); merr == nil && n > 0 {
+			log.Printf("secrets: %d kredensial plaintext di-enkripsi at-rest", n)
+		}
 		if secrets, serr := fdbEarly.AllSecrets(); serr == nil {
 			for k, v := range secrets {
 				if k == strings.ToUpper(k) && strings.TrimSpace(v) != "" && !settingsapi.IsSensitiveEnvKey(k) {
