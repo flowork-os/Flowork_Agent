@@ -114,6 +114,31 @@ func archAnchorNoise(s string) bool {
 	return false
 }
 
+// archLooksLikeBuildPromise — content yg JANJI ngebangun ("oke gw bikin/rakit timnya
+// SEKARANG") TANPA manggil tool build = ghost-promise (sama akar ghosting mr-flow
+// §6.3). Guard PAKSA 1 putaran lagi biar beneran manggil build_team/build_app/
+// schedule_team. Hati: jangan ke-trigger sama PROPOSAL ("gimana kalau...") atau
+// pertanyaan konfirmasi — cuma yg nyatain LAGI/AKAN bikin sekarang.
+func archLooksLikeBuildPromise(s string) bool {
+	low := strings.ToLower(s)
+	verb := false
+	for _, v := range []string{"gw bikin", "gua bikin", "aku bikin", "gw rakit", "gw bangun", "gw buatin", "langsung gw", "gw susun", "gw set", "membangun", "merakit", "lagi bikin", "sedang", "oke gw", "siap gw", "gw mulai"} {
+		if strings.Contains(low, v) {
+			verb = true
+			break
+		}
+	}
+	if !verb {
+		return false
+	}
+	for _, obj := range []string{"tim", "team", "group", "app", "aplikasi", "jadwal", "schedule", "worker", "crew"} {
+		if strings.Contains(low, obj) {
+			return true
+		}
+	}
+	return false
+}
+
 func architectChat(ctx context.Context, host *kernelhost.Host, store *floworkdb.Store, groups *groupsapi.Handler, history []floworkdb.ChatMessage, model string) (string, error) {
 	model = coderModel(model)
 	messages := []map[string]any{{"role": "system", "content": architectPersona(ctx)}}
@@ -200,7 +225,11 @@ func architectChat(ctx context.Context, host *kernelhost.Host, store *floworkdb.
 	tools := []map[string]any{buildTool, scheduleTool, appTool, triggerTool}
 
 	// Up to 3 tool rounds, then a final tool-free turn to force a text wrap-up.
-	for iter := 0; iter < 3; iter++ {
+	// Loop 3→8: ngerakit tim/app multi-step (discuss→build→confirm) butuh ruang lebih
+	// dari 3 (gampang nyerah/kepotong). + ghost-guard (anti janji-tanpa-aksi, §6.3).
+	const archMaxIters, archMaxGhostNudges = 8, 2
+	builtSomething, ghostNudges := false, 0
+	for iter := 0; iter < archMaxIters; iter++ {
 		res, err := routerChat(ctx, model, messages, tools, 4096)
 		if err != nil {
 			return "", err
@@ -208,6 +237,16 @@ func architectChat(ctx context.Context, host *kernelhost.Host, store *floworkdb.
 		if len(res.ToolCalls) == 0 {
 			if strings.TrimSpace(res.Content) == "" {
 				return "(architect ga jawab — coba lagi)", nil
+			}
+			// GHOST-GUARD: janji "gw bikin timnya" tapi belum manggil build tool →
+			// PAKSA 1 putaran lagi biar beneran build (bounded). Kalau emang cuma
+			// proposal/nanya, model ga bakal kena (archLooksLikeBuildPromise tight).
+			if !builtSomething && ghostNudges < archMaxGhostNudges && archLooksLikeBuildPromise(res.Content) {
+				ghostNudges++
+				messages = append(messages,
+					map[string]any{"role": "assistant", "content": res.Content},
+					map[string]any{"role": "user", "content": "Lo bilang mau bikin TAPI belum manggil tool build_team/build_app/schedule_team. Kalau user UDAH setuju, PANGGIL tool-nya SEKARANG (jangan cuma ngomong). Kalau belum yakin, tanya konfirmasi singkat — JANGAN klaim udah bikin."})
+				continue
 			}
 			return res.Content, nil
 		}
@@ -219,6 +258,7 @@ func architectChat(ctx context.Context, host *kernelhost.Host, store *floworkdb.
 		messages = append(messages, asst)
 		for _, tc := range res.ToolCalls {
 			out := architectRunTool(ctx, host, store, groups, model, tc)
+			builtSomething = true // tool ke-eksekusi → bukan ghost (matiin guard)
 			messages = append(messages, map[string]any{"role": "tool", "tool_call_id": tc.ID, "content": out})
 		}
 	}
