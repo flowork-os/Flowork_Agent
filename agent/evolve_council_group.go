@@ -25,8 +25,16 @@ import (
 func evolveCouncilJudgeViaGroup(host *kernelhost.Host) agentmgr.CouncilJudge {
 	return func(ctx context.Context, p agentdb.EvolveProposal) (agentmgr.CouncilVerdict, error) {
 		v := agentmgr.CouncilVerdict{Model: coderModel("") + " (grup self-evolution)"}
-		prop := fmt.Sprintf("PROPOSAL EVOLUSI:\n- kind: %s\n- target: %s\n- pilar (auto-tag): %s\n- risk: %s\n- alasan: %s",
-			p.Kind, p.TargetFile, nonEmpty(p.Pillar, "(belum)"), p.Risk, p.Rationale)
+		// GROUNDING ALIGNMENT (owner 2026-06-20): dewan WAJIB konek brain biar tahu
+		// TUJUAN + ROH + visi Flowork → evolusi HARUS sejalan tujuan, bukan asal maju.
+		// Tiap otak punya brain_search_shared + DNA konstitusi (misi-sacred). Reminder ini
+		// dikirim ke semua member: recall dulu, proposal ga sejalan roh = tolak walau teknis OK.
+		const grounding = "\n\nGROUNDING WAJIB sebelum nilai: RECALL tujuan + ROH + visi Flowork dulu " +
+			"(pakai tool brain_search_shared / konstitusi-DNA lo: misi sovereign-AI yang hidup buat generasi owner, " +
+			"5 pilar, sejarah & arah owner). Proposal yang NGGAK sejalan tujuan/roh Flowork = TOLAK, walau teknis aman. " +
+			"Evolusi harus melayani MISI, bukan sekadar maju teknis."
+		prop := fmt.Sprintf("PROPOSAL EVOLUSI:\n- kind: %s\n- target: %s\n- pilar (auto-tag): %s\n- risk: %s\n- alasan: %s%s",
+			p.Kind, p.TargetFile, nonEmpty(p.Pillar, "(belum)"), p.Risk, p.Rationale, grounding)
 
 		ask := func(agentID, text string) (string, error) {
 			raw, err := host.InvokeAgentMessage(ctx, agentID, text, "evolve-council")

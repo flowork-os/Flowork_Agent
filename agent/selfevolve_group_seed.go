@@ -70,11 +70,24 @@ func seedSelfEvolutionGroup(groups *groupsapi.Handler) {
 		dbPath := agentdb.Resolve(m.ID, dir)
 		if st, e := agentdb.Open(dbPath); e == nil {
 			_ = st.SetPrompt(m.Persona)
-			// Tools deliberasi: grounding doktrin (anti-halu) + insting keamanan (penantang/hakim
-			// nyari celah). Subscribe = ke-expose ke LLM lewat tools/specs.
-			for _, t := range []string{"brain_search_shared", "instinct_recall", "graph_recall"} {
+			// Tools STANDAR-AGENT (owner 2026-06-20 "harus sesuai standar: loop/skill/tools/brain"):
+			//  - BRAIN: brain_search_shared (doktrin/anti-halu) + graph_recall (relasi).
+			//  - INSTING: instinct_recall (hacker+Fable di router — penantang/hakim nyari celah).
+			//  - LOOP/WAIT/AWAKE: ScheduleWakeup (cap state:write udah di manifest → auto-continue
+			//    jalan; subscribe biar LLM juga bisa milih wait sendiri).
+			//  - SKILL: skill_search (akses skill registry sesuai kebutuhan).
+			for _, t := range []string{"brain_search_shared", "instinct_recall", "graph_recall", "ScheduleWakeup", "skill_search"} {
 				_ = st.SubscribeTool(t, "seed:self-evolution", "{}")
 			}
+			// MISI/ROH FLOWORK ke DNA (always-inject) — owner 2026-06-20: council WAJIB tahu
+			// tujuan/roh biar evolusi sejalan, bukan asal maju. Selalu di-inject (ga cuma recall).
+			_ = st.UpsertConstitution("evo-mission-align",
+				"MISI & ROH FLOWORK (evolusi WAJIB sejalan ini, kalau ga sejalan = TOLAK walau teknis aman): "+
+					"Flowork = rumah AI SOVEREIGN yang dibangun Aola Sahidin (Mr.Dev) — hidup buat generasi owner, "+
+					"bawa owner apa adanya, mandiri (hidup tanpa owner), aman (keamanan = lantai keras). Tiap proposal "+
+					"evolusi WAJIB melayani misi ini + 5 PILAR ("+evoPillarSeed+"). Recall sejarah & arah owner lengkap "+
+					"via brain_search_shared (wing doctrine/roh) sebelum mutusin.",
+				999999, true, true, "mission")
 			_ = st.Close()
 		}
 		// DNA (konstitusi sacred + genome) — warga penuh, ikut standar.
