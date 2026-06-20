@@ -6,6 +6,13 @@
 // 2026-06-15 (owner-approved): classifyRoute GROUNDING — route tool prompt now prefers
 //   'chat' when nothing truly fits / on creation-intent (anti-misroute, e.g. "team
 //   peramal" no longer hijacked to "repo-reviewer"). Prompt-only; wasm rebuilt. Re-locked.
+// 2026-06-20 (owner-approved): GHOST-GUARD anti-ghosting di tool-loop. Akar: pas model
+//   jawab TEKS tanpa tool-call, `return m.Content` ngebolehin "janji" ("tunggu bentar gw
+//   cek dulu") jadi state TERMINAL → owner nunggu selamanya. Fix deterministik: teks-tanpa-
+//   tool yg nyinyalin niat-aksi di-PAKSA 1 putaran lagi (panggil tool SEKARANG atau
+//   ScheduleWakeup kalau nunggu), bounded maxGhostNudges (anti infinite). + Tier-1 prompt
+//   positif (sebut ScheduleWakeup). Model-agnostic (26B pun ga bisa ghosting struktural).
+//   wasm rebuilt (tinygo). Re-locked.
 // Locked at: 2026-05-30
 // Reason: Mr.Flow WASM agent (CRITICAL). Audit pass:
 //   - Token + TELEGRAM_ALLOWED_CHATS validation (drop kalau invalid)
@@ -104,6 +111,7 @@ const (
 const (
 	maxActiveSkills      = 3    // max skill auto-inject ke persona (sisanya via skill_search)
 	maxToolIters         = 12   // max iterasi tool-loop per turn (serialized 1 tool/iter → butuh lebih)
+	maxGhostNudges       = 2    // ghost-guard: max paksa-lanjut per turn pas model narasi-niat tanpa tool (anti-ghosting, bounded)
 	maxMsgContentChars   = 6000 // cap per-message content sebelum kirim ke LLM
 	keepToolResultsFull  = 4    // hasil tool terbaru yang TIDAK di-prune (sisanya diringkas)
 	maxSkillCharsPerItem = 300  // truncate instruction skill kalau terlalu panjang
@@ -239,7 +247,8 @@ func runDaemon() {
 	for {
 		updates, err := getUpdates(token, offset, pollTimeout)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "["+selfID()+"] getUpdates err: %v\n", err)
+			fmt.Fprintf(os.Stderr, "["+selfID()+"] getUpdates err: %v, sleep 5s...\n", err)
+			time.Sleep(5 * time.Second)
 			continue
 		}
 		for _, u := range updates {
@@ -586,6 +595,7 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn, notifyChatID 
 	// (core set, BUKAN 106 — anti over-prompt). LLM minta tool → kita eksekusi
 	// via /api/agents/tools/run → feed hasil → ulang sampai LLM jawab teks.
 	toolSpecs := fetchToolSpecs()
+	ghostNudges := 0 // ghost-guard: berapa kali udah maksa model lanjut (anti narasi-tanpa-aksi)
 	for iter := 0; iter < maxToolIters; iter++ {
 		reqMap := map[string]any{"model": cfg.Router.Model, "messages": prepMessages(msgs)}
 		if len(toolSpecs) > 0 {
@@ -643,6 +653,23 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn, notifyChatID 
 		}
 		m := oResp.Choices[0].Message
 		if len(m.ToolCalls) == 0 {
+			// GHOST-GUARD (anti-ghosting, deterministik): model jawab TEKS tanpa
+			// tool-call. Kalau teksnya nyinyalin niat-aksi ("tunggu bentar gw cek/
+			// list dulu") = janji yg ga ditepatin → turn habis di sini & owner
+			// nunggu selamanya. JANGAN biarin jadi final: paksa 1 putaran lagi
+			// (panggil tool SEKARANG, atau ScheduleWakeup kalau emang nunggu).
+			// Bounded (maxGhostNudges) → ga infinite. 26B pun ga bisa ghosting.
+			if ghostNudges < maxGhostNudges && looksLikeGhostPromise(m.Content) {
+				ghostNudges++
+				content := m.Content
+				if strings.TrimSpace(content) == "" {
+					content = "(niat lanjut tanpa tool)"
+				}
+				msgs = append(msgs, map[string]any{"role": "assistant", "content": content})
+				msgs = append(msgs, map[string]any{"role": "user", "content": ghostNudgeMsg})
+				fmt.Fprintf(os.Stderr, "[%s] ghost-guard: nudge %d (narasi tanpa tool)\n", selfID(), ghostNudges)
+				continue
+			}
 			return m.Content // jawaban final (teks)
 		}
 		// SERIALIZE tool calls: proses CUMA tool_call PERTAMA per iterasi, walau
@@ -687,6 +714,35 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn, notifyChatID 
 		})
 	}
 	return "(tool loop limit reached — coba lagi atau perjelas permintaan)"
+}
+
+// ghostNudgeMsg — koreksi deterministik pas model NARASI niat-aksi tanpa manggil
+// tool (ghosting). Dikirim sbg pesan user biar model BERTINDAK, bukan janji kosong.
+const ghostNudgeMsg = "⚠️ Lo barusan bilang mau ngelakuin sesuatu (cek/list/scan/cari/tunggu) TAPI GA manggil tool apa-apa. Itu artinya owner nunggu jawaban yang ga bakal datang (ghosting) — DILARANG. LAKUIN SEKARANG di balasan ini: panggil tool yang lo maksud (mis. file_list, glob, grep, file_read). KALAU emang harus nunggu sesuatu yang belum siap / kerja lama, panggil ScheduleWakeup(delaySeconds, reason, prompt) biar lo kebangun otomatis & lanjut sendiri. JANGAN jawab teks doang lagi."
+
+// ghostPhrases — sinyal NIAT-AKSI khas ghosting (model bilang mau ngapain TAPI ga
+// manggil tool). TinyGo-safe: substring match (no regexp). Tight = presisi tinggi,
+// minim false-positive (frasa penundaan-aksi yang jelas, bukan kata umum).
+var ghostPhrases = []string{
+	"tunggu bentar", "tunggu sebentar", "tunggu ya",
+	"bentar gw", "bentar ya", "sebentar gw", "sebentar ya",
+	"gw cek dulu", "cek dulu ya", "gw lihat dulu", "gw liat dulu",
+	"gw list dulu", "gw scan dulu", "gw cari dulu", "gw periksa dulu",
+	"gw kerjain dulu", "gw proses dulu", "lagi gw cek", "lagi gw proses",
+	"hasilnya nyusul", "nyusul ya", "stay tuned",
+	"nanti gw kabarin", "nanti gw lapor", "gw kabarin nanti",
+}
+
+// looksLikeGhostPromise — true kalau teks (tanpa tool-call) nyinyalin niat-aksi
+// yang ga ditepatin. Dipakai ghost-guard di tool-loop (anti-ghosting).
+func looksLikeGhostPromise(s string) bool {
+	low := strings.ToLower(s)
+	for _, p := range ghostPhrases {
+		if strings.Contains(low, p) {
+			return true
+		}
+	}
+	return false
 }
 
 // fetchToolSpecs — ambil tools yang di-expose ke LLM (OpenAI function-schema)
@@ -763,6 +819,11 @@ func buildSystemPrompt(cfg agentConfig) string {
 	b.WriteString("[TOOLS NYATA: lo punya tools beneran (di list `tools` request ini). PAKAI buat " +
 		"ngerjain — JANGAN ngarang/pura-pura 'scanning…/tunggu output gw'. Tool ga ada di list? " +
 		"cari via `tool_search`. Tool nolak (capability)? jujur bilang ga ada izin, jangan ngarang.]\n")
+	b.WriteString("[ANTI-GHOSTING: kalau lo mau ngelakuin sesuatu, LAKUIN di balasan yang SAMA — " +
+		"panggil tool-nya LANGSUNG, jangan cuma bilang 'tunggu bentar gw cek dulu' terus berhenti " +
+		"(itu ghosting — owner nunggu sia-sia). Butuh nunggu sesuatu yang belum siap / kerja lama? " +
+		"panggil ScheduleWakeup(delaySeconds, reason, prompt) biar lo kebangun otomatis & lanjut sendiri. " +
+		"Tiap janji 'nanti' WAJIB ada tool yang beneran nepatin.]\n")
 	b.WriteString("[HELPFULNESS: diminta info real-time (harga/berita/status live)? bantu LANGSUNG — " +
 		"kasih konteks knowledge umum (caveat 'stale') + sebut 1-2 source live relevan, jangan " +
 		"defensive nyuruh 'cek sendiri'.]\n")
