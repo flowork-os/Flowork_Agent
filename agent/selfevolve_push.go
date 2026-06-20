@@ -86,7 +86,16 @@ func evolveLoadPushCfg() evolvePushCfg {
 	if v, _ := db.GetKV("evolve_push_remote"); strings.TrimSpace(v) != "" {
 		cfg.Remote = strings.TrimSpace(v)
 	}
-	cfg.Token, _ = db.GetKV("evolve_push_token")
+	// Token = KREDENSIAL → tabel `secrets` (enkripsi-at-rest), BUKAN kv. Migrasi otomatis
+	// dari kv lama (kalau ada) → secrets sekali, terus bersihin kv (owner 2026-06-20 fix kritis).
+	cfg.Token, _ = db.GetSecret("evolve_push_token")
+	if cfg.Token == "" {
+		if legacy, _ := db.GetKV("evolve_push_token"); strings.TrimSpace(legacy) != "" {
+			_ = db.SetSecret("evolve_push_token", legacy)
+			_ = db.SetKV("evolve_push_token", "") // cabut dari kv (plaintext) setelah pindah
+			cfg.Token = legacy
+		}
+	}
 	cfg.Branch, _ = db.GetKV("evolve_push_branch")
 	return cfg
 }
@@ -122,8 +131,9 @@ func evolvePushConfigHandler() http.HandlerFunc {
 				_ = db.SetKV("evolve_push_branch", strings.TrimSpace(*b.Branch))
 			}
 			if b.Token != nil {
-				// "" → owner ngosongin (cabut token). Selain itu simpan apa adanya.
-				_ = db.SetKV("evolve_push_token", strings.TrimSpace(*b.Token))
+				// KREDENSIAL → secrets (enkripsi-at-rest), bukan kv. "" = owner cabut token.
+				_ = db.SetSecret("evolve_push_token", strings.TrimSpace(*b.Token))
+				_ = db.SetKV("evolve_push_token", "") // pastiin ga ada sisa plaintext di kv
 			}
 			tfWriteJSON(w, 0, map[string]any{"ok": true})
 			return

@@ -126,18 +126,31 @@ func (s *Store) SetKV(k, v string) error {
 
 // ── secrets ─────────────────────────────────────────────────────────────
 
-// GetSecret returns secret value for key (empty string if absent).
+// GetSecret returns secret value for key (empty string if absent). Decrypt-at-rest
+// (secret_crypto.go): value ber-prefix enc:v1: di-decrypt; plaintext lama passthrough.
 func (s *Store) GetSecret(k string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.getOne("secrets", k)
+	raw, err := s.getOne("secrets", k)
+	if err != nil || raw == "" {
+		return raw, err
+	}
+	if plaintextSecretKeys[k] {
+		return raw, nil
+	}
+	return secretDec(raw), nil
 }
 
-// SetSecret upsert secret key/value.
+// SetSecret upsert secret key/value — ENKRIPSI-AT-REST (kecuali key di plaintextSecretKeys,
+// mis. owner_password_hash → anti-lockout). Key file ilang → fail-safe plaintext.
 func (s *Store) SetSecret(k, v string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.upsert("secrets", k, v)
+	stored := v
+	if !plaintextSecretKeys[k] {
+		stored = secretEnc(v)
+	}
+	return s.upsert("secrets", k, stored)
 }
 
 // DeleteSecret hapus 1 secret key.
@@ -183,6 +196,9 @@ func (s *Store) AllSecrets() (map[string]string, error) {
 		var k, v string
 		if serr := rows.Scan(&k, &v); serr != nil {
 			return nil, serr
+		}
+		if !plaintextSecretKeys[k] {
+			v = secretDec(v) // decrypt-at-rest sebelum inject ke env (lihat secret_crypto.go)
 		}
 		out[k] = v
 	}
