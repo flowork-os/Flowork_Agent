@@ -101,7 +101,7 @@ func extractGoCode(s string) string {
 
 // runOneCapTask — minta model nulis fungsi → compile+run harness di temp → true kalau "PASS".
 func runOneCapTask(ctx context.Context, model string, t capTask) bool {
-	res, err := routerChat(ctx, model, []map[string]any{
+	res, err := routerChatSafe(ctx, model, []map[string]any{
 		{"role": "system", "content": "You are a precise Go programmer. Output ONLY compilable Go code, no prose."},
 		{"role": "user", "content": t.prompt},
 	}, nil, 1200)

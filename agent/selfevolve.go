@@ -87,7 +87,7 @@ func evolveProposer() agentmgr.EvolveProposer {
 			"PREFER behavior-layer (add-skill / add-agent / add-app): those APPLY directly here. Repo-source kinds (fix/refactor/test/doc) only land via upstream in the public edition, so propose them sparingly. " +
 			"NEVER propose deleting files or editing files marked LOCKED. No prose, JSON array only."
 		user := "FOCUS: " + foc + "\n\nSELF-MAP (semantik):\n" + selfMapContext
-		res, e := routerChat(ctx, model, []map[string]any{
+		res, e := routerChatSafe(ctx, model, []map[string]any{
 			{"role": "system", "content": sys},
 			{"role": "user", "content": user},
 		}, nil, 1400)

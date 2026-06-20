@@ -471,7 +471,7 @@ func evolveCodegenFile(ctx context.Context, host *kernelhost.Host, rel string, p
 		"untuk path yang diminta. ATURAN KERAS: file BARU & ADDITIVE — JANGAN asumsikan ngedit/ngehapus file lain, " +
 		"JANGAN bikin fungsi yg bentrok nama global. Ikuti gaya kode sekitar, komentar secukupnya. " +
 		"Output HANYA isi file mentah (tanpa ``` fence, tanpa penjelasan)."
-	res, e := routerChat(ctx, model, []map[string]any{
+	res, e := routerChatSafe(ctx, model, []map[string]any{
 		{"role": "system", "content": sys},
 		{"role": "user", "content": spec},
 	}, nil, 4000)

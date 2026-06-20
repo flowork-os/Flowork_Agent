@@ -68,7 +68,7 @@ func codemapSemanticSummarizer(host *kernelhost.Host) agentmgr.SemanticSummarize
 			{"role": "system", "content": sys},
 			{"role": "user", "content": "FILE: " + path + "\n\n" + content},
 		}
-		res, e := routerChat(ctx, usedModel, msgs, nil, 300)
+		res, e := routerChatSafe(ctx, usedModel, msgs, nil, 300)
 		if e != nil {
 			return "", "", "", usedModel, e
 		}

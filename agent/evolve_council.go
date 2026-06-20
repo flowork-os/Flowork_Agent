@@ -28,7 +28,7 @@ func evolveCouncilJudge() agentmgr.CouncilJudge {
 			p.Kind, p.TargetFile, nonEmpty(p.Pillar, "(belum)"), p.Risk, p.Rationale)
 
 		// 1) PEMBELA (advocate, fresh-eyes — bukan pengusul, biar objektif)
-		res, e := routerChat(ctx, model, []map[string]any{
+		res, e := routerChatSafe(ctx, model, []map[string]any{
 			{"role": "system", "content": "Kamu PEMBELA di dewan evolusi Flowork. Argumenkan PRO proposal ini: " +
 				"petakan ke 5 PILAR (" + evolvePillarDesc + "), manfaat KONKRET, kenapa AMAN + ADDITIVE + reversibel. " +
 				"Persuasif TAPI JUJUR — jangan ngarang manfaat. Max 120 kata."},
@@ -40,7 +40,7 @@ func evolveCouncilJudge() agentmgr.CouncilJudge {
 		v.Pembela = strings.TrimSpace(res.Content)
 
 		// 2) PENANTANG (skeptic, semi-veto)
-		res, e = routerChat(ctx, model, []map[string]any{
+		res, e = routerChatSafe(ctx, model, []map[string]any{
 			{"role": "system", "content": "Kamu PENANTANG di dewan evolusi Flowork. Tugasmu CARI CACAT: risiko, mutasi-LETAL, " +
 				"cara proposal ini BISA NGERUSAK / MBOBOL / nge-DESTABILISASI Flowork, kerusakan LINTAS-PILAR (majuin 1 pilar " +
 				"tapi NGORBANIN lain — terutama KEAMANAN = lantai keras). Default SKEPTIS; ragu = flag. Kalau ada risiko FATAL " +
@@ -61,7 +61,7 @@ func evolveCouncilJudge() agentmgr.CouncilJudge {
 		}
 		approve, reject := 0, 0
 		for i, fr := range frames {
-			res, e = routerChat(ctx, model, []map[string]any{
+			res, e = routerChatSafe(ctx, model, []map[string]any{
 				{"role": "system", "content": "Kamu HAKIM-GERBANG #" + strconv.Itoa(i+1) + " di dewan evolusi Flowork. " + fr +
 					" Timbang argumen Pembela vs Penantang. RAGU = stage/reject (KONSERVATIF). Kalau keamanan dikorbanin = reject. " +
 					"Balas PERSIS format ini, tanpa prosa lain:\nDECISION: <approve|stage|reject>\nSCORE: <0-10>\nREASON: <1 kalimat>"},

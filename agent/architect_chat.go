@@ -237,7 +237,7 @@ func architectChat(ctx context.Context, host *kernelhost.Host, store *floworkdb.
 	const archMaxIters, archMaxGhostNudges = 8, 2
 	builtSomething, ghostNudges := false, 0
 	for iter := 0; iter < archMaxIters; iter++ {
-		res, err := routerChat(ctx, model, messages, tools, 4096)
+		res, err := routerChatSafe(ctx, model, messages, tools, 4096)
 		if err != nil {
 			return "", err
 		}
@@ -269,7 +269,7 @@ func architectChat(ctx context.Context, host *kernelhost.Host, store *floworkdb.
 			messages = append(messages, map[string]any{"role": "tool", "tool_call_id": tc.ID, "content": out})
 		}
 	}
-	res, err := routerChat(ctx, model, messages, nil, 1500)
+	res, err := routerChatSafe(ctx, model, messages, nil, 1500)
 	if err != nil {
 		return "", err
 	}
