@@ -180,6 +180,15 @@ func trimStr(s string, n int) string {
 // agent built-in yang udah ada di AgentsDir. Generic crew main.go IDENTIK lintas
 // agent → wasm apapun cocok jadi template. Balik (wasm, manifestRaw, err).
 func coderTemplate(role string) ([]byte, []byte, error) {
+	// TEMPLATE BARU KANONIK (owner 2026-06-20): templates/agent-template = cetakan
+	// fresh sesuai standar (DB-config, no .md). Dipakai DULUAN biar agent baru lahir
+	// dari template current, ga gantung ke agen built-in yg mungkin udah dihapus.
+	// Manifest skeleton (id="TEMPLATE_AGENT_ID") di-swap caller (swapManifest).
+	if wasm, e1 := os.ReadFile(filepath.Join("templates", "agent-template", "agent.wasm")); e1 == nil && len(wasm) > 0 {
+		if man, e2 := os.ReadFile(filepath.Join("templates", "agent-template", "manifest.json")); e2 == nil {
+			return wasm, man, nil
+		}
+	}
 	// kandidat stabil built-in (worker pertama, synth ke-2). Fallback: scan apa aja.
 	cands := map[string][]string{
 		"worker": {"saham-fundamental", "crypto-fundamental", "music-riset"},

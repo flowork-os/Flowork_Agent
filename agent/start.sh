@@ -118,6 +118,23 @@ if [ -f "$GROUP_TPL/main.go" ] && command -v go >/dev/null 2>&1; then
   fi
 fi
 
+# ── AGENT template wasm ───────────────────────────────────────────────────
+# coderTemplate (AI Studio) clone templates/agent-template/agent.wasm jadi agent
+# baru. Wasm gitignored (build dari source) → FRESH CHECKOUT mesti build di sini,
+# else AI Studio bikin agent gagal. Standard wasip1 (no tinygo). Idempotent.
+AGENT_TPL="$ROOT/templates/agent-template"
+AGENT_WASM="$AGENT_TPL/agent.wasm"
+if [ -f "$AGENT_TPL/main.go" ] && command -v go >/dev/null 2>&1; then
+  if [ ! -f "$AGENT_WASM" ] || [ -n "$(find "$AGENT_TPL" -name '*.go' -newer "$AGENT_WASM" 2>/dev/null | head -1)" ]; then
+    c_info "Build agent template wasm (wasip1)…"
+    if ( cd "$AGENT_TPL" && GOWORK=off GOOS=wasip1 GOARCH=wasm go build -o agent.wasm . ); then
+      c_ok "agent template wasm OK ($(stat -c%s "$AGENT_WASM") bytes)"
+    else
+      c_warn "agent template wasm build gagal — AI Studio bikin agent bakal error sampai ini ke-build"
+    fi
+  fi
+fi
+
 # ── POWER ARM ────────────────────────────────────────────────────────────
 # system_power tool EKSEKUSI aksi daya beneran (shutdown/reboot/suspend/lock/
 # logout) kalau FLOWORK_POWER_ARMED=1 (DEFAULT). Aman walau default armed:
