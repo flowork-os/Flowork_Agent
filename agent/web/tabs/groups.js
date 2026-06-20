@@ -432,7 +432,10 @@ async function createGroup(mainEl) {
     });
     idEl.value = ''; nameEl.value = '';
     msg.style.color = '#6ee7b7'; msg.textContent = '✓ ' + L.create_ok; msg.style.display = '';
+    // Group baru nongol setelah host hot-load (~1s). Double-reload (800ms + 2s) biar PASTI
+    // ke-tampil walau hot-load agak lambat — anti "create tapi ga muncul" (owner: ga ada kabel putus).
     setTimeout(() => load(mainEl), 800);
+    setTimeout(() => load(mainEl), 2000);
   } catch (e) {
     msg.style.color = '#f87171'; msg.textContent = L.create_fail + (e.message || e); msg.style.display = '';
   } finally {
@@ -465,6 +468,7 @@ async function architectBuild(mainEl) {
     const n = (r.members || []).length;
     msg.style.color = '#6ee7b7'; msg.textContent = `✓ ${L.arch_built} — ${nm} (${n})`;
     await load(mainEl);
+    setTimeout(() => load(mainEl), 2000); // safety: tim baru nongol setelah hot-load (~1s)
   } catch (e) {
     msg.style.color = '#f87171'; msg.textContent = L.arch_fail + (e.message || e);
   } finally {
