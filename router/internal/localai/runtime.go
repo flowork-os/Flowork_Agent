@@ -47,6 +47,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/flowork-os/flowork_Router/internal/sidecar"
 )
 
 // Runtime — manages llama-server subprocess.
@@ -85,30 +87,17 @@ const FloworkBrainModel = "flowork-brain"
 
 // ResolveFloworkBrain — portable GGUF lookup for flowork-brain, mirroring the
 // resolution order of internal/brain.brain.go. Order:
-//   1. $FLOWORK_BRAIN_GGUF      (explicit override)
-//   2. <exe-dir>/models/flowork-brain.gguf            (portable: ship models/ next to binary)
-//   3. <exe-dir>/../router/models/flowork-brain.gguf  (dev/build layout)
-//   4. ./router/models/flowork-brain.gguf             (run from repo root)
+//  1. $FLOWORK_BRAIN_GGUF      (explicit override)
+//  2. <exe-dir>/models/flowork-brain.gguf            (portable: ship models/ next to binary)
+//  3. <exe-dir>/../router/models/flowork-brain.gguf  (dev/build layout)
+//  4. ./router/models/flowork-brain.gguf             (run from repo root)
+//
 // Returns "" if not found anywhere.
 func ResolveFloworkBrain() string {
-	if p := os.Getenv("FLOWORK_BRAIN_GGUF"); p != "" && fileExists(p) {
-		return p
-	}
-	var cands []string
-	if exe, err := os.Executable(); err == nil {
-		d := filepath.Dir(exe)
-		cands = append(cands,
-			filepath.Join(d, "models", "flowork-brain.gguf"),
-			filepath.Join(d, "..", "router", "models", "flowork-brain.gguf"),
-		)
-	}
-	cands = append(cands, filepath.Join("router", "models", "flowork-brain.gguf"))
-	for _, c := range cands {
-		if fileExists(c) {
-			return c
-		}
-	}
-	return ""
+	// roadmap_sidecar Fase 0/3: resolusi dipindah ke paket sidecar (sumber path tunggal).
+	// Legacy-default = chain lama PERSIS ($FLOWORK_BRAIN_GGUF → exe-dir/models →
+	// exe-dir/../router/models → router/models). Sidecar aktif → content/models.
+	return sidecar.ModelGGUF()
 }
 
 func fileExists(p string) bool {
@@ -118,22 +107,15 @@ func fileExists(p string) bool {
 
 // ResolveLlamaBin — cross-OS llama-server resolution for boot auto-start.
 // Order: $FLOWORK_LLAMA_BIN → <exe-dir>/bin/llama-server[.exe] → <exe-dir>/llama-server[.exe]
-//   → PATH. Returns "" if nothing resolves anywhere (callers treat "" as "no local
-//   runtime present" → skip auto-start; the manual GUI path falls back to PATH name).
+//
+//	→ PATH. Returns "" if nothing resolves anywhere (callers treat "" as "no local
+//	runtime present" → skip auto-start; the manual GUI path falls back to PATH name).
 func ResolveLlamaBin() string {
-	if p := strings.TrimSpace(os.Getenv("FLOWORK_LLAMA_BIN")); p != "" && fileExists(p) {
+	// roadmap_sidecar Fase 0/3: resolusi env+exe-dir+content/bin dipindah ke sidecar
+	// (legacy-default = chain lama PERSIS). Fallback PATH tetap di sini (sidecar ga
+	// urus PATH — itu domain runtime).
+	if p := sidecar.LlamaBin(); p != "" {
 		return p
-	}
-	if exe, err := os.Executable(); err == nil {
-		d := filepath.Dir(exe)
-		for _, c := range []string{
-			filepath.Join(d, "bin", "llama-server"), filepath.Join(d, "bin", "llama-server.exe"),
-			filepath.Join(d, "llama-server"), filepath.Join(d, "llama-server.exe"),
-		} {
-			if fileExists(c) {
-				return c
-			}
-		}
 	}
 	if lp, err := exec.LookPath("llama-server"); err == nil {
 		return lp

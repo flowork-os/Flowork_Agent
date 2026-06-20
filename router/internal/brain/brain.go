@@ -27,8 +27,9 @@ package brain
 import (
 	"database/sql"
 	"os"
-	"path/filepath"
 	"sync"
+
+	"github.com/flowork-os/flowork_Router/internal/sidecar"
 
 	_ "modernc.org/sqlite"
 )
@@ -54,26 +55,11 @@ func DBPath() string {
 	if o != "" {
 		return o
 	}
-	if p := os.Getenv("FLOW_ROUTER_BRAIN_DB"); p != "" {
-		return p
-	}
-	if d := os.Getenv("FLOW_ROUTER_DATA"); d != "" {
-		return filepath.Join(d, "brain", "flowork-brain.sqlite")
-	}
-	// Portable mode: when brain/ sits next to the executable (e.g. user copied
-	// the heavy SQLite into the repo root as described in .gitignore's
-	// "Heavy brain assets live IN the router project root" intent), prefer
-	// that path over the empty ~/.flow_router/ default.
-	if exe, err := os.Executable(); err == nil {
-		if p := filepath.Join(filepath.Dir(exe), "brain", "flowork-brain.sqlite"); fileExists(p) {
-			return p
-		}
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	return filepath.Join(home, ".flow_router", "brain", "flowork-brain.sqlite")
+	// roadmap_sidecar Fase 0/3: resolusi chain dipindah ke paket sidecar (sumber
+	// kebenaran path tunggal). Legacy-default (FLOWORK_SIDECAR kosong) = chain lama
+	// PERSIS ($FLOW_ROUTER_BRAIN_DB → $FLOW_ROUTER_DATA/brain → exe-dir/brain →
+	// ~/.flow_router/brain). pathOverride tetap dipegang di sini (di atas).
+	return sidecar.BrainDB()
 }
 
 // fileExists reports whether path resolves to a regular file (not a dir).

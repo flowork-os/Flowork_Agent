@@ -24,20 +24,18 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/flowork-os/flowork_Router/internal/sidecar"
 )
 
 // DynamicSkillsDir resolves the writable dir for runtime-authored skills (SKILL.md).
 // Precedence mirrors the brain DB: $FLOW_ROUTER_DATA/skills → ~/.flow_router/skills.
 // The skill_author endpoint writes here; SelectSkills reads here. "" if unresolvable.
 func DynamicSkillsDir() string {
-	if d := os.Getenv("FLOW_ROUTER_DATA"); d != "" {
-		return filepath.Join(d, "skills")
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	return filepath.Join(home, ".flow_router", "skills")
+	// roadmap_sidecar Fase 0/3: dipindah ke paket sidecar. Legacy-default = chain lama
+	// PERSIS ($FLOW_ROUTER_DATA/skills → ~/.flow_router/skills). Skills BAWAAN tetap
+	// embedded (//go:embed), cuma authored (data laci) yg lewat sini.
+	return sidecar.DynamicSkillsDir()
 }
 
 // loadDynamicSkills reads runtime skills from DynamicSkillsDir (each *.md or

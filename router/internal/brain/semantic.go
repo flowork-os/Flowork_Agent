@@ -1,6 +1,8 @@
 // === LOCKED FILE (soft) === Status: STABLE — owner-approved 2026-06-16 (LOCKED ≠ FREEZE).
 // re-edit 2026-06-17 (owner-approved): vectorRetrieve filter deleted_at IS NULL + over-fetch selalu
-//   — drawer tombstoned JANGAN di-retrieve (paritas dgn FTS retrieve.go). Re-LOCK.
+//
+//	— drawer tombstoned JANGAN di-retrieve (paritas dgn FTS retrieve.go). Re-LOCK.
+//
 // AI lain: JANGAN otak-atik tanpa izin owner. Teruji (TestSemanticLive: vector murni by-makna).
 //
 // semantic.go — #6 ARSITEK BARU: pencarian brain by-MAKNA (Quantum Recall, vector murni).
@@ -22,12 +24,12 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 
 	"github.com/flowork-os/flowork_Router/internal/brain/vecindex"
 	"github.com/flowork-os/flowork_Router/internal/providers/embedding"
+	"github.com/flowork-os/flowork_Router/internal/sidecar"
 )
 
 const vindexEnv = "FLOWORK_BRAIN_VINDEX"
@@ -37,18 +39,11 @@ var (
 	vIdx *vecindex.Index
 )
 
-// vindexPath — lokasi index: env FLOWORK_BRAIN_VINDEX > <exe_dir>/brain/brain.vindex > cwd. PORTABLE.
+// vindexPath — lokasi index. roadmap_sidecar Fase 0/3: dipindah ke paket sidecar
+// (sumber path tunggal). Legacy-default = chain lama PERSIS (FLOWORK_BRAIN_VINDEX >
+// <exe_dir>/brain/brain.vindex > cwd brain/).
 func vindexPath() string {
-	if p := strings.TrimSpace(os.Getenv(vindexEnv)); p != "" {
-		return p
-	}
-	if exe, err := os.Executable(); err == nil {
-		p := filepath.Join(filepath.Dir(exe), "brain", "brain.vindex")
-		if _, e := os.Stat(p); e == nil {
-			return p
-		}
-	}
-	return filepath.Join("brain", "brain.vindex")
+	return sidecar.Vindex()
 }
 
 // loadVIndex — load index sekali (cache). nil kalau file belum ada (vector OFF -> FTS sementara).
