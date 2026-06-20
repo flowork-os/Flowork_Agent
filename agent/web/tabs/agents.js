@@ -4,6 +4,11 @@
 // Repo: https://github.com/flowork-os/Flowork-OS
 // Locked at: 2026-05-30
 // Reason: Agents main tab (922 LOC). Audit pass — esc() on agent fields, CSS.escape on dynamic id, encodeURIComponent on agent_id param, modal close via ESC + button..
+// 2026-06-20 (owner-approved): Tools section (Setting modal) sekarang nampilin
+//   "Active capabilities (manifest, read-only)" dari a.capabilities_required — biar
+//   menu JUJUR (sebelumnya cuma config.tools override yg KOSONG buat agent manifest-
+//   defined kayak mr-flow → keliatan "0 tool" padahal punya 17 cap). GUI-only,
+//   pakai data yg udah ada di `a`. Verified live screenshot. Re-locked.
 
 // AI Agent gallery — kumpulan AI yang hidup di kernel.
 //
@@ -679,6 +684,15 @@ async function openSettingModal(root, a) {
     <section class="ag-section">
       <h4>🧰 3. ${esc(t('menu.tab.agents.section_tools'))}</h4>
       <p class="ag-msg-modal" style="color:#94a3b8">${esc(t('menu.tab.agents.tools_sub'))}</p>
+      <div style="margin-bottom:10px;padding:8px 10px;background:#0b1020;border:1px solid #1e293b;border-radius:7px;font-size:.74rem;line-height:1.7">
+        <span style="color:#34d399">● Active capabilities (manifest, read-only)</span>
+        <div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:5px">${
+          (a.capabilities_required || []).length
+            ? (a.capabilities_required).map((c) => `<span class="ag-cap" style="word-break:break-all">${esc(c)}</span>`).join('')
+            : '<span style="color:#64748b">none declared</span>'
+        }</div>
+      </div>
+      <p class="ag-msg-modal" style="color:#64748b;font-size:.72rem;margin-bottom:6px">Coarse override (config.tools) — biarin kosong = pakai capability manifest di atas:</p>
       <div class="ag-tools-grid">${toolsHTML}</div>
       <details style="margin-top:12px">
         <summary style="cursor:pointer;color:#94a3b8;font-size:13px">${esc(t('menu.tab.agents.tools_catalog_h') || '📚 Browse all registered tools (Section 13)')}</summary>
