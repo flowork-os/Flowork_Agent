@@ -13,6 +13,11 @@
 //   ScheduleWakeup kalau nunggu), bounded maxGhostNudges (anti infinite). + Tier-1 prompt
 //   positif (sebut ScheduleWakeup). Model-agnostic (26B pun ga bisa ghosting struktural).
 //   wasm rebuilt (tinygo). Re-locked.
+// 2026-06-20 (owner-approved): ANTI-ANCHOR (§6.1) di fetchHistory. Akar history-
+//   anchoring: window 16-turn nge-feed balik reply gagal/denial LAMA ("gw ga tau")
+//   → 26B ngechо pola basi. Fix: isAnchorNoise() skip assistant-reply gagal/denial
+//   buat turn LAMA (di luar keepRecentTurns=4 terbaru yg tetep utuh). wasm rebuilt
+//   (standard wasip1). Re-locked.
 // Locked at: 2026-05-30
 // Reason: Mr.Flow WASM agent (CRITICAL). Audit pass:
 //   - Token + TELEGRAM_ALLOWED_CHATS validation (drop kalau invalid)
@@ -512,6 +517,7 @@ type chatTurn struct {
 const (
 	maxHistoryMsgs        = 16   // max giliran percakapan di-inject (≈8 tukar-balik)
 	maxHistoryCharsPerMsg = 1200 // cap per pesan history (anti over-prompt)
+	keepRecentTurns       = 4    // anti-anchor §6.1: N turn terbaru SELALU utuh (koherensi); yg lebih lama di-filter anchor-noise
 )
 
 // fetchHistory — ambil riwayat percakapan chat ini dari API interactions
@@ -548,6 +554,12 @@ func fetchHistory(actor string) []chatTurn {
 		if it.Direction == "out" {
 			role = "assistant"
 		}
+		// ANTI-ANCHOR (§6.1): items newest-first → len(picked)<keepRecentTurns =
+		// turn TERBARU (utuh, buat koherensi). Yg lebih LAMA: skip kalau anchor-noise
+		// (reply gagal/denial "gw ga tau") biar 26B ga ngechо pola basi-nya sendiri.
+		if len(picked) >= keepRecentTurns && isAnchorNoise(role, it.Content) {
+			continue
+		}
 		c := it.Content
 		if len(c) > maxHistoryCharsPerMsg {
 			c = c[:maxHistoryCharsPerMsg] + "…"
@@ -561,6 +573,29 @@ func fetchHistory(actor string) []chatTurn {
 		picked[i], picked[j] = picked[j], picked[i]
 	}
 	return picked
+}
+
+// anchorNoisePhrases — reply ASSISTANT gagal/denial yg kalau LAMA bikin 26B ngechо
+// pola basi-nya sendiri (history-anchoring). TinyGo-safe substring (no regexp).
+var anchorNoisePhrases = []string{
+	"router error:", "(no choices)", "(tool loop limit reached", "llm call gagal",
+	"gw ga tau", "gw gatau", "gw nggak tau", "gw ngga tau",
+	"ga ada datanya", "gak ada datanya", "belum ada di brain",
+}
+
+// isAnchorNoise — true kalau turn = reply gagal/denial yg layak di-skip dari history
+// LAMA (anti-anchor §6.1). Cuma assistant; user turn ga pernah di-skip.
+func isAnchorNoise(role, content string) bool {
+	if role != "assistant" {
+		return false
+	}
+	low := strings.ToLower(content)
+	for _, p := range anchorNoisePhrases {
+		if strings.Contains(low, p) {
+			return true
+		}
+	}
+	return false
 }
 
 // notifyChatID — kalau non-kosong + LLM trigger task_run, di-inject ke args
