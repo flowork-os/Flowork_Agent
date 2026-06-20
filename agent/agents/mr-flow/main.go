@@ -650,15 +650,26 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn, notifyChatID 
 	loopStartMs := hostTimeNowMs()
 	budgetNudged := false // sekali aja kasih peringatan budget (biar model wrap-up/ScheduleWakeup)
 	for iter := 0; iter < maxToolIters; iter++ {
-		// TIME-BOUND (bukan cap-angka): selama masih ada budget waktu turn, loop jalan
-		// TERUS (kerja autonomus panjang). Pas budget abis (SEKALI): FILTER tool jadi
-		// ScheduleWakeup-only → loop ga bisa lanjut kerja-tool lagi, model DIPAKSA milih:
-		// (a) ScheduleWakeup = lanjut lintas-turn (unbounded over time), atau (b) jawab
-		// teks = hasil sejauh ini. Iterasi setelah ini PASTI return (anti ke-kill timeout).
+		// TIME-BOUND + AUTO-CONTINUE DETERMINISTIK (owner 2026-06-20: "loop jangan
+		// dibatasi, kerja seharian"). Loop jalan TERUS dalam budget waktu turn. Pas
+		// budget abis & tugas BELUM kelar (loop masih jalan = model masih manggil tool):
+		// HARNESS sendiri yang jadwalin lanjutan (ScheduleWakeup), GA ngandelin model
+		// milih (26B sering ga nurut). Nyambung tiap chunk otomatis sampe SELESAI =
+		// unbounded sepanjang waktu. Counter (#N di marker prompt) = anti-runaway.
 		if !budgetNudged && hostTimeNowMs()-loopStartMs > loopBudgetMs {
 			budgetNudged = true
-			toolSpecs = keepOnlyTool(toolSpecs, "ScheduleWakeup")
-			msgs = append(msgs, map[string]any{"role": "user", "content": loopBudgetMsg})
+			base, cont := parseAutoCont(userText)
+			next := cont + 1
+			if next > maxAutoContinue {
+				return fmt.Sprintf("⏳ Udah %d kali nyambung otomatis tapi belum kelar juga — kemungkinan tugasnya kegedean atau muter. Gw STOP biar ga infinite. Pecah jadi bagian lebih kecil atau arahin lebih spesifik ya.", cont)
+			}
+			contPrompt := fmt.Sprintf("[LANJUTAN OTOMATIS #%d] Lo lagi di tengah ngerjain tugas ini & BELUM kelar. LANJUTIN dari progres terakhir (cek brain/memori/hasil sebelumnya — JANGAN ulang dari nol, JANGAN ngaku kelar kalau belum). Kalau udah beneran kelar, jawab hasil FINAL + tutup dengan kata 'SELESAI'.%s%s", next, autoContDelim, base)
+			_ = runTool("ScheduleWakeup", map[string]any{
+				"delaySeconds": 5,
+				"reason":       "auto-continue tugas panjang (budget chunk abis)",
+				"prompt":       contPrompt,
+			})
+			return fmt.Sprintf("⏳ Tugasnya panjang — chunk %d kelar, gw udah jadwalin lanjutan OTOMATIS (nyambung sendiri sampe SELESAI, ga perlu lo dorong). Sebentar lagi gw sambung.", next)
 		}
 		reqMap := map[string]any{"model": cfg.Router.Model, "messages": prepMessages(msgs)}
 		if len(toolSpecs) > 0 {
@@ -775,12 +786,6 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn, notifyChatID 
 		msgs = append(msgs, map[string]any{
 			"role": "tool", "tool_call_id": id, "content": result,
 		})
-		// BUDGET MODE: model milih ScheduleWakeup = keputusan LANJUT lintas-turn.
-		// Wakeup udah ke-register (runTool di atas) → return konfirmasi SEKARANG (jangan
-		// loop lagi → anti ke-kill timeout). Lanjutan jalan otomatis pas wakeup due.
-		if budgetNudged && tc.Function.Name == "ScheduleWakeup" {
-			return "⏳ Tugasnya panjang — gw udah jadwalin lanjutan biar nyambung otomatis (tidur→bangun). Progress kesimpen; gw lanjut sendiri sebentar lagi."
-		}
 	}
 	return "(tool loop limit reached — coba lagi atau perjelas permintaan)"
 }
@@ -829,23 +834,33 @@ func looksLikeGhostPromise(s string) bool {
 	return false
 }
 
-// keepOnlyTool — saring spec tool jadi cuma yang namanya `keep` (dipakai pas budget
-// waktu abis: sisain ScheduleWakeup doang → loop ga bisa kerja-tool lagi, model milih
-// lanjut-via-wakeup atau jawab teks). Kalau ga ketemu → balik kosong (no-tools = paksa
-// teks wrap-up). Aman dua-duanya.
-func keepOnlyTool(specs []json.RawMessage, keep string) []json.RawMessage {
-	out := make([]json.RawMessage, 0, 1)
-	for _, s := range specs {
-		var f struct {
-			Function struct {
-				Name string `json:"name"`
-			} `json:"function"`
-		}
-		if json.Unmarshal(s, &f) == nil && f.Function.Name == keep {
-			out = append(out, s)
+// Auto-continue deterministik (owner 2026-06-20: "loop jangan dibatasi, kerja seharian").
+const (
+	maxAutoContinue = 50                // anti-runaway: max chunk auto-continue sebelum STOP. BUKAN batas kerja — 50×~200s ≈ 2.7 jam; cukup buat tugas panjang, tetep ada rem buat tugas-muter.
+	autoContDelim   = "\n===TUGAS===\n" // pemisah instruksi-lanjut vs task asli di prompt wakeup
+)
+
+// parseAutoCont — kalau userText pesan LANJUTAN ("[LANJUTAN OTOMATIS #N] ...===TUGAS===<task>"),
+// balik (task ASLI, N). Pesan FRESH (tanpa marker) → (userText, 0). Counter ride di prompt
+// (stateless, ga butuh kv) → tiap chunk naikin N sampe maxAutoContinue.
+func parseAutoCont(s string) (base string, count int) {
+	const pfx = "[LANJUTAN OTOMATIS #"
+	if !strings.HasPrefix(s, pfx) {
+		return s, 0
+	}
+	end := strings.IndexByte(s, ']')
+	if end < 0 || end <= len(pfx) {
+		return s, 0
+	}
+	for _, r := range s[len(pfx):end] {
+		if r >= '0' && r <= '9' {
+			count = count*10 + int(r-'0')
 		}
 	}
-	return out
+	if k := strings.Index(s, autoContDelim); k >= 0 {
+		return strings.TrimSpace(s[k+len(autoContDelim):]), count
+	}
+	return s, count
 }
 
 // fetchToolSpecs — ambil tools yang di-expose ke LLM (OpenAI function-schema)
