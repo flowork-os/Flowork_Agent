@@ -33,10 +33,11 @@ import (
 
 	"flowork-gui/internal/agentdb"
 	"flowork-gui/internal/agentmgr"
+	"flowork-gui/internal/kernelhost"
 )
 
 // evolveCoreApplier — rakit EvolveCoreApplier (di-inject ke handler). B1 = STAGE-only.
-func evolveCoreApplier() agentmgr.EvolveCoreApplier {
+func evolveCoreApplier(host *kernelhost.Host) agentmgr.EvolveCoreApplier {
 	return func(ctx context.Context, p agentdb.EvolveProposal, auto bool) (agentmgr.EvolveCoreResult, error) {
 		var res agentmgr.EvolveCoreResult
 		target := strings.TrimSpace(p.TargetFile)
@@ -84,7 +85,7 @@ func evolveCoreApplier() agentmgr.EvolveCoreApplier {
 		defer cleanup() // ROLLBACK: worktree remove + rm -rf, apapun yg terjadi
 
 		// ── LLM codegen file baru ───────────────────────────────────────────────────
-		content, model, cerr := evolveCodegenFile(ctx, rel, p)
+		content, model, cerr := evolveCodegenFile(ctx, host, rel, p)
 		if cerr != nil {
 			return res, fmt.Errorf("codegen: %w", cerr)
 		}
@@ -349,25 +350,43 @@ func evolveWorktreeDiff(ctx context.Context, wtRoot, rel string) string {
 
 // evolveCodegenFile — 1 LLM call: tulis ISI file baru (idiomatik, compile) dari proposal.
 // routerChat (bukan forced-tool: kita mau raw file content) → strip fence kalau ada.
-func evolveCodegenFile(ctx context.Context, rel string, p agentdb.EvolveProposal) (content, model string, err error) {
+func evolveCodegenFile(ctx context.Context, host *kernelhost.Host, rel string, p agentdb.EvolveProposal) (content, model string, err error) {
 	model = coderModel("")
 	lang := "Go"
 	if strings.HasSuffix(rel, ".js") {
 		lang = "JavaScript"
 	}
+	spec := "Path file baru: " + rel + "\nBahasa: " + lang + "\nKind: " + p.Kind + "\nTujuan: " + p.Goal +
+		"\nRationale: " + p.Rationale + "\n\nTulis SATU file " + lang + " LENGKAP, idiomatik, PASTI compile, " +
+		"ADDITIVE (file BARU; JANGAN edit/hapus/LOCKED; no fungsi bentrok global). Output HANYA isi file mentah."
+
+	// OPSI A (owner 2026-06-20): eksekusi coding lewat AGENT evo-coder (insting coding+
+	// security + brain + misi). Agent GENERATE kode; harness ini yang apply ke sandbox +
+	// test-gate (agent ga pegang fs repo = aman). Fallback routerChat kalau evo-coder ga
+	// ada / output ga valid (robust, ga mecahin evolusi).
+	if host != nil {
+		if raw, e := host.InvokeAgentMessage(ctx, "evo-coder", spec, "evolve-coder"); e == nil {
+			code := evolveStripFence(strings.TrimSpace(extractReply(raw)))
+			valid := code != "" && (lang == "JavaScript" || strings.Contains(code, "package "))
+			if valid {
+				return code, model + " (evo-coder)", nil
+			}
+		}
+	}
+
+	// Fallback: codegen hardcoded (routerChat) — sama kayak sebelumnya.
 	sys := "Lo engineer " + lang + " Flowork. Tulis SATU file " + lang + " LENGKAP, idiomatik, dan PASTI compile " +
 		"untuk path yang diminta. ATURAN KERAS: file BARU & ADDITIVE — JANGAN asumsikan ngedit/ngehapus file lain, " +
 		"JANGAN bikin fungsi yg bentrok nama global. Ikuti gaya kode sekitar, komentar secukupnya. " +
 		"Output HANYA isi file mentah (tanpa ``` fence, tanpa penjelasan)."
-	user := "Path file baru: " + rel + "\nKind: " + p.Kind + "\nTujuan: " + p.Goal + "\nRationale: " + p.Rationale
 	res, e := routerChat(ctx, model, []map[string]any{
 		{"role": "system", "content": sys},
-		{"role": "user", "content": user},
+		{"role": "user", "content": spec},
 	}, nil, 4000)
 	if e != nil {
 		return "", model, e
 	}
-	return evolveStripFence(res.Content), model, nil
+	return evolveStripFence(res.Content), model + " (fallback)", nil
 }
 
 // evolveStripFence — buang ```lang ... ``` kalau model bandel ngebungkus.

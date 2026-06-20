@@ -889,7 +889,7 @@ func main() {
 	mux.HandleFunc("/api/evolve/apply", agentmgr.EvolveApplyHandler(evolveGateDeps(), evolveApplier(host, fdb, groupsAPI)))
 	// R7 fase-2b core-apply (🔴 DEV-only): proposal core 'NEW:' → git-worktree sandbox →
 	// codegen → test-gate → STAGE diff buat review. Edit existing/LOCKED/delete = error edukasi.
-	mux.HandleFunc("/api/evolve/core-apply", agentmgr.EvolveCoreApplyHandler(evolveGateDeps(), evolveCoreApplier()))
+	mux.HandleFunc("/api/evolve/core-apply", agentmgr.EvolveCoreApplyHandler(evolveGateDeps(), evolveCoreApplier(host)))
 	mux.HandleFunc("/api/evolve/council", agentmgr.EvolveCouncilHandler(evolveCouncilJudgeViaGroup(host))) // A1: dewan adversarial via grup self-evolution (5 agent: pembela/penantang/hakim panel-3)
 	mux.HandleFunc("/api/evolve/proposal/delete", agentmgr.EvolveProposalDeleteHandler)                    // hapus usulan (1 / bulk by-status)
 	mux.HandleFunc("/api/evolve/stages", agentmgr.EvolveStagesHandler)
