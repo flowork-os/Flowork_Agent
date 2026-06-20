@@ -350,9 +350,22 @@ func EvolveCoreApplyHandler(dep EvolveGateDeps, apply EvolveCoreApplier) http.Ha
 			httpx.WriteJSON(w, map[string]any{"error": "proposal " + id + " ga ketemu"})
 			return
 		}
-		if p.Status == "applied" || p.Status == "rejected" {
-			httpx.WriteJSON(w, map[string]any{"error": "proposal status '" + p.Status + "' — ga bisa core-apply"})
+		// force=1 = OWNER OVERRIDE: proposal yg DITOLAK classifier (anti-collapse/pilar) tetep
+		// boleh di-core-apply manual (lihat catatan reflect: rejected sengaja KESIMPAN biar owner
+		// bisa override kalau classifier salah). Gate berlapis (mode/karma/model) + sandbox→test-gate→
+		// STAGE diff TETEP jalan — override cuma ngelewatin status-block, BUKAN keamanan. applied = tetep no.
+		force := r.URL.Query().Get("force") == "1"
+		if p.Status == "applied" {
+			httpx.WriteJSON(w, map[string]any{"error": "proposal status 'applied' — udah diproses"})
 			return
+		}
+		if p.Status == "rejected" && !force {
+			httpx.WriteJSON(w, map[string]any{"error": "proposal status 'rejected' — pakai force=1 buat override owner"})
+			return
+		}
+		if p.Status == "rejected" && force {
+			// reopen dulu biar SetEvolveProposalStatus('staged') di bawah konsisten.
+			_ = store.SetEvolveProposalStatus(id, "proposed")
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 590*time.Second)
 		defer cancel()

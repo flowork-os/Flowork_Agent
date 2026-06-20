@@ -31,8 +31,9 @@ export async function render(container) {
         <div style="font-weight:600;margin-bottom:4px">${esc(L.scheduleH)}</div>
         <div style="color:#64748b;font-size:0.78rem;margin-bottom:10px">${esc(L.scheduleHint)}</div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <label style="font-size:0.85rem">${esc(L.scheduleHours)}:</label>
-          <input id="ev-sched-hours" type="number" min="0" step="1" style="width:80px;background:#020617;border:1px solid #334155;border-radius:6px;color:#e2e8f0;padding:5px 8px">
+          <label style="font-size:0.85rem">Tiap (menit):</label>
+          <input id="ev-sched-min" type="number" min="0" step="5" placeholder="mis. 30" title="Interval refleksi-diri dalam MENIT. 30 = tiap 30 menit. 0 = OFF." style="width:90px;background:#020617;border:1px solid #334155;border-radius:6px;color:#e2e8f0;padding:5px 8px">
+          <span style="color:#64748b;font-size:0.74rem">menit (0 = OFF)</span>
           <button id="ev-sched-save" style="background:#334155;color:#fff;border:0;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:0.8rem">${esc(L.scheduleSave)}</button>
           <button id="ev-sched-run" style="background:#6366f1;color:#fff;border:0;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:0.8rem">${esc(L.scheduleRun)}</button>
           <span id="ev-sched-last" style="margin-left:auto;color:#475569;font-size:0.74rem"></span>
@@ -145,25 +146,38 @@ export async function render(container) {
     const riskColor = { low: '#4ade80', medium: '#fbbf24', high: '#f87171' };
     const cards = items.slice(propPage * PROP_PER_PAGE, (propPage + 1) * PROP_PER_PAGE).map((p) => {
         const kind = (p.kind || '').toLowerCase();
-        const pending = p.status !== 'applied' && p.status !== 'rejected';
-        const canApply = BEHAVIOR_KINDS.has(kind) && pending;
-        const canCore = !BEHAVIOR_KINDS.has(kind) && pending; // core kinds (fix/refactor/doc/test) → core-apply (evo-coder)
+        const st = (p.status || 'proposed').toLowerCase();
+        // KLASIFIKASI CORE robust (owner 2026-06-20): target file kode (.go dll) = CORE walau kind-nya
+        // 'add-skill' (proposer kadang salah-label). Behavior-layer = kind add-agent/skill/app TANPA file kode.
+        const isCode = /\.(go|js|ts|jsx|tsx|py|rs|c|h|cc|cpp|java|rb|sh)$/i.test(p.target_file || '');
+        const isCore = isCode || !BEHAVIOR_KINDS.has(kind);
         // MODE GOVERNS WHO ACTS: tombol MANUSIA (Apply/Core-Apply) cuma di STAGE. Di AUTO, Dewan +
-        // jadwal yang mutusin & apply (hands-off — evolusi jalan walau owner gak ada). Di OFF, read-only.
+        // jadwal yang mutusin & apply (hands-off). Di OFF, read-only.
+        const applyBtn = `<button data-apply-id="${esc(p.id)}" style="background:#16a34a;color:#fff;border:0;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:0.76rem">${esc(L.applyBtn)}</button>`;
+        const coreBtn = `<button data-coreapply-id="${esc(p.id)}" title="Eksekusi coding (evo-coder) → sandbox → test-gate → stage diff buat review" style="background:#b45309;color:#fff;border:0;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:0.76rem">🛠 Core-Apply</button>`;
+        const autoNote = `<span style="color:#a78bfa;font-size:0.72rem">${esc(L.autoNote)}</span>`;
+        const offNote = `<span style="color:#64748b;font-size:0.72rem">${esc(L.offNote)}</span>`;
         let footer = '';
-        if (p.status === 'applied') {
+        if (st === 'applied') {
           footer = `<span style="color:#4ade80;font-size:0.74rem">${esc(L.statusAppliedBadge)}</span>`;
-        } else if (canApply && currentMode === 'stage') {
-          footer = `<button data-apply-id="${esc(p.id)}" style="background:#16a34a;color:#fff;border:0;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:0.76rem">${esc(L.applyBtn)}</button>`;
-        } else if (canCore && currentMode === 'stage') {
-          // CORE-APPLY (owner 2026-06-20): eksekusi coding core via evo-coder → sandbox → test-gate → STAGE diff.
-          footer = `<button data-coreapply-id="${esc(p.id)}" title="Eksekusi coding (evo-coder) → sandbox → test-gate → stage diff buat review" style="background:#b45309;color:#fff;border:0;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:0.76rem">🛠 Core-Apply</button>`;
-        } else if ((canApply || canCore) && currentMode === 'auto') {
-          footer = `<span style="color:#a78bfa;font-size:0.72rem">${esc(L.autoNote)}</span>`;
-        } else if (canApply || canCore) {
-          footer = `<span style="color:#64748b;font-size:0.72rem">${esc(L.offNote)}</span>`;
+        } else if (st === 'staged') {
+          // FIX owner 2026-06-20: core-apply sukses → status 'staged'. Dulu masih render tombol Core-Apply
+          // (keliatan "ngak berubah"). Sekarang badge + arahin ke section Staged buat review/commit diff.
+          footer = `<span style="color:#fbbf24;font-size:0.76rem">🟡 Ter-stage — review & commit diff di bawah ⬇</span>`;
+        } else if (st === 'rejected') {
+          // Rejected (classifier anti-collapse/pilar). CORE → kasih tombol OVERRIDE owner (force core-apply),
+          // sesuai desain (rejected sengaja kesimpan biar owner bisa override kalau classifier salah).
+          if (isCore && currentMode === 'stage') {
+            footer = `<span style="color:#f87171;font-size:0.72rem;margin-right:6px">⛔ ditolak classifier</span>`
+              + `<button data-coreforce-id="${esc(p.id)}" title="OWNER OVERRIDE: paksa core-apply walau ditolak classifier. Sandbox→test-gate→stage diff tetep jalan." style="background:#9a3412;color:#fff;border:1px solid #fb923c;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:0.76rem">🛠 DEV Core-Apply (override)</button>`;
+          } else {
+            footer = `<span style="color:#f87171;font-size:0.72rem">⛔ ${esc(L.statusRejectedBadge || 'ditolak')}</span>`;
+          }
         } else {
-          footer = `<span style="color:#64748b;font-size:0.72rem">${esc(L.coreOnlyDev)}</span>`;
+          // proposed / approved → actionable
+          if (currentMode === 'auto') footer = autoNote;
+          else if (currentMode !== 'stage') footer = offNote;
+          else footer = isCore ? coreBtn : applyBtn;
         }
         return `
         <div style="background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:10px 12px;margin-bottom:8px">
@@ -210,12 +224,15 @@ export async function render(container) {
   // A1 DEWAN: sidang adversarial (Pembela/Penantang/Hakim) atas 1 usulan → verdict + update status.
   // CORE-APPLY (owner 2026-06-20): eksekusi coding core via evo-coder → sandbox git-worktree →
   // test-gate (build+vet) → STAGE diff buat review owner. NOL commit langsung (gate jaga).
-  async function coreApplyProposal(id, btn) {
-    if (!confirm('Core-Apply: evo-coder bakal generate kode → sandbox → test-gate → STAGE diff buat lo review (no auto-commit). Lanjut?')) return;
+  async function coreApplyProposal(id, btn, force) {
+    const msg = force
+      ? 'DEV Core-Apply (OVERRIDE): proposal ini DITOLAK classifier. Paksa evo-coder generate kode → sandbox → test-gate → STAGE diff buat lo review (no auto-commit). Lanjut override?'
+      : 'Core-Apply: evo-coder bakal generate kode → sandbox → test-gate → STAGE diff buat lo review (no auto-commit). Lanjut?';
+    if (!confirm(msg)) return;
     const orig = btn.textContent;
     btn.disabled = true; btn.textContent = '🛠 coding…';
     try {
-      const r = await fetch('/api/evolve/core-apply?id=' + encodeURIComponent(id), { method: 'POST' });
+      const r = await fetch('/api/evolve/core-apply?id=' + encodeURIComponent(id) + (force ? '&force=1' : ''), { method: 'POST' });
       const d = await r.json();
       if (d.error) throw new Error(d.error);
       await loadProposals(); await loadStages(); await loadConfig();
@@ -273,7 +290,8 @@ export async function render(container) {
     if (e.target.closest('[data-prop-prev]')) { propPage--; renderProposals(); return; }
     if (e.target.closest('[data-prop-next]')) { propPage++; renderProposals(); return; }
     const ap = e.target.closest('[data-apply-id]'); if (ap) return applyProposal(ap.getAttribute('data-apply-id'), ap);
-    const ca = e.target.closest('[data-coreapply-id]'); if (ca) return coreApplyProposal(ca.getAttribute('data-coreapply-id'), ca);
+    const ca = e.target.closest('[data-coreapply-id]'); if (ca) return coreApplyProposal(ca.getAttribute('data-coreapply-id'), ca, false);
+    const cf = e.target.closest('[data-coreforce-id]'); if (cf) return coreApplyProposal(cf.getAttribute('data-coreforce-id'), cf, true);
     const co = e.target.closest('[data-council-id]'); if (co) return councilProposal(co.getAttribute('data-council-id'), co);
     const dl = e.target.closest('[data-del-id]'); if (dl) return deleteProposal(dl.getAttribute('data-del-id'), dl);
   });
@@ -336,24 +354,28 @@ export async function render(container) {
   });
 
   // ── Scheduled self-reflection (Milestone D) ──────────────────────────────────────
-  const schedHours = container.querySelector('#ev-sched-hours');
+  const schedMin = container.querySelector('#ev-sched-min');
   const schedSave = container.querySelector('#ev-sched-save');
   const schedRun = container.querySelector('#ev-sched-run');
   const schedLast = container.querySelector('#ev-sched-last');
 
+  // UI dalam MENIT (mental model owner), backend simpen JAM (float) → konversi di sini.
+  // Fix owner 2026-06-20: dulu field "jam" + step=1 → owner ngetik 30 niatnya 30 menit malah jadi 30 JAM.
   async function loadSchedule() {
     try {
       const d = await (await fetch('/api/evolve/schedule')).json();
-      if (schedHours) schedHours.value = d.hours || 0;
+      if (schedMin) schedMin.value = Math.round((d.hours || 0) * 60);
       if (schedLast) schedLast.textContent = d.last_run ? `${L.scheduleLast}: ${d.last_run}` : '';
     } catch (e) { /* non-fatal */ }
   }
   schedSave.addEventListener('click', async () => {
     try {
-      const hours = parseFloat(schedHours.value) || 0;
+      const minutes = parseFloat(schedMin.value) || 0;
+      const hours = minutes / 60;
       const r = await fetch('/api/evolve/schedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hours }) });
       const d = await r.json(); if (d.error) throw new Error(d.error);
       await loadSchedule();
+      schedSave.textContent = '✓'; setTimeout(() => { schedSave.textContent = L.scheduleSave; }, 1200);
     } catch (e) { alert(L.errSchedule + e.message); }
   });
   schedRun.addEventListener('click', async () => {
