@@ -15,9 +15,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
 	"strings"
+	"time"
 
 	"flowork-gui/internal/floworkdb"
 	"flowork-gui/internal/groupsapi"
@@ -43,6 +46,54 @@ CARA KERJA:
 
 Jujur, gak ngarang, fokus. Tiap balasan = jawab pesan TERAKHIR user (jangan ngulang reply lama). Jawab apa adanya.`
 
+// architectPersonaName — key di Prompt Library router (prompt_templates).
+const architectPersonaName = "architect"
+
+// architectPersona — persona DB-BASED (owner 2026-06-20: "persona harus DB-based,
+// cek di brain router ada persona"). Tarik dari Prompt Library router (tabel
+// prompt_templates, endpoint /api/brain/personas) biar bisa di-edit di GUI tanpa
+// rebuild — SAMA pola kayak mr-flow (cfg.Prompt dari DB), BUKAN const hardcode.
+// Fallback ke seed const kalau brain ga ada/empty (robust). Self-seed sekali kalau
+// "architect" belum ada → muncul + editable di GUI di mesin mana pun (portable).
+func architectPersona(ctx context.Context) string {
+	cli := &http.Client{Timeout: 2 * time.Second}
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://127.0.0.1:2402/api/brain/personas", nil)
+	if resp, err := cli.Do(req); err == nil {
+		defer resp.Body.Close()
+		var body struct {
+			Personas []struct {
+				Name    string `json:"name"`
+				Content string `json:"content"`
+			} `json:"personas"`
+		}
+		if json.NewDecoder(resp.Body).Decode(&body) == nil {
+			for _, p := range body.Personas {
+				if p.Name == architectPersonaName && strings.TrimSpace(p.Content) != "" {
+					return p.Content // DB = kebenaran
+				}
+			}
+		}
+	}
+	// belum ada di DB → seed best-effort (async, anti-block) biar editable di GUI;
+	// pakai const sekarang.
+	go seedArchitectPersona(architectSystemPrompt)
+	return architectSystemPrompt
+}
+
+// seedArchitectPersona — POST persona "architect" ke Prompt Library router (idempotent:
+// name = PK). Best-effort; gagal (brain off/auth) ga apa, fallback const tetap jalan.
+func seedArchitectPersona(content string) {
+	payload, _ := json.Marshal(map[string]string{
+		"name": architectPersonaName, "content": content, "source": "autoseed:architect",
+	})
+	cli := &http.Client{Timeout: 2 * time.Second}
+	req, _ := http.NewRequest(http.MethodPost, "http://127.0.0.1:2402/api/brain/personas", bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	if resp, err := cli.Do(req); err == nil {
+		resp.Body.Close()
+	}
+}
+
 // architectChat — run ONE assistant turn over the full conversation. history is the
 // session's complete message list (oldest-first); model "" → default (coder/Opus). The
 // loop lets the model call build_team, see the result, then reply in text.
@@ -65,7 +116,7 @@ func archAnchorNoise(s string) bool {
 
 func architectChat(ctx context.Context, host *kernelhost.Host, store *floworkdb.Store, groups *groupsapi.Handler, history []floworkdb.ChatMessage, model string) (string, error) {
 	model = coderModel(model)
-	messages := []map[string]any{{"role": "system", "content": architectSystemPrompt}}
+	messages := []map[string]any{{"role": "system", "content": architectPersona(ctx)}}
 	// ANTI-ANCHOR (owner 2026-06-20): cap history + skip reply ASSISTANT bingung/denial
 	// LAMA (di luar archKeepRecent terbaru) biar LLM ga ngechо pola "lo spam / ga bisa /
 	// lanjutin framework lama" sendiri. Sama prinsip fetchHistory di WASM mr-flow.
