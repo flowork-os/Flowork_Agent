@@ -79,6 +79,7 @@
       "slash_running": "Running…",
       "slash_must_start": "Command must start with /",
       "tools_catalog_h": "📚 Browse all registered tools",
+      "mcp_h": "MCP servers — uncheck to hide from this agent",
       "tools_catalog_sub": "Subscribe = appears in suggest pool + UI listing.",
       "tools_catalog_loading": "Loading…",
       "tools_catalog_empty": "No tools registered.",
