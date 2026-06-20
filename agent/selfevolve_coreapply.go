@@ -33,6 +33,7 @@ import (
 
 	"flowork-gui/internal/agentdb"
 	"flowork-gui/internal/agentmgr"
+	"flowork-gui/internal/kernel/loader"
 	"flowork-gui/internal/kernelhost"
 )
 
@@ -356,13 +357,64 @@ func evolveWorktreeDiff(ctx context.Context, wtRoot, rel string) string {
 // (mis. opus), BUKAN default global. Owner 2026-06-20: kebenaran model = GUI per-agent.
 // Fallback coderModel("") (= GUI default global) kalau evo-coder belum di-set.
 func evoCoderModel() string {
-	if st, e := agentdb.Open(agentdb.Resolve("evo-coder", "")); e == nil {
+	// PATH BENER: agent store = <AgentsDir>/evo-coder.fwagent/workspace/state.db (sama kayak
+	// host openAgentStore → Resolve(id, agentFolder)). Resolve(id,"") SALAH (ga nemu .fwagent →
+	// fallback path kosong → store kosong → ke-report flowork-brain padahal GUI opus).
+	dir := filepath.Join(loader.AgentsDir(), "evo-coder.fwagent")
+	if st, e := agentdb.Open(agentdb.Resolve("evo-coder", dir)); e == nil {
 		defer st.Close()
 		if m := st.GetRouterModel(); m != "" {
 			return m
 		}
 	}
 	return coderModel("")
+}
+
+// evolveReviewBackstop — BUKAN batas kualitas, cuma rem anti-runaway (owner 2026-06-20: "evolusi
+// jangan dibatasin, nanti mati di tengah"). Stop NORMAL = reviewer 'LOLOS' (konvergen) atau
+// no-progress (temuan sama 2x = coder mentok). Backstop tinggi cuma jaga kalau reviewer rewel
+// ga pernah LOLOS biar token ga kebakar tak hingga. GA ada wall-clock — loop hidup selama progress.
+const evolveReviewBackstop = 30
+
+// evolveNorm — normalisasi teks temuan buat banding antar-ronde (deteksi mentok). Lowercase +
+// rapatkan whitespace biar beda wording minor ga dianggap "progress" palsu.
+func evolveNorm(s string) string {
+	return strings.Join(strings.Fields(strings.ToLower(s)), " ")
+}
+
+// Budget waktu loop codegen+review dipasok ctx dari handler (async, background) — lihat
+// agentmgr.evolveCoreApplyBudget. Loop di sini cuma hormati ctx (ga bikin timeout sendiri).
+
+// evolveCoderGen — 1x invoke evo-coder → kode bersih (fence dibuang). ok=false kalau error/invalid.
+func evolveCoderGen(ctx context.Context, host *kernelhost.Host, spec, lang string) (string, bool) {
+	raw, e := host.InvokeAgentMessage(ctx, "evo-coder", spec, "evolve-coder")
+	if e != nil {
+		return "", false
+	}
+	code := evolveStripFence(strings.TrimSpace(extractReply(raw)))
+	ok := code != "" && (lang == "JavaScript" || strings.Contains(code, "package "))
+	return code, ok
+}
+
+// evolveReviewCode — evo-reviewer audit kode (keamanan korpus hacking + kualitas). Balik:
+//   "lolos"  → reviewer nyatakan bersih & aman.
+//   "temuan" + findings → ada celah/cacat, harus di-fix.
+//   ""       → reviewer error/ambigu → caller JANGAN blok (test-gate + stage manusia jaga).
+func evolveReviewCode(ctx context.Context, host *kernelhost.Host, spec, code string) (string, string) {
+	prompt := "SPEC:\n" + spec + "\n\n=== KODE HASIL CODER (AUDIT keamanan korpus-hacking + kualitas) ===\n" + code
+	raw, e := host.InvokeAgentMessage(ctx, "evo-reviewer", prompt, "evolve-reviewer")
+	if e != nil {
+		return "", ""
+	}
+	reply := strings.TrimSpace(extractReply(raw))
+	up := strings.ToUpper(reply)
+	if strings.Contains(up, "TEMUAN") {
+		return "temuan", reply
+	}
+	if strings.Contains(up, "LOLOS") {
+		return "lolos", ""
+	}
+	return "", "" // ambigu → ga blok
 }
 
 func evolveCodegenFile(ctx context.Context, host *kernelhost.Host, rel string, p agentdb.EvolveProposal) (content, model string, err error) {
@@ -375,17 +427,42 @@ func evolveCodegenFile(ctx context.Context, host *kernelhost.Host, rel string, p
 		"\nRationale: " + p.Rationale + "\n\nTulis SATU file " + lang + " LENGKAP, idiomatik, PASTI compile, " +
 		"ADDITIVE (file BARU; JANGAN edit/hapus/LOCKED; no fungsi bentrok global). Output HANYA isi file mentah."
 
-	// OPSI A (owner 2026-06-20): eksekusi coding lewat AGENT evo-coder (insting coding+
-	// security + brain + misi). Agent GENERATE kode; harness ini yang apply ke sandbox +
-	// test-gate (agent ga pegang fs repo = aman). Fallback routerChat kalau evo-coder ga
-	// ada / output ga valid (robust, ga mecahin evolusi).
+	// OPSI A + LOOP REVIEWER↔FIXER (owner 2026-06-20, konsep Looper): evo-coder GENERATE →
+	// evo-reviewer AUDIT (keamanan korpus 800rb hacking + kualitas/integrasi/schema) → kalau
+	// ada TEMUAN, balik ke coder buat FIX → ulang sampai 'LOLOS' atau mentok round. Nutup celah
+	// test-gate (build+vet ga nangkep cacat runtime/keamanan). Reviewer error → ga blok (andelin
+	// test-gate + stage review manusia). Harness yg apply ke sandbox (agent ga pegang fs repo).
 	if host != nil {
-		if raw, e := host.InvokeAgentMessage(ctx, "evo-coder", spec, "evolve-coder"); e == nil {
-			code := evolveStripFence(strings.TrimSpace(extractReply(raw)))
-			valid := code != "" && (lang == "JavaScript" || strings.Contains(code, "package "))
-			if valid {
-				return code, model + " (evo-coder)", nil
+		code, ok := evolveCoderGen(ctx, host, spec, lang)
+		if ok {
+			label := model + " (evo-coder)"
+			prevFindings, noProgress, fixes := "", 0, 0
+			for round := 0; round < evolveReviewBackstop; round++ {
+				verdict, findings := evolveReviewCode(ctx, host, spec, code)
+				if verdict == "lolos" {
+					return code, fmt.Sprintf("%s +review✓(%d fix)", label, fixes), nil
+				}
+				if verdict != "temuan" {
+					break // reviewer error/ambigu → jangan blok evolusi (test-gate + manusia jaga)
+				}
+				// NO-PROGRESS: temuan sama persis kayak ronde lalu = coder mentok ga bisa fix.
+				// Stop 2x berturut biar ga muter (bukan wall-clock; loop hidup selama ADA progress).
+				if n := evolveNorm(findings); n == prevFindings {
+					if noProgress++; noProgress >= 2 {
+						return code, fmt.Sprintf("%s +review✗(mentok temuan sama, %d fix)", label, fixes), nil
+					}
+				} else {
+					noProgress, prevFindings = 0, n
+				}
+				fixSpec := spec + "\n\n=== TEMUAN REVIEWER (PERBAIKI SEMUA, output ULANG file LENGKAP) ===\n" +
+					findings + "\n\n=== KODE SEKARANG ===\n" + code
+				fixed, ok2 := evolveCoderGen(ctx, host, fixSpec, lang)
+				if !ok2 {
+					break
+				}
+				code, fixes = fixed, fixes+1
 			}
+			return code, fmt.Sprintf("%s +review✗(backstop %d, %d fix)", label, evolveReviewBackstop, fixes), nil
 		}
 	}
 

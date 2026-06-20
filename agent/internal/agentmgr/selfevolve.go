@@ -25,6 +25,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"sort"
 	"strings"
@@ -359,6 +360,10 @@ func EvolveCoreApplyHandler(dep EvolveGateDeps, apply EvolveCoreApplier) http.Ha
 			httpx.WriteJSON(w, map[string]any{"error": "proposal status 'applied' — udah diproses"})
 			return
 		}
+		if p.Status == "coding" {
+			httpx.WriteJSON(w, map[string]any{"error": "proposal lagi diproses (coding+review) — tunggu kelar / refresh"})
+			return
+		}
 		if p.Status == "rejected" && !force {
 			httpx.WriteJSON(w, map[string]any{"error": "proposal status 'rejected' — pakai force=1 buat override owner"})
 			return
@@ -367,55 +372,67 @@ func EvolveCoreApplyHandler(dep EvolveGateDeps, apply EvolveCoreApplier) http.Ha
 			// reopen dulu biar SetEvolveProposalStatus('staged') di bawah konsisten.
 			_ = store.SetEvolveProposalStatus(id, "proposed")
 		}
-		ctx, cancel := context.WithTimeout(r.Context(), 590*time.Second)
-		defer cancel()
-		res, aerr := apply(ctx, p, auto)
-		if aerr != nil {
-			_, _ = store.IncrementKarma("evolve_coreapply_fail", 1)
-			httpx.WriteJSON(w, map[string]any{"error": "core-apply gagal: " + aerr.Error()})
-			return
-		}
-		// GUARD nge-block aksi bahaya → error EDUKASI + catat pelajaran (organisme belajar batas).
-		if res.Blocked {
-			_, _, _ = store.AddMistake("self-evolution-guard",
-				"Dicegah edit core berbahaya: "+p.TargetFile,
-				res.Educational+"\n\nProposal: "+p.Kind+" → "+p.TargetFile+" — "+p.Rationale,
-				"core-apply")
-			_, _ = store.IncrementKarma("evolve_coreapply_blocked", 1)
-			httpx.WriteJSON(w, map[string]any{
-				"ok": false, "blocked": true, "educational": res.Educational,
-				"note": res.Note, "lesson_recorded": true, "target_file": p.TargetFile,
-			})
-			return
-		}
-		out := map[string]any{"ok": true, "id": id, "target_file": res.TargetFile}
-		if res.Staged {
-			stageID := newID()
-			_ = store.AddEvolveStage(agentdb.EvolveStage{
-				ID: stageID, ProposalID: id, TargetFile: res.TargetFile,
-				Diff: res.Diff, Content: res.Content, TestOutput: res.TestOutput, Status: "staged", Model: res.Model,
-			})
-			_ = store.SetEvolveProposalStatus(id, "staged")
-			_, _ = store.IncrementKarma("evolve_coreapply_staged", 1)
-			out["staged"] = true
-			out["stage_id"] = stageID
-			out["test_output"] = res.TestOutput
-			out["diff_lines"] = strings.Count(res.Diff, "\n")
-			out["note"] = "Diff lolos test-gate → DISTAGE buat review owner (tab Evolution). Belum commit."
-		} else if res.Committed {
-			// AUTO (B2): udah commit lokal ke core → proposal SELESAI.
-			_ = store.SetEvolveProposalStatus(id, "applied")
-			_, _ = store.IncrementKarma("evolve_coreapply_committed", 1)
-			out["committed"] = true
-			out["pushed"] = res.Pushed
-			out["diff_lines"] = strings.Count(res.Diff, "\n")
-			out["note"] = res.Note
-		} else {
-			out["note"] = res.Note
-		}
-		httpx.WriteJSON(w, out)
+		// ASYNC (owner 2026-06-20): codegen + loop reviewer↔fixer (sampai evolveMaxReviewRounds=16
+		// putaran, konsep Looper) bisa makan puluhan menit → JANGAN blok request HTTP (browser
+		// timeout). Jalanin di GOROUTINE pakai ctx background (lepas dari request/disconnect) +
+		// budget panjang. Status 'coding' = tanda lagi diproses (anti dobel + GUI badge). Hasil
+		// (staged/applied) muncul pas kelar — GUI refresh/poll. NYAWA FLOWORK: evolusi ga ke-cut
+		// di tengah cuma gara-gara HTTP timeout.
+		_ = store.SetEvolveProposalStatus(id, "coding")
+		go func(p agentdb.EvolveProposal) {
+			// NO wall-clock global (owner 2026-06-20: "evolusi kalau dibatasin mati di tengah jalan").
+			// Tiap panggilan agent udah di-cap 300s (InvokeAgentMessageTimeout) + test-gate 8mnt/step,
+			// loop dibatesin no-progress detector (bukan jam) → pasti terminate TANPA motong progress.
+			bg, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			st, oerr := openAgentStore(defaultAgentID)
+			if oerr != nil {
+				log.Printf("[evolve core-apply] %s: buka store gagal: %v", p.ID, oerr)
+				return
+			}
+			defer st.Close()
+			res, aerr := apply(bg, p, auto)
+			if aerr != nil {
+				_, _ = st.IncrementKarma("evolve_coreapply_fail", 1)
+				_ = st.SetEvolveProposalStatus(p.ID, "proposed") // balikin biar bisa di-retry owner
+				log.Printf("[evolve core-apply] %s GAGAL: %v", p.ID, aerr)
+				return
+			}
+			if res.Blocked {
+				_, _, _ = st.AddMistake("self-evolution-guard", "Dicegah edit core berbahaya: "+p.TargetFile,
+					res.Educational+"\n\nProposal: "+p.Kind+" → "+p.TargetFile+" — "+p.Rationale, "core-apply")
+				_, _ = st.IncrementKarma("evolve_coreapply_blocked", 1)
+				_ = st.SetEvolveProposalStatus(p.ID, "rejected")
+				log.Printf("[evolve core-apply] %s BLOCKED: %s", p.ID, res.Note)
+				return
+			}
+			if res.Staged {
+				stageID := newID()
+				_ = st.AddEvolveStage(agentdb.EvolveStage{
+					ID: stageID, ProposalID: p.ID, TargetFile: res.TargetFile,
+					Diff: res.Diff, Content: res.Content, TestOutput: res.TestOutput, Status: "staged", Model: res.Model,
+				})
+				_ = st.SetEvolveProposalStatus(p.ID, "staged")
+				_, _ = st.IncrementKarma("evolve_coreapply_staged", 1)
+				log.Printf("[evolve core-apply] %s STAGED via %s", p.ID, res.Model)
+			} else if res.Committed {
+				_ = st.SetEvolveProposalStatus(p.ID, "applied")
+				_, _ = st.IncrementKarma("evolve_coreapply_committed", 1)
+				log.Printf("[evolve core-apply] %s COMMITTED (push=%v) via %s", p.ID, res.Pushed, res.Model)
+			} else {
+				_ = st.SetEvolveProposalStatus(p.ID, "proposed")
+				log.Printf("[evolve core-apply] %s: %s", p.ID, res.Note)
+			}
+		}(p)
+		httpx.WriteJSON(w, map[string]any{
+			"ok": true, "id": id, "async": true, "status": "coding",
+			"note": "evo-coder lagi coding + di-AUDIT evo-reviewer (keamanan korpus-hacking + kualitas, " +
+				"bisa berkali-kali putaran sampai berkualitas) — bisa beberapa menit s/d puluhan menit. " +
+				"Hasil muncul di Staged pas kelar. Refresh halaman buat cek status.",
+		})
 	}
 }
+
 
 // EvolveStageCommitter — di-INJECT dari main: commit isi stage ke local main (+ maybe push).
 // Dipanggil pas owner APPROVE staged diff (commit PERSIS yg direview, bukan re-codegen).

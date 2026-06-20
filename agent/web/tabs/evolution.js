@@ -160,6 +160,9 @@ export async function render(container) {
         let footer = '';
         if (st === 'applied') {
           footer = `<span style="color:#4ade80;font-size:0.74rem">${esc(L.statusAppliedBadge)}</span>`;
+        } else if (st === 'coding') {
+          // ASYNC core-apply lagi jalan (evo-coder coding + loop reviewer↔fixer). Non-actionable; refresh.
+          footer = `<span style="color:#38bdf8;font-size:0.76rem">🛠 coding + audit reviewer… (bisa lama, refresh buat cek)</span>`;
         } else if (st === 'staged') {
           // FIX owner 2026-06-20: core-apply sukses → status 'staged'. Dulu masih render tombol Core-Apply
           // (keliatan "ngak berubah"). Sekarang badge + arahin ke section Staged buat review/commit diff.
@@ -226,8 +229,8 @@ export async function render(container) {
   // test-gate (build+vet) → STAGE diff buat review owner. NOL commit langsung (gate jaga).
   async function coreApplyProposal(id, btn, force) {
     const msg = force
-      ? 'DEV Core-Apply (OVERRIDE): proposal ini DITOLAK classifier. Paksa evo-coder generate kode → sandbox → test-gate → STAGE diff buat lo review (no auto-commit). Lanjut override?'
-      : 'Core-Apply: evo-coder bakal generate kode → sandbox → test-gate → STAGE diff buat lo review (no auto-commit). Lanjut?';
+      ? 'DEV Core-Apply (OVERRIDE): proposal ini DITOLAK classifier. Paksa evo-coder coding → loop reviewer↔fixer (audit keamanan korpus-hacking + kualitas, bisa banyak putaran) → sandbox → test-gate → STAGE. Jalan di background. Lanjut override?'
+      : 'Core-Apply: evo-coder coding → loop reviewer↔fixer (audit keamanan + kualitas, bisa banyak putaran) → sandbox → test-gate → STAGE buat lo review. Jalan di BACKGROUND (bisa puluhan menit). Lanjut?';
     if (!confirm(msg)) return;
     const orig = btn.textContent;
     btn.disabled = true; btn.textContent = '🛠 coding…';
@@ -236,7 +239,7 @@ export async function render(container) {
       const d = await r.json();
       if (d.error) throw new Error(d.error);
       await loadProposals(); await loadStages(); await loadConfig();
-      alert('✅ Core-apply selesai — cek bagian "Staged" buat review diff-nya.');
+      alert('🛠 ' + (d.note || 'Evolusi jalan di background — hasil muncul di Staged pas kelar. Refresh buat cek.'));
     } catch (e) {
       alert('❌ Core-apply: ' + e.message);
       btn.disabled = false; btn.textContent = orig;

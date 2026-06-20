@@ -408,6 +408,30 @@ func main() {
 		}
 	}()
 
+	// AUTO-COMPACT konteks (owner 2026-06-20: "kalau konteks panjang, semua agent compact +
+	// masukin pengalaman ke brain kayak dream; FATAL jika salah"). Beda dari dream 12h: trigger
+	// by UKURAN konteks → tiap 15 menit cek; cuma agent yg LEWAT AMBANG di-digest→verify→trim
+	// (anti-halu konteks panjang). Hemat (mayoritas cuma 1 query COUNT). Per-tick recover.
+	go func() {
+		t := time.NewTicker(15 * time.Minute)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				func() {
+					defer func() {
+						if r := recover(); r != nil {
+							log.Printf("auto-compact PANIC (ticker selamat): %v", r)
+						}
+					}()
+					agentmgr.AutoCompactAllAgents(host.AgentIDs())
+				}()
+			}
+		}
+	}()
+
 	// DNA INTRINSIK tiap agent (idempotent, satu pintu — lihat agentmgr/
 	// provision_dna.go): edu-errors + konstitusi sacred (incl anti-janji-palsu/
 	// recall-first) + tune-extension + sync slot + antibody immune + ensure schema
@@ -844,6 +868,7 @@ func main() {
 	// CGM digestion manual trigger (POST) — deploy proven loop (P1, 2026-06-20).
 	// Owner-controlled; always runs. Auto-digest in dream cron gated by env.
 	mux.HandleFunc("/api/agents/cognitive/digest", agentmgr.CognitiveDigestHandler)
+	mux.HandleFunc("/api/agents/compact", agentmgr.CompactAgentHandler) // auto-compact manual trigger (owner/QC)
 	mux.HandleFunc("/api/agents/zombie/findings", agentmgr.ZombieFindingsHandler)
 	mux.HandleFunc("/api/agents/zombie/ack", agentmgr.ZombieAckHandler)
 	mux.HandleFunc("/api/agents/zombie/scan", agentmgr.ZombieScanHandler)

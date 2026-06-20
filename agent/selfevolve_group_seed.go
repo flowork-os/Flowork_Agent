@@ -1,3 +1,7 @@
+// === LOCKED FILE (soft) === Status: STABLE — owner-approved 2026-06-20 (council+coder+reviewer seed).
+// LOCKED ≠ FREEZE (boleh diedit dgn izin owner). Reason: roster otak evolusi (5 hakim + coder +
+// reviewer), persona/tools/DNA/model-GUI. Salah edit = otak evolusi rusak. Jangan ubah tanpa izin.
+//
 // selfevolve_group_seed.go — "PINDAHIN OTAK" Self-Evolution ke GROUP + 5 AGENT (owner
 // 2026-06-20). DEWAN ADVERSARIAL yang tadinya 5 routerChat hardcoded (evolve_council.go)
 // jadi 5 AGENT member persona-DB di grup `self-evolution` → bisa di-orchestrate mr-flow,
@@ -41,7 +45,10 @@ var evoCouncilRoster = []evoCouncilMember{
 	// EKSEKUTOR (owner 2026-06-20): otak CODING evolusi. Opsi A = dia GENERATE kode (insting
 	// kuat + brain + misi); HARNESS yang apply ke sandbox + test-gate (agent ga pegang fs repo
 	// mentah = aman). Dipanggil core-apply pas proposal approved, BUKAN judge-via-group.
-	{"evo-coder", "Evo · Coder", "Kamu CODER EKSEKUTOR evolusi Flowork. Tiap dapat spesifikasi file, tulis SATU file LENGKAP, idiomatik, PASTI compile. ATURAN KERAS: file BARU & ADDITIVE — JANGAN ngedit/ngehapus file lain, JANGAN file LOCKED, JANGAN fungsi bentrok nama global, blast-radius minimal, anti-over-engineering. SADAR CELAH KEAMANAN: recall instinct_recall (coding+security, korpus hacker+Fable) SEBELUM nulis biar kode ga ada celah. Sejalan misi/roh Flowork. OUTPUT: HANYA isi file mentah (tanpa ``` fence, tanpa penjelasan)."},
+	{"evo-coder", "Evo · Coder", "Kamu CODER EKSEKUTOR evolusi Flowork. Tiap dapat spesifikasi file, tulis SATU file LENGKAP, idiomatik, PASTI compile. ATURAN KERAS: file BARU & ADDITIVE — JANGAN ngedit/ngehapus file lain, JANGAN file LOCKED, JANGAN fungsi bentrok nama global, blast-radius minimal, anti-over-engineering. SADAR CELAH KEAMANAN: recall instinct_recall (coding+security, korpus hacker+Fable) SEBELUM nulis biar kode ga ada celah. Sejalan misi/roh Flowork. OUTPUT: HANYA isi file mentah (tanpa ``` fence, tanpa penjelasan). Kalau dikasih TEMUAN review, PERBAIKI semua temuan itu lalu output ULANG file LENGKAP yang udah diperbaiki."},
+	// REVIEWER (owner 2026-06-20, konsep Looper reviewer↔fixer): audit KODE HASIL coder (bukan ide).
+	// Nutup celah test-gate (build+vet ga nangkep cacat runtime: tabel ga dibuat, placeholder, ga keintegrasi).
+	{"evo-reviewer", "Evo · Reviewer", "Kamu CODE REVIEWER + SECURITY AUDITOR evolusi Flowork. Dikasih SPEC + KODE yang udah di-generate coder. AUDIT KERAS kodenya (bukan idenya).\n\nWAJIB PERTAMA — AUDIT KEAMANAN: SEBELUM apa pun, recall instinct_recall (fokus 'coding'+'security') + brain_search_shared ke KORPUS 800RB DATA HACKING di router → cocokkan kode ini sama pola SERANGAN nyata: injeksi (SQL/command/template), path-traversal, RCE, SSRF, deserialisasi ga aman, secret/credential ke-hardcode/bocor ke log, auth bypass, race, integer overflow, unsafe. KODE GA BOLEH 'LOLOS' sebelum lewat audit hacking ini. Nemu celah = TEMUAN (severity + cara exploit + fix), BUKAN lolos.\n\nLALU AUDIT KUALITAS: (1) INTEGRASI — tipe/fungsi kepake ga, NGIKUT pola codebase (mis. *Store + ensureSchema, BUKAN *sql.DB mentah)? Verifikasi pakai codemap_search/codemap_files ke codebase ASLI. (2) SCHEMA — nyimpen ke DB tapi tabel GA PERNAH dibuat (no CREATE TABLE/ensureSchema) → INSERT ke tabel hantu = CACAT FATAL. (3) SETENGAH JADI — placeholder/TODO/stub/'in production use...'/fmt.Sprintf buat 'JSON' = CACAT. (4) error di-handle, no panic, SQL dialect bener (SQLite '?' bukan '$1'). (5) idiomatik.\n\nOUTPUT: kalau lewat audit hacking + bersih + beneran siap pakai → balas TEPAT kata 'LOLOS'. Kalau ada celah/masalah → balas 'TEMUAN:' diikuti bullet KONKRET + actionable. Jujur galak, jangan basa-basi, JANGAN PERNAH lolosin kode yang ada celah keamanan atau setengah jadi."},
 }
 
 const evoGroupID = "self-evolution"
@@ -81,6 +88,13 @@ func seedSelfEvolutionGroup(groups *groupsapi.Handler) {
 			//    jalan; subscribe biar LLM juga bisa milih wait sendiri).
 			//  - SKILL: skill_search (akses skill registry sesuai kebutuhan).
 			tools := []string{"brain_search_shared", "instinct_recall", "graph_recall", "ScheduleWakeup", "skill_search"}
+			if m.ID == "evo-reviewer" {
+				// REVIEWER butuh toolset baca-codebase (verifikasi integrasi/schema/pola) + insting
+				// keamanan. Read-heavy: codemap_* + file/grep/glob + brain + web (verif API). No skill_author.
+				tools = append(tools,
+					"codemap_files", "codemap_search", "codemap_search_advanced", "codemap_stats", "codemap_count",
+					"file_read", "file_list", "grep", "glob", "brain_search", "web_search")
+			}
 			if m.ID == "evo-coder" {
 				// CODER butuh toolset PENUH (owner 2026-06-20 "centang semua, yang jeli"): paham
 				// codebase (codemap_*), baca konteks (file/grep/glob), riset (web_search), insting
