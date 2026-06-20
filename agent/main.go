@@ -2,11 +2,20 @@
 // Status: STABLE — DO NOT MODIFY without owner approval.
 // Owner: Aola Sahidin (Mr.Dev)
 // Repo: https://github.com/flowork-os/Flowork-OS
+// 2026-06-20 OWNER-APPROVED: DB-DRIVEN self-heal groups ("pake db biar flexibel").
+//   +reconcileDeadCrews(fdb, agentsDir) di boot (abis seedSocialDefaults): hapus
+//   task_category yg SEMUA member agent-nya udah ga ada (dir-existence, aman dari race
+//   load) → DeleteCategory (cascade task_agents + trigger_rules). Realisasi "hapus
+//   agent → crew auto-ilang". Anti-halu-crew-mati lapis arsitektur. Re-locked.
 // 2026-06-20 OWNER-APPROVED (autonomy grant, not hash-frozen): wire CGM digestion —
 //   (1) route POST /api/agents/cognitive/digest (manual trigger, owner-controlled),
 //   (2) Tier-2 deep digest hook in the existing 12h dream cron (gated by env
 //   FLOWORK_CGM_AUTODIGEST=1, default OFF). Deploy of P1 proven loop. Additive; logic
 //   in non-locked agentmgr/cognitive_digest_cron.go. No new exec surface, manifest unchanged.
+// 2026-06-20 OWNER-APPROVED (autonomy grant): boot agent-provisioning loop →
+//   satu pintu agentmgr.ProvisionAgentDNA(id) (gantiin seeding inline; SAMA
+//   dipanggil di plugin_handler.go install) → agent baru hasil AI Studio lahir
+//   warga penuh (konstitusi+graph schema) tanpa nunggu restart. Additive.
 // Locked at: 2026-05-30 (re-locked 2026-06-11; +group seed & secret-central 2026-06-12)
 // 2026-06-12 OWNER-APPROVED: boot migrates connector secrets to Settings → API Keys
 //   (connections.MigrateSchemaSecretsToGlobal) and wires the frozen env-forward hook
@@ -396,35 +405,14 @@ func main() {
 		}
 	}()
 
-	// Doktrin edukasi — seed katalog educational_errors default ke tiap agent
-	// (idempotent INSERT OR IGNORE; edit owner via GUI ngga ke-overwrite).
+	// DNA INTRINSIK tiap agent (idempotent, satu pintu — lihat agentmgr/
+	// provision_dna.go): edu-errors + konstitusi sacred (incl anti-janji-palsu/
+	// recall-first) + tune-extension + sync slot + antibody immune + ensure schema
+	// cognitive graph. SAMA persis dipanggil di install path (plugin_handler.go) →
+	// agent baru hasil AI Studio lahir warga penuh tanpa nunggu restart. Pipa ke
+	// instinct/graph/otak-kolektif via coreExposedTools (referensi shared brain).
 	for _, agentID := range host.AgentIDs() {
-		if store, derr := host.OpenAgentStore(agentID); derr == nil {
-			if n, serr := store.SeedEduErrors(); serr == nil && n > 0 {
-				log.Printf("edu-errors: seeded %d entry baru → %s", n, agentID)
-			}
-			// Roadmap 2 B1: seed konstitusi sacred + sync ke self_prompt slot
-			// (always-inject 5W1H/identity/anti-halu). Idempotent.
-			if n, serr := store.SeedSacredConstitution(); serr == nil && n > 0 {
-				log.Printf("constitution: seeded %d sacred rule → %s", n, agentID)
-			}
-			// Tier: agent EXTENSION ke-gate dari brain_search_shared (5jt) — rapihin
-			// rule anti-halu biar ga nyuruh pake tool yg ga dia punya (anti-halu).
-			// Primary tetep default (dia punya 5jt). SEBELUM sync biar slot ke-update.
-			if !agentmgr.IsPrimaryAgent(agentID) {
-				if changed, serr := store.TuneConstitutionForExtension(); serr == nil && changed {
-					log.Printf("constitution: tuned anti-halu extension (no 5jt) → %s", agentID)
-				}
-			}
-			if updated, serr := store.SyncConstitutionSlot(); serr == nil && updated {
-				log.Printf("constitution: synced always-inject slot → %s", agentID)
-			}
-			// Roadmap 2 B5: seed antibody immune (signature injection/jailbreak).
-			if n, serr := store.SeedAntibodies(); serr == nil && n > 0 {
-				log.Printf("immune: seeded %d antibody → %s", n, agentID)
-			}
-			store.Close()
-		}
+		agentmgr.ProvisionAgentDNA(agentID)
 	}
 
 	// Background code scanner — watch source repo + kode buatan AI; auto-scan
@@ -563,6 +551,12 @@ func main() {
 	// invite as the owner (tokens stay in Settings, never pushed). No-op on a machine
 	// that already has a schedule / config.
 	seedSocialDefaults(fdb, loader.AgentsDir())
+	// DB-DRIVEN SELF-HEAL (owner 2026-06-20 "pake db biar flexibel"): crew/category yg
+	// SEMUA member agent-nya udah dihapus (dir ga ada) = mati → auto-clean (cascade
+	// task_agents + trigger_rules). Realisasi "hapus agent → crew auto-ilang", lepas
+	// dari jalur delete mana pun. Pakai dir-existence (BUKAN AgentIDs) → aman dari
+	// race agent-belum-load (dir ada walau lagi loading = di-keep).
+	reconcileDeadCrews(fdb, loader.AgentsDir())
 
 	mux := http.NewServeMux()
 
@@ -952,6 +946,39 @@ func main() {
 
 func ownerAutoVerify(w http.ResponseWriter, _ *http.Request) {
 	httpx.WriteJSON(w, map[string]any{"verified": true})
+}
+
+// reconcileDeadCrews — DB-driven self-heal: hapus task_category yg SEMUA member
+// agent-nya udah ga ada (dir ga eksis) → cascade task_agents + trigger_rules
+// (lewat DeleteCategory). "Hapus agent → crew auto-ilang", lepas dari jalur delete.
+// Pakai DIR-EXISTENCE (bukan host.AgentIDs) → AMAN dari race agent-belum-load:
+// dir ada walau lagi loading = di-keep. Skip kategori crew-kosong (lagi disetup).
+func reconcileDeadCrews(fdb *floworkdb.Store, agentsDir string) {
+	ids, err := fdb.CategoryIDs()
+	if err != nil {
+		return
+	}
+	for _, id := range ids {
+		cat, err := fdb.GetCategory(id)
+		if err != nil || cat == nil || len(cat.Crew) == 0 {
+			continue
+		}
+		alive := false
+		for _, m := range cat.Crew {
+			if m.AgentID == "" {
+				continue
+			}
+			if st, e := os.Stat(filepath.Join(agentsDir, m.AgentID+".fwagent")); e == nil && st.IsDir() {
+				alive = true
+				break
+			}
+		}
+		if !alive {
+			if derr := fdb.DeleteCategory(id); derr == nil {
+				log.Printf("[reconcile] crew mati '%s' dihapus (semua %d member ga ada lagi)", id, len(cat.Crew))
+			}
+		}
+	}
 }
 
 // seedSocialDefaults makes a FRESH clone match the owner's setup. It loads the

@@ -3,6 +3,9 @@
 // Owner: Aola Sahidin (Mr.Dev)
 // Repo: https://github.com/flowork-os/Flowork-OS
 // Locked at: 2026-06-02
+// 2026-06-20 (owner-approved, DB-driven flexible): DeleteCategory +CASCADE trigger_rules
+//   (target=id) → hapus crew = auto-hapus jadwal cron-nya juga (anti trigger hantu).
+//   +CategoryIDs() helper buat reconcileDeadCrews (boot self-heal). Re-locked.
 // Reason: FASE 5 — data model Category Task (owner-level). E2E verified:
 //   seed SAHAM, run async DB-driven, timeline live persist, synth adaptif
 //   partial-failure. Extend (kategori baru/kolom) → tambah migrasi, jaga
@@ -211,8 +214,31 @@ func (s *Store) DeleteCategory(id string) error {
 	if _, err := s.db.Exec(`DELETE FROM task_agents WHERE category_id=?`, id); err != nil {
 		return err
 	}
+	// CASCADE (owner 2026-06-20, DB-driven flexible): hapus crew → auto-hapus juga
+	// trigger_rules cron yg nargetin crew ini, biar ga ada jadwal hantu nge-fire
+	// crew mati ("delete = auto ilang TOTAL"). Best-effort (ga ada trigger = ok).
+	_, _ = s.db.Exec(`DELETE FROM trigger_rules WHERE target=?`, id)
 	_, err := s.db.Exec(`DELETE FROM task_categories WHERE id=?`, id)
 	return err
+}
+
+// CategoryIDs — semua id task_categories (buat reconcile orphan di boot).
+func (s *Store) CategoryIDs() ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	rows, err := s.db.Query(`SELECT id FROM task_categories`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id string
+		if rows.Scan(&id) == nil {
+			out = append(out, id)
+		}
+	}
+	return out, rows.Err()
 }
 
 // SetCrew ganti seluruh crew 1 kategori (replace).
