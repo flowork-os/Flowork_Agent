@@ -128,6 +128,44 @@ func (s *Store) ListCodemapNodes(nodeType, layer, search string, limit int) ([]C
 	return out, rows.Err()
 }
 
+// CodemapNodeStats — agregat akurat (COUNT/GROUP BY), bukan sampel ber-LIMIT.
+// Dipakai codemap_stats biar total_nodes bener walau >1000 (ListCodemapNodes
+// hard-cap di 1000 buat anti over-prompt; count ga boleh ikut ke-cap).
+func (s *Store) CodemapNodeStats() (total int, byType, byLayer map[string]int, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err = s.ensureCodemapSchema(); err != nil {
+		return 0, nil, nil, err
+	}
+	byType, byLayer = map[string]int{}, map[string]int{}
+	if e := s.db.QueryRow(`SELECT COUNT(*) FROM codemap_nodes`).Scan(&total); e != nil {
+		return 0, nil, nil, e
+	}
+	scan := func(q string, dst map[string]int) error {
+		rows, e := s.db.Query(q)
+		if e != nil {
+			return e
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var k string
+			var c int
+			if e := rows.Scan(&k, &c); e != nil {
+				return e
+			}
+			dst[k] = c
+		}
+		return rows.Err()
+	}
+	if e := scan(`SELECT node_type, COUNT(*) FROM codemap_nodes GROUP BY node_type`, byType); e != nil {
+		return 0, nil, nil, e
+	}
+	if e := scan(`SELECT layer, COUNT(*) FROM codemap_nodes GROUP BY layer`, byLayer); e != nil {
+		return 0, nil, nil, e
+	}
+	return total, byType, byLayer, nil
+}
+
 func (s *Store) DeleteCodemapNodesByFile(filePath string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

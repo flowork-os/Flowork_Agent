@@ -86,7 +86,7 @@ func seedSelfEvolutionGroup(groups *groupsapi.Handler) {
 				// codebase (codemap_*), baca konteks (file/grep/glob), riset (web_search), insting
 				// keamanan (instinct_recall), memori, cari tool/skill, tulis skill sendiri.
 				tools = append(tools,
-					"codemap_search", "codemap_search_advanced", "codemap_stats", "codemap_count",
+					"codemap_files", "codemap_search", "codemap_search_advanced", "codemap_stats", "codemap_count",
 					"file_read", "file_list", "grep", "glob", "brain_search",
 					"tool_search", "web_search", "memory_get", "memory_set", "skill_author")
 			}

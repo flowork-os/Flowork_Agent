@@ -134,6 +134,9 @@ func (codemapSearchAdvancedTool) Run(ctx context.Context, args map[string]any) (
 	if err != nil {
 		return tools.Result{}, fmt.Errorf("list codemap: %w", err)
 	}
+	if len(nodes) == 0 {
+		nodes = canonicalCodemapNodes(nodeType, layer, search, 20)
+	}
 	return tools.Result{
 		Output: map[string]any{"count": len(nodes), "nodes": nodes},
 	}, nil

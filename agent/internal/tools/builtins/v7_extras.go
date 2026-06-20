@@ -208,18 +208,16 @@ func (codemapCountTool) Run(ctx context.Context, args map[string]any) (tools.Res
 	if !ok || store == nil {
 		return tools.Result{}, fmt.Errorf("agent store not available")
 	}
-	// Pakai ListCodemapNodes dengan large cap untuk approx count.
-	nodes, err := store.ListCodemapNodes("", "", "", 10000)
+	// Agregat akurat (COUNT/GROUP BY) — bukan sampel ber-cap (ListCodemapNodes mentok 1000).
+	total, byType, byLayer, err := store.CodemapNodeStats()
 	if err != nil {
 		return tools.Result{}, fmt.Errorf("count codemap: %w", err)
 	}
-	byType := map[string]int{}
-	byLayer := map[string]int{}
-	for _, n := range nodes {
-		byType[n.NodeType]++
-		byLayer[n.Layer]++
+	source := "own"
+	if total == 0 {
+		total, byType, byLayer, source = canonicalCodemapStats()
 	}
 	return tools.Result{
-		Output: map[string]any{"total": len(nodes), "by_type": byType, "by_layer": byLayer},
+		Output: map[string]any{"source": source, "total": total, "by_type": byType, "by_layer": byLayer},
 	}, nil
 }

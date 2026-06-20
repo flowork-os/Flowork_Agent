@@ -600,10 +600,46 @@ func CodemapReindexCompatHandler(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
 		return
 	}
+
+	// ── NODE-LEVEL (fungsi/type/method) ──────────────────────────────────────
+	// Fix owner 2026-06-20: codemap_search/stats/count baca tabel codemap_NODES tapi
+	// itu KOSONG — selama ini cuma file-level (di atas) yg ke-index; node-index cuma
+	// per-file manual (/api/agents/codemap/index). Sekali reindex sekarang ALSO bulk
+	// parse tiap .go (ParseGo) → upsert node, jadi tools itu ga blank lagi. Full
+	// replace: clear-per-file dulu biar idempotent.
+	root := codemapRoot()
+	nodeCount := 0
+	for _, f := range files {
+		if f.FileType != "go" {
+			continue
+		}
+		content, rerr := os.ReadFile(filepath.Join(root, f.Path))
+		if rerr != nil {
+			continue
+		}
+		ns, perr := codemap.ParseGo(f.Path, content)
+		if perr != nil {
+			continue
+		}
+		_ = store.DeleteCodemapNodesByFile(f.Path)
+		now := time.Now().UTC().Format(time.RFC3339)
+		for _, n := range ns {
+			if _, e := store.UpsertCodemapNode(agentdb.CodemapNode{
+				NodeType: n.Type, Name: n.Name, FilePath: f.Path,
+				LineStart: n.LineStart, LineEnd: n.LineEnd, Layer: f.Layer,
+				Signature: n.Signature, SizeLOC: n.SizeLOC,
+				LastModified: now, IndexedAt: now,
+			}); e == nil {
+				nodeCount++
+			}
+		}
+	}
+
 	httpx.WriteJSON(w, map[string]any{
 		"ok":         true,
-		"message":    "reindex selesai",
-		"node_count": len(rows),
+		"message":    "reindex selesai (file + node level)",
+		"file_count": len(rows),
+		"node_count": nodeCount,
 		"edge_count": len(eRows),
 	})
 }

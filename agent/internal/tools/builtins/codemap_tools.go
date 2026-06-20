@@ -53,6 +53,9 @@ func (codemapSearchTool) Run(ctx context.Context, args map[string]any) (tools.Re
 	if err != nil {
 		return tools.Result{}, err
 	}
+	if len(rows) == 0 {
+		rows = canonicalCodemapNodes(nodeType, layer, search, 50)
+	}
 	const cap = 10
 	truncated := len(rows) > cap
 	if truncated {
@@ -92,22 +95,21 @@ func (codemapStatsTool) Run(ctx context.Context, _ map[string]any) (tools.Result
 	if !ok {
 		return tools.Result{}, fmt.Errorf("agent store not in context")
 	}
-	all, err := store.ListCodemapNodes("", "", "", 1000)
+	total, byType, byLayer, err := store.CodemapNodeStats()
 	if err != nil {
 		return tools.Result{}, err
 	}
-	byType := map[string]int{}
-	byLayer := map[string]int{}
-	for _, r := range all {
-		byType[r.NodeType]++
-		layer := r.Layer
-		if layer == "" {
-			layer = "(unspecified)"
-		}
-		byLayer[layer]++
+	source := "own"
+	if total == 0 {
+		total, byType, byLayer, source = canonicalCodemapStats()
+	}
+	if _, ok := byLayer[""]; ok {
+		byLayer["(unspecified)"] = byLayer[""]
+		delete(byLayer, "")
 	}
 	return tools.Result{Output: map[string]any{
-		"total_nodes": len(all),
+		"source":      source,
+		"total_nodes": total,
 		"by_type":     byType,
 		"by_layer":    byLayer,
 	}}, nil
