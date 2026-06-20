@@ -1,24 +1,26 @@
 {
-  "_comment": "Portable social-pipeline defaults so a FRESH git clone runs the SAME setup as the owner — tokens excluded (those live in Settings → API Keys / flowork.db, never pushed). Loaded on boot by seedSocialDefaults(): the schedule is installed ONLY when trigger_rules is empty (never clobbers an existing schedule); flowork_tele_link is set per group only when absent. Ratio = 2 trending : 1 promo per channel (Telegram/X/Dev.to). Times are server-local (owner runs the PC 20:00-24:00 WIB).",
-  "schedule": [
-    {"id": "social-trend-1",     "name": "Trending repo #1 (Dev+X+Tele)",      "cron": "0 20 * * *",  "target": "repo-reviewer", "prompt": "/review"},
-    {"id": "social-promo-devto", "name": "Flowork promo — Dev.to article",      "cron": "0 21 * * *",  "target": "promo-devto",   "prompt": "/auto"},
-    {"id": "social-promo-tele",  "name": "Flowork promo — share to Telegram",   "cron": "20 21 * * *", "target": "promo-x",       "prompt": "/promote-tele"},
-    {"id": "social-promo-x",     "name": "Flowork promo — share to X",          "cron": "40 21 * * *", "target": "promo-x",       "prompt": "/promote-devto"},
-    {"id": "social-trend-2",     "name": "Trending repo #2 (Dev+X+Tele)",      "cron": "30 22 * * *", "target": "repo-reviewer", "prompt": "/review"},
-    {"id": "operator-shutdown-0000", "name": "Operator — matikan PC 00:00 WIB", "cron": "0 0 * * *", "target": "operator-shutdown", "prompt": "/shutdown", "kind": "agent"}
-  ],
-  "group_config": {
-    "flowork_tele_link": "change me"
-  },
-  "config_groups": ["repo-reviewer", "promo-x", "promo-devto"],
-  "_kv_comment": "Setting global (flowork.db kv) supaya fresh clone = pengalaman owner. Di-set HANYA kalau kosong (tak menimpa nilai user / nilai owner yang sudah ada). Nilai PERSONAL diganti 'change me' → GUI Settings nampilin 'change me' sampai user isi. Yang generik di-ship apa adanya.",
-  "kv": {
-    "owner_name": "change me",
-    "notify_tg_chat": "change me",
-    "yt_inbox_path": "change me",
-    "llm_default_model": "claude-haiku-4-5",
-    "yt_default_privacy": "public",
-    "yt_watcher_enabled": "1"
-  }
+    "_comment": "Portable social-pipeline defaults so a FRESH git clone runs the SAME setup as the owner \u2014 tokens excluded (those live in Settings \u2192 API Keys / flowork.db, never pushed). Loaded on boot by seedSocialDefaults(): the schedule is installed ONLY when trigger_rules is empty (never clobbers an existing schedule); flowork_tele_link is set per group only when absent. [2026-06-20: social-promo/trend crews (repo-reviewer/promo-x/promo-devto) DIHAPUS owner \u2014 entry mati dibuang biar fresh-clone & boot ga materialize group hantu. Rebuild via AI Studio kelak.]",
+    "schedule": [
+        {
+            "id": "operator-shutdown-0000",
+            "name": "Operator \u2014 matikan PC 00:00 WIB",
+            "cron": "0 0 * * *",
+            "target": "operator-shutdown",
+            "prompt": "/shutdown",
+            "kind": "agent"
+        }
+    ],
+    "group_config": {
+        "flowork_tele_link": "change me"
+    },
+    "config_groups": [],
+    "_kv_comment": "Setting global (flowork.db kv) supaya fresh clone = pengalaman owner. Di-set HANYA kalau kosong (tak menimpa nilai user / nilai owner yang sudah ada). Nilai PERSONAL diganti 'change me' \u2192 GUI Settings nampilin 'change me' sampai user isi. Yang generik di-ship apa adanya.",
+    "kv": {
+        "owner_name": "change me",
+        "notify_tg_chat": "change me",
+        "yt_inbox_path": "change me",
+        "llm_default_model": "claude-haiku-4-5",
+        "yt_default_privacy": "public",
+        "yt_watcher_enabled": "1"
+    }
 }
