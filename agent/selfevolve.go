@@ -1,7 +1,9 @@
 // === LOCKED FILE (soft) === Status: STABLE — owner-approved 2026-06-16 (LOCKED ≠ FREEZE). AI lain:
 // JANGAN otak-atik tanpa izin owner. Sisi main self-evolution: proposer LLM + evolveGateDeps
 // (edition dev/public, ModelStrong=capabilityMeetsBar). Prompt KIND-RULES (kode≠add-skill) + LARANG
-// delete/LOCKED. coderModel()=Opus buat evolusi. Wire ke agentmgr (loop autonomy di sana).
+// delete/LOCKED. Wire ke agentmgr (loop autonomy di sana).
+// 2026-06-21 (owner-approved, AI-IN-AGENT): proposer model coderModel("") (global=flowork-brain)
+//   → evoCoderModel() (Opus per-agent GUI). Kebenaran model = setting per-agent evo-coder. Re-locked.
 //
 // selfevolve.go — R7 SELF-EVOLUTION fase-1 (sisi main: proposer LLM). Owner-approved
 // 2026-06-15 (FASE 2 autonomi). Wire routerChat ke agentmgr.EvolveReflectHandler:
@@ -71,7 +73,10 @@ func evolveGateDeps() agentmgr.EvolveGateDeps {
 
 func evolveProposer() agentmgr.EvolveProposer {
 	return func(ctx context.Context, selfMapContext, focus string) ([]agentmgr.ProposalDraft, error) {
-		model := coderModel("")
+		// AI-IN-AGENT (owner 2026-06-21): kebenaran model = setting PER-AGENT. Proposer
+		// evolusi pakai model AGENT evo-coder (evoCoderModel = Opus GUI), BUKAN coderModel("")
+		// = global (yg ternyata flowork-brain → proposal jadi lemah). Fix komentar header.
+		model := evoCoderModel()
 		foc := strings.TrimSpace(focus)
 		if foc == "" {
 			foc = "perbaikan yang naikin autonomi, ketahanan (resilience), atau ngisi celah kemampuan"

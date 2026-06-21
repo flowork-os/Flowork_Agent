@@ -1,6 +1,13 @@
 // === LOCKED FILE (soft) === Status: STABLE — owner-approved 2026-06-16 (LOCKED ≠ FREEZE). AI lain:
 // JANGAN otak-atik tanpa izin owner. Update 2026-06-16: cache eval PERSISTEN (KV) + self-bootstrap
 // + capEvalDue cooldown (anti-thrash model gagal-permanen). go-reviewer adversarial-pass.
+// 2026-06-21 (owner-approved, AI-IN-AGENT): gerbang capability eval `coderModel("")` (global=
+//   flowork-brain) → `evoCoderModel()` (model evo-coder = yg BENERAN ngoding evolusi). Akar: gate
+//   dulu nguji model GLOBAL, BUKAN model codegen (evo-coder) → nguji model yg SALAH. Sekarang nguji
+//   model codegen asli; anti-lokal guard TETAP (kalau evo-coder di-set lokal → gagal floor → blok).
+//   ⚠️ IMPLIKASI: gate skrg nguji Opus (evo-coder) → LOLOS floor → ModelStrong=true. Auto-commit
+//   gak lagi ke-blok oleh "test model salah". Gate LAIN (mode/karma≥20/ratio≥90%/dewan) TETAP jalan.
+//   Evolusi mode OFF skrg → nol efek live; review sebelum nyalain AUTO. Re-locked.
 //
 // evolve_capability.go — R7 CAPABILITY FLOOR. Owner-approved 2026-06-15 (keputusan
 // didelegasikan ke AI). "Buktikan, jangan asumsi." Ganti cek-nama dangkal (model=claude).
@@ -151,7 +158,7 @@ func runCapabilityEval(ctx context.Context, model string) capResult {
 // CACHE-ONLY (non-blocking) biar status GUI gak nge-hang nunggu eval 90s. Kalau model
 // belum dievaluasi → false + minta owner klik "Evaluate". Eval beneran lewat /api/evolve/eval.
 func capabilityMeetsBar() (bool, string) {
-	model := coderModel("")
+	model := evoCoderModel()
 	if c, ok := capCache.Load(model); ok {
 		r := c.(capResult)
 		return r.Passed, model + ": " + r.Detail + " (" + itoaSmall(r.Score) + "/" + itoaSmall(r.Total) + ")"
@@ -180,7 +187,7 @@ func capEvalDue() bool {
 	if err != nil {
 		return true // best-effort: DB error → coba aja
 	}
-	key := "evolve_capeval_attempt:" + coderModel("")
+	key := "evolve_capeval_attempt:" + evoCoderModel()
 	if v, _ := db.GetKV(key); strings.TrimSpace(v) != "" {
 		if last, e := time.Parse(time.RFC3339, strings.TrimSpace(v)); e == nil && time.Since(last) < capEvalRetryCooldown {
 			return false // baru aja nyoba → jangan thrash
@@ -230,7 +237,7 @@ func capCacheLoad(model string) (capResult, bool) {
 // evolveEvalAndCache — jalanin eval kapabilitas model aktif (BLOCKING ~90s) + cache.
 // Dipanggil on-demand dari /api/evolve/eval (tombol GUI), bukan tiap status-poll.
 func evolveEvalAndCache() capResult {
-	model := coderModel("")
+	model := evoCoderModel()
 	// 300s (was 120s, owner-approved 2026-06-16): suite = 3 tugas SEKUENSIAL (tiap tugas = 1 LLM-call
 	// 1200-token + compile `go run` sampai 25s). 120s total kependekan → tugas ke-3 SELALU ke-cut →
 	// max 2/3 → floor MUSTAHIL lolos, model sekuat apapun (Opus pun cuma 2/3). 300s kasih ~100s/tugas.

@@ -2,6 +2,8 @@
 // Status: STABLE — DO NOT MODIFY without owner approval. (LOCKED ≠ FREEZE: boleh diedit dgn izin.)
 // Owner: Aola Sahidin (Mr.Dev / awenk audico)
 // Locked at: 2026-06-16 (owner-approved autonomous sprint — owner ijinin lock file)
+// 2026-06-21 (owner-approved, AI-IN-AGENT): design model coderModel("") (global) → evoCoderModel()
+//   (Opus per-agent GUI). Kebenaran model = setting per-agent. Re-locked.
 // Reason: R7 fase-2b BEHAVIOR-APPLY engine. VERIFIED E2E (live binary, model haiku-4.5 strong):
 //   gate nolak {mode=off, model lemah, kind core/refactor}; add-skill → SKILL.md ketulis di disk +
 //   status applied; add-agent → tim "Tim Resiliensi & Otonomi Agent" (4 spesialis+synth) live →
@@ -48,7 +50,9 @@ func evolveApplier(host *kernelhost.Host, store *floworkdb.Store, groups *groups
 		if prompt == "" {
 			return nil, fmt.Errorf("proposal tanpa rationale — ga ada spesifikasi yg bisa dibangun")
 		}
-		model := coderModel("")
+		// AI-IN-AGENT (owner 2026-06-21): kebenaran model = setting per-agent. Behavior-apply
+		// evolusi pakai model AGENT evo-coder (evoCoderModel = Opus GUI), bukan global.
+		model := evoCoderModel()
 		switch strings.ToLower(strings.TrimSpace(p.Kind)) {
 		case "add-agent":
 			// Tim (group) baru — mesin architect penuh (design→assemble→install→group→sync).
