@@ -28,6 +28,13 @@
 //   → 26B ngechо pola basi. Fix: isAnchorNoise() skip assistant-reply gagal/denial
 //   buat turn LAMA (di luar keepRecentTurns=4 terbaru yg tetep utuh). wasm rebuilt
 //   (standard wasip1). Re-locked.
+// 2026-06-21 (owner-approved): AUTO-RECALL (D18/D19) — fetchAutoRecall() tiap turn:
+//   graph_recall(pesan, budget 2800) + brain_search → inject fakta relevan ke Tier-3
+//   (paling salient) dgn directive TEGAS. Akar: brain/graph dulu cuma tool-driven →
+//   model lemah ga manggil → "gak punya data" walau fakta ADA. Sekarang fakta owner
+//   auto-nongol → recall produksi RELIABLE (terbukti: paralysis→Lumpuh, anak→Adrian/
+//   Arkana/Shanon, scam→$1.25M, math control tetap bener/no over-anchor). Model tetap
+//   cfg.Router.Model (GUI, ga hardcode). wasm rebuilt (wasip1). Re-locked.
 // Locked at: 2026-05-30
 // Reason: Mr.Flow WASM agent (CRITICAL). Audit pass:
 //   - Token + TELEGRAM_ALLOWED_CHATS validation (drop kalau invalid)
@@ -621,7 +628,19 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn, notifyChatID 
 	// / Tier-3 volatile). Volatile (waktu + memory snapshot) di BAWAH = paling
 	// salient buat LLM. Budget di-handle di dalam buildSystemPrompt.
 	sys := buildSystemPrompt(cfg)
-	if len(sys) > maxPersonaTotalChars {
+	// AUTO-RECALL (D18/D19): inject grounding memori relevan pesan ini di BAWAH sys
+	// (paling salient) → recall produksi RELIABLE tanpa gantung LLM manggil tool. Jaga
+	// blok recall ga ke-potong budget: cap bagian persona dulu, recall nempel utuh.
+	if recall := fetchAutoRecall(userText); recall != "" {
+		recall = "\n=== RECALL OTOMATIS (relevan pesan terakhir) ===\n" + recall
+		if budget := maxPersonaTotalChars - len(recall); len(sys) > budget {
+			if budget < 0 {
+				budget = 0
+			}
+			sys = sys[:budget] + "\n…[truncated to respect prompt budget]"
+		}
+		sys += recall
+	} else if len(sys) > maxPersonaTotalChars {
 		sys = sys[:maxPersonaTotalChars] + "\n…[truncated to respect prompt budget]"
 	}
 
@@ -915,6 +934,81 @@ func fetchMemoryValue(key string) string {
 		return r.Result.Output.Value
 	}
 	return ""
+}
+
+// fetchAutoRecall — D18/D19 working-memory: rakit grounding memori OTOMATIS tiap
+// turn, GAK gantung LLM milih manggil tool. Akar fix recall produksi: SEBELUMNYA
+// brain & graph cuma tool-driven, jadi fakta owner sering ga nongol kalau model ga
+// proaktif manggil (mis. "siapa guru gitar Aola" → "gw ga punya data"). Sekarang
+// tiap turn:
+//   - graph_recall (semantic, twin/relasi) budget 2800 — fakta query-relevan ga
+//     ke-truncate (ukuran natural fact-sheet owner ~2000-2400ch). BUKAN ubah ranking
+//     (K11/K12: jangan graph-hack) — cuma kasih window cukup buat auto-recall.
+//   - brain_search (verbatim FTS) — pengalaman/knowledge yang ke-simpan.
+//
+// Best-effort & non-fatal: kosong/error → "" (turn jalan normal, ga blok).
+func fetchAutoRecall(userText string) string {
+	q, _ := parseAutoCont(strings.TrimSpace(userText))
+	q = strings.TrimSpace(q)
+	if len([]rune(q)) < 3 {
+		return ""
+	}
+	if r := []rune(q); len(r) > 400 {
+		q = string(r[:400])
+	}
+	var b strings.Builder
+
+	// ── GRAPH (twin/relasi, semantic) ──
+	var gr struct {
+		Result struct {
+			Output struct {
+				FactSheet string `json:"fact_sheet"`
+			} `json:"output"`
+		} `json:"result"`
+	}
+	if json.Unmarshal([]byte(runTool("graph_recall", map[string]any{"query": q, "max_chars": 2800})), &gr) == nil {
+		if fs := strings.TrimSpace(gr.Result.Output.FactSheet); fs != "" {
+			// Directive TEGAS (terbukti via test: directive lemah "pakai kalau relevan"
+			// bikin model lemah anggap opsional → fallback "gak punya data" walau
+			// faktanya ke-inject; directive tegas + "hubungkan" bikin model nyambungin
+			// fakta tersebar jadi jawaban benar — mis. "Irin taught Aola" + "Aola uses
+			// Guitar" → "Irin guru gitar Aola").
+			b.WriteString("[FAKTA TERVERIFIKASI tentang Mr.Dev (Aola) dari memori lo (twin graph). JAWAB pakai fakta ini & HUBUNGKAN fakta yang berkaitan. JANGAN bilang \"gak punya data/inget\" kalau jawabannya bisa disimpulkan dari fakta di bawah. Cuma abaikan kalau pertanyaan emang ga nyambung sama sekali sama fakta ini]:\n")
+			b.WriteString(fs)
+			b.WriteString("\n")
+		}
+	}
+
+	// ── BRAIN (verbatim FTS) ──
+	var br struct {
+		Result struct {
+			Output struct {
+				Hits []struct {
+					Content string `json:"content"`
+				} `json:"hits"`
+			} `json:"output"`
+		} `json:"result"`
+	}
+	if json.Unmarshal([]byte(runTool("brain_search", map[string]any{"query": q, "k": 5})), &br) == nil {
+		var lines []string
+		for _, h := range br.Result.Output.Hits {
+			c := strings.TrimSpace(h.Content)
+			if c == "" {
+				continue
+			}
+			if r := []rune(c); len(r) > 320 {
+				c = string(r[:320]) + "…"
+			}
+			lines = append(lines, "- "+c)
+		}
+		if len(lines) > 0 {
+			b.WriteString("[RECALL BRAIN (pengalaman/knowledge verbatim tersimpan)]:\n")
+			b.WriteString(strings.Join(lines, "\n"))
+			b.WriteString("\n")
+		}
+	}
+
+	return b.String()
 }
 
 // buildSystemPrompt — Fase 1 phase-2: rakit system prompt 3-tier.

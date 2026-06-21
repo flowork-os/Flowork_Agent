@@ -2,6 +2,10 @@
 // Status: STABLE — DO NOT MODIFY without owner approval.
 // Owner: Aola Sahidin (Mr.Dev)
 // Repo: https://github.com/flowork-os/Flowork-OS
+// 2026-06-21 OWNER-APPROVED (AI-IN-AGENT mandate G1): +seedDreamDigester() & wire
+//   agentmgr.DigestLLMOverride = dreamDigestLLM(host) (deket seedCodemapEnricher/AIStudio)
+//   → reasoning CGM digest/extraction pindah dari host+model-global ke AGENT dream-digester
+//   (model GUI). Additive, 2 baris. Re-locked.
 // 2026-06-20 OWNER-APPROVED: DB-DRIVEN self-heal groups ("pake db biar flexibel").
 //   +reconcileDeadCrews(fdb, agentsDir) di boot (abis seedSocialDefaults): hapus
 //   task_category yg SEMUA member agent-nya udah ga ada (dir-existence, aman dari race
@@ -617,6 +621,8 @@ func main() {
 	seedSelfEvolutionGroup(groupsAPI)
 	seedCodemapEnricher() // agent enrich codemap (model GUI, ga hardcode — owner 2026-06-20)
 	seedAIStudio()        // agent ai-studio: otak AI Studio (bikin agent/app/tim), model GUI — owner 2026-06-20
+	seedDreamDigester()   // agent dream-digester: otak CGM digest/extraction, model GUI — owner 2026-06-21 (AI-IN-AGENT)
+	agentmgr.DigestLLMOverride = dreamDigestLLM(host) // digest reasoning lewat agent (model GUI), bukan global
 	// DB-DRIVEN SELF-HEAL (owner 2026-06-20 "pake db biar flexibel"): crew/category yg
 	// SEMUA member agent-nya udah dihapus (dir ga ada) = mati → auto-clean (cascade
 	// task_agents + trigger_rules). Realisasi "hapus agent → crew auto-ilang", lepas

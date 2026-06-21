@@ -3,6 +3,9 @@
 // Owner: Aola Sahidin (Mr.Dev)
 // Repo: https://github.com/flowork-os/Flowork-OS
 // Locked at: 2026-06-20
+// 2026-06-21 (owner-approved, AI-IN-AGENT mandate): LLM closure cek DigestLLMOverride
+//   DULU (reasoning extraction lewat AGENT dream-digester, model GUI) → fallback router
+//   langsung kalau agent ga ada/kosong. Cabut "AI di host + model global". Re-locked.
 // Reason: CGM digestion wiring (LLM+Embed closures → DigestPendingInteractions, cron
 //   hook + manual endpoint, env-gated) — built+tested, deployed P1. Extend = new file.
 //
@@ -64,6 +67,14 @@ func buildDigestDeps(scope string, tier int) agentdb.DigestDeps {
 		AgentScope: scope,
 		Tier:       tier,
 		LLM: func(ctx context.Context, prompt string) (string, error) {
+			// AI-IN-AGENT (owner 2026-06-21): reasoning extraction WAJIB lewat AGENT
+			// (dream-digester, model GUI) — BUKAN model global. Fallback ke router
+			// langsung kalau agent belum ke-wire / ke-load / output kosong (robust).
+			if DigestLLMOverride != nil {
+				if out, err := DigestLLMOverride(ctx, prompt); err == nil && strings.TrimSpace(out) != "" {
+					return out, nil
+				}
+			}
 			c, cancel := context.WithTimeout(ctx, 5*time.Minute)
 			defer cancel()
 			return rc.ChatComplete(c, model, prompt, cgmDigestMaxTokens)
