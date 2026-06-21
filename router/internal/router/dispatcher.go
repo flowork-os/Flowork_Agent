@@ -2,13 +2,6 @@
 // Status: STABLE — DO NOT MODIFY without owner approval.
 // Owner: Aola Sahidin (Mr.Dev)
 // Repo: https://github.com/flowork-os/Flowork-OS
-// 2026-06-21 (owner-approved "perbaiki dulu bug ini", D31): TOOL-AWARE FALLBACK.
-//   Akar bug AI Studio chat hang/gagal-build (TERUKUR e2e+log): opus/sonnet quota
-//   owner HABIS (429) → router fallback (owner-doctrine "provider mati→next ON") DULU
-//   ke flowork-brain LOKAL yg "sukses" balas teks TAPI ga manggil tool → app/tim GA
-//   ke-build. Fix: request ber-tools buang model lokal dari globalFallbackModels
-//   (dropLocalFallback) → degrade ke cloud tool-model (haiku). Non-tool & 429-retry/
-//   armada (ratelimit.go) TIDAK disentuh (warning dihormati). Re-locked.
 // Locked at: 2026-05-30
 // Reason: Audit pass — Router dispatcher.
 // 2026-06-13 OWNER-APPROVED (audit→review→test→lock): the Claude subscription branch now uses
@@ -246,18 +239,7 @@ func DispatchChatCompletion(ctx context.Context, req OpenAIRequest) (*OpenAIResp
 	modelsToTry := append([]string{req.Model}, comboFallback...)
 	nPrimary := len(modelsToTry)
 	if settings == nil || settings.FallbackStrategy != "none" {
-		fb := globalFallbackModels(d, modelsToTry)
-		// D31 fix (owner "perbaiki dulu bug ini"): TOOL/agentic requests butuh model
-		// TOOL-CAPABLE. Brain LOKAL (flowork-brain) handle tool-calling jelek → kalau
-		// model strong (opus/sonnet) ke-throttle, fallback DULU ke flowork-brain yg
-		// "sukses" balas teks TAPI ga manggil tool → app/tim GA ke-build (root bug
-		// AI Studio chat). Buang model lokal dari fallback HANYA buat request ber-tools
-		// → degrade ke cloud tool-model (haiku). Non-tool: lokal fallback tetap (zero
-		// regresi). TIDAK nyentuh 429-retry/armada (ratelimit.go warning dihormati).
-		if requestHasToolUse(req) {
-			fb = dropLocalFallback(fb)
-		}
-		modelsToTry = append(modelsToTry, fb...)
+		modelsToTry = append(modelsToTry, globalFallbackModels(d, modelsToTry)...)
 	}
 	originalModel := modelsToTry[0]
 	var lastModelErr error
@@ -382,22 +364,6 @@ func globalFallbackModels(d *sql.DB, tried []string) []string {
 			out = append(out, ms)
 			break // one concrete model per provider is enough
 		}
-	}
-	return out
-}
-
-// dropLocalFallback — buang model LOKAL (flowork-brain / *.gguf) dari daftar fallback.
-// Dipakai buat request ber-TOOLS (D31): model lokal handle tool-calling jelek → kalau
-// jadi fallback duluan, dia "sukses" balas teks tapi GA manggil tool → app/tim ga ke-
-// build. Tool-request HARUS degrade ke cloud tool-model. Non-tool ga lewat sini.
-func dropLocalFallback(models []string) []string {
-	out := models[:0:0]
-	for _, m := range models {
-		low := strings.ToLower(m)
-		if strings.Contains(low, "flowork-brain") || strings.HasSuffix(low, ".gguf") {
-			continue
-		}
-		out = append(out, m)
 	}
 	return out
 }
