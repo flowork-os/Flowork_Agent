@@ -123,6 +123,9 @@ func registerManagementRoutes(mux *http.ServeMux) {
 	// /api/mitm request-feed + server-side replay were removed; replay is now a
 	// client-side re-POST of the captured body from the dashboard).
 	mux.HandleFunc("/api/mitm/capture-toggle", mitmCaptureToggleHandler)
+	// 3E/D13 loop-belajar auto-capture + local-AI autostart = SETTING GUI (owner 2026-06-21).
+	mux.HandleFunc("/api/learn/capture-toggle", learnCaptureToggleHandler)
+	mux.HandleFunc("/api/localai/autostart-toggle", localAIAutostartToggleHandler)
 	mux.HandleFunc("/api/mitm/full/", mitmFullDetailHandler)
 	mux.HandleFunc("/api/mitm/recent-full", mitmRecentFullHandler)
 	// MITM TLS proxy control (cert + DNS + status)

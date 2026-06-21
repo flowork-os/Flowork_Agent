@@ -1376,6 +1376,16 @@ done &lt; my_knowledge.jsonl</pre>
             <button data-mc-action="status" class="text-sm px-3 py-1.5 rounded border border-slate-500/40 hover:bg-slate-700/50">Status</button>
           </div>
           <div id="mc-localai-out" class="text-xs font-mono p-2 bg-slate-900/60 rounded mb-3 min-h-[2rem]"></div>
+          <div class="flex flex-col gap-2 mb-3 border-t border-slate-700/50 pt-3">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" id="localaiAutostart" onchange="toggleLocalaiAutostart()" class="w-4 h-4 accent-purple-500">
+              <span class="text-sm text-slate-300">Auto-start local AI (flowork-brain) on router boot</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" id="learnCapture" onchange="toggleLearnCapture()" class="w-4 h-4 accent-emerald-500">
+              <span class="text-sm text-slate-300">Loop-belajar: rekam pengalaman model kuat → brain (auto-capture, lokal)</span>
+            </label>
+          </div>
           <div class="text-xs uppercase tracking-wider text-slate-500 mb-2">Registry</div>
           <div id="mc-localai-models" class="space-y-1 max-h-32 overflow-y-auto"></div>
         </div>
@@ -4675,6 +4685,26 @@ done &lt; my_knowledge.jsonl</pre>
       toast(on ? 'Body capture ON' : 'Body capture OFF');
       loadMitmCaptured();
     }
+    // 3E/D13 + local-AI autostart — GUI toggle (owner 2026-06-21).
+    async function toggleLearnCapture() {
+      const on = document.getElementById('learnCapture').checked;
+      await fetch('/api/learn/capture-toggle', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:on})});
+      toast(on ? 'Loop-belajar: capture ON' : 'Loop-belajar: capture OFF');
+    }
+    async function toggleLocalaiAutostart() {
+      const on = document.getElementById('localaiAutostart').checked;
+      await fetch('/api/localai/autostart-toggle', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:on})});
+      toast(on ? 'Local AI autostart ON (berlaku boot router berikutnya)' : 'Local AI autostart OFF');
+    }
+    async function loadLearnLocalaiToggles() {
+      try {
+        const a = await (await fetch('/api/localai/autostart-toggle')).json();
+        const e1 = document.getElementById('localaiAutostart'); if (e1) e1.checked = !!a.enabled;
+        const c = await (await fetch('/api/learn/capture-toggle')).json();
+        const e2 = document.getElementById('learnCapture'); if (e2) e2.checked = !!c.enabled;
+      } catch (e) {}
+    }
+    document.addEventListener('DOMContentLoaded', loadLearnLocalaiToggles);
     let _replayBody = null;
     async function viewMitmBody(id) {
       const pre = document.getElementById('mitmBodyView');

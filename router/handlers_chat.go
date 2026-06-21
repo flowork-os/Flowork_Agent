@@ -4,6 +4,10 @@
 // Repo: https://github.com/flowork-os/Flowork-OS
 // Locked at: 2026-05-30
 // Reason: Audit pass — HTTP handler.
+// 2026-06-21 (owner-approved, Phase 3E/D13): +captureLearningRecording(resp,req,r) di jalur
+//   non-stream sukses → rekam experience model kuat ke recordings (loop-belajar). Logic di
+//   file BARU handlers_chat_learn.go, opt-in ROUTER_AUTO_RECORD=1 (default OFF), async, skip
+//   model lokal. 1 baris call. Re-locked.
 
 // Core Inference Handlers (chat + models).
 
@@ -75,6 +79,7 @@ func chatCompletionsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	respBody, _ := json.Marshal(resp)
 	captureMITM(resp.Model, r, body, status, "", durationMs, respBody)
+	captureLearningRecording(resp, req, r) // 3E/D13 auto-capture → recordings (opt-in ROUTER_AUTO_RECORD=1)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_, _ = w.Write(respBody)

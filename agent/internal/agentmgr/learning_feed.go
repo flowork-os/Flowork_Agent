@@ -79,12 +79,12 @@ func fetchRouterRecordings(limit int) ([]learningRecord, error) {
 	return out.Items, nil
 }
 
-// DigestRecordings — 1 siklus loop-belajar. Opt-in FLOWORK_LEARN_LOOP=1 (owner kontrol).
+// DigestRecordings — 1 siklus loop-belajar (distil recordings → shadow → promote).
+// Saklar UTAMA = toggle auto-capture di GUI router (owner 2026-06-21: "kebenaran di GUI,
+// env dihapus"): capture OFF → ga ada recording baru → digest no-op. Endpoint ini =
+// trigger proses (manual/cron). Tetap aman: skip model lokal + anti-replay + shadow.
 func DigestRecordings(limit int) (LearningStats, error) {
 	var ls LearningStats
-	if strings.TrimSpace(os.Getenv("FLOWORK_LEARN_LOOP")) != "1" {
-		return ls, nil // opt-in: default OFF (hormati sistem live + privasi)
-	}
 	if limit <= 0 || limit > 200 {
 		limit = 100
 	}
@@ -152,11 +152,7 @@ func LearningDigestHandler(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
 		return
 	}
-	httpx.WriteJSON(w, map[string]any{
-		"ok":      true,
-		"enabled": strings.TrimSpace(os.Getenv("FLOWORK_LEARN_LOOP")) == "1",
-		"stats":   ls,
-	})
+	httpx.WriteJSON(w, map[string]any{"ok": true, "stats": ls})
 }
 
 func itoaSmallLearn(n int) string {

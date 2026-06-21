@@ -175,6 +175,8 @@ func main() {
 	policyEngineRef = policyEngine
 
 	loadMITMCaptureState()
+	loadLearnCaptureState()      // 3E/D13: auto-capture toggle (kv, GUI) — owner 2026-06-21
+	loadLocalAIAutostartState()  // local-AI autostart toggle (kv, GUI; migrasi sekali dari env)
 	startTunnelWatchdog()
 	providers, _ := store.ListProviders(d)
 	log.Printf("Providers loaded: %d", len(providers))
@@ -254,8 +256,10 @@ func main() {
 // "Provider local active" (failover chain) != auto-spawn proses (beda concern, lihat audit #6).
 // GUI status/stop kontrol instance yg sama (shared runtime ref). Cross-OS / semua edisi.
 func maybeAutostartLocalAI(providers []store.ProviderConnection) {
-	if strings.TrimSpace(os.Getenv("FLOWORK_LOCALAI_AUTOSTART")) != "1" {
-		log.Printf("localai autostart: OFF (opt-in) — start lewat tombol GUI router atau FLOWORK_LOCALAI_AUTOSTART=1")
+	// Sumber kebenaran = setting GUI (kv 'localai:autostart'), BUKAN env (owner 2026-06-21).
+	// loadLocalAIAutostartState() udah migrasi dari env sekali kalau kv belum ada.
+	if !localAIAutostartEnabled() {
+		log.Printf("localai autostart: OFF — nyalain lewat toggle GUI router (Settings → Local AI autostart)")
 		return
 	}
 	want := false
