@@ -2,6 +2,12 @@
 // Status: STABLE — DO NOT MODIFY without owner approval.
 // Owner: Aola Sahidin (Mr.Dev)
 // Repo: https://github.com/flowork-os/Flowork-OS
+// 2026-06-21 OWNER-APPROVED buka-lock (D32 inc-1 error-edukasi-adaptif, re-locked): +1
+//   baris ticker → PromoteRecurringMistakes(ctx,host): mistake recurring (hit_count>=3)
+//   → project jadi recovery-instinct embedded (semantic-recallable) via job non-beku
+//   mistake_promote_job.go. Tutup gap: gate promote ga ke-wire + recall mistakes LIKE
+//   (bukan semantik). Kernel ga disentuh; reuse ListMistakesEligibleForPromote+UpsertNode.
+//   Additive + dormant (tanpa mistake hit>=3 = no-op). Re-locked.
 // 2026-06-21 OWNER-APPROVED buka-lock (Phase 6/E async opsi-1, re-locked): +1 baris di
 //   ticker poller (deket RunDueWakeups) → RunQueuedTasks(ctx,host) drive task background
 //   (state 'queued', di-set TaskCreate background:true) ASYNC via worker non-beku
@@ -612,6 +618,9 @@ func main() {
 					}
 					if n := RunQueuedTasks(ctx, host); n > 0 { // E (Phase 6): drive task background (queued) async
 						log.Printf("queued-task: %d di-drive", n)
+					}
+					if n := PromoteRecurringMistakes(ctx, host); n > 0 { // D32: mistake recurring → recovery-instinct (embedded)
+						log.Printf("mistake-promote: %d → recovery-instinct", n)
 					}
 				}()
 			}
