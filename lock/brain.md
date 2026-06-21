@@ -125,10 +125,13 @@ Ada **3 jalur** node bisa lahir di `cognitive_nodes`:
 - `addinstinct/main.go` — seed meta-instinct manual (mis. 5 meta security/coding + safety "reframing=refuse").
 - `graphwire/main.go` — **[BRAIN.md FASE B2]** (A) W5H1-fill (`when_valid`/`properties.how` dari label insting), (B) konek edge `member_of` **status=shadow** node→hub→root (GUI nyambung, recall bersih), (HOW) seed **HOW-instinct** mindset penemu (`where_domain='mindset'`, conf 0.95).
 - Pola umum: baca sumber → `EmbedText` → `Quantize` → `UpsertNode(type, embedding)`. Idempotent (id stabil).
+- **⚡ B4 AUTO-SYNC (produksi, 2026-06-22) — `graph_autosync.go` (host non-beku, FROZEN):** versi OTOMATIS dari `graphsync` scratch. Ticker tiap 30min projeksi skills/constitution/edu/drawers → graph + **CHANGE-DETECTION** (`SyncSourcesToGraph`: skip `EmbedText` kalau label node == sumber → cuma row BARU/BERUBAH yang re-embed → hemat router). Ganti re-run manual. Graph SELALU cermin sumber tanpa re-run tangan.
 
 ### 6.3 PEMBELAJARAN (dari pengalaman) — loop
 - **3E loop-belajar** (`agentmgr/learning_feed.go` + `agentdb/learning_log.go`): router capture model-kuat → `recordings` → distil (dream-digester) → SHADOW node (`source_kind=strong_model_unverified`) → promote-on-repetisi.
-- **D32 recovery-instinct** (`mistake_promote_job.go`, non-beku): `mistakes_local` `hit_count≥3` → `type=instinct where_domain='recovery'` (+embedding) → recall semantic. Gate repetisi = anti-degenerasi.
+- **D32 recovery-instinct (loop 2-tahap, FROZEN):**
+  - **(INC-2 CAPTURE)** `recovery_capture.go` (di-panggil 1 baris dari mr-flow tool-loop): tool ERROR lalu tool yg SAMA SUKSES dalam loop → `mistake_log` "WHEN <tool> <kelas> -> recovered" (kelas error BEBAS path/data owner — privasi). Reuse pipeline mistake.
+  - **(INC-1 PROMOTE)** `mistake_promote_job.go` (non-beku, ticker): `mistakes_local` `hit_count≥3` → `type=instinct where_domain='recovery'` (+embedding) → recall semantic. Gate repetisi = anti-degenerasi. → agent ga ngulang stuck yg udah ke-recover (hemat token).
 
 ---
 
@@ -175,7 +178,10 @@ Ada **3 jalur** node bisa lahir di `cognitive_nodes`:
 
 **host non-beku (orkestrasi loop):**
 - `agent/main.go` — wiring + ticker (1 menit: RunDueWakeups, RunQueuedTasks, PromoteRecurringMistakes).
-- `wakeup_engine.go` (ScheduleWakeup) · `task_worker.go` (background task) · `mistake_promote_job.go` (D32) · `dream_digester_seed.go` (digest agent) · `learning_feed.go`/`learning_log.go` (3E).
+- `wakeup_engine.go` (ScheduleWakeup) · `task_worker.go` (background task) · `mistake_promote_job.go` (D32 INC-1 promote) · `graph_autosync.go` (**B4** auto-sync sumber→graph, ticker+change-detection, FROZEN) · `dream_digester_seed.go` (digest agent) · `learning_feed.go`/`learning_log.go` (3E).
+
+**agent-side mr-flow brain (FROZEN, di-panggil dari main.go):**
+- `agents/mr-flow/recovery_capture.go` (**D32 INC-2** capture error→recovery; nano-modular: logic-brain terpisah dari orkestrator main.go).
 
 **routerclient (jembatan ke router):**
 - `embed.go` (EmbedText → bge-m3) · routerclient (ChatComplete → LLM).
