@@ -247,10 +247,12 @@ Router brain (`flowork-brain.sqlite`, shared 5jt) = sumber knowledge-base luas, 
 
 **D. Auto-recall:** fungsi `fetchAutoRecall` di `agent/agents/mr-flow/main.go`. ⚠️ main.go CAMPUR brain + non-brain (tool-loop/persona/ghost-guard) → freeze **granular** (pisah fetchAutoRecall ke file sendiri dulu) ATAU freeze main.go penuh (lebih kaku).
 
+**D2. Auto-capture recovery (D32 INC-2) — `agent/agents/mr-flow/recovery_capture.go`:** logic-brain `captureRecovery`/`toolErrClass`/`recoveryCaptureSkip` DI-EKSTRAK dari main.go = realisasi PERTAMA pola granular §13.D (main.go = list/wiring EDITABLE, logic-brain = file terpisah FROZEN). Tool ERROR→tool SAMA SUKSES dalam loop → `mistake_log` → pipeline INC-1. Dipanggil 1 baris dari tool-loop main.go. FROZEN.
+
 **E. Loop non-beku yg NYENTUH brain (boleh evolve tapi hati2):** `dream_digester_seed.go` · `mistake_promote_job.go` · `learning_feed.go`/`agentdb/learning_log.go` · `agentmgr/cognitive_digest_cron.go`.
 
 **F. GUI — ⛔ TIDAK di-freeze (owner 2026-06-22):** `web/tabs/cognitive.js` + `agentmgr/cognitive_handlers.go` = jalur GUI/viz (warna/legend/filter masih EVOLVE). **Jangan dikunci** — biar bebas berkembang.
 
 **⛔ JANGAN di-freeze:** **GUI** (cognitive.js + cognitive_handlers.go — viz berkembang) · **main.go** (fetchAutoRecall di sini; main.go bakal jadi LIST/wiring doang — nano-modular, nanti) · **scratch** (`_scratch_cgm/*` — gitignored, sekali-pakai) · **DATA** (db/`cognitive_nodes`/embedding/drawer — TUMBUH terus; freeze cuma buat CODE).
 
-**STATUS 2026-06-22:** **30 file brain-LOGIC** (A+B+C+E) udah di-STRIP (komentar dibuang via `_scratch_cgm/cmtstrip`, parser-aman) + header minimal `// Owner: Mr.Dev · github.com/flowork-os/Flowork-OS · floworkos.com` + `// ⚠️ FROZEN... lihat lock/brain.md`. Verified: gofmt clean · go build · go vet · brain-tests PASS · TestKernelFreeze OK (kode+perilaku IDENTIK, strip=comment-only). **SISA (nanti):** taruh SHA256 30 file ke `flowork-secrets/KERNEL_FREEZE.md` (→ `TestKernelFreeze` auto-enforce) + OS-sealer (N3).
+**STATUS 2026-06-22:** **30 file brain-LOGIC** (A+B+C+E) di-STRIP komentar + header minimal + SHA256 di `KERNEL_FREEZE.md` + chattr +i. Verified: gofmt clean · go build · go vet · brain-tests PASS · TestKernelFreeze OK (kode+perilaku IDENTIK, strip=comment-only). **+1 file (D2) 2026-06-22:** `recovery_capture.go` (D32 INC-2, di-ekstrak dari main.go) di-freeze juga (chattr+hash) = **31 file brain-core**. **SISA (nanti):** OS-sealer otomatis (N3).
