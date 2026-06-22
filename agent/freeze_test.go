@@ -50,6 +50,9 @@ func TestKernelFreeze(t *testing.T) {
 		}
 		checked++
 	}
+	if err := sc.Err(); err != nil {
+		t.Fatalf("scan manifest KERNEL_FREEZE.md: %v", err)
+	}
 	if checked == 0 {
 		t.Fatal("manifest KERNEL_FREEZE.md tak punya entri checksum — freeze tak ter-enforce")
 	}

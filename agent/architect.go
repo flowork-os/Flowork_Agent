@@ -227,7 +227,7 @@ func availableDataTools() (hint string, valid map[string]bool) {
 		if t, ok := tools.Lookup(name); ok {
 			desc = t.Schema().Description
 		}
-		b.WriteString("- " + name + ": " + trimStr(desc, 120) + "\n")
+		fmt.Fprintf(&b, "- %s: %s\n", name, trimStr(desc, 120))
 		n++
 	}
 	return b.String(), valid
@@ -553,7 +553,7 @@ func architectAssembleTeamPack(plan teamPlan) ([]byte, []string, string, error) 
 // call): assemble the whole team into ONE pack → install → create the coordinator
 // group. This is what the chat brain calls on the build_team tool, so the team built
 // is EXACTLY the one discussed (not a re-design). Re-callable: same group_id rebuilds.
-func architectBuildFromPlan(ctx context.Context, host *kernelhost.Host, store *floworkdb.Store, groups *groupsapi.Handler, plan teamPlan) (map[string]any, error) {
+func architectBuildFromPlan(_ context.Context, host *kernelhost.Host, store *floworkdb.Store, groups *groupsapi.Handler, plan teamPlan) (map[string]any, error) {
 	plan.GroupID = capGroupID(plan.GroupID) // TRUNCATE long/odd ids (don't fail the build)
 	plan.DisplayName = strings.TrimSpace(plan.DisplayName)
 	if !idReGroup.MatchString(plan.GroupID) {

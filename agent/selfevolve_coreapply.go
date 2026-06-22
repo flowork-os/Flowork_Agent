@@ -331,11 +331,11 @@ func evolveTestGate(ctx context.Context, wtRoot, rel string) (string, bool) {
 		cmd.Env = append(os.Environ(), "GOWORK=off")
 		out, err := cmd.CombinedOutput()
 		cancel()
-		b.WriteString("$ go " + strings.Join(s, " ") + "\n")
+		fmt.Fprintf(&b, "$ go %s\n", strings.Join(s, " "))
 		b.WriteString(strings.TrimSpace(string(out)))
 		b.WriteString("\n")
 		if err != nil {
-			b.WriteString("→ GAGAL: " + err.Error() + "\n")
+			fmt.Fprintf(&b, "→ GAGAL: %s\n", err.Error())
 			return b.String(), false
 		}
 		b.WriteString("→ OK\n")

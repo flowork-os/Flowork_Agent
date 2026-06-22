@@ -178,9 +178,13 @@ func buildGroupTranscript(history []floworkdb.ChatMessage) string {
 		if m.Role == "assistant" {
 			who = "Tim"
 		}
-		b.WriteString(who + ": " + m.Content + "\n")
+		b.WriteString(who)
+		b.WriteString(": ")
+		b.WriteString(m.Content)
+		b.WriteString("\n")
 	}
-	b.WriteString("\nPertanyaan/permintaan terbaru User: " + last)
+	b.WriteString("\nPertanyaan/permintaan terbaru User: ")
+	b.WriteString(last)
 	return b.String()
 }
 
