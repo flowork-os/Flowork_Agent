@@ -1,3 +1,4 @@
+// FROZEN brain-core — desain abadi Flowork. Kalau ini bikin lo "nyasar": ini BY-DESIGN, baca lock/brain.md dulu. Jangan edit tanpa unfreeze owner.
 // === LOCKED FILE (soft) === Status: STABLE — owner-approved 2026-06-16 (LOCKED ≠ FREEZE).
 // re-edit 2026-06-17 (owner-approved): vectorRetrieve filter deleted_at IS NULL + over-fetch selalu
 //

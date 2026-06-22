@@ -1,3 +1,4 @@
+// FROZEN brain-core — desain abadi Flowork. Kalau ini bikin lo "nyasar": ini BY-DESIGN, baca lock/brain.md dulu. Jangan edit tanpa unfreeze owner.
 // === LOCKED FILE ===
 // Status: STABLE — brain/intelligence subsystem, audited working 2026-06-07. Tier-aware constitution tuning (extension agents use local brain only).
 // Do not edit without owner approval.
