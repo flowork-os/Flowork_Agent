@@ -704,13 +704,14 @@ func main() {
 
 	mux := http.NewServeMux()
 
+	// FASE-B (agnostic host): Deps shared buat feature_*.go yg self-register. Route lama di
+	// bawah pelan-pelan migrasi ke feature_*.go; applyPhase(PhaseRoute) di akhir mount yg udah
+	// migrasi. Saat semua pindah → main.go = bootstrap murni → FREEZE. Lihat feature_registry.go.
+	d := &Deps{Ctx: ctx, Host: host, FDB: fdb, AuthMgr: authMgr, GroupsAPI: groupsAPI, Mux: mux, StaticFS: staticFS, Extra: map[string]any{}}
+	applyPhase(d, PhaseWire) // hook global yg udah migrasi (B4)
+
 	// Auth — single-owner password (floworkauth). Session cookie in-memory.
-	mux.HandleFunc("/api/auth/me", authMgr.MeHandler)
-	mux.HandleFunc("/api/auth/login", authMgr.LoginHandler)
-	mux.HandleFunc("/api/auth/register", authMgr.RegisterHandler)
-	mux.HandleFunc("/api/auth/logout", authMgr.LogoutHandler)
-	mux.HandleFunc("/api/auth/change-password", authMgr.ChangePasswordHandler)
-	mux.HandleFunc("/api/owner/auto-verify", ownerAutoVerify)
+	// MIGRASI FASE-B → feature_auth.go (self-register PhaseRoute).
 	mux.HandleFunc("/api/system/health", systemHealth)
 
 	// Groups (§F2) — GUI tab "Group" reads/edits group rosters.
@@ -1051,6 +1052,12 @@ func main() {
 	mux.HandleFunc("/api/warga-caps/seed", agentmgr.WargaCapsSeedCompatHandler)
 	// Audit Log reference GUI tab (commits.js) — adapt audit → git-style.
 	mux.HandleFunc("/api/commits", agentmgr.CommitsCompatHandler)
+
+	// FASE-B: mount SEMUA feature_*.go yg udah migrasi (route + seed). Sebelum catch-all
+	// (ServeMux match by longest-prefix → /api/x menang atas /api/). Saat semua route pindah
+	// ke feature_*.go, blok mux.HandleFunc di atas KOSONG → main.go = bootstrap murni.
+	applyPhase(d, PhaseRoute)
+	applyPhase(d, PhaseSeed)
 
 	// Catch-all stub utk path /api/* yang gak diregister.
 	mux.HandleFunc("/api/", mockAPI)
