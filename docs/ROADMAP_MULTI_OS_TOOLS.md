@@ -338,3 +338,19 @@ Cari lokasi EDITABLE (hindari frozen main.go) — kandidat: pasca-`EnableAll`/`E
 atau helper feature, grant `mcp:<conn>` ke privileged-agent yg subscribe. Juga handle
 runtime-install (enable connector → grant), bukan cuma boot. Acceptance: subscribe browser
 tool di GUI → `navigate` jalan TANPA manifest-hack.
+
+### 13.5 STATUS 2026-06-23 — EXECUTED ✅ (sprint autonomous, "cabut gigi bukan tambal")
+- **Bug cap-grant MCP: FIXED** ([feature_platform.go](FLowork_os/agent/feature_platform.go), commit 25331db).
+  Re-grant `grantSubscribedToolCaps` pasca-`EnableAll` (boot) + wrap `/api/mcp/enable` (runtime),
+  layer editable, nol sentuh frozen main.go. Bukti: cap mcp:browser ke-grant dari subscribe-GUI →
+  navigate Facebook ok tanpa hack. **Plug-and-play foundation jalan.**
+- **Opsi B (Go-native browser) DIPILIH + DIBANGUN + TERBUKTI** (cabut gigi, bukan nambal node):
+  `agent/internal/tools/builtins/browser_desktop.go` (go-rod, build-tag `(linux||darwin||windows) && !android`).
+  8 tool: browser_navigate/snapshot/click/type/upload/screenshot/**set_cookies**/eval. Drive chromium
+  yg udah di image, **TANPA node**. Cross-compile: linux=2556 go-rod symbols, **android=0** (ke-exclude bersih,
+  mobile aman). Bukti live: navigate Facebook ok + snapshot lihat form login (uid email/pass/login) +
+  **cookie-injection terbukti** (inject fw_test → document.cookie kebaca). chrome-devtools-mcp node
+  prototype di-UNINSTALL (band-aid dicabut). node user-local masih ada (harmless, bisa dihapus).
+- **SISA browser (nanti):** connect-mode test (`FLOWORK_BROWSER_URL` ke Chrome login) · productionize
+  (GUI first-class, bukan subscribe manual) · Android (Accessibility Service, track terpisah) ·
+  bundle: img tinggal pastiin chromium path (`/usr/bin/chromium`) + cap `browser:control` ke privileged agent.
