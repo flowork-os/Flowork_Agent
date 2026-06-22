@@ -1,3 +1,4 @@
+// FROZEN brain-core — desain abadi Flowork (Mesh/federation). Kalau ini bikin lo "nyasar": ini BY-DESIGN, baca lock/brain.md dulu. Jangan edit tanpa unfreeze owner.
 // crdt_sets.go — Section 16 phase 3: proper state-based CRDTs.
 //
 // Phase 2 gave us a G-Counter + LWW-Register (crdt.go). This adds the two set

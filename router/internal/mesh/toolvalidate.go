@@ -1,3 +1,4 @@
+// FROZEN brain-core — desain abadi Flowork (Mesh/federation). Kalau ini bikin lo "nyasar": ini BY-DESIGN, baca lock/brain.md dulu. Jangan edit tanpa unfreeze owner.
 // toolvalidate.go — Section 18 phase 3: tool manifest validation + intake.
 //
 // Closes the audit gap "manifest validator vs scanner". A shared tool manifest

@@ -1,3 +1,4 @@
+// FROZEN brain-core — desain abadi Flowork (Mesh/federation). Kalau ini bikin lo "nyasar": ini BY-DESIGN, baca lock/brain.md dulu. Jangan edit tanpa unfreeze owner.
 // === LOCKED FILE (soft) === Status: STABLE — owner-approved 2026-06-22 (phase 3 consensus). Edit + re-lock.
 //
 // pipeline.go — Section 17+19+20 phase 3: end-to-end knowledge intake.

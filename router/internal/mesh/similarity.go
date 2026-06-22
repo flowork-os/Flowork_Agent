@@ -1,3 +1,4 @@
+// FROZEN brain-core — desain abadi Flowork (Mesh/federation). Kalau ini bikin lo "nyasar": ini BY-DESIGN, baca lock/brain.md dulu. Jangan edit tanpa unfreeze owner.
 // similarity.go — Section 17 L7 dependency-free near-duplicate detection.
 //
 // The roadmap's "cosine-dedup vs existing brain" originally implied a vector

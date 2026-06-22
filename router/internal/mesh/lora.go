@@ -1,3 +1,4 @@
+// FROZEN brain-core — desain abadi Flowork (Mesh/federation). Kalau ini bikin lo "nyasar": ini BY-DESIGN, baca lock/brain.md dulu. Jangan edit tanpa unfreeze owner.
 // lora.go — Section 21: LoRA delta transport + verification.
 //
 // HONESTY NOTE: the roadmap explicitly defers LoRA *application* — "apply delta
