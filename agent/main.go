@@ -383,6 +383,9 @@ func main() {
 					if rep := agentmgr.CurateAllAgentsSkills(host.AgentIDs()); len(rep) > 0 {
 						log.Printf("skill-curator: %d agent dirapihin", len(rep))
 					}
+					if n := ArchiveColdNodesAllAgents(host); n > 0 { // D (Phase 5): cold-archive graph gede (gated, reversible)
+						log.Printf("cold-archive: %d node graph diarsipkan (reversible)", n)
+					}
 				}()
 			}
 		}
@@ -679,12 +682,12 @@ func main() {
 	// → mr-flow bisa jalanin. Idempoten. GATE KEAMANAN (mode/karma/ModelStrong) TETAP di
 	// harness (selfevolve.go), GA disentuh. Cuma mindahin otak.
 	seedSelfEvolutionGroup(groupsAPI)
-	seedCodemapEnricher() // agent enrich codemap (model GUI, ga hardcode — owner 2026-06-20)
-	seedAIStudio()        // agent ai-studio: otak AI Studio (bikin agent/app/tim), model GUI — owner 2026-06-20
-	seedDreamDigester()   // agent dream-digester: otak CGM digest/extraction, model GUI — owner 2026-06-21 (AI-IN-AGENT)
-	agentmgr.DigestLLMOverride = dreamDigestLLM(host) // digest reasoning lewat agent (model GUI), bukan global
-	seedAppJudge()        // G5: agent app-judge (verifier adversarial), model GUI haiku — owner 2026-06-21 (AI-IN-AGENT)
-	seedScanDistiller()   // G6: agent scan-distiller (generator check privat), model GUI haiku — owner 2026-06-21
+	seedCodemapEnricher()                                                                      // agent enrich codemap (model GUI, ga hardcode — owner 2026-06-20)
+	seedAIStudio()                                                                             // agent ai-studio: otak AI Studio (bikin agent/app/tim), model GUI — owner 2026-06-20
+	seedDreamDigester()                                                                        // agent dream-digester: otak CGM digest/extraction, model GUI — owner 2026-06-21 (AI-IN-AGENT)
+	agentmgr.DigestLLMOverride = dreamDigestLLM(host)                                          // digest reasoning lewat agent (model GUI), bukan global
+	seedAppJudge()                                                                             // G5: agent app-judge (verifier adversarial), model GUI haiku — owner 2026-06-21 (AI-IN-AGENT)
+	seedScanDistiller()                                                                        // G6: agent scan-distiller (generator check privat), model GUI haiku — owner 2026-06-21
 	scanapi.DistillModelResolver = func() string { return utilityAgentModel(scanDistillerID) } // distiller model dari agent GUI
 	// DB-DRIVEN SELF-HEAL (owner 2026-06-20 "pake db biar flexibel"): crew/category yg
 	// SEMUA member agent-nya udah dihapus (dir ga ada) = mati → auto-clean (cascade
@@ -950,9 +953,9 @@ func main() {
 	// CGM digestion manual trigger (POST) — deploy proven loop (P1, 2026-06-20).
 	// Owner-controlled; always runs. Auto-digest in dream cron gated by env.
 	mux.HandleFunc("/api/agents/cognitive/digest", agentmgr.CognitiveDigestHandler)
-	mux.HandleFunc("/api/agents/learning/digest", agentmgr.LearningDigestHandler) // Phase 3E/D13 loop-belajar (gated FLOWORK_LEARN_LOOP=1)
-	mux.HandleFunc("/api/agents/compact", agentmgr.CompactAgentHandler) // auto-compact manual trigger (owner/QC)
-	mux.HandleFunc("/api/compact/config", agentmgr.CompactConfigHandler) // ambang auto-compact (GUI Settings)
+	mux.HandleFunc("/api/agents/learning/digest", agentmgr.LearningDigestHandler)            // Phase 3E/D13 loop-belajar (gated FLOWORK_LEARN_LOOP=1)
+	mux.HandleFunc("/api/agents/compact", agentmgr.CompactAgentHandler)                      // auto-compact manual trigger (owner/QC)
+	mux.HandleFunc("/api/compact/config", agentmgr.CompactConfigHandler)                     // ambang auto-compact (GUI Settings)
 	mux.HandleFunc("/api/agents/compact-all", func(w http.ResponseWriter, r *http.Request) { // Compact All (menu Agent)
 		if r.Method != http.MethodPost {
 			httpx.WriteJSON(w, map[string]any{"error": "method not allowed (POST)"})
