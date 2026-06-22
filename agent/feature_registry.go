@@ -12,11 +12,13 @@ import (
 	"net/http"
 	"sort"
 
+	fwapps "flowork-gui/internal/apps"
 	"flowork-gui/internal/floworkauth"
 	"flowork-gui/internal/floworkdb"
 	"flowork-gui/internal/groupsapi"
 	"flowork-gui/internal/kernelhost"
 	"flowork-gui/internal/settingsapi"
+	"flowork-gui/internal/triggers"
 )
 
 // Deps — semua dependency shared yg handler/feature butuh. Di-populate di main() PASCA-boot.
@@ -28,6 +30,8 @@ type Deps struct {
 	AuthMgr     *floworkauth.Manager
 	GroupsAPI   *groupsapi.Handler
 	SettingsAPI *settingsapi.API
+	TrigEngine  *triggers.Engine
+	AppsMgr     *fwapps.Manager
 	Mux         *http.ServeMux
 	StaticFS  fs.FS
 	Extra     map[string]any
