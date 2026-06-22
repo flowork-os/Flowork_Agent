@@ -633,6 +633,9 @@ func main() {
 					if n := PromoteRecoveryInstinctsShared(ctx, host); n > 0 { // D32-INC4: recovery-instinct generik → shared-brain (imunitas kolektif)
 						log.Printf("recovery-share: %d instinct → shared-brain", n)
 					}
+					if n := PromoteCognitiveShared(ctx, host); n > 0 { // C (Phase 4): fakta umum (concept/skill/knowledge) → shared-brain (collective graph)
+						log.Printf("collective-graph: %d fakta umum → shared-brain", n)
+					}
 					if n := SyncSourcesToGraph(ctx, host); n > 0 { // B4: auto-sync sumber→graph (throttle 30min, change-detect)
 						log.Printf("graph-autosync: %d node sumber→graph diperbarui", n)
 					}

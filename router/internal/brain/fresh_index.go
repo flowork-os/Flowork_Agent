@@ -21,9 +21,10 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/brain/vecindex"
 )
 
-// freshMemTypes — mem_type yang masuk fresh-index (knowledge fresh hasil federation/promote).
-// Sengaja sempit (murah + relevan); lebarin di sini kalau mau fresh-recall lebih luas.
-var freshMemTypes = []string{"recovery_instinct"}
+// freshMemTypes — mem_type yang masuk fresh-index (knowledge fresh hasil federation/promote):
+// recovery-instinct (INC-4) + fakta umum collective-graph (C). Sengaja sempit (murah + relevan);
+// lebarin di sini kalau mau fresh-recall lebih luas.
+var freshMemTypes = []string{"recovery_instinct", "collective_knowledge"}
 
 const freshMaxDrawers = 2000
 

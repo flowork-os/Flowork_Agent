@@ -12,6 +12,10 @@ package agentdb
 
 import "fmt"
 
+// OwnerNameAllowlist — accessor publik buat host (C/INC-4 double-check privasi): nama personal
+// owner (graph type=person) yg WAJIB di-redaksi sebelum konten keluar agent. Best-effort.
+func (s *Store) OwnerNameAllowlist() []string { return s.ownerNameAllowlist() }
+
 // SelectPromotableRecoveryInstincts — recovery-instinct AKTIF + verified + belum di-share.
 // Default-DENY by-konstruksi (cuma where_domain='recovery' type='instinct'). Anti-double
 // lewat federation_cognitive_log (ref_key "node:<id>", status='ok'). Urut hit_count (paling
