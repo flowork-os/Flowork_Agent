@@ -70,3 +70,29 @@ writer(Haiku) → fbspecial(Opus) post. mr-flow ga ngotorin tangan FB.
   "FLOWORK" (lihat memory). Akun FB = "Sundan".
 - Mulai POSTING audience PRIVAT (Hanya saya) pas test; publik pas owner OK.
 - Opus cuma di fbspecial (post). Sisa Haiku/tool = hemat. (Owner: "opus mahal, haiku hemat wkwk".)
+
+## 9. KOREKSI ARSITEKTUR 2026-06-23 — POLA SQUAD (ala Stock Analyst Squad), BUKAN monolitik
+Owner: "koloni semut — 1 AGEN 1 TUGAS, ada GROUP. Flow: mr-flow → squad → agent. Tiru Stock
+Analyst Squad." (Gue sempat salah: bikin fbspecial monolitik cari+nulis+post → DIBENERIN.)
+
+**Pola referensi (Stock Analyst Squad, `scripts/setup-saham-crew.sh`):** taskflow CATEGORY
+"saham" = SQUAD; crew = agen 1-tugas (`stock-analyst-squad-{fundamental,technical-a,sentiment-a}`)
++ synthesizer (`-synth`). Trigger: `POST /api/taskflow/run?category=saham&subject=BBCA` → tiap
+analis kerja 1 tugas (tulis hasil) → synth file_read semua → 1 keputusan. mr-flow delegasi =
+trigger category. Bikin: `spawn-agent.sh <id> --no-build` + `cfg <id> <persona> <tools>` +
+register `POST /api/taskflow/category`.
+
+**FB content-team = squad "facebook" (1 agen 1 tugas):**
+| Member | Model | 1 TUGAS |
+|---|---|---|
+| `fb-repofinder` | Haiku | cari 1 repo GitHub NON-duplikat (cek dedup DB) + meta + cover/screenshot |
+| `fb-writer` | Haiku | repo→status Inggris pros/cons + `source : ~github.com/..` (no-link) |
+| `fbspecial` | **Opus** | POST {teks+gambar} ke FB (✅ udah ada, di-fix POSTER-ONLY 2026-06-23) |
+| `fb-synth`(opsional) | Haiku | rangkai + putusin layak-post / pilih topik (2:1 rasio, anti-dup) |
+
+Flow: **mr-flow → category "facebook" → fb-repofinder → fb-writer → fbspecial(post)**. Tiap agen
+nulis hasil ke file/shared, agen berikut baca (pola saham file_read). Dedup DB dicek fb-repofinder.
+
+**Build plan (revisi, ikut saham):** F1=fbspecial poster ✅(done). F2=fb-writer (Haiku, spawn+cfg).
+F3=fb-repofinder (Haiku, +dedup). F4=register category "facebook" (crew+synth). F5=mr-flow
+trigger + jadwal 2:1. Test per-member dulu (1 tugas), baru rangkai squad (`/api/taskflow/run?category=facebook`).
