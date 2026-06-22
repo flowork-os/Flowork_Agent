@@ -8,8 +8,10 @@
 //   alone let a pre-signed packet with TS=now+23h stay "fresh" for a replay day.
 // Reason: Sections 18 (tool manifest broadcast), 19 (karma per-peer),
 //   20 (filter pipeline 9-layer) phase 2 — combined helpers + event hooks.
-//   Phase 3 (refined consensus, multi-stage filter, karma EMA) →
-//   tambah file baru.
+// 2026-06-22 (owner-approved edit-langsung, cabut-akar): PHASE 3  diisi LANGSUNG (bukan
+//   bolt-on) — L7 cosine/near-dup beneran jalan di RunFilterPipeline (nearDupPromoted,
+//   single-path; pipeline.go ga double-check) + L8 consensus N-of-M (consensus_phase3.go).
+//   L1-L9 sekarang real. Re-lock. (Sebelumnya stub "phase 3 pass".)
 //
 // karma_toolshare_filter.go — Sections 18+19+20 phase 2.
 
@@ -264,11 +266,49 @@ func RunFilterPipeline(db *sql.DB, pkt Packet, drawerContent string) []FilterDec
 		}
 	}
 	out = append(out, FilterDecision{Layer: "L6-injection", Decision: "pass"})
-	// L7-L9 phase 3.
-	out = append(out, FilterDecision{Layer: "L7-cosine", Decision: "pass", Reason: "phase 3"})
-	out = append(out, FilterDecision{Layer: "L8-consensus", Decision: "pass", Reason: "phase 3"})
-	out = append(out, FilterDecision{Layer: "L9-promote", Decision: "pass", Reason: "phase 3"})
+	// L7 cosine/near-dup validate vs knowledge yg udah promoted (Similarity aktif —
+	// trigram default offline, embedding-injectable via SetSimilarityFunc). Near-dup =
+	// REDUNDAN → reject (TANPA penalti karma; peer jujur wajar re-share). Cabut-akar:
+	// L7 beneran jalan di sini (dulu stub), single-path (pipeline.go ga double-check lagi).
+	if dupID, score := nearDupPromoted(db, drawerContent); dupID != "" {
+		out = append(out, FilterDecision{Layer: "L7-cosine", Decision: "reject",
+			Reason: fmt.Sprintf("near-duplicate of %s (sim %.2f)", dupID, score)})
+		return out
+	}
+	out = append(out, FilterDecision{Layer: "L7-cosine", Decision: "pass"})
+	// L8 consensus N-of-M — endorsement multi-peer sebelum promote (lihat consensus_phase3.go).
+	if d := consensusL8(db, pkt, drawerContent); d.Decision != "pass" {
+		out = append(out, d)
+		return out
+	}
+	out = append(out, FilterDecision{Layer: "L8-consensus", Decision: "pass"})
+	// L9 promote-decision = ditentukan ProcessKnowledgePacket (reject/dup/flag/promote)
+	// berdasar agregat L1-L8 di atas (single source of truth, bukan stub ganda).
+	out = append(out, FilterDecision{Layer: "L9-promote", Decision: "pass"})
 	return out
+}
+
+// nearDupPromoted — L7: scan knowledge yg udah 'promoted' (bounded 200 terbaru), return
+// packet_id + skor kalau ada yg Similarity>=threshold (near-dup). Pindahan dari pipeline.go
+// isNearDuplicate biar L7 self-contained (single near-dup path). Offline-safe (trigram).
+func nearDupPromoted(db *sql.DB, content string) (string, float64) {
+	rows, err := db.Query(
+		`SELECT packet_id, drawer_content FROM mesh_knowledge_inbox
+		 WHERE status = ? ORDER BY id DESC LIMIT 200`, StatusPromoted)
+	if err != nil {
+		return "", 0
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var pid, existing string
+		if rows.Scan(&pid, &existing) != nil {
+			continue
+		}
+		if sc := Similarity(content, existing); sc >= SimilarityThreshold {
+			return pid, sc
+		}
+	}
+	return "", 0
 }
 
 // RecordFilterAudit — append all decisions ke mesh_filter_audit.

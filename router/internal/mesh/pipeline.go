@@ -1,3 +1,5 @@
+// === LOCKED FILE (soft) === Status: STABLE — owner-approved 2026-06-22 (phase 3 consensus). Edit + re-lock.
+//
 // pipeline.go — Section 17+19+20 phase 3: end-to-end knowledge intake.
 //
 // This is the "glue" the audit found missing: incoming knowledge packets used
@@ -42,29 +44,6 @@ func extractDrawerContent(payloadJSON string) string {
 	return strings.TrimSpace(payloadJSON)
 }
 
-// isNearDuplicate checks the new content against recently-promoted inbox rows
-// using the active similarity function. Returns the matching packet_id when a
-// duplicate is found. Bounded scan (last 200 promoted) keeps it O(1)-ish.
-func isNearDuplicate(db *sql.DB, content string) (bool, string) {
-	rows, err := db.Query(
-		`SELECT packet_id, drawer_content FROM mesh_knowledge_inbox
-		 WHERE status = ? ORDER BY id DESC LIMIT 200`, StatusPromoted)
-	if err != nil {
-		return false, ""
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var pid, existing string
-		if rows.Scan(&pid, &existing) != nil {
-			continue
-		}
-		if Similarity(content, existing) >= SimilarityThreshold {
-			return true, pid
-		}
-	}
-	return false, ""
-}
-
 // ProcessKnowledgePacket runs the full intake pipeline for a verified knowledge
 // packet (signature already checked by the caller). It is idempotent: the inbox
 // insert is OR-IGNORE and re-processing a packet_id re-evaluates its status.
@@ -86,28 +65,22 @@ func ProcessKnowledgePacket(db *sql.DB, pkt Packet) KnowledgeResult {
 	RecordFilterAudit(db, pkt.PacketID, decisions)
 	res.Decisions = decisions
 
-	// Any hard reject → drop + persist status. Karma penalty already applied
-	// inside RunFilterPipeline for the karma/injection layers.
+	// Any hard reject → drop + persist status. Karma penalty already applied inside
+	// RunFilterPipeline for karma/injection layers. L7-cosine reject = near-duplicate
+	// (redundan, BUKAN serangan → ga ada penalti) → tandai Duplicate buat audit.
 	for _, d := range decisions {
 		if d.Decision == "reject" {
 			_ = PromoteKnowledge(db, pkt.PacketID, StatusDropped)
 			res.Status = StatusDropped
 			res.Reason = d.Layer + ": " + d.Reason
+			if d.Layer == "L7-cosine" {
+				res.Duplicate = true
+			}
 			return res
 		}
 	}
 
-	// Near-duplicate of something already promoted → drop as redundant (not a
-	// karma penalty; honest peers re-share legitimately).
-	if dup, dupID := isNearDuplicate(db, content); dup {
-		_ = PromoteKnowledge(db, pkt.PacketID, StatusDropped)
-		res.Status = StatusDropped
-		res.Duplicate = true
-		res.Reason = "near-duplicate of " + dupID
-		return res
-	}
-
-	// Any flag (suspicious but not fatal) → quarantine for human review.
+	// Any flag (suspicious / belum consensus) → quarantine for review / nunggu endorsement.
 	for _, d := range decisions {
 		if d.Decision == "flag" {
 			_ = PromoteKnowledge(db, pkt.PacketID, StatusQuarantine)
