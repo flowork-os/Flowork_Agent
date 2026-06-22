@@ -63,7 +63,7 @@ var coreExposedTools = []string{
 // capable agent (mr-flow holds ~40 first-class tools via subscriptions) needs the
 // higher ceiling; ants stay tiny because they have no subscriptions (core set only),
 // so raising the ceiling never bloats them.
-const maxExposedTools = 52 // D15 (2026-06-21): 50→51 codemap_search; 2026-06-22: 51→52 muat system_power (mr-flow operator, owner pakai "matiin pc")
+const maxExposedTools = 53 // D15 (2026-06-21): 50→51 codemap_search; 2026-06-22: 51→52 system_power; 2026-06-23: 52→53 web_search (mr-flow live news, anti-nyasar brain_search)
 
 // primaryExtraTools — surface-vocabulary tools exposed ONLY to the primary
 // orchestrator (mr-flow), not to ants. These cover shell/task-lifecycle/schedule/
@@ -82,6 +82,11 @@ var primaryExtraTools = []string{
 	// (cap dinaikin ke 51 biar ga nyenggol subscription flowalpha). Coordinator-only:
 	// ants (core set) ga ikut, prompt mereka tetap kecil (anti over-prompt utuh).
 	"codemap_search",
+	// 2026-06-23: web_search — LIVE internet (Google News/trending/berita real-time). mr-flow
+	// defaultnya NYASAR ke brain_search_shared (data internal CVE/threat-intel) pas disuruh
+	// "cari berita trending" → web_search di primaryExtra biar GARANSI ke-expose (ga ke-drop
+	// cap kayak subscription). webfetch udah di coreExposedTools (baca hasil). cap=net:fetch:*.
+	"web_search",
 }
 
 // ToolSpecsHandler — GET /api/agents/tools/specs?id=<agent>
