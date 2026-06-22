@@ -42,3 +42,35 @@ func TestSelectPromotableCognitiveNodes(t *testing.T) {
 		t.Fatalf("setelah promoted harus 0, dapat %d (anti-double bocor)", len(got2))
 	}
 }
+
+// QC: edge selector + anti-double LABEL-based (fix 2026-06-22). Dulu key pakai id → ga
+// match caller (label) → edge re-promote tiap tick. Sekarang harus dedup bener.
+func TestSelectPromotableCognitiveEdges(t *testing.T) {
+	s := openTestStore(t)
+	mk := func(id string) {
+		if _, err := s.UpsertNode(CogNode{ID: id, Label: id, Type: "concept", SourceKind: "verified", Status: "active", Confidence: 0.8}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mk("Go")
+	mk("Goroutine")
+	if err := s.UpsertEdge(CogEdge{FromID: "Go", ToID: "Goroutine", RelationType: "part_of", Status: "active", SourceKind: "verified", Confidence: 0.7, Strength: 2}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.SelectPromotableCognitiveEdges(50)
+	if err != nil {
+		t.Fatalf("select edges: %v", err)
+	}
+	if len(got) != 1 || got[0].FromLabel != "Go" || got[0].ToLabel != "Goroutine" {
+		t.Fatalf("eligible edges=%v want [Go-part_of->Goroutine]", got)
+	}
+	// Anti-double pakai refKey LABEL (sama format caller cognitive_share_job.go).
+	refKey := "edge:" + got[0].FromLabel + "|" + got[0].RelationType + "|" + got[0].ToLabel
+	if err := s.MarkPromotedCognitive(refKey, "r1", "ok"); err != nil {
+		t.Fatal(err)
+	}
+	got2, _ := s.SelectPromotableCognitiveEdges(50)
+	if len(got2) != 0 {
+		t.Fatalf("setelah promoted harus 0 (anti-double LABEL), dapat %d — fix edge-dedup BOCOR", len(got2))
+	}
+}
