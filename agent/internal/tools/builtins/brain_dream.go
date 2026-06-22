@@ -1,3 +1,6 @@
+// Owner: Mr.Dev · github.com/flowork-os/Flowork-OS · floworkos.com
+// ⚠️ FROZEN brain-core — jangan edit tanpa unfreeze owner. Arsitektur & alasan: lihat lock/brain.md
+//
 // brain_dream.go — P3: dream consolidation for the local brain (lock-respecting).
 //
 // "Sleep consolidates the day": memories that are never recalled should FADE, while

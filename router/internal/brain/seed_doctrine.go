@@ -1,3 +1,6 @@
+// === LOCKED FILE (soft) === Status: STABLE — owner-approved 2026-06-22 (audit pre-freeze, BERSIH).
+// AI lain: JANGAN otak-atik tanpa izin owner. Idempotent + secrets HARAM masuk brain. Edit + re-lock.
+//
 // Flowork Doctrine Seed — carries the SOUL into every install.
 //
 // Aola's doctrine (prinsip_flowork.md + the seed_brain_doktrin scripts) is embedded here and loaded

@@ -1,3 +1,7 @@
+// === LOCKED FILE (soft) === Status: STABLE — owner-approved 2026-06-22 (audit pre-freeze, BERSIH).
+// AI lain: JANGAN otak-atik tanpa izin owner. Legacy dream-cycle data-loss bug udah di-fence
+// (FLOWORK_LEGACY_DREAM, default OFF). Edit dgn izin owner + re-lock.
+
 package brain
 
 import (

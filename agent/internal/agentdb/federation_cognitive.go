@@ -1,4 +1,5 @@
 // === LOCKED FILE (soft) === Status: STABLE — owner-approved 2026-06-21 (Phase 4 Collective Graph). LOCKED ≠ FREEZE (edit dgn izin owner + re-lock).
+// 2026-06-22 (owner-approved, audit pre-freeze): (a) edge anti-double-promote pakai LABEL (match caller cognitive_share_job.go — dulu pakai id → ga pernah match → edge re-promote tiap tick); (b) exclude personal diperluas person→(person/persona/trait/preference) biar gate privasi lebih ketat. Re-lock + chattr-freeze.
 package agentdb
 
 // federation_cognitive.go — Phase 4 COLLECTIVE GRAPH (D14): promote triple cognitive
@@ -68,9 +69,9 @@ func (s *Store) SelectPromotableCognitiveNodes(limit int) ([]PromotableCogNode, 
 		    AND n.type IN ('concept','skill','knowledge')
 		    AND ('node:'||n.id) NOT IN (SELECT ref_key FROM federation_cognitive_log WHERE status='ok')
 		    AND n.id NOT IN (
-		         SELECT e.from_id FROM cognitive_edges e JOIN cognitive_nodes p ON e.to_id=p.id   WHERE p.type='person'
+		         SELECT e.from_id FROM cognitive_edges e JOIN cognitive_nodes p ON e.to_id=p.id   WHERE p.type IN ('person','persona','trait','preference')
 		         UNION
-		         SELECT e.to_id   FROM cognitive_edges e JOIN cognitive_nodes p ON e.from_id=p.id WHERE p.type='person'
+		         SELECT e.to_id   FROM cognitive_edges e JOIN cognitive_nodes p ON e.from_id=p.id WHERE p.type IN ('person','persona','trait','preference')
 		    )
 		  ORDER BY n.hit_count DESC, n.confidence DESC
 		  LIMIT ?`, limit)
@@ -115,7 +116,7 @@ func (s *Store) SelectPromotableCognitiveEdges(limit int) ([]PromotableCogEdge, 
 		    AND f.type IN ('concept','skill','knowledge')
 		    AND t.type IN ('concept','skill','knowledge')
 		    AND e.relation_type IN ('is_a','part_of','uses','depends_on','related_to','causes','references','about')
-		    AND ('edge:'||e.from_id||'|'||e.relation_type||'|'||e.to_id) NOT IN
+		    AND ('edge:'||f.label||'|'||e.relation_type||'|'||t.label) NOT IN
 		        (SELECT ref_key FROM federation_cognitive_log WHERE status='ok')
 		  ORDER BY e.strength DESC
 		  LIMIT ?`, limit)

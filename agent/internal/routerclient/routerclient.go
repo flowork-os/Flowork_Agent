@@ -9,6 +9,9 @@
 //   API stable: New, Client, SubmitMistake, Ping. Phase 2 methods
 //   (PullSkill, QueryBrain, retry/circuit-breaker) → tambah method
 //   baru di file ini OK, JANGAN modify existing.
+// 2026-06-22 (owner-approved, audit security): FIX SSRF bypass di isAllowedRouterURL —
+//   parse net/url + tolak userinfo (`user@host`). Parser string lama bisa di-bypass
+//   (`http://127.0.0.1:80@evil.com` lolos → dial evil.com → exfil brain). Re-lock.
 //
 // Package routerclient — HTTP client wrapper untuk agent↔router communication.
 //
@@ -38,6 +41,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -85,19 +89,21 @@ func New(baseURL string) *Client {
 
 // isAllowedRouterURL — return true kalau baseURL host ada di allowedHosts.
 // Defense in depth — cegah kv.router_url di-set ke external attacker.
+//
+// ⚠️ 2026-06-22 (owner-approved, audit security): parse pakai net/url + TOLAK userinfo.
+// Parser string manual lama bisa di-bypass: `http://127.0.0.1:80@evil.com` lolos whitelist
+// (last-colon-split nyisain "127.0.0.1") tapi Go nge-dial `evil.com` (userinfo) → exfil
+// brain. url.Hostname() buang userinfo+port dgn bener; tolak kalau ada u.User (anti-bypass).
 func isAllowedRouterURL(baseURL string) bool {
-	// Strip scheme + extract host:port → host.
-	rest := baseURL
-	if i := strings.Index(rest, "://"); i >= 0 {
-		rest = rest[i+3:]
+	u, err := url.Parse(baseURL)
+	if err != nil || u.User != nil { // userinfo (user:pass@host) = vektor bypass → TOLAK
+		return false
 	}
-	if i := strings.IndexAny(rest, "/?"); i >= 0 {
-		rest = rest[:i]
+	host := u.Hostname() // strip port + userinfo dgn benar (beda dari parser string manual)
+	if host == "" {
+		return false
 	}
-	if i := strings.LastIndex(rest, ":"); i >= 0 {
-		rest = rest[:i]
-	}
-	_, ok := allowedHosts[rest]
+	_, ok := allowedHosts[host]
 	return ok
 }
 
