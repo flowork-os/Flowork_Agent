@@ -295,6 +295,16 @@ func runDaemon() {
 	for {
 		updates, err := getUpdates(token, offset, pollTimeout)
 		if err != nil {
+			// ROOT-FIX zombie-poller/spam (owner 2026-06-23 "beresin dari akarnya"): Telegram cuma izinin
+			// 1 getUpdates/token. Pas mr-flow reload (edit persona/tools di GUI), instance LAMA goroutine
+			// poller-nya ga ke-cancel (kernelhost Unload ga stop in-flight boot Call) → 2 poller → tiap
+			// pesan ke-bales DOBEL = SPAM "router gangguan" 4×. FIX: instance BARU yg boot manggil
+			// getUpdates → Telegram BUMP poll instance lama dgn 409 → yg ke-bump (lama) EXIT, BUKAN retry.
+			// Newest menang, ga ada poller dobel. (Dulu: sleep 5s + retry → numpuk poller tiap reload.)
+			if strings.Contains(err.Error(), "409") || strings.Contains(strings.ToLower(err.Error()), "conflict") {
+				fmt.Fprintf(os.Stderr, "["+selfID()+"] getUpdates 409 conflict — instance lain ngambil-alih poll telegram, poller lama EXIT (anti zombie/spam).\n")
+				return
+			}
 			fmt.Fprintf(os.Stderr, "["+selfID()+"] getUpdates err: %v, sleep 5s...\n", err)
 			time.Sleep(5 * time.Second)
 			continue

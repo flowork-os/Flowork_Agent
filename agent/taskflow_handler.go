@@ -61,12 +61,32 @@ func notifyTelegram(host *kernelhost.Host, chatID, text string) {
 	// R3 (orchestrator merge): baca bot token dari telegram-channel (channel LIVE yg
 	// punya token), BUKAN dari mr-flow legacy — biar notify ini independen + mr-flow
 	// bisa dipensiun. Fallback ke env TELEGRAM_BOT_TOKEN kalau channel store kosong.
+	// ROOT-FIX (owner 2026-06-23 "notif kirimnya ke GROUP bukan ke gue, beda dgn mr-flow"):
+	// hasil squad HARUS nyampe DM owner = pakai BOT MR-FLOW (bot yg owner DM), BUKAN bot global/
+	// telegram-channel (= bot GRUP, token beda → notif nyasar ke grup). notify(chat_id) = chat asal
+	// (DM owner). Kirim pakai token mr-flow → mendarat di DM owner. PRIMARY = mr-flow store.
 	token := ""
-	if store, err := host.OpenAgentStore("telegram-channel"); err == nil {
+	if store, err := host.OpenAgentStore("mr-flow"); err == nil {
 		if secrets, serr := store.Secrets(); serr == nil {
 			token = strings.TrimSpace(secrets["TELEGRAM_BOT_TOKEN"])
 		}
 		store.Close()
+	}
+	// Fallback (kalau mr-flow store kosong): telegram-channel → global secret → env.
+	if token == "" {
+		if store, err := host.OpenAgentStore("telegram-channel"); err == nil {
+			if secrets, serr := store.Secrets(); serr == nil {
+				token = strings.TrimSpace(secrets["TELEGRAM_BOT_TOKEN"])
+			}
+			store.Close()
+		}
+	}
+	if token == "" {
+		if fdb, ferr := floworkdb.Shared(); ferr == nil {
+			if v, _ := fdb.GetSecret("TELEGRAM_BOT_TOKEN"); strings.TrimSpace(v) != "" {
+				token = strings.TrimSpace(v)
+			}
+		}
 	}
 	if token == "" {
 		token = strings.TrimSpace(os.Getenv("TELEGRAM_BOT_TOKEN"))

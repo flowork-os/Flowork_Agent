@@ -52,8 +52,6 @@ func WIBNowHeader() string {
 	stamp := idWeekdays[int(n.Weekday())] + ", " + strconv.Itoa(n.Day()) + " " + idMonths[int(n.Month())] +
 		" " + strconv.Itoa(n.Year()) + ", " + n.Format("15:04:05") + " " + lbl
 	return "# WAKTU SEKARANG (" + lbl + ")\n" +
-		"Sekarang **" + stamp + "**. Ini waktu NYATA/live (bukan dari ingatan/training). WAJIB pakai ini buat " +
-		"apa pun yang butuh tanggal/jam terkini: kalau disuruh cari berita/info/rilis TERBARU, patok ke " +
-		"tanggal ini & cari yang dekat hari ini — JANGAN kasih yang lama/basi. Tahun sekarang " +
-		strconv.Itoa(n.Year()) + ".\n\n"
+		"Sekarang **" + stamp + "** (live, bukan dari ingatan/training). Buat cari berita/info/rilis TERBARU, " +
+		"patok ke tanggal ini — cari yg dekat hari ini, jangan kasih yg basi.\n\n"
 }

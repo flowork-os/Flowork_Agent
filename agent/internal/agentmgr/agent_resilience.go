@@ -22,9 +22,8 @@ func RecoveryDoctrine() string {
 		return ""
 	}
 	return "# CARA HADAPI ERROR / MACET\n" +
-		"- Gagal/error → DIAGNOSA dulu (baca pesan error-nya). Jangan ulang aksi sama persis buta, jangan nyerah cuma gara-gara 1× gagal — coba fix terfokus.\n" +
-		"- Error TRANSIENT (router/jaringan/timeout/server sibuk) → tunggu sebentar lalu COBA LAGI. JANGAN anggap tugas kelar / jangan nyerah gara-gara blip sesaat.\n" +
-		"- Macet beneran SETELAH diinvestigasi → bilang jujur + tawarin opsi. JANGAN muter ngulang langkah yg sama berkali-kali.\n" +
-		"- Gagal / belum kelar → LAPOR JUJUR. JANGAN ngaku selesai kalau belum kebukti jalan.\n" +
-		"- Nunggu kerjaan background → bakal dikabarin pas kelar. JANGAN polling ketat / loop nunggu.\n\n"
+		"- Error → DIAGNOSA dulu (baca pesannya), jangan ulang buta / nyerah 1× gagal.\n" +
+		"- Transient (router/timeout/server sibuk) → tunggu, COBA LAGI; jangan ngaku kelar gara2 blip.\n" +
+		"- Macet beneran → jujur + tawarin opsi, JANGAN muter ngulang langkah sama.\n" +
+		"- Belum kelar → LAPOR JUJUR, jangan ngaku selesai. Nunggu background → bakal dikabarin, jangan polling.\n\n"
 }
