@@ -68,3 +68,15 @@ _scratch_cgm/
 **/_scratch_cgm/
 router/out/
 KERNEL_FREEZE.md
+
+# Sidecar tools (lock/tools.md) — KEEP source (main.go/tool.json/go.mod), IGNORE compiled
+# native binaries (rebuild via tools/build-tools.sh) + runtime state + per-agent private tools.
+tools/.health.json
+tools/.tombstones.json
+tools/_private/
+tools/*/*
+!tools/*/*.go
+!tools/*/*.json
+!tools/*/*.mod
+!tools/*/*.sum
+!tools/*/*.md

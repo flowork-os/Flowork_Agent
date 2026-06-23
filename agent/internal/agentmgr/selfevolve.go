@@ -230,8 +230,9 @@ func EvolveApplyHandler(dep EvolveGateDeps, apply EvolveApplier) http.HandlerFun
 		// = nyentuh file repo → core-apply (Milestone B, dev-only, git-worktree). Tolak tegas.
 		kind := strings.ToLower(strings.TrimSpace(p.Kind))
 		switch kind {
-		case "add-agent", "add-skill", "add-app":
-			// behavior-layer, lanjut.
+		case "add-agent", "add-skill", "add-app", "promote-tool":
+			// behavior-layer, lanjut. (promote-tool 2026-06-23: promote tool sidecar privat→shared,
+			// additive di tools/ via toolsidecar.Promote — bukan edit kernel, aman behavior-apply.)
 		default:
 			httpx.WriteJSON(w, map[string]any{"error": "kind '" + p.Kind + "' = perubahan core (in-repo), butuh core-apply DEV-only — belum didukung di behavior-apply"})
 			return
@@ -837,7 +838,7 @@ func EvolveScheduleAutoApply(dep EvolveGateDeps, apply EvolveApplier, judge Coun
 			continue
 		}
 		kind := strings.ToLower(strings.TrimSpace(p.Kind))
-		isBehavior := kind == "add-agent" || kind == "add-skill" || kind == "add-app"
+		isBehavior := kind == "add-agent" || kind == "add-skill" || kind == "add-app" || kind == "promote-tool"
 		// A1 DEWAN ADVERSARIAL (gerbang otomatis): sebelum apply/hold, usulan WAJIB lolos dewan.
 		jctx, jcancel := context.WithTimeout(context.Background(), 290*time.Second)
 		v, jerr := judge(jctx, p)

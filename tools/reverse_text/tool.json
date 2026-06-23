@@ -1,0 +1,14 @@
+{
+  "capability": "",
+  "description": "Balik urutan karakter string",
+  "name": "reverse_text",
+  "params": [
+    {
+      "name": "text",
+      "type": "string",
+      "description": "teks",
+      "required": true
+    }
+  ],
+  "returns": "{reversed}"
+}

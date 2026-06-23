@@ -1,0 +1,10 @@
+{
+  "name": "text_hash",
+  "capability": "",
+  "description": "Hash teks (sha256/md5/sha1). Tool SIDECAR self-contained — binary native terpisah, dependency di folder sendiri, di-exec host (isolasi + plug-and-play).",
+  "returns": "{algo, hash, len}",
+  "params": [
+    {"name": "text", "type": "string", "description": "teks yang di-hash", "required": true},
+    {"name": "algo", "type": "string", "description": "sha256 (default) | md5 | sha1"}
+  ]
+}

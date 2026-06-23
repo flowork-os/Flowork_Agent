@@ -1,3 +1,8 @@
+// 🔒 FROZEN GROUP-CORE · Repo: https://github.com/flowork-os/Flowork-OS · Owner: Aola Sahidin (Mr.Dev)
+// ⛔ WAJIB sebelum ngedit file ini: BACA /home/mrflow/Documents/FLowork_os/lock/group.md
+//    (cara kerja group, filtur, cara bikin group, CABANG *_ext.go). File ini BEKU (chattr +i +
+//    hash KERNEL_FREEZE.md). Filtur baru → masuk *_ext.go (RegisterExecStrategy /
+//    RegisterGroupSyncHook) atau DATA (Category/Directive). JANGAN buka file beku ini.
 // taskflow_retask.go — SELF-HEAL: kalau synth deteksi data analis SALAH/ga sesuai
 // subjek (mis. salah ticker BBCA vs BBNI), engine kasih TUGAS ULANG ke worker yang
 // ngaco — BUKAN nanya user. Prinsip Mr.Dev: "user ga pernah peduli masalahnya di

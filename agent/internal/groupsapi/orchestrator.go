@@ -1,3 +1,8 @@
+// 🔒 FROZEN GROUP-CORE · Repo: https://github.com/flowork-os/Flowork-OS · Owner: Aola Sahidin (Mr.Dev)
+// ⛔ WAJIB sebelum ngedit file ini: BACA /home/mrflow/Documents/FLowork_os/lock/group.md
+//    (cara kerja group, filtur, cara bikin group, CABANG *_ext.go). File ini BEKU (chattr +i +
+//    hash KERNEL_FREEZE.md). Filtur baru → masuk *_ext.go (RegisterExecStrategy /
+//    RegisterGroupSyncHook) atau DATA (Category/Directive). JANGAN buka file beku ini.
 // ⚠️ EDITING A GROUP? READ doc/handbook/menu-group.md FIRST — the group list is auto-derived (any module with kv group=1); slash menu, ask_group, schedules and Mr.Flow all read the SAME synced list; on/off cascades to all members; reset restores from the repo. Do NOT hardcode the roster or kv "groups".
 // === LOCKED FILE ===
 // Status: STABLE — DO NOT MODIFY without owner approval.
@@ -108,9 +113,18 @@ func (h *Handler) SyncToOrchestrator() int {
 	}
 	_ = ost.KVSet("groups", strings.Join(parts, ";"))
 	_ = ost.Close()
-	// Push daftar group LIVE ke menu slash Telegram (setMyCommands). Group dihapus →
-	// menu auto-nyusut; semua dihapus → menu kosong. Fix bug "slash nyangkut group lama"
-	// (owner 2026-06-20). Best-effort (telegram_commands.go).
-	h.syncTelegramCommands(parts)
+	// Push daftar group LIVE ke menu slash Telegram (setMyCommands) — TAPI di-GATE saklar
+	// non-frozen slashPushEnabled() (groupsapi_ext.go). DEFAULT MATI (owner 2026-06-23:
+	// andelin KESADARAN mr-flow, buang slash). Pas mati → push KOSONG biar menu Telegram
+	// tetep bersih walau ada operasi group. Idupin lagi via env FLOWORK_GROUP_SLASH=1
+	// TANPA buka file frozen ini. (jalur lama: telegram_commands.go)
+	if slashPushEnabled() {
+		h.syncTelegramCommands(parts)
+	} else {
+		h.syncTelegramCommands(nil)
+	}
+	// CABANG abadi: target sync masa depan daftar lewat RegisterGroupSyncHook
+	// (groupsapi_ext.go) — file frozen ini ga pernah berubah lagi buat filtur baru.
+	runGroupSyncHooks(parts)
 	return len(parts)
 }

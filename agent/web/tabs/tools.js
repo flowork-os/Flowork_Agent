@@ -82,6 +82,7 @@ export async function render(mainEl) {
         <div class="tp-msg" id="tp-install-msg"></div>
       </div>
 
+      <div id="tp-sidecar"></div>
       <div id="tp-list"></div>
     </div>`;
 
@@ -94,6 +95,34 @@ export async function render(mainEl) {
   file.onchange = () => { if (file.files[0]) install(mainEl, file.files[0]); };
 
   await load(mainEl);
+  await loadSidecar(mainEl);
+}
+
+// loadSidecar — tampilin SIDECAR TOOLS (native, folder self-contained, akses semua agent).
+// Beda dari .fwpack (sandbox upload): ini di tools/<name>/ → binary terpisah. Owner 2026-06-23.
+async function loadSidecar(mainEl) {
+  const el = mainEl.querySelector('#tp-sidecar');
+  if (!el) return;
+  let data;
+  try { data = await fetchJSON('/api/tools/sidecar', { method: 'POST' }); } catch (e) { el.innerHTML = ''; return; }
+  const tools = (data && data.tools) || [];
+  if (!tools.length) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="tp-panel"><div class="tp-sec">⚙️ Sidecar Tools · ${tools.length}</div>`
+    + `<div class="tp-hint">Native, self-contained (folder <code>tools/&lt;name&gt;/</code>, binary terpisah) — bisa diakses SEMUA agent. Tambah: taruh folder + <code>tools/build-tools.sh</code>.</div></div>`
+    + tools.sort((a, b) => String(a.name).localeCompare(b.name)).map(sidecarCardHTML).join('');
+}
+
+function sidecarCardHTML(t) {
+  return `<div class="tp-panel">
+    <div class="tp-card">
+      <h3>⚙️ ${esc(t.name)}</h3>
+      <span class="tp-tag">${t.capability ? esc(t.capability) : 'semua agent'}</span>
+      <span class="tp-id">${fmt('params_label', { n: t.params || 0 })}</span>
+      <span class="tp-grow"></span>
+      <span class="tp-id" style="opacity:.55">sidecar</span>
+    </div>
+    ${t.description ? `<div class="tp-desc">${esc(t.description)}</div>` : ''}
+  </div>`;
 }
 
 async function load(mainEl) {

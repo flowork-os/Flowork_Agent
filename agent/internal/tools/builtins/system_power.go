@@ -58,13 +58,13 @@ func (systemPowerTool) Name() string       { return "system_power" }
 func (systemPowerTool) Capability() string { return "exec:power" }
 func (systemPowerTool) Schema() tools.Schema {
 	return tools.Schema{
-		Description: "Control the HOST computer's power state. Actions: shutdown, reboot, suspend (sleep), lock (screen), logout, or cancel (abort a pending action). Requires the exec:power capability — granted only to a trusted operator agent. Every action is audit-logged. Safety: real execution only happens when the host is ARMED (env FLOWORK_POWER_ARMED); otherwise it returns a dry-run with the resolved command. Always confirm intent with the user before calling shutdown/reboot.",
+		Description: "Kontrol power HOST: shutdown|reboot|suspend|lock|logout|cancel. Butuh cap exec:power (operator tepercaya), tiap aksi di-audit. Eksekusi NYATA cuma kalau ARMED (env FLOWORK_POWER_ARMED), else dry-run. WAJIB konfirmasi user sebelum shutdown/reboot.",
 		Params: []tools.Param{
 			{Name: "action", Type: tools.ParamString, Description: "shutdown | reboot | suspend | lock | logout | cancel", Required: true},
-			{Name: "delay_seconds", Type: tools.ParamInt, Description: "wait before executing, gives a cancel window (default 10, min 0, max 3600)"},
-			{Name: "reason", Type: tools.ParamString, Description: "short human reason, recorded in the audit log"},
+			{Name: "delay_seconds", Type: tools.ParamInt, Description: "jeda sebelum eksekusi (window cancel); default 10, max 3600"},
+			{Name: "reason", Type: tools.ParamString, Description: "alasan singkat, masuk audit log"},
 		},
-		Returns: "{status:'scheduled'|'dry_run'|'cancelled'|'nothing_pending', action, delay_seconds, armed, command, message}",
+		Returns: "{status, action, delay_seconds, armed, command, message}",
 	}
 }
 

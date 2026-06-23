@@ -222,7 +222,7 @@ func (s *Store) ApprovedBehaviorProposals(limit int) ([]map[string]any, error) {
 		limit = 20
 	}
 	rows, err := s.db.Query(`SELECT id, kind FROM evolve_proposal
-		WHERE status='approved' AND kind IN ('add-agent','add-skill','add-app')
+		WHERE status='approved' AND kind IN ('add-agent','add-skill','add-app','promote-tool')
 		ORDER BY created_at ASC LIMIT ?`, limit)
 	if err != nil {
 		return nil, err

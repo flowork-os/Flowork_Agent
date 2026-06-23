@@ -1,0 +1,1 @@
+{ "name":"slugify", "capability":"", "description":"Ubah teks jadi URL slug (lowercase, dash, alnum). Buat nama file/url/id.", "returns":"{slug}", "params":[ {"name":"text","type":"string","description":"teks yang di-slugify","required":true} ] }

@@ -164,6 +164,9 @@ func SelfPromptRenderHandler(w http.ResponseWriter, r *http.Request) {
 		byName[s.Slot] = s
 	}
 	var b strings.Builder
+	// TIME-AWARENESS (owner 2026-06-23): inject waktu LIVE (WIB default) di paling atas system-prompt
+	// SEMUA agent → fix "berita lama" (LLM ga lagi nebak tanggal dari training). Detail: time_awareness.go.
+	b.WriteString(WIBNowHeader())
 	emitted := []string{}
 	emitOne := func(slot string) {
 		if sp, ok := byName[slot]; ok {
@@ -203,8 +206,9 @@ func SelfPromptRenderHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // SelfPromptHandler — GET/POST /api/agents/self-prompt?id=<agent>&slot=
-//   GET ?slot=&version= → return latest (version=0) atau specific.
-//   POST body {slot, body, notes, version} → upsert next version.
+//
+//	GET ?slot=&version= → return latest (version=0) atau specific.
+//	POST body {slot, body, notes, version} → upsert next version.
 func SelfPromptHandler(w http.ResponseWriter, r *http.Request) {
 	agentID := strings.TrimSpace(r.URL.Query().Get("id"))
 	if agentID == "" {

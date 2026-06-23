@@ -1,0 +1,1 @@
+{ "name":"base64", "capability":"", "description":"Encode/decode base64. mode=encode (default) atau decode.", "returns":"{result, mode}", "params":[ {"name":"text","type":"string","description":"teks yang diproses","required":true}, {"name":"mode","type":"string","description":"encode (default) | decode"} ] }

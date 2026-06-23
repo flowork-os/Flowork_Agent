@@ -1,3 +1,8 @@
+// 🔒 FROZEN GROUP-CORE · Repo: https://github.com/flowork-os/Flowork-OS · Owner: Aola Sahidin (Mr.Dev)
+// ⛔ WAJIB sebelum ngedit file ini: BACA /home/mrflow/Documents/FLowork_os/lock/group.md
+//    (cara kerja group, filtur, cara bikin group, CABANG *_ext.go). File ini BEKU (chattr +i +
+//    hash KERNEL_FREEZE.md). Filtur baru → masuk *_ext.go (RegisterExecStrategy /
+//    RegisterGroupSyncHook) atau DATA (Category/Directive). JANGAN buka file beku ini.
 // telegram_commands.go — push daftar group LIVE ke menu slash Telegram (setMyCommands).
 //
 // BUG yang dicabut (owner 2026-06-20): "nambah group → muncul slash di Telegram, TAPI

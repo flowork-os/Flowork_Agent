@@ -1,5 +1,11 @@
 //go:build (linux || darwin || windows) && !android
 
+// 🔒 FROZEN BROWSER-CORE · Repo: https://github.com/flowork-os/Flowork-OS · Owner: Aola Sahidin (Mr.Dev)
+// ⛔ WAJIB sebelum ngedit file ini: BACA /home/mrflow/Documents/FLowork_os/lock/browser.md
+//    (cara kerja, 9 tool, cookie-inject, lifecycle, env, cabang). File ini BEKU (chattr +i +
+//    hash KERNEL_FREEZE.md). Filtur baru → TOOL baru = FILE baru `browser_<nama>.go` (init sendiri);
+//    tuning launch/idle = browser_desktop_ext.go (env). JANGAN buka file beku ini.
+//
 // browser_desktop.go — browser-control NATIVE (Go, no node), Opsi B roadmap multi-os-tools.
 // Drive Chromium yg udah ada (image flowork-os bundle chromium) lewat CDP via go-rod —
 // TANPA node/chrome-devtools-mcp. Pendekatan dicontek dari chrome-devtools-mcp (Antigravity):
@@ -36,6 +42,9 @@ func init() {
 	// → manifest agent boleh deklarasi `browser:control` TANPA bongkar loader/manifest.go (frozen).
 	// Build-tag desktop → android (ga ada browser) otomatis ga daftar primitive ini.
 	loader.RegisterPrimitive("browser")
+	// CABANG abadi (browser_desktop_ext.go, NON-frozen): mau TOOL browser BARU? Bikin
+	// FILE BARU `browser_<nama>.go` dgn init()-nya sendiri yg manggil tools.Register —
+	// JANGAN edit file frozen ini. Go ngegabung semua init() sepaket otomatis.
 	tools.Register(&browserNavigateTool{})
 	tools.Register(&browserSnapshotTool{})
 	tools.Register(&browserClickTool{})
@@ -101,12 +110,16 @@ func getPage() (*rod.Page, error) {
 		profile = filepath.Join(home, ".flowork", "browser-profile")
 	}
 	_ = os.MkdirAll(profile, 0o755)
+	// CABANG abadi (browser_desktop_ext.go, NON-frozen): headless + flag chromium bisa
+	// di-tuning via env (FLOWORK_BROWSER_HEADLESS / FLOWORK_BROWSER_FLAGS) TANPA buka
+	// file frozen ini. Mau tuning launch baru? Edit browser_desktop_ext.go, BUKAN sini.
 	l := launcher.New().
-		Headless(true).
+		Headless(browserHeadless()).
 		Set("no-sandbox").       // OS image / root container butuh ini
 		Set("disable-gpu").
 		Set("disable-dev-shm-usage").
 		UserDataDir(profile)
+	l = applyExtraBrowserFlags(l)
 	if bin := chromeBin(); bin != "" {
 		l = l.Bin(bin)
 	}
@@ -456,7 +469,9 @@ func startBrowserReaper() {
 		defer t.Stop()
 		for range t.C {
 			brMu.Lock()
-			idle := brInst != nil && time.Since(brLastUsed) > 30*time.Minute
+			// CABANG abadi: timeout idle dari browserIdleTimeout() (browser_desktop_ext.go,
+			// NON-frozen) — override via env FLOWORK_BROWSER_IDLE_MIN TANPA buka file ini.
+			idle := brInst != nil && time.Since(brLastUsed) > browserIdleTimeout()
 			brMu.Unlock()
 			if idle {
 				closeBrowser()

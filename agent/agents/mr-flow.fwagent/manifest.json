@@ -27,6 +27,7 @@
     "fs:write",
     "exec:git",
     "exec:power",
+    "browser:control",
     "rpc:router:skill",
     "rpc:router:brain",
     "rpc:taskflow",

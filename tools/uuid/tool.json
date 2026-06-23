@@ -1,0 +1,1 @@
+{ "name":"uuid", "capability":"", "description":"Generate UUID v4 acak (RFC 4122). Buat id unik. Tool sidecar self-contained.", "returns":"{uuid}", "params":[] }

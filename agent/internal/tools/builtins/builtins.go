@@ -30,6 +30,9 @@ package builtins
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"flowork-gui/internal/tools"
@@ -128,17 +131,39 @@ func (nowTool) Name() string       { return "now" }
 func (nowTool) Capability() string { return "time:read" }
 func (nowTool) Schema() tools.Schema {
 	return tools.Schema{
-		Description: "Return current UTC timestamp (RFC3339 + unix ms).",
+		Description: "Waktu sekarang LIVE: UTC (rfc3339) + waktu lokal default WIB (UTC+7). Pakai 'local' buat tanggal/jam terkini (anti berita-basi).",
 		Params:      nil, // no params
-		Returns:     "{rfc3339: '...', unix_ms: <int>}",
+		Returns:     "{rfc3339: '<UTC>', unix_ms: <int>, local: 'YYYY-MM-DD HH:MM:SS', tz_label: 'WIB', tz_offset_hours: 7}",
 	}
+}
+
+// tzOffsetHoursEnv — offset jam lokal dari UTC. Default 7 (WIB). Switch: FLOWORK_TZ_OFFSET_HOURS
+// (selaras time_awareness.go di agentmgr — BUKAN hardcode tanggal, dihitung live dari UTC).
+func tzOffsetHoursEnv() int {
+	if v := strings.TrimSpace(os.Getenv("FLOWORK_TZ_OFFSET_HOURS")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= -12 && n <= 14 {
+			return n
+		}
+	}
+	return 7
+}
+func tzLabelEnv() string {
+	if v := strings.TrimSpace(os.Getenv("FLOWORK_TZ_LABEL")); v != "" {
+		return v
+	}
+	return "WIB"
 }
 func (nowTool) Run(_ context.Context, _ map[string]any) (tools.Result, error) {
 	t := time.Now().UTC()
+	off := tzOffsetHoursEnv()
+	local := t.Add(time.Duration(off) * time.Hour)
 	return tools.Result{
 		Output: map[string]any{
-			"rfc3339": t.Format(time.RFC3339),
-			"unix_ms": t.UnixMilli(),
+			"rfc3339":         t.Format(time.RFC3339), // UTC (backward-compat: scheduler dll tetap baca ini)
+			"unix_ms":         t.UnixMilli(),
+			"local":           local.Format("2006-01-02 15:04:05"), // waktu lokal (default WIB)
+			"tz_label":        tzLabelEnv(),
+			"tz_offset_hours": off,
 		},
 	}, nil
 }

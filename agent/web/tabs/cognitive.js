@@ -1,8 +1,12 @@
+// 🔒 FROZEN COGNITIVE-GRAPH (GUI) · Repo: https://github.com/flowork-os/Flowork-OS · Owner: Aola Sahidin (Mr.Dev)
+// ⛔ WAJIB sebelum ngedit: BACA /home/mrflow/Documents/FLowork_os/lock/CognitiveGraph.md.
+//    File BEKU. Tuning limit viz = env via cognitive_ext.go (BUKAN sini). JANGAN buka file beku ini.
+//
 // === LOCKED FILE ===
 // Status: STABLE — DO NOT MODIFY without owner approval (autonomy grant 2026-06-19).
 // Owner: Aola Sahidin (Mr.Dev)
 // Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-06-19
+// Locked at: 2026-06-19 · FROZEN 2026-06-23 (owner-approved; scroll + limit-switch)
 // Reason: CGM GUI tab (D3 force-graph) — verified live login+screenshot — built + unit-tested (build/vet/test green). Extend = new file, jangan modify ini.
 // 2026-06-20 (owner-approved): ANTI-BERANTAKAN (handoff GUI TODO #2). 500+ node
 //   (label instinct PANJANG "WHEN ... -> ...") → teks numpuk, kabel keputus. Fix:
@@ -87,7 +91,9 @@ async function draw(d3, container, agentId) {
   stats.textContent = 'loading…';
   let data;
   try {
-    data = await (await fetch(`/api/agents/cognitive/graph?id=${encodeURIComponent(agentId)}&limit=2000`)).json();
+    // owner 2026-06-23: limit di-set SERVER (cognitive_ext.go cgmNodeLimit/cgmEdgeLimit) biar
+    // node hub hit-rendah + edge instinct member_of ga ke-drop (anti orphan-palsu). Ga hardcode di sini.
+    data = await (await fetch(`/api/agents/cognitive/graph?id=${encodeURIComponent(agentId)}`)).json();
   } catch (e) { stats.textContent = 'error: ' + e.message; return; }
   if (data.error) { stats.textContent = 'error: ' + data.error; return; }
 
@@ -147,8 +153,12 @@ async function drawTensions(container, agentId) {
   try { data = await (await fetch(`/api/agents/cognitive/tensions?id=${encodeURIComponent(agentId)}`)).json(); } catch { return; }
   const items = data.items || [];
   if (!items.length) { el.innerHTML = `<span style="color:#475569">No open contradictions.</span>`; return; }
-  el.innerHTML = `<div style="color:#fbbf24;font-weight:600;margin-bottom:4px">⚠ Open contradictions (owner decides)</div>` +
-    items.map((t) => `<div style="color:#cbd5e1">• ${esc(t.from_id)} —${esc(t.relation_type)}→ <s>${esc(t.old_to_id)}</s> / ${esc(t.new_to_id)}</div>`).join('');
+  // owner 2026-06-23: header TETAP, daftar kontradiksi scroll MANDIRI (max-height +
+  // overflow-y) biar ga nyeret seluruh halaman pas kontradiksi banyak. + counter.
+  el.innerHTML = `<div style="color:#fbbf24;font-weight:600;margin-bottom:4px">⚠ Open contradictions (owner decides) <span style="color:#64748b;font-weight:400">(${items.length})</span></div>` +
+    `<div style="max-height:200px;overflow-y:auto;padding:6px 8px;border:1px solid #1e293b;border-radius:6px;background:#0b1020">` +
+    items.map((t) => `<div style="color:#cbd5e1;margin-bottom:2px">• ${esc(t.from_id)} —${esc(t.relation_type)}→ <s>${esc(t.old_to_id)}</s> / ${esc(t.new_to_id)}</div>`).join('') +
+    `</div>`;
 }
 
 // showCgDetail — klik node → tampil detail PENUH di #cgDetail (label panjang ga

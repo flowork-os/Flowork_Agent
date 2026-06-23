@@ -80,6 +80,11 @@ func evolveApplier(host *kernelhost.Host, store *floworkdb.Store, groups *groups
 				out["warn"] = "authorSkill best-effort: file skill ga kebukti ketulis (cek izin/disk dynamic-skills dir)"
 			}
 			return out, nil
+		case "promote-tool":
+			// SELF-EVOLVING (owner 2026-06-23): Dewan approve tool privat → promote jadi SHARED.
+			// Logic di feature_tools_promote.go (NON-frozen, cabang) → toolsidecar.Promote. File ini
+			// cuma delegasi 1 baris (jaga spirit cabang, ga numpuk logic di sini).
+			return promoteToolApply(p)
 		}
 		return nil, fmt.Errorf("kind %q ga didukung behavior-apply", p.Kind)
 	}

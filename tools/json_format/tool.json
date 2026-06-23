@@ -1,0 +1,1 @@
+{ "name":"json_format", "capability":"", "description":"Rapihin/minify JSON + validasi. mode=pretty (default) atau minify.", "returns":"{result, valid}", "params":[ {"name":"text","type":"string","description":"string JSON","required":true}, {"name":"mode","type":"string","description":"pretty (default) | minify"} ] }

@@ -37,6 +37,7 @@ import (
 
 	"flowork-gui/internal/httpx"
 	"flowork-gui/internal/tools"
+	"flowork-gui/internal/toolsidecar"
 )
 
 // coreExposedTools — SELALU di-expose ke LLM (cover kebutuhan umum). Kecil =
@@ -57,13 +58,23 @@ var coreExposedTools = []string{
 	// (bukan di-copy) → update shared sekali, semua agent lihat. Cap-denied =
 	// graceful (tool balikin error, LLM lanjut).
 	"graph_recall", "instinct_recall", "brain_search_shared",
+	// 2026-06-23 (owner: "semua agent bisa bikin tools — PALING penting"): tool_create selalu
+	// ke-expose ke SEMUA agent → tiap agent SADAR bisa bikin tool sendiri (self-evolving, roadmap §15).
+	"tool_create",
 }
 
 // maxExposedTools caps how many tool schemas an agent offers its LLM at once. A
 // capable agent (mr-flow holds ~40 first-class tools via subscriptions) needs the
 // higher ceiling; ants stay tiny because they have no subscriptions (core set only),
 // so raising the ceiling never bloats them.
-const maxExposedTools = 53 // D15 (2026-06-21): 50→51 codemap_search; 2026-06-22: 51→52 system_power; 2026-06-23: 52→53 web_search (mr-flow live news, anti-nyasar brain_search)
+// 2026-06-23 (owner "kejar hemat token"): 66→56. Ukur live: ekor cap mr-flow (posisi 57-66) = 10 tool
+// app_flowalpha_* GRANULAR (bot_add/list/remove/step/toggle, compute/custom_indicator, compare_strategies,
+// backtest_history, alert_remove) = trading-ops yg JARANG jadi langkah pertama → drop dari always-on, tetap
+// ke-discover via tool_search (1-hop, recoverable). Hemat ~1170 tok/turn. Yg DIPERTAHANIN: SEMUA core +
+// primaryExtra (browser/web_search/task_*/cognitive_*/system_power) + sidecar + app_flowalpha AI-level
+// (ai_analyze/ai_team) + alert_add/check/list. Guaranteed-set (core+primaryExtra+sidecar) ga kesentuh —
+// cap cuma ngegerus EKOR subscription. Naikin lagi kalau mr-flow sering kerja trading.
+const maxExposedTools = 56 // sebelumnya 66 (50→51 codemap; 52 system_power; 53 web_search; 55 task_list/run; 64 browser_*; 66 cognitive_tensions/resolve)
 
 // primaryExtraTools — surface-vocabulary tools exposed ONLY to the primary
 // orchestrator (mr-flow), not to ants. These cover shell/task-lifecycle/schedule/
@@ -87,6 +98,26 @@ var primaryExtraTools = []string{
 	// "cari berita trending" → web_search di primaryExtra biar GARANSI ke-expose (ga ke-drop
 	// cap kayak subscription). webfetch udah di coreExposedTools (baca hasil). cap=net:fetch:*.
 	"web_search",
+	// 2026-06-23 (owner-directive "stabilkan group biar mr-flow SADAR ada group + tau tugas
+	// ke group mana"): task_list + task_run = TOOL ROUTER orchestrator. AKAR nyasar: persona
+	// mr-flow nyuruh route via task_list, TAPI dua tool ini GA ke-expose (cuma via tool_search
+	// = 1 hop ekstra yg sering di-skip LLM) → mr-flow jatuh ke brain_search_shared/jawab langsung
+	// = NYASAR (kasus screenshot owner). Ditaruh di primaryExtra (BUKAN subscription) biar GARANSI
+	// ke-expose — mr-flow 182 subs > cap → subscription task_list/task_run KE-DROP (persis web_search).
+	// task_list = liat daftar Category/Group team; task_run = delegasi tugas ke crew→synth. Primary-
+	// only: ants ga ikut (prompt tetap kecil). Cap 53→55 = masuk TANPA drop subscription.
+	"task_list", "task_run",
+	// 2026-06-23 (owner: "buka manifest, akses penuh"): SEMUA 9 tool browser asli (chromium
+	// via go-rod). mr-flow bisa kontrol browser PENUH — buka situs JS/login/berat yg webfetch
+	// ga bisa, baca localhost, dst. cap=browser:control (ditambah ke manifest mr-flow → di-grant
+	// boot). Persona arahin: web_search/webfetch DULU, browser buat yg berat (chromium mahal).
+	// Resource dijaga: browser_close + idle-reaper 30mnt (lihat lock/browser.md).
+	"browser_navigate", "browser_snapshot", "browser_click", "browser_type",
+	"browser_upload", "browser_screenshot", "browser_set_cookies", "browser_eval", "browser_close",
+	// 2026-06-23 (owner: "mr-flow tahu Open contradictions → minta klarifikasi"): cognitive_tensions
+	// (lihat kontradiksi data nunggu keputusan owner) + cognitive_resolve (apply keputusan owner →
+	// graph makin akurat). GARANSI ke-expose biar mr-flow bisa proaktif klarifikasi. cap state:read/write.
+	"cognitive_tensions", "cognitive_resolve",
 }
 
 // ToolSpecsHandler — GET /api/agents/tools/specs?id=<agent>
@@ -128,6 +159,12 @@ func ToolSpecsHandler(w http.ResponseWriter, r *http.Request) {
 		for _, n := range primaryExtraTools {
 			add(n)
 		}
+	}
+	// 1c. SIDECAR TOOLS — SHARED ke SEMUA agent + PRIVAT cuma ke pembuatnya (owner 2026-06-23:
+	// self-evolving — tool buatan-agent lahir privat sampai lolos Dewan → shared). NamesForAgent
+	// nyaring: shared (semua) + private-owned-by-id. Ditaruh SEBELUM subscription = prioritas.
+	for _, n := range toolsidecar.NamesForAgent(id) {
+		add(n)
 	}
 	// 2. tool yang di-subscribe MANUAL (owner pilih di popup) — di luar default seed.
 	if store, err := openAgentStore(id); err == nil {

@@ -1,0 +1,1 @@
+{ "name":"regex_extract", "capability":"", "description":"Ekstrak semua match regex (RE2) dari teks. Buat parsing/ambil data.", "returns":"{matches[], count}", "params":[ {"name":"text","type":"string","description":"teks sumber","required":true}, {"name":"pattern","type":"string","description":"pola regex (RE2)","required":true} ] }

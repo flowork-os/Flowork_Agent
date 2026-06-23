@@ -1,3 +1,8 @@
+// 🔒 FROZEN GROUP-CORE · Repo: https://github.com/flowork-os/Flowork-OS · Owner: Aola Sahidin (Mr.Dev)
+// ⛔ WAJIB sebelum ngedit file ini: BACA /home/mrflow/Documents/FLowork_os/lock/group.md
+//    (cara kerja group, filtur, cara bikin group, CABANG *_ext.go). File ini BEKU (chattr +i +
+//    hash KERNEL_FREEZE.md). Filtur baru → masuk *_ext.go (RegisterExecStrategy /
+//    RegisterGroupSyncHook) atau DATA (Category/Directive). JANGAN buka file beku ini.
 // === LOCKED FILE ===
 // Status: STABLE — DO NOT MODIFY without owner approval.
 // Owner: Aola Sahidin (Mr.Dev)
@@ -129,6 +134,13 @@ func RunCategoryTask(ctx context.Context, host Invoker, sharedDir string, cat Ca
 	if input == "" {
 		res.Err = "input kosong"
 		return res
+	}
+
+	// CABANG ABADI (taskflow_ext.go, NON-frozen): strategi eksekusi terdaftar boleh
+	// ambil-alih (mode parallel/debate/vote/dll). nil = pake default sequential di
+	// bawah. Ini "cabang/switch" biar mode baru GA PERNAH buka file frozen ini lagi.
+	if r := extRunCategory(ctx, host, sharedDir, cat, input, runID, rec); r != nil {
+		return *r
 	}
 
 	// PENTING: shared workspace itu PER-AGENT (<sharedDir>/<agentID>/job/), bukan

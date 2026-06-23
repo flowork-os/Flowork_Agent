@@ -220,13 +220,13 @@ func (taskCreateTool) Name() string       { return "TaskCreate" }
 func (taskCreateTool) Capability() string { return "state:write" }
 func (taskCreateTool) Schema() tools.Schema {
 	return tools.Schema{
-		Description: "Record a task in this agent's durable task ledger and get a task_id. By default the kernel is synchronous so this just REGISTERS the task (drive it yourself, then TaskUpdate/TaskStop, read TaskOutput). Set background:true WITH a prompt to run it ASYNC instead — a bounded non-frozen worker drives the prompt itself and notifies the owner when done (fire-and-forget).",
+		Description: "Catat task ke ledger durable → balik task_id. Kernel sinkron: default cuma REGISTER (jalanin sendiri, lalu TaskUpdate/TaskStop, baca TaskOutput). background:true + prompt = jalan ASYNC (worker bounded ngerjain prompt-nya, notify owner pas kelar).",
 		Params: []tools.Param{
-			{Name: "subject", Type: tools.ParamString, Description: "short task subject/title", Required: true},
-			{Name: "description", Type: tools.ParamString, Description: "what the task is"},
-			{Name: "activeForm", Type: tools.ParamString, Description: "present-tense label shown while running"},
-			{Name: "prompt", Type: tools.ParamString, Description: "the instruction/prompt for the task (required if background:true)"},
-			{Name: "background", Type: tools.ParamBool, Description: "run async in the background (fire-and-forget): a bounded non-frozen worker drives the prompt, marks the task done, and notifies the owner. Default false = just record (drive yourself)."},
+			{Name: "subject", Type: tools.ParamString, Description: "judul singkat task", Required: true},
+			{Name: "description", Type: tools.ParamString, Description: "isi task"},
+			{Name: "activeForm", Type: tools.ParamString, Description: "label present-tense pas jalan"},
+			{Name: "prompt", Type: tools.ParamString, Description: "instruksi task (wajib kalau background:true)"},
+			{Name: "background", Type: tools.ParamBool, Description: "true=jalan async (worker ngerjain+notify owner). Default false=cuma catat (jalanin sendiri)."},
 		},
 		Returns: "{task_id, status, subject}",
 	}

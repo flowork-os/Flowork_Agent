@@ -308,6 +308,12 @@ func (grepTool) Run(ctx context.Context, args map[string]any) (tools.Result, err
 					goto DONE
 				}
 			}
+			// scannererr: kalau Scan berhenti karena ERROR baca (mis. baris kepanjangan >
+			// lineSize = bufio.ErrTooLong), bukan EOF → hasil grep file ini GA komplit.
+			// Tandai truncated biar hasil parsial ga disangka lengkap.
+			if serr := scanner.Err(); serr != nil {
+				truncated = true
+			}
 			f.Close()
 		}
 	}

@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FLowork Brain Explorer</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-color: #0b0d19;
+            --panel-bg: rgba(18, 22, 41, 0.6);
+            --panel-border: rgba(255, 255, 255, 0.08);
+            --accent-primary: #8a2be2;
+            --accent-secondary: #00f0ff;
+            --accent-success: #00ffaa;
+            --accent-warning: #ff4e4e;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --card-hover: rgba(30, 37, 69, 0.8);
+            --font-main: 'Outfit', sans-serif;
+            --font-code: 'Fira Code', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(at 10% 20%, rgba(138, 43, 226, 0.15) 0px, transparent 50%),
+                radial-gradient(at 90% 80%, rgba(0, 240, 255, 0.12) 0px, transparent 50%);
+            background-attachment: fixed;
+            color: var(--text-main);
+            font-family: var(--font-main);
+            min-height: 100vh;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        header {
+            width: 100%;
+            max-width: 1200px;
+            margin-bottom: 2.5rem;
+            text-align: center;
+            position: relative;
+        }
+
+        .logo-area {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .logo-glow {
+            width: 16px;
+            height: 16px;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            border-radius: 50%;
+            box-shadow: 0 0 15px var(--accent-secondary);
+            animation: pulse-glow 3s infinite alternate;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            background: linear-gradient(135deg, #ffffff 30%, #a78bfa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        header p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            font-weight: 300;
+        }
+
+        /* Dashboard Stats */
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            width: 100%;
+            max-width: 1200px;
+            margin-bottom: 2.5rem;
+        }
+
+        .stat-card {
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            backdrop-filter: blur(12px);
+            border-radius: 16px;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: var(--accent-primary);
+        }
+
+        .stat-card.fable-stats::before {
+            background: linear-gradient(to bottom, var(--accent-primary), var(--accent-secondary));
+        }
+
+        .stat-card.health-stats::before {
+            background: var(--accent-success);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(255, 255, 255, 0.15);
+            box-shadow: 0 10px 25px -10px rgba(0,0,0,0.5);
+        }
+
+        .stat-label {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-value {
+            font-size: 2.25rem;
+            font-weight: 700;
+            color: #ffffff;
+            line-height: 1;
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-desc {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .health-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1.15rem;
+            font-weight: 600;
+            color: var(--accent-success);
+        }
+
+        .pulse-dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--accent-success);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--accent-success);
+            animation: pulse-dot 1.5s infinite;
+        }
+
+        .pulse-dot.error {
+            background-color: var(--accent-warning);
+            box-shadow: 0 0 10px var(--accent-warning);
+        }
+
+        /* Search Section */
+        .controls-container {
+            width: 100%;
+            max-width: 1200px;
+            margin-bottom: 2rem;
+            display: flex;
+            gap: 1rem;
+        }
+
+        .search-wrapper {
+            position: relative;
+            flex-grow: 1;
+        }
+
+        .search-input {
+            width: 100%;
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 12px;
+            padding: 1rem 1.25rem 1rem 3rem;
+            color: #ffffff;
+            font-family: var(--font-main);
+            font-size: 1.1rem;
+            transition: all 0.3s ease;
+            outline: none;
+        }
+
+        .search-input:focus {
+            border-color: var(--accent-secondary);
+            box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+            background: rgba(22, 28, 51, 0.9);
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 1.2rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            pointer-events: none;
+            width: 18px;
+            height: 18px;
+        }
+
+        .btn-refresh {
+            background: linear-gradient(135deg, var(--accent-primary), rgba(138, 43, 226, 0.7));
+            border: none;
+            border-radius: 12px;
+            color: #ffffff;
+            font-family: var(--font-main);
+            font-weight: 600;
+            padding: 0 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-refresh:hover {
+            filter: brightness(1.1);
+            box-shadow: 0 0 15px rgba(138, 43, 226, 0.4);
+            transform: translateY(-1px);
+        }
+
+        /* Results Panel */
+        .results-container {
+            width: 100%;
+            max-width: 1200px;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .drawer-card {
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 12px;
+            padding: 1.25rem;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            position: relative;
+            animation: fadeIn 0.4s ease forwards;
+            opacity: 0;
+        }
+
+        .drawer-card:hover {
+            background: var(--card-hover);
+            border-color: rgba(255, 255, 255, 0.15);
+            transform: translateX(4px);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+
+        .drawer-id {
+            font-family: var(--font-code);
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--accent-secondary);
+            background: rgba(0, 240, 255, 0.1);
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
+        }
+
+        .card-tags {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .tag {
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+
+        .tag.room {
+            background: rgba(138, 43, 226, 0.15);
+            color: #c084fc;
+            border: 1px solid rgba(138, 43, 226, 0.3);
+        }
+
+        .tag.importance {
+            background: rgba(251, 191, 36, 0.15);
+            color: #fbbf24;
+            border: 1px solid rgba(251, 191, 36, 0.3);
+        }
+
+        .card-body {
+            color: var(--text-main);
+            font-size: 0.95rem;
+            line-height: 1.6;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: pre-wrap;
+        }
+
+        /* Detail Modal Overlay */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(5, 6, 15, 0.85);
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-content {
+            background: #111424;
+            border: 1px solid var(--panel-border);
+            border-radius: 20px;
+            width: 90%;
+            max-width: 900px;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+            transform: scale(0.95);
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            overflow: hidden;
+        }
+
+        .modal-overlay.active .modal-content {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--panel-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #161a30;
+        }
+
+        .modal-title-area {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .modal-close:hover {
+            background: rgba(255,255,255,0.05);
+            color: #ffffff;
+        }
+
+        .modal-body {
+            padding: 2rem;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 1rem;
+            border: 1px solid rgba(255,255,255,0.03);
+        }
+
+        .meta-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .meta-label {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .meta-value {
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .meta-value.hash {
+            font-family: var(--font-code);
+            font-size: 0.8rem;
+            color: var(--accent-secondary);
+        }
+
+        .cot-text-container {
+            line-height: 1.7;
+            font-size: 1rem;
+            white-space: pre-wrap;
+            color: #e5e7eb;
+        }
+
+        /* Format code blocks inside modal */
+        .cot-text-container pre {
+            background: #090b14;
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+            overflow-x: auto;
+            font-family: var(--font-code);
+            font-size: 0.9rem;
+        }
+
+        .cot-text-container code {
+            font-family: var(--font-code);
+            background: rgba(255,255,255,0.05);
+            padding: 0.15rem 0.3rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .cot-text-container pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+        }
+
+        /* Loading Indicator */
+        .loading-spinner {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            padding: 4rem;
+            width: 100%;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(138, 43, 226, 0.1);
+            border-top-color: var(--accent-secondary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        /* Animations */
+        @keyframes pulse-glow {
+            0% { box-shadow: 0 0 10px var(--accent-secondary); }
+            100% { box-shadow: 0 0 25px var(--accent-primary); }
+        }
+
+        @keyframes pulse-dot {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.4); opacity: 0.5; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes fadeIn {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Load More Button */
+        .load-more-container {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            margin-top: 1rem;
+        }
+
+        .btn-load-more {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--panel-border);
+            color: var(--text-main);
+            padding: 0.75rem 2rem;
+            border-radius: 10px;
+            font-family: var(--font-main);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.25s;
+        }
+
+        .btn-load-more:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-1px);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 4rem;
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            width: 100%;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo-area">
+            <div class="logo-glow"></div>
+            <h1>FLowork Brain Explorer</h1>
+        </div>
+        <p>Browse & Search FLowork Agent Instinct and Chain-of-Thought (CoT) Drawers</p>
+    </header>
+
+    <!-- Stats Panel -->
+    <div class="stats-container">
+        <div class="stat-card fable-stats">
+            <div class="stat-label">FLowork Drawers</div>
+            <div class="stat-value" id="count-flowork">---</div>
+            <div class="stat-desc">Sanitized instinct patterns active</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Total Brain Drawers</div>
+            <div class="stat-value" id="count-total">---</div>
+            <div class="stat-desc">SQLite databases size indicator</div>
+        </div>
+        <div class="stat-card health-stats">
+            <div class="stat-label">System Health</div>
+            <div class="stat-value health-status" id="health-value">
+                <div class="pulse-dot" id="health-dot"></div>
+                <span id="health-text">Checking...</span>
+            </div>
+            <div class="stat-desc">Checks for legacy PowerShell leaks</div>
+        </div>
+    </div>
+
+    <!-- Search Controls -->
+    <div class="controls-container">
+        <div class="search-wrapper">
+            <!-- Search Icon -->
+            <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            </svg>
+            <input type="text" class="search-input" id="search-input" placeholder="Search drawer content (e.g. 'compile', 'regex', 'Sharpe')...">
+        </div>
+        <button class="btn-refresh" id="btn-refresh">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.228 8.24M21 8h-5V3"></path>
+            </svg>
+            Reset
+        </button>
+    </div>
+
+    <!-- Results Panel -->
+    <div class="results-container" id="results-container">
+        <!-- Dynamic Cards -->
+    </div>
+
+    <div class="load-more-container" id="load-more-container" style="display: none;">
+        <button class="btn-load-more" id="btn-load-more">Load More</button>
+    </div>
+
+    <!-- Detail Modal -->
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title-area">
+                    <span class="drawer-id" id="modal-drawer-id">---------</span>
+                    <span class="tag room" style="font-size: 0.8rem;">flowork_instinct</span>
+                </div>
+                <button class="modal-close" id="modal-close">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="meta-grid">
+                    <div class="meta-item">
+                        <div class="meta-label">Source File</div>
+                        <div class="meta-value" id="meta-source-file">---</div>
+                    </div>
+                    <div class="meta-item">
+                        <div class="meta-label">Importance</div>
+                        <div class="meta-value" id="meta-importance">---</div>
+                    </div>
+                    <div class="meta-item">
+                        <div class="meta-label">Content Hash</div>
+                        <div class="meta-value hash" id="meta-hash">---</div>
+                    </div>
+                </div>
+                <div class="cot-text-container" id="cot-text-container">
+                    <!-- Complete reasoning text with code formatting -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "";
+        let currentOffset = 0;
+        const LIMIT = 20;
+        let currentQuery = "";
+
+        // Elements
+        const countFlowork = document.getElementById("count-flowork");
+        const countTotal = document.getElementById("count-total");
+        const healthText = document.getElementById("health-text");
+        const healthDot = document.getElementById("health-dot");
+        const searchInput = document.getElementById("search-input");
+        const btnRefresh = document.getElementById("btn-refresh");
+        const resultsContainer = document.getElementById("results-container");
+        const loadMoreContainer = document.getElementById("load-more-container");
+        const btnLoadMore = document.getElementById("btn-load-more");
+
+        const modalOverlay = document.getElementById("modal-overlay");
+        const modalClose = document.getElementById("modal-close");
+        const modalDrawerId = document.getElementById("modal-drawer-id");
+        const metaSourceFile = document.getElementById("meta-source-file");
+        const metaImportance = document.getElementById("meta-importance");
+        const metaHash = document.getElementById("meta-hash");
+        const cotTextContainer = document.getElementById("cot-text-container");
+
+        // Fetch dashboard stats
+        async function fetchStats() {
+            try {
+                const res = await fetch(`${API_BASE}/api/stats`);
+                const data = await res.json();
+                
+                countFlowork.textContent = Number(data.flowork_count).toLocaleString();
+                countTotal.textContent = Number(data.total_count).toLocaleString();
+                
+                if (data.leaks_count === 0) {
+                    healthText.textContent = "Healthy (0 leaks)";
+                    healthText.style.color = "var(--accent-success)";
+                    healthDot.className = "pulse-dot";
+                } else {
+                    healthText.textContent = `Leak Warning (${data.leaks_count} detected)`;
+                    healthText.style.color = "var(--accent-warning)";
+                    healthDot.className = "pulse-dot error";
+                }
+            } catch (err) {
+                console.error("Error fetching stats:", err);
+            }
+        }
+
+        // Fetch and render list
+        async function fetchResults(append = false) {
+            if (!append) {
+                currentOffset = 0;
+                resultsContainer.innerHTML = `
+                    <div class="loading-spinner">
+                        <div class="spinner"></div>
+                        <p style="color: var(--text-muted)">Loading drawers...</p>
+                    </div>
+                `;
+            }
+
+            try {
+                const url = `${API_BASE}/api/search?q=${encodeURIComponent(currentQuery)}&limit=${LIMIT}&offset=${currentOffset}`;
+                const res = await fetch(url);
+                const data = await res.json();
+                
+                if (!append) resultsContainer.innerHTML = "";
+
+                // Remove spinner if any
+                const spinner = resultsContainer.querySelector(".loading-spinner");
+                if (spinner) spinner.remove();
+
+                if (data.results.length === 0) {
+                    if (!append) {
+                        resultsContainer.innerHTML = `<div class="empty-state">No matching drawers found in flowork_instinct.</div>`;
+                    }
+                    loadMoreContainer.style.display = "none";
+                    return;
+                }
+
+                data.results.forEach((drawer, index) => {
+                    const card = document.createElement("div");
+                    card.className = "drawer-card";
+                    card.style.animationDelay = `${index * 0.04}s`;
+                    
+                    // Simple escape
+                    const escapedContent = drawer.content
+                        .replace(/&/g, "&amp;")
+                        .replace(/</g, "&lt;")
+                        .replace(/>/g, "&gt;");
+
+                    card.innerHTML = `
+                        <div class="card-header">
+                            <span class="drawer-id">${drawer.id}</span>
+                            <div class="card-tags">
+                                <span class="tag room">${drawer.room}</span>
+                                <span class="tag importance">Priority ${drawer.importance}</span>
+                            </div>
+                        </div>
+                        <div class="card-body">${escapedContent}</div>
+                    `;
+
+                    card.addEventListener("click", () => openDetail(drawer.id));
+                    resultsContainer.appendChild(card);
+                });
+
+                if (data.results.length === LIMIT) {
+                    loadMoreContainer.style.display = "flex";
+                } else {
+                    loadMoreContainer.style.display = "none";
+                }
+
+            } catch (err) {
+                console.error("Error fetching results:", err);
+                resultsContainer.innerHTML = `<div class="empty-state" style="color: var(--accent-warning)">Error loading records: ${err.message}</div>`;
+            }
+        }
+
+        // Open detailed drawer view in modal
+        async function openDetail(id) {
+            try {
+                const res = await fetch(`${API_BASE}/api/drawer/${id}`);
+                const data = await res.json();
+
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+
+                modalDrawerId.textContent = data.id;
+                metaSourceFile.textContent = data.source_file;
+                metaImportance.textContent = data.importance;
+                metaHash.textContent = data.content_hash;
+
+                // Format CoT text, particularly markdown code blocks
+                let formatted = data.content
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;");
+
+                // Parse code blocks ```lang ... ```
+                formatted = formatted.replace(/```(\w*)\n([\s\S]*?)```/g, function(match, lang, code) {
+                    return `<pre><code class="language-${lang}">${code.trim()}</code></pre>`;
+                });
+
+                // Parse inline code `code`
+                formatted = formatted.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+                cotTextContainer.innerHTML = formatted;
+                modalOverlay.classList.add("active");
+            } catch (err) {
+                alert("Error loading drawer detail: " + err.message);
+            }
+        }
+
+        // Close modal
+        modalClose.addEventListener("click", () => {
+            modalOverlay.classList.remove("active");
+        });
+
+        modalOverlay.addEventListener("click", (e) => {
+            if (e.target === modalOverlay) {
+                modalOverlay.classList.remove("active");
+            }
+        });
+
+        // Search trigger with debounce
+        let searchTimeout;
+        searchInput.addEventListener("input", (e) => {
+            currentQuery = e.target.value;
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                fetchResults();
+            }, 300);
+        });
+
+        // Reset
+        btnRefresh.addEventListener("click", () => {
+            searchInput.value = "";
+            currentQuery = "";
+            fetchResults();
+            fetchStats();
+        });
+
+        // Load More
+        btnLoadMore.addEventListener("click", () => {
+            currentOffset += LIMIT;
+            fetchResults(true);
+        });
+
+        // Init
+        fetchStats();
+        fetchResults();
+    </script>
+</body>
+</html>

@@ -1,4 +1,5 @@
 // FROZEN brain-core — mr-flow (jantung Flowork, agent owner). Kalau ini bikin lo "nyasar": ini BY-DESIGN, baca lock/brain.md dulu. Jangan edit tanpa unfreeze owner.
+// 📖 Telegram I/O (format pesan, baca dokumen/foto/voice) + SWITCH → CABANG NON-frozen `telegram_media.go` + dok /home/mrflow/Documents/FLowork_os/lock/mrflow.md. Filtur Telegram baru masuk SITU, JANGAN buka file beku ini.
 // ⚠️ NEW AGENT? READ doc/handbook/menu-ai-agent.md FIRST — enforced rules: secrets→Settings·API Keys, prompt→GUI (kv.prompt), two-tier brain (router+per-agent), bus over fs:shared, extend the frozen kernel via hooks (never unlock). Breaking one is a bug, not a shortcut.
 // === LOCKED FILE ===
 // Status: STABLE — DO NOT MODIFY without owner approval.
@@ -300,7 +301,19 @@ func runDaemon() {
 		}
 		for _, u := range updates {
 			offset = u.UpdateID + 1
-			if u.Message == nil || u.Message.Text == "" {
+			if u.Message == nil {
+				continue
+			}
+			// CABANG abadi (telegram_media.go, NON-frozen): pesan MEDIA (dokumen/foto/voice) tanpa
+			// text → enrich jadi teks (transkrip voice / isi dokumen / deskripsi foto) biar bisa
+			// diproses LLM. Filtur media baru → edit telegram_media.go, BUKAN sini.
+			if u.Message.Text == "" {
+				if u.Message.Voice != nil || u.Message.Audio != nil || u.Message.Document != nil || len(u.Message.Photo) > 0 {
+					sendTyping(token, u.Message.Chat.ID)
+					u.Message.Text = enrichMedia(u.Message, token)
+				}
+			}
+			if u.Message.Text == "" {
 				continue
 			}
 			chatID := u.Message.Chat.ID
@@ -473,6 +486,26 @@ type Message struct {
 	MessageID int64  `json:"message_id"`
 	Chat      Chat   `json:"chat"`
 	Text      string `json:"text,omitempty"`
+	// 2026-06-23: media — baca dokumen/foto/voice (handler di telegram_media.go, CABANG non-frozen).
+	Caption  string      `json:"caption,omitempty"`
+	Voice    *TgFile     `json:"voice,omitempty"`
+	Audio    *TgFile     `json:"audio,omitempty"`
+	Document *TgDocument `json:"document,omitempty"`
+	Photo    []TgFile    `json:"photo,omitempty"`
+}
+
+// TgFile / TgDocument — subset field Telegram (voice/audio/photo/document) buat baca media.
+type TgFile struct {
+	FileID   string `json:"file_id"`
+	FileSize int64  `json:"file_size,omitempty"`
+	MimeType string `json:"mime_type,omitempty"`
+}
+
+type TgDocument struct {
+	FileID   string `json:"file_id"`
+	FileName string `json:"file_name,omitempty"`
+	MimeType string `json:"mime_type,omitempty"`
+	FileSize int64  `json:"file_size,omitempty"`
 }
 
 type Chat struct {
@@ -510,15 +543,32 @@ func getUpdates(token string, offset int64, timeoutSec int) ([]Update, error) {
 }
 
 func sendMessage(token string, chatID int64, text string) error {
-	body, _ := json.Marshal(map[string]any{
+	// CABANG abadi (telegram_media.go, NON-frozen): convert markdown LLM → Telegram HTML biar RAPI
+	// (switch FLOWORK_TG_FORMAT). Mau ubah format? edit telegram_media.go, BUKAN sini.
+	formatted, mode := formatTelegram(text)
+	payload := map[string]any{
 		"chat_id":                  chatID,
-		"text":                     text,
+		"text":                     formatted,
 		"disable_web_page_preview": true,
-	})
+	}
+	if mode != "" {
+		payload["parse_mode"] = mode
+	}
+	body, _ := json.Marshal(payload)
 	u := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", token)
 	resp, err := fetch("POST", u, map[string]string{"Content-Type": "application/json"}, body, 15_000)
 	if err != nil {
 		return err
+	}
+	// FALLBACK: kalau parse_mode bikin Telegram NOLAK (400, HTML malformed dari converter) → kirim
+	// ulang POLOS (stripMarkdown) biar pesan TETAP nyampe. Pesan ga boleh ilang gara2 format.
+	if resp.Status >= 400 && mode != "" {
+		body2, _ := json.Marshal(map[string]any{
+			"chat_id": chatID, "text": stripMarkdown(text), "disable_web_page_preview": true,
+		})
+		if resp, err = fetch("POST", u, map[string]string{"Content-Type": "application/json"}, body2, 15_000); err != nil {
+			return err
+		}
 	}
 	if resp.Status >= 400 {
 		return fmt.Errorf("telegram %d: %s", resp.Status, truncStr(string(resp.Body), 160))

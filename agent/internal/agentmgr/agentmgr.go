@@ -53,6 +53,7 @@ import (
 	"flowork-gui/internal/kernel/loader"
 	"flowork-gui/internal/slashcmd"
 	"flowork-gui/internal/tools"
+	"flowork-gui/internal/toolsidecar"
 )
 
 // reID — sinkron sama loader.manifest.go reID.
@@ -772,7 +773,9 @@ func ToolRunHandler(w http.ResponseWriter, r *http.Request) {
 
 	t, ok := tools.Lookup(toolName)
 	if !ok {
-		httpx.WriteJSON(w, map[string]any{"error": "[PETUNJUK, bukan salahmu] tool " + toolName + " belum terdaftar. Petunjuk: cari nama tool yang benar lewat tool_search, atau pakai tool lain yang sepadan — jangan ngarang hasilnya"})
+		// FASE 3 self-evolving: rekomendasi tool sepadan (drawer/semantic) → kalau bener ga ada,
+		// ERROR-EDUKASI ngajarin tool_create. Detail: tool_notfound_edu.go.
+		httpx.WriteJSON(w, map[string]any{"error": toolNotFoundEducation(toolName)})
 		return
 	}
 
@@ -782,6 +785,12 @@ func ToolRunHandler(w http.ResponseWriter, r *http.Request) {
 	// authoritative (caller-bound, ga bisa di-spoof). brain.go locked → gate di sini.
 	if IsPrimaryOnlyTool(toolName) && !IsPrimaryAgent(id) {
 		httpx.WriteJSON(w, map[string]any{"error": "tool '" + toolName + "' khusus agent primary — extension pakai brain_search (brain lokal folder sendiri)"})
+		return
+	}
+	// Run-guard tool PRIVAT (self-evolving, owner 2026-06-23): tool sidecar buatan-agent yg masih
+	// PRIVAT cuma boleh dijalanin PEMBUATNYA (sampai lolos Dewan review → shared). `id` authoritative.
+	if toolsidecar.IsPrivate(toolName) && toolsidecar.Owner(toolName) != id {
+		httpx.WriteJSON(w, map[string]any{"error": "tool '" + toolName + "' masih PRIVAT punya agent lain — belum lolos review jadi shared"})
 		return
 	}
 

@@ -1,9 +1,15 @@
+// 🔒 FROZEN COGNITIVE-GRAPH · Repo: https://github.com/flowork-os/Flowork-OS · Owner: Aola Sahidin (Mr.Dev)
+// ⛔ WAJIB sebelum ngedit: BACA /home/mrflow/Documents/FLowork_os/lock/CognitiveGraph.md
+//    (cara kerja, orphan/limit, kontradiksi, tools, SWITCH). File BEKU (chattr +i + hash). Filtur baru →
+//    CABANG internal/agentmgr/cognitive_ext.go (switch limit) / FILE BARU cognitive_<nama>.go / data.
+//    JANGAN buka file beku ini.
+//
 // === LOCKED FILE ===
 // Status: STABLE — DO NOT MODIFY without owner approval (autonomy grant 2026-06-19).
 // Owner: Aola Sahidin (Mr.Dev)
 // Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-06-19
-// Reason: CGM read API handlers (graph/tensions) — built + unit-tested (build/vet/test green). Extend = new file, jangan modify ini.
+// Locked at: 2026-06-19 · FROZEN 2026-06-23 (limit switch via cognitive_ext.go, owner-approved)
+// Reason: CGM read API handlers (graph/tensions) — built + unit-tested (build/vet/test green). Extend = cabang/file baru.
 //
 // cognitive_handlers.go — HTTP read API buat Cognitive Graph (CGM) per-agent.
 //
@@ -39,12 +45,15 @@ func CognitiveGraphHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer store.Close()
 
-	nodes, err := store.ListCogNodes(parseLimitOr(r.URL.Query().Get("limit"), 500))
+	// DEFAULT limit dari CABANG non-frozen cognitive_ext.go (cgmNodeLimit/cgmEdgeLimit) —
+	// dinaikin biar node "hub" hit-rendah + edge instinct member_of GA ke-drop (anti
+	// orphan-palsu). Override via env FLOWORK_CGM_NODE_LIMIT/EDGE_LIMIT TANPA buka file ini.
+	nodes, err := store.ListCogNodes(parseLimitOr(r.URL.Query().Get("limit"), cgmNodeLimit()))
 	if err != nil {
 		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
 		return
 	}
-	edges, err := store.ListCogEdges(parseLimitOr(r.URL.Query().Get("edge_limit"), 1000))
+	edges, err := store.ListCogEdges(parseLimitOr(r.URL.Query().Get("edge_limit"), cgmEdgeLimit()))
 	if err != nil {
 		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
 		return

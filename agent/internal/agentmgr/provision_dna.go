@@ -40,6 +40,12 @@ func ProvisionAgentDNA(agentID string) DNAResult {
 	if n, e := store.SeedEduErrors(); e == nil {
 		res.EduErrors = n
 	}
+	// CABANG edu-errors (non-frozen, override DO-UPDATE): refresh ERR_TOOL_NOT_FOUND ke jalur
+	// self-evolving (tool_create) + ERR_TOOL_GC_REMOVED (deletion-aware). edu_errors_seed.go frozen
+	// pakai DO-NOTHING → ga bisa refresh dari sana; ext ini yg nyebar override ke semua agent.
+	if n, e := store.SeedEduErrorsExt(); e == nil {
+		res.EduErrors += n
+	}
 	// Konstitusi sacred (5W1H/identity/anti-halu + sync-honest/recall-first).
 	// Idempotent-upsert: aturan sacred baru auto-nyebar.
 	if n, e := store.SeedSacredConstitution(); e == nil {

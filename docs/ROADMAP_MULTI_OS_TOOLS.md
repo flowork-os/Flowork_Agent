@@ -354,3 +354,150 @@ tool di GUI → `navigate` jalan TANPA manifest-hack.
 - **SISA browser (nanti):** connect-mode test (`FLOWORK_BROWSER_URL` ke Chrome login) · productionize
   (GUI first-class, bukan subscribe manual) · Android (Accessibility Service, track terpisah) ·
   bundle: img tinggal pastiin chromium path (`/usr/bin/chromium`) + cap `browser:control` ke privileged agent.
+
+---
+
+## 14. SIDECAR TOOLS — tool native PLUG-AND-PLAY (folder self-contained) — ✅ MVP DONE 2026-06-23
+
+> Keputusan owner (2026-06-23): biar tool privileged/native jadi **postable** (bukan compiled-in,
+> bukan WASM-sandbox), tiap tool = **folder self-contained** yang di-compile jadi **binary native
+> SENDIRI** + di-exec host sbg **proses terpisah**.
+
+### 14.1 Prinsip ISOLASI (yang bikin plug-and-play + agnostic)
+**Tiap tool = MODUL Go SENDIRI. Dependency-nya DI FOLDER-NYA SENDIRI (own go.mod/vendor). NOL shared
+library.** Drop folder → jalan. Ga ada dependency hell, ga nyangkut ke kernel.
+
+### 14.2 Posisi di arsitektur (nutup gap "truly postable")
+| | compiled-in | WASM `.fwpack` | **SIDECAR (ini)** |
+|---|---|---|---|
+| native/privileged | ✅ | ❌ sandbox | ✅ |
+| modular (ga sentuh kernel frozen) | ❌ | ✅ | ✅ |
+| isolasi proses (crash/jahat) | ❌ | ✅ | ✅ (bisa seccomp nanti) |
+| postable upload | ❌ | ✅ semua OS | ✅ desktop (rebuild sidecar); mobile=prebuild + `.fwpack` |
+
+### 14.3 ABI (kontrak abadi — exec stdin/stdout)
+Host EXEC binary tool: **STDIN** `{"args":{...}}` → tool kerja → **STDOUT** `{"output":<any>,"error":""}` → exit.
+Stateless per-call (proses fresh). CWD = folder tool (boleh baca aset relatif sendiri).
+
+### 14.4 Struktur + flow
+```
+tools/<name>/{tool.json (manifest), go.mod (modul sendiri), main.go}  → build-tools.sh → binary tools/<name>/<name>
+   → host discover (internal/toolsidecar) → tools.RegisterDynamic → ke-expose SEMUA agent → agent exec proses
+```
+- **Manifest** `tool.json`: `{name, capability, description, returns, params[]}`.
+- **Build**: `tools/build-tools.sh` (GOWORK=off, per-modul, cross-compile-aware).
+- **Discover/register**: `internal/toolsidecar/toolsidecar.go` (`DiscoverAndRegister`, `Names`, `ToolsDir`).
+- **Wiring**: `agent/feature_tools_sidecar.go` (init→RegisterFeature PhaseSeed; main.go frozen GA disentuh).
+- **Endpoint**: `GET/POST /api/tools/sidecar` (list / reload tanpa restart host).
+
+### 14.5 AWARENESS + AKSES SEMUA AGENT (syarat keras owner 2026-06-23) — ✅
+- **Sadar**: `ToolSpecsHandler` (tool_specs.go) expose `toolsidecar.Names()` ke **SEMUA agent** (sebelum
+  subscription = prioritas) → tiap agent liat tool sidecar di spec-nya.
+- **Akses semua**: cap `""` di tool.json = **NO gating** (semua agent boleh call, kayak `echo`). Tool
+  PRIVILEGED deklarasi cap real (mis. `exec:foo`) → ke-gate broker (cuma agent ber-cap).
+- **Bukti live**: `text_hash` ke-expose di mr-flow (66) + fb-writer (ant, 15) + **fb-writer berhasil
+  call** → hash bener. (folder `tools/text_hash/`).
+
+### 14.6 SWITCH
+- `FLOWORK_TOOLS_DIR` — override lokasi folder tools (default: cari `tools/` deket binary/cwd).
+
+### 14.7 SISA (nanti)
+- GUI tab Tools: tampilin sidecar tools + tombol rebuild/reload (sekarang via `/api/tools/sidecar`).
+- Build wiring: `tools/build-tools.sh` masuk `agent/start.sh` (auto-build saat compile) + cross-compile Android.
+- Keamanan: sandbox OS proses sidecar (seccomp/namespace) buat tool privileged pihak ke-3.
+- Contoh tool dgn **dep eksternal vendored** (buktiin lib-di-folder-sendiri end-to-end; butuh network go get).
+
+---
+
+## 15. SELF-EVOLVING TOOLS — agent BIKIN tool sendiri (agent-governed) — 🔭 DESAIN owner 2026-06-23
+
+> Keputusan owner (KRUSIAL): "semua agent bisa bikin tools di `/tools` itu PALING penting". Modelnya
+> **self-governed** (BUKAN ACC owner) — biar Flowork **hidup & tumbuh bahkan ketika owner ga ada**.
+
+### 15.1 Pipeline private → review → shared (NOL bottleneck owner)
+1. **Tiap tool punya `agent_id`** (pembuat).
+2. Agent bikin tool (`tool_create`) → **LANGSUNG jalan TAPI PRIVAT**: cuma si pembuat yang liat (specs)
+   + pake (run). GA muncul di search/suggest agent lain. (folder `tools/_private/<agent_id>/<name>/`)
+3. **Team-review** (AGENT, configurable kayak self-evolution group — owner pilih model, **GA hardcode**)
+   evaluasi: jalan? aman (cek kode anti-jahat)? berguna? non-dup?
+4. **Lolos → promote jadi SHARED** (pindah ke `tools/<name>/`, register global, ke-expose semua agent).
+   **GA perlu ACC owner** — team yang putusin. (Pola sama cognitive shadow→active→promote + konsensus antibody.)
+
+### 15.2 Komponen (3 fase)
+- **FASE 1 — `tool_create` (builtin)**: agent kasih {name, description, params, **LOGIC** (badan fungsi)} →
+  host auto-wrap boilerplate ABI + scaffold folder privat + **build-verify** (gagal compile → error balik
+  ke agent → benerin → retry = LOOP BELAJAR) → register privat (agent_id+scope=private). Nama unik global
+  (anti-collision, §12). Toolsidecar `Spec` nambah `agent_id` + `scope`; ToolSpecsHandler expose private
+  HANYA ke owner-nya.
+- **FASE 2 — team-review → promote (REUSE DEWAN self-evolution, JANGAN bikin team baru)**: tool privat
+  yang mau shared = **evolve-proposal kind `promote-tool`** → ngalir lewat **Dewan ADVERSARIAL yang udah
+  ada** (grup `self-evolution`: 🟢Pembela ⚔️ 🔴Penantang → ⚖️Hakim panel-3, gerbang-pilar, konservatif,
+  CONFIGURABLE model di GUI — `evolve_council.go` + `evolve_council_group.go` + `selfevolve_group_seed.go`).
+  Approve → promote: pindah folder `tools/_private/<agent>/<name>/` → `tools/<name>/` + register shared.
+  Cron `runEvolveScheduledCycle` drain backlog → otonom, NO owner-acc. Reuse = konsisten + ga ngarang team.
+- **FASE 3 — discovery→edukasi** (dari kasus mr-flow nyari tool ga ada): `tool_search` not-found →
+  **semantic recommend** tool mirip (drawer/cognitive) → kalau bener ga ada → **error-edukasi
+  `TOOL_NOT_FOUND`** (educational_errors_cache) yang NGAJARIN bikin via `tool_create`. Self-heal: agent ga
+  buntu, diajarin tumbuh.
+
+### 15.3 Guardrail (tetap)
+- Tool buatan-agent default cap `""` (sandboxed/pure-compute). Privileged (exec/fs/secret) = lewat review
+  team yg lebih ketat (bukan auto). Sandbox OS proses (seccomp) = hardening.
+- Build cuma desktop (Android ga ada go on-device). Nama = kontrak unik (anti nimpa builtin).
+- Review team = agent (configurable), BUKAN owner, BUKAN hardcode → abadi + owner bisa ganti model.
+
+### 15.4 AUTO-GC — seleksi alam buat tool (owner 2026-06-23)
+Tiap tool track **`error_count`** + **`last_used_at`** (di DB metadata tool). Cron prune otomatis:
+- **error berkali-kali** (> threshold) → tool rusak (mis. API yg dia akses udah berubah) → AUTO-HAPUS.
+- **ga kepake N bulan** (default ~3 bln, switch) → obsolete/sementara → AUTO-HAPUS.
+Bikin sistem flexible + self-cleaning (ga numpuk tool mati). Pola sama retention cognitive graph + mistakes.
+Privat & shared dua-duanya kena GC. (Hapus = folder + unregister; shared yg ke-GC bisa di-recreate kalau perlu.)
+
+### 15.5 LIFECYCLE LENGKAP
+`tool_create(privat)` → `dipake (track use/error)` → `Dewan review (promote-tool)` → `shared` →
+`[GC kalau error-tinggi / nganggur-lama]` → mati. Tool yg ga survive mati sendiri = evolusi beneran.
+
+### 15.7 DELETION-AWARE — agent SADAR tool mati sampai ke OTAK (owner 2026-06-23, KRUSIAL)
+Tool ke-hapus (GC/manual) TAPI otak agent udah "inget" dia (dari pengalaman → masuk lewat **dream**
+jadi node/instinct) → agent halu nyoba tool HANTU → error berulang. Hapus dari registry doang = DANGKAL.
+Harus MATANG, bersihin sampai cognition:
+1. **Unregister** (langsung ga bisa dipanggil).
+2. **Bersihin cognitive graph**: hapus/quarantine node `agent:<id>/tool/<nama>` (format terbukti) + edge-nya.
+3. **Invalidasi instinct** yang nyebut tool mati ("WHEN…→pake tool X") → quarantine / turunin confidence.
+4. **DREAM-GUARD**: `cognitive_dream.go` saat project tool/edge HARUS validasi ke **registry tool LIVE** —
+   tool yg ga ada = JANGAN di-(re)project. (Sekarang dream GA validasi → celah halu-tool-hantu.)
+5. **Antibody**: tanam penanda "tool X mati, jangan dipake" → agent SADAR beneran, ga nyoba lagi.
+Butuh accessor delete/quarantine cognitive node (cek `cognitive_graph.go`; kalau belum ada, tambah —
+brain-core FROZEN, butuh izin owner). Ini bikin GC (§15.4) "matang" = lengkap sampai otak.
+
+### 15.6 File evolute relevan (referensi pelaksana)
+`selfevolve.go` (proposer) · `internal/agentmgr/evolve_council.go` (CouncilJudge/Verdict + handler) ·
+`evolve_council_group.go` (Dewan via 5 agent grup `self-evolution`) · `selfevolve_group_seed.go` (seed grup,
+soft-LOCKED) · `internal/agentdb/evolve_pillars.go` (gerbang pilar) · `selfevolve_schedule.go` (cron drain) ·
+`internal/agentdb` EvolveProposal + SetEvolveProposalStatus (state machine proposed→approved/rejected).
+
+### 15.8 STATUS IMPLEMENTASI — ✅ SELESAI + TES (2026-06-23)
+Semua fase + GC + deletion-aware KEBANGUN & terbukti end-to-end (live localhost:1987):
+- **FASE 1** ✅ `tool_create` builtin (cap `""`, di `coreExposedTools` → SEMUA agent) → scaffold privat
+  `tools/_private/<agent>/<name>/` (go.mod sendiri, NOL shared-lib = isolasi) + build-verify (gagal →
+  `build_log` balik = loop belajar) + anti-eskalasi (tolak os/exec/syscall/unsafe/net). Run-guard:
+  tool privat cuma bisa dipanggil pembuatnya (`agentmgr.go`). 6 tes PASS.
+- **FASE 2** ✅ promote privat→shared via Dewan: `autoProposePrivateTools` → EvolveProposal `promote-tool`
+  → classifier behavior-apply → `promoteToolApply`→`toolsidecar.Promote` (pindah _private→shared). LOOP
+  PENUH terbukti: fb-writer bikin `reverse_text` → Dewan → shared → mr-flow liat+pake.
+- **FASE 3** ✅ not-found → `toolNotFoundEducation` (`internal/agentmgr/tool_notfound_edu.go`): rekomendasi
+  sepadan (token-split `localSuggest` drawer) → ajakan `tool_create`. Plus edu-error DNA via **CABANG**
+  `edu_errors_ext.go` (refresh `ERR_TOOL_NOT_FOUND` self-evolving + `ERR_TOOL_GC_REMOVED`) — UPSERT
+  override entri frozen `edu_errors_seed.go` (yg DO-NOTHING), nyebar ke semua agent via `ProvisionAgentDNA`.
+- **AUTO-GC (§15.4)** ✅ `feature_tools_gc.go` + health-track di `toolsidecar.go` (`error_count`/`last_used`,
+  file `.health.json`). `GCScan(maxErr=5, idleDays=90)` → `DeleteTool` (unregister+rm folder+tombstone).
+  Ticker 6 jam + `/api/tools/gc`. Switch: `FLOWORK_TOOL_GC_MAXERR/IDLE_DAYS/OFF`. Skip tool bawaan (agentID="").
+  Tes: tool `flaky` error 5× → ke-prune (folder GONE + tombstone).
+- **DELETION-AWARE (§15.7)** ✅ DUA lapis: (a) PRIMER unregister → ilang dari specs → reactive
+  `ERR_TOOL_GC_REMOVED` (cek tombstone) pas agent coba akses. (b) MATANG: `tombstoneSweep` quarantine node
+  `agent:<id>/tool/<nama>` (SQL langsung via `store.DB()` — UpsertNode ga update status) + decay confidence
+  instinct yg nyebut (×0.3, floor 0.05 → konvergen). Tombstone-based = re-quarantine tiap sweep (nutup
+  dream re-project). Tes: inject node+instinct → GC → node `quarantined`, instinct 0.8→0.07.
+- **Catatan brain-core**: `edu_errors_seed.go` TETAP frozen (TestKernelFreeze ijo) — perubahan lewat CABANG
+  `edu_errors_ext.go` (non-frozen, override). DREAM-GUARD (§15.7 poin 4, validasi project ke registry LIVE)
+  = SISA (cognitive_dream.go frozen, butuh cabang) — tapi tombstoneSweep idempoten udah nutup praktis.
