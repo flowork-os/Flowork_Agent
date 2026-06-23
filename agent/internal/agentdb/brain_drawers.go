@@ -90,11 +90,11 @@ func (s *Store) AddBrainDrawer(content, wing, room, memType, source string) (id 
 	if wing == "" {
 		wing = "general"
 	}
-	if memType == "" {
-		memType = "experience"
-	}
 	if MemTypeClassifierHook != nil {
 		memType = MemTypeClassifierHook(content, wing, room, memType)
+	}
+	if memType == "" {
+		memType = "experience"
 	}
 	if source == "" {
 		source = "agent"
