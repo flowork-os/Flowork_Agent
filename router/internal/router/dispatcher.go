@@ -521,6 +521,10 @@ func forwardToProvider(ctx context.Context, p *store.ProviderConnection, req Ope
 		return nil, 0, fmt.Errorf("provider %s missing baseUrl", p.ID)
 	}
 
+	// Power saver (idle-sleep): wake the local engine if it was unloaded, and hold it
+	// loaded until this request returns. No-op for cloud. See router/llm_idle_sleep.go.
+	defer wakeLocalIfNeeded(baseURL)()
+
 	// Vendor executor (non-stream path).
 	if ex := executors.Get(format); ex != nil {
 		body, u, st, err := ex.NonStream(ctx, p, executorRequest(req))

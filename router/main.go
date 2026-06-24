@@ -197,6 +197,10 @@ func main() {
 	// setups. Disable with FLOWORK_LOCALAI_AUTOSTART=0.
 	go maybeAutostartLocalAI(providers)
 
+	// Power saver: unload the local LLM after idle (default 2 min), reload on demand
+	// (llm_idle_sleep.go) → GPU/RAM freed when nobody's chatting, PC runs cool.
+	llmIdleSleepInit()
+
 	// F5 (D32-INC4 enabler): fresh-recall index. Rebuild on boot + tiap 2 menit (change-
 	// detect → murah) supaya drawer federation BARU (recovery-instinct INC-4) ke-recall
 	// SEBELUM vindex utama di-rebuild manual. Best-effort, goroutine — gak pernah blok serve.

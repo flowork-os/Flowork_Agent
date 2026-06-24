@@ -205,6 +205,9 @@ func streamFromProvider(ctx context.Context, p *store.ProviderConnection, req Op
 	if baseURL == "" {
 		return OpenAIUsage{}, 0, fmt.Errorf("provider %s missing baseUrl", p.ID)
 	}
+	// Power saver (idle-sleep): wake the local engine if it was unloaded, and hold it
+	// loaded until this stream returns. No-op for cloud. See router/llm_idle_sleep.go.
+	defer wakeLocalIfNeeded(baseURL)()
 	// Vendor executor registry: when a pluggable executor is registered for
 	// this format, delegate. Otherwise fall through to the built-in handlers.
 	if ex := executors.Get(format); ex != nil {
