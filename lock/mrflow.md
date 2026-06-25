@@ -114,8 +114,9 @@ masuk real-time). DB AKTIF mr-flow = `agent/agents/mr-flow/workspace/state.db` (
 `~/.flowork/agents/mr-flow.fwagent/workspace/state.db` **TIDAK PERNAH dipakai** sejak redirect → beku 2026-06-09
 = **STALE, jangan dipercaya buat debug**. Cek DB aktif: `grep "kernel: loaded <id>" /tmp/flowork-gui.log` → `ws=`.
 
-**Data nyangkut:** ~266 interaksi lama (Mar–9 Jun) terdampar di staged DB; DB aktif mulai 2026-06-24 → kontinuitas
-episodic putus di cutover. Kandidat migrasi/merge (roadmap #2B). **JANGAN delete staged DB tanpa izin owner** (history Telegram asli).
+**Data nyangkut → ✅ MERGED (2026-06-25, owner-authorized):** 264 interaksi lama (Mei–9 Jun) dari staged DB
+di-gabung ADDITIVE ke DB aktif (dedup 4-tuple, integrity-check ok → 367 rows total) → kontinuitas episodic mr-flow
+PULIH. Reversible: `DELETE FROM interactions WHERE occurred_at<'2026-06-24'`. Staged DB dibiarkan (arsip; JANGAN delete tanpa izin owner).
 
 **ORCHESTRATOR — default = mr-flow (RESOLVED 2026-06-25, via SWITCH).** Dulu semua channel (chat.go `/api/chat`,
 native.go CLI/MCP, flowork-mcp, connector-template, groupsapi `OrchestratorID`) nge-default ke `mr-flow-next` yg
