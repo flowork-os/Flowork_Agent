@@ -30,6 +30,20 @@ agent (selfID) ──X-Agent-ID header──▶ router auth-middleware ──ctx
 Role-map default (compiled, `instinctenrich_ext2.go` `roleDomains`): `mr-flow` → semua domain
 (generalis, no-op aman). Tambah agent lain di map / ENV buat aktifin scoping-nya.
 
+## GUI — "Agent Brain" panel (per-agent, GUI = SUMBER KEBENARAN)
+Tab tool-catalog (subscribe/unsubscribe, vestigial pasca all-tools) di-REPURPOSE jadi panel per-agent:
+- **File:** `~/.flowork/agent_brain_config.json` (data user, gitignored) — `{ "<agentId>": {"instinct_domains":[...],
+  "defer_tools":bool|null, "expose_all":bool|null} }`. Ditulis GUI, DIBACA dua proses.
+- **Backend host** `agent/brain_config_ext.go` (NON-frozen): endpoint **`/api/agents/brain-config`** (GET/POST,
+  AUTH-GATED = GUI cookie) + `RegisterDeferPolicy` per-agent (defer/all-tools dari file; fallback ENV PERSIS
+  `FLOWORK_DEFER_TOOLS`/`FLOWORK_EXPOSE_ALL_TOOLS` → byte-identik pas agent ga ke-set).
+- **Router** `instinctenrich_ext2.go` `scopeFromBrainConfig`: baca file → instinct_domains per-agent.
+- **Prioritas scope:** file brain-config (GUI) **>** ENV `FLOWORK_INSTINCT_SCOPE_MAP` **>** compiled `roleDomains`.
+- **Frontend** `web/tabs/agents_tool_catalog.js` (export `renderToolCatalog` dipertahankan): centang domain insting
+  (baseline universal/tool locked) + tri-state defer/all-tools + Simpan.
+- **Verified live:** set file `mr-flow→[instinct_bisnis]` → `instinct-scope: agent="mr-flow" domains=[bisnis]
+  284→184` (override compiled 4-domain). defer fallback no-regression (env defer/expose=1 → mr-flow tools=22 tetap).
+
 ## FAILS-OPEN (anti-rusak) — di TIAP titik balik ke `semanticInstinctSelector` (perilaku lama):
 switch off · agent-id kosong (external / agent belum di-rebuild kirim header) · agent belum di-map ·
 hasil filter kosong. **Baseline `instinct_universal` + `instinct_tool` SELALU lolos** → ga ada agent

@@ -729,7 +729,7 @@ async function openSettingModal(root, a) {
       <p class="ag-msg-modal" style="color:#64748b;font-size:.72rem;margin-bottom:6px">Coarse override (config.tools) — biarin kosong = pakai capability manifest di atas:</p>
       <div class="ag-tools-grid">${toolsHTML}</div>
       <details style="margin-top:12px">
-        <summary style="cursor:pointer;color:#94a3b8;font-size:13px">${esc(t('menu.tab.agents.tools_catalog_h') || '📚 Browse all registered tools (Section 13)')}</summary>
+        <summary style="cursor:pointer;color:#94a3b8;font-size:13px">${esc(t('menu.tab.agents.brain_panel_h') || '🧠 Agent Brain — scope insting & tools (per-agent)')}</summary>
         <div id="cf-tools-catalog" data-agent-id="${escAttr(a.id)}" style="margin-top:8px"></div>
       </details>
       <details style="margin-top:10px">

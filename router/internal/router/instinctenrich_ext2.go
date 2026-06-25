@@ -20,8 +20,10 @@ package router
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/flowork-os/flowork_Router/internal/brain"
@@ -52,9 +54,45 @@ var roleDomains = map[string]map[string]bool{
 	"mr-flow": {"instinct_coding": true, "instinct_security": true, "instinct_crypto": true, "instinct_bisnis": true},
 }
 
-// lookupDomains — domain peran efektif buat agentID: ENV override (FLOWORK_INSTINCT_SCOPE_MAP)
-// menang atas compiled. Return (set, true) kalau agent ke-scope; (nil, false) = fails-open.
+// scopeFromBrainConfig — baca ~/.flowork/agent_brain_config.json (ditulis GUI, SUMBER KEBENARAN).
+// GUI = kebenaran-utama → prioritas atas ENV/compiled. Fails-safe: file ga ada/rusak → (nil,false).
+func scopeFromBrainConfig(agentID string) (map[string]bool, bool) {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return nil, false
+	}
+	raw, err := os.ReadFile(filepath.Join(home, ".flowork", "agent_brain_config.json"))
+	if err != nil {
+		return nil, false
+	}
+	var all map[string]struct {
+		InstinctDomains []string `json:"instinct_domains"`
+	}
+	if json.Unmarshal(raw, &all) != nil {
+		return nil, false
+	}
+	cfg, ok := all[agentID]
+	if !ok || len(cfg.InstinctDomains) == 0 {
+		return nil, false
+	}
+	set := map[string]bool{}
+	for _, d := range cfg.InstinctDomains {
+		if d = strings.TrimSpace(d); d != "" {
+			set[d] = true
+		}
+	}
+	if len(set) == 0 {
+		return nil, false
+	}
+	return set, true
+}
+
+// lookupDomains — domain peran efektif buat agentID. Prioritas: brain-config GUI (file) >
+// ENV FLOWORK_INSTINCT_SCOPE_MAP > compiled roleDomains. Return (nil,false) = fails-open.
 func lookupDomains(agentID string) (map[string]bool, bool) {
+	if set, ok := scopeFromBrainConfig(agentID); ok {
+		return set, true
+	}
 	if raw := strings.TrimSpace(os.Getenv("FLOWORK_INSTINCT_SCOPE_MAP")); raw != "" {
 		for _, entry := range strings.Split(raw, ";") {
 			kv := strings.SplitN(strings.TrimSpace(entry), ":", 2)
