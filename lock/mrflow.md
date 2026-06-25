@@ -78,7 +78,8 @@ POLOS (`stripMarkdown`) — pesan ga pernah ilang. Switch `FLOWORK_TG_FORMAT`: `
 
 ## 5. ROUTING & OTAK (ringkas — detail di doc lain)
 
-- **Route ke squad**: `task_list`→`task_run(category)` (anti-nyasar, lihat `lock/group.md`).
+- **Route ke squad**: `task_list`→`task_run(category)` (anti-nyasar, lihat `lock/group.md`). Pre-classifier (`deterministicRoute` keyword + `classifyRoute` LLM) jalan SEBELUM `callLLM` di runDaemon + doHandle.
+- **SELF-HANDLE GATE** (akar fix "disuruh sendiri malah nyalain crew"): kalau owner eksplisit nolak delegasi ("jangan pake agent/crew", "lakuin/kerjain sendiri") → `wantsSelfHandle()` true → **4 kondisi route di-SKIP** (`&& !wantsSelfHandle`) → jatuh ke `callLLM`, mr-flow kerjain SENDIRI (browser/web/file). Frasa di `self_handle_ext.go` (NON-frozen) + ENV `FLOWORK_SELF_HANDLE_PHRASES` (nambah tanpa buka freeze).
 - **Anti-halu + akses internet**: web_search/webfetch + **browser asli** (akses penuh) + cek tahun, ga ngarang. Lihat persona block "ANTI-HALU".
 - **Kontradiksi data**: `cognitive_tensions`/`cognitive_resolve` + tanya owner 3x/hari. Lihat `lock/CognitiveGraph.md`.
 - **Persona** (kv `prompt`): identitas + ROUTER TEAM + ANTI-HALU + browser + kontradiksi. Edit AMAN: GET config UTUH → ubah `prompt` → POST (Save full-replace, secret ke-reconcile).
@@ -87,10 +88,11 @@ POLOS (`stripMarkdown`) — pesan ga pernah ilang. Switch `FLOWORK_TG_FORMAT`: `
 
 ## 6. BUILD & DEPLOY (PENTING)
 
-WASM = **standard Go wasip1** (BUKAN tinygo):
+WASM = **tinygo** (wasi, `-scheduler=none -opt=z`) via `scripts/build-agent.sh` — toolchain deployed+proven (~499KB):
 ```
-cd agents/mr-flow && GOWORK=off GOOS=wasip1 GOARCH=wasm go build -o agent.wasm .
+cd agent && GOWORK=off GOTOOLCHAIN=go1.23.4 bash scripts/build-agent.sh mr-flow
 ```
+*(standard-go `GOOS=wasip1 GOARCH=wasm go build` JUGA compile (~4.8MB), tapi yang di-deploy = tinygo.)*
 Deploy: copy `agent.wasm` → `~/.flowork/agents/mr-flow.fwagent/agent.wasm` (runtime yg kernel baca;
 start.sh NEVER overwrite yg udah ada) → restart host (kill :1987, docktor rebuild) → kernel load wasm baru.
 Edit main.go (frozen) butuh: chattr -i → edit → rebuild wasm → deploy → **re-hash KERNEL_FREEZE** → chattr +i.
