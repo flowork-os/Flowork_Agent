@@ -20,6 +20,17 @@
 //   (core-only) ga kena; cap+1 = codemap masuk TANPA drop subscription. Host
 //   rebuilt. Re-locked.
 //
+// MODIFIED 2026-06-25 (owner-approved, #2C tool-as-instinct): `const maxExposedTools`
+//   → `func maxExposedToolsLimit()` ENV-tunable `FLOWORK_MAX_EXPOSED_TOOLS` (4..200).
+//   SWITCH (Rule 7): dial token↔kapabilitas TANPA rebuild; revert instan (set balik 56).
+//   DEFAULT TETAP 56 (ADDITIVE — auto-update ga maksa-ubah agent user lain; owner opt-in
+//   per-mesin via flowork.local.env). AKAR: tool 56-schema = ~55% prompt (~8.76k tok).
+//   Pasangan: injeksi insting-tool proaktif (`router/internal/router/instinctenrich.go`)
+//   + room `instinct_tool` (capability-instinct WHEN→THEN tiap tool) → tool yg DI-DROP
+//   dari expose TETAP ke-RECALL + ke-discover via `tool_search` (1-hop). Owner lokal set
+//   16 (core-only): 56→16 tool, ukur ~10.7k→~2.0k byte schema (~8.7k tok hemat). NON-chattr
+//   (file tuning, header-lock honor-system). Arsitektur: `lock/FLoworkInstincts.md` §0.5.
+//
 // tool_specs.go — Fase 0 (tool-calling loop): endpoint yang balikin tools yang
 // di-EXPOSE ke LLM dalam format OpenAI function-schema. Host yang bangun schema
 // (punya registry + subscription); WASM agent tinggal fetch + forward ke LLM.
@@ -33,6 +44,8 @@ package agentmgr
 
 import (
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 
 	"flowork-gui/internal/httpx"
@@ -74,7 +87,22 @@ var coreExposedTools = []string{
 // primaryExtra (browser/web_search/task_*/cognitive_*/system_power) + sidecar + app_flowalpha AI-level
 // (ai_analyze/ai_team) + alert_add/check/list. Guaranteed-set (core+primaryExtra+sidecar) ga kesentuh —
 // cap cuma ngegerus EKOR subscription. Naikin lagi kalau mr-flow sering kerja trading.
-const maxExposedTools = 56 // sebelumnya 66 (50→51 codemap; 52 system_power; 53 web_search; 55 task_list/run; 64 browser_*; 66 cognitive_tensions/resolve)
+const maxExposedToolsDefault = 56 // sebelumnya 66 (50→51 codemap; 52 system_power; 53 web_search; 55 task_list/run; 64 browser_*; 66 cognitive_tensions/resolve)
+
+// maxExposedToolsLimit — SWITCH (Rule 7): cap jumlah schema tool di-expose, dial
+// lewat ENV FLOWORK_MAX_EXPOSED_TOOLS (4..200) TANPA rebuild. Default TETAP 56
+// (additive — auto-update ga maksa-ubah agent user lain; owner opt-in per-mesin via
+// flowork.local.env). #2C tool-as-instinct: turunin (mis. 16 = core-only) → tool
+// sisanya TETAP ke-RECALL via insting-tool (room=instinct_tool, injeksi proaktif
+// instinctenrich.go) + tool_search 1-hop. Naikin balik = revert instan tanpa rebuild.
+func maxExposedToolsLimit() int {
+	if v := strings.TrimSpace(os.Getenv("FLOWORK_MAX_EXPOSED_TOOLS")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 4 && n <= 200 {
+			return n
+		}
+	}
+	return maxExposedToolsDefault
+}
 
 // primaryExtraTools — surface-vocabulary tools exposed ONLY to the primary
 // orchestrator (mr-flow), not to ants. These cover shell/task-lifecycle/schedule/
@@ -134,10 +162,11 @@ func ToolSpecsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	isPrimary := IsPrimaryAgent(id)
+	limit := maxExposedToolsLimit() // SWITCH ENV (Rule 7) — baca sekali per-request.
 	exposed := map[string]bool{}
 	ordered := []string{}
 	add := func(n string) {
-		if exposed[n] || len(ordered) >= maxExposedTools {
+		if exposed[n] || len(ordered) >= limit {
 			return
 		}
 		// Tier gate: tool primary-only (brain 5jt shared) ga di-expose ke

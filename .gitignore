@@ -17,6 +17,7 @@
 /agent/bin/flowork-tui
 /router/flow_router
 /router/flow-router-bin
+/router/flow-router-bin.bak*
 *.test
 *.exe
 
@@ -28,6 +29,8 @@
 *.sqlite-shm
 *.sqlite-wal
 /router/brain/
+/router/models/
+*.gguf
 /agent/agents/*/workspace/
 *.fwpack
 

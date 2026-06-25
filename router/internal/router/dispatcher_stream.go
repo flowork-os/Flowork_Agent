@@ -58,6 +58,9 @@ func DispatchChatCompletionStream(ctx context.Context, req OpenAIRequest, w http
 	maybeEnrichBrain(ctx, &req, settings)
 	// Antibody injection (mistakeenrich.go): karma-ranked mistakes → anti-halu. Fails open.
 	maybeInjectAntibodies(ctx, &req, settings)
+	// Instinct injection (instinctenrich.go): insting WHEN→THEN relevan di-PAKSA masuk
+	// → agent SADAR kapan pakai tool/fitur. Fails open. (stream path: mirror non-stream.)
+	maybeInjectInstinct(ctx, &req, settings)
 
 	// Model manager: resolve alias / custom (→ effective model + provider pin).
 	resolvedModel, pinnedProvider := resolveModel(d, req.Model)

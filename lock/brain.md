@@ -163,6 +163,14 @@ Ada **3 jalur** node bisa lahir di `cognitive_nodes`:
 - Model = GUI per-agent (`cfg.Router.Model`), bukan hardcode (mandat AI-in-agent).
 - ⚠️ **K11 KNOWN-MISS (recall ~93.3%):** query RELASI **terbalik** (mis. "siapa <peran-X> gw?" — nyari subjek dari relasi) kadang miss → `graph_recall` ga nge-SEED node yg bener buat frasa itu (embedding query ga match label node person yg sering generik spt "User"). Fakta ADA + model PAKAI pas query **sebut nama entitas-nya langsung**. **K11/K12: JANGAN graph-hack ranking** — jalur bener = verbatim coverage (brain_search). Stronger model (Opus) dapet 2 arah.
 
+### 7.1 ROUTER-SIDE PROACTIVE INJECTION (gateway `:2402` — server-side, SEMUA agent incl eksternal)
+
+Selain auto-recall agent-side (§7), **router MAKSA-inject di gateway** tiap request (`dispatcher.go`/`dispatcher_stream.go`), mode **"augment"** (nempel, ga dominasi persona), **fails-open** (brain mati → request tetep jalan). Prinsip owner: *"jangan ngarep model manggil sendiri — PAKSA injeksi"* (model lemah pun patuh, deterministik). 3 lapis:
+- **Doktrin** — `maybeInjectConstitution` (`brain_constitution.go`, FROZEN): 12 sacred rule, always-on.
+- **Antibodi** — `maybeInjectAntibodies` (`mistakeenrich.go`, FROZEN): mistake `karma × relevansi × decay`, MAX 3.
+- **⭐ Insting (2026-06-25, FROZEN)** — `maybeInjectInstinct` (`internal/router/instinctenrich.go`, **sibling antibodi**): drawer `room=instinct_*` di shared-brain → rank **token-overlap × importance** (DETERMINISTIK, **NO vindex** → jalan walau index belum di-rebuild) → inject MAX 3. **AKAR:** insting dulu **PULL-ONLY** (`instinct_recall`, agent harus manggil sendiri = telur-ayam) → agent **"ga sadar kapan manggil tool/fitur"** (owner: *"mobil mewah tapi ga tau naiknya"*). Sekarang di-PAKSA spt doktrin/antibodi. Sumber: `internal/brain/instincts.go` (FROZEN, `ListInstinctDrawers`). **SWITCH (extend TANPA unfreeze):** `RegisterInstinctSelector` (ganti seleksi → semantic pas vindex idup / scoping #6) + `instinctenrich_ext.go` (NON-frozen growth) + ENV `FLOWORK_INSTINCT_INJECT[_MAX]` + tumbuh-via-drawer (room `instinct_*`, NOL kode). Hook 1-baris di dispatcher = soft-lock (NON-chattr). **Detail penuh: `lock/FLoworkInstincts.md` §0.5.**
+- **Fondasi #6 brain-as-service:** karena 3 lapis ini SERVER-SIDE, agent LUAR (OpenClaw/Cursor/Claude Code) yg nembak `:2402` **ikut ber-jiwa-AOLA** tanpa client ngerti Flowork. (#6: insting `room=instinct_tool` nanti di-SKIP buat agent luar via selector-hook — mereka punya tool sendiri.)
+
 ---
 
 ## 8. GUI — Cognitive Graph tab

@@ -211,6 +211,9 @@ func DispatchChatCompletion(ctx context.Context, req OpenAIRequest) (*OpenAIResp
 	// Antibody injection (mistakeenrich.go): mistakes karma-ranked sbg "antibodi"
 	// anti-halu SEBELUM LLM. TETEP buat SEMUA tier (kecil + nahan halu kategori).
 	maybeInjectAntibodies(ctx, &req, settings)
+	// Instinct injection (instinctenrich.go): insting WHEN→THEN relevan di-PAKSA
+	// masuk (sejajar antibodi) → agent SADAR kapan pakai tool/fitur. Fails open.
+	maybeInjectInstinct(ctx, &req, settings)
 
 	// Model manager: resolve alias / custom (→ effective model + provider pin).
 	resolvedModel, pinnedProvider := resolveModel(d, req.Model)

@@ -775,7 +775,8 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn, notifyChatID 
 	// Cuma log stderr (→ /tmp/flowork-gui.log), ZERO perubahan perilaku.
 	fmt.Fprintf(os.Stderr, "[%s] D18-ctx: sys=%dch recall=%dch history=%dturn tools=%d\n",
 		selfID(), len(sys), recallLen, len(history), len(toolSpecs))
-	ghostNudges := 0 // ghost-guard: berapa kali udah maksa model lanjut (anti narasi-tanpa-aksi)
+	ghostNudges := 0       // ghost-guard: berapa kali udah maksa model lanjut (anti narasi-tanpa-aksi)
+	flail := &flailState{} // flail-guard: anti-mantok (tool sama berulang tanpa progress) — lihat flail_guard.go
 	loopStartMs := hostTimeNowMs()
 	budgetNudged := false            // sekali aja kasih peringatan budget (biar model wrap-up/ScheduleWakeup)
 	recovered := map[string]string{} // D32 INC-2: tool→kelas-error yg BELUM ke-recover (scope loop turn ini)
@@ -930,6 +931,16 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn, notifyChatID 
 		msgs = append(msgs, map[string]any{
 			"role": "tool", "tool_call_id": id, "content": result,
 		})
+		// FLAIL-GUARD (flail_guard.go): mantok = tool SAMA berulang tanpa progress
+		// (lolos ghost-guard + captureRecovery). Koreksi keras bounded → kalau tetep
+		// mantok lewat batas, eskalasi JUJUR ke owner (bukan hard-stop, bukan ngarang).
+		if corrective, nudge, escalate := flail.check(tc.Function.Name, tc.Function.Arguments); nudge {
+			msgs = append(msgs, map[string]any{"role": "user", "content": corrective})
+			fmt.Fprintf(os.Stderr, "[%s] flail-guard: nudge %d (tool=%s)\n", selfID(), flail.nudges, tc.Function.Name)
+		} else if escalate {
+			fmt.Fprintf(os.Stderr, "[%s] flail-guard: ESCALATE (tool=%s, mantok lewat batas koreksi)\n", selfID(), tc.Function.Name)
+			return flailEscalation(tc.Function.Name)
+		}
 	}
 	return "(tool loop limit reached — coba lagi atau perjelas permintaan)"
 }

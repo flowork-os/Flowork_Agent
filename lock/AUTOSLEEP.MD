@@ -131,7 +131,8 @@ Yang **TIDAK di-freeze** (sengaja, biar arsitektur tetap bisa tumbuh — Rule 7)
 **Bukti freeze (CARAFREEZE.MD):** `chattr +i` → `lsattr` = `----i---------e-------`; `echo x >> file`
 → **"Operation not permitted"**; `cd agent && GOWORK=off go test -run TestKernelFreeze` → **PASS**.
 **Unfreeze sadar** (kalau owner mau ubah): `sudo chattr -i <file>` → edit → re-`sha256sum` → update
-`KERNEL_FREEZE.md` → `sudo chattr +i` → `TestKernelFreeze` PASS. Freeze = proteksi anti-edit-**tak-sengaja** (chattr immutable OS-level). Detail prosedur unfreeze: lihat CARAFREEZE (privat owner).
+`KERNEL_FREEZE.md` → `sudo chattr +i` → `TestKernelFreeze` PASS. ⚠️ Dev-user punya passwordless-sudo →
+freeze = proteksi anti-edit-**tak-sengaja** (sesuai tujuan), bukan anti-AI-jahat (hardening N3: user non-sudo).
 
 ---
 
