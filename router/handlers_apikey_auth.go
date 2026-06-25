@@ -39,6 +39,11 @@ func apiKeyMiddleware(next http.Handler) http.Handler {
 			ip = host
 		}
 		r = r.WithContext(router.WithClientIP(r.Context(), ip))
+		// #3 scoped-instinct (RI-5): stash caller agent id (X-Agent-ID header) ke ctx SEBELUM
+		// cabang auth → kena SEMUA jalur (keyed + keyless local). Kosong = anonim/external (fails-open).
+		if aid := strings.TrimSpace(r.Header.Get("X-Agent-ID")); aid != "" {
+			r = r.WithContext(router.WithAgentID(r.Context(), aid))
+		}
 		d, err := store.Open()
 		if err != nil {
 			next.ServeHTTP(w, r) // fail-open on store error (never lock out local use)

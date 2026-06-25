@@ -73,6 +73,17 @@ func instinctInjectMax() int {
 // NON-frozen) → GANTI logika seleksi default. nil = pakai rankInstincts (token-overlap).
 var instinctSelectHook func(all []brain.InstinctDrawer, query string, max int) []brain.InstinctDrawer
 
+// instinctSelectHookCtx — varian CTX-AWARE (#3 RI-5): selector dapet ctx → bisa baca
+// caller agent id (AgentIDFromContext) buat scope insting by-peran. Kalau di-set, MENANG
+// atas hook lama. Di-register dari sibling NON-frozen instinctenrich_ext2.go.
+var instinctSelectHookCtx func(ctx context.Context, all []brain.InstinctDrawer, query string, max int) []brain.InstinctDrawer
+
+// RegisterInstinctSelectorCtx — daftarin selector CTX-AWARE (terima ctx) TANPA buka freeze.
+// Dipakai #3 scoped-instinct (sibling _ext2). Kalau di-set, dipakai duluan (lihat call-site).
+func RegisterInstinctSelectorCtx(fn func(ctx context.Context, all []brain.InstinctDrawer, query string, max int) []brain.InstinctDrawer) {
+	instinctSelectHookCtx = fn
+}
+
 // RegisterInstinctSelector — daftarin pemilih insting custom TANPA buka freeze.
 // fn terima SEMUA kandidat + query + cap → balikin insting final. Seam buat evolusi:
 //   - rank SEMANTIC pas brain.vindex idup (RI-1) ganti token-overlap,
@@ -113,9 +124,12 @@ func maybeInjectInstinct(ctx context.Context, req *OpenAIRequest, settings *stor
 	}
 	// SWITCH: ext bisa ganti seleksi (semantic/scoping) TANPA buka freeze; default token-overlap.
 	var ins []brain.InstinctDrawer
-	if instinctSelectHook != nil {
+	switch {
+	case instinctSelectHookCtx != nil:
+		ins = instinctSelectHookCtx(ctx, all, query, max) // #3 ctx-aware (scoped) menang
+	case instinctSelectHook != nil:
 		ins = instinctSelectHook(all, query, max)
-	} else {
+	default:
 		ins = rankInstincts(all, query, max)
 	}
 	if len(ins) == 0 {

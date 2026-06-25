@@ -1826,6 +1826,14 @@ type httpResp struct {
 }
 
 func fetch(method, url string, headers map[string]string, body []byte, timeoutMS int) (*httpResp, error) {
+	// #3 scoped-instinct (RI-5): self-identify ke router HANYA pada call LLM (chat/completions)
+	// → router bisa scope insting by-peran. No-op kalau selfID kosong. Header ekstra = harmless.
+	if id := selfID(); id != "" && strings.Contains(url, "/v1/chat/completions") {
+		if headers == nil {
+			headers = map[string]string{}
+		}
+		headers["X-Agent-ID"] = id
+	}
 	req := map[string]any{
 		"method":         method,
 		"url":            url,
