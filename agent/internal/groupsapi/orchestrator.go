@@ -29,7 +29,11 @@ import (
 // OrchestratorID is the agent that owns the Telegram slash menu + the ask_group
 // tool (the agent telegram-channel routes to). It reads its kv "groups" to know
 // which groups exist; the host keeps that list in sync automatically.
-const OrchestratorID = "mr-flow-next"
+//
+// SWITCH (Rule 7): value = effectiveOrchestratorID() (groupsapi_ext.go, NON-frozen) =
+// ENV FLOWORK_ORCHESTRATOR, default "mr-flow" (LIVE; mr-flow-next belum ke-deploy — owner
+// 2026-06-25 revert ke akar). Migrasi orchestrator nanti = set ENV, file beku ini GA dibuka lagi.
+var OrchestratorID = effectiveOrchestratorID()
 
 // sanitizeDesc strips the delimiters the kv "groups" format uses (";" and "|") and
 // newlines so a group's free-text task/display can't corrupt the list.

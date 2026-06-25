@@ -132,12 +132,12 @@ func toolDefs() []map[string]any {
 	return []map[string]any{
 		{
 			"name":        "chat",
-			"description": "Chat with a Flowork agent (default mr-flow-next) — the SAME brain Telegram and the CLI talk to. Send a message, get the agent's natural-language reply (it can use its tools, memory, etc).",
+			"description": "Chat with a Flowork agent (default mr-flow) — the SAME brain Telegram and the CLI talk to. Send a message, get the agent's natural-language reply (it can use its tools, memory, etc).",
 			"inputSchema": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"message": map[string]any{"type": "string", "description": "what to say to the agent"},
-					"agent":   map[string]any{"type": "string", "description": "agent id to talk to (optional, default mr-flow-next)"},
+					"agent":   map[string]any{"type": "string", "description": "agent id to talk to (optional, default mr-flow)"},
 				},
 				"required": []string{"message"},
 			},
@@ -264,7 +264,16 @@ func mcpAgent() string {
 			}
 		}
 	}
-	return "mr-flow-next"
+	return defaultMCPAgent() // default mr-flow (ENV FLOWORK_ORCHESTRATOR override); mr-flow-next belum ke-deploy — lock/mrflow.md §6b
+}
+
+// defaultMCPAgent — fallback agent target. SATU switch dgn host: ENV FLOWORK_ORCHESTRATOR,
+// default mr-flow (orchestrator LIVE).
+func defaultMCPAgent() string {
+	if v := strings.TrimSpace(os.Getenv("FLOWORK_ORCHESTRATOR")); v != "" {
+		return v
+	}
+	return "mr-flow"
 }
 
 // httpText — call endpoint Flowork lokal, balikin body sebagai text.

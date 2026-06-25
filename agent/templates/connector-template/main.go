@@ -175,7 +175,7 @@ func config() connConfig {
 		Allowed: parseAllowed(os.Getenv("CONNECTOR_ALLOWED")),     // optional allow-list
 	}
 	if c.Target == "" {
-		c.Target = "mr-flow-next"
+		c.Target = "mr-flow" // default orchestrator LIVE; override via ENV TARGET_AGENT (mr-flow-next belum ke-deploy — lock/mrflow.md §6b)
 	}
 	return c
 }

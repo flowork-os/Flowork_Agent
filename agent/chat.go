@@ -1,6 +1,7 @@
-// === LOCKED FILE (soft) === Status: STABLE (owner-approved 2026-06-15). R3 verified:
-// default target = mr-flow-next (orchestrator tunggal); E2E /api/chat → reply orchestrator
-// koheren. LOCKED≠FREEZE (boleh diedit dgn izin owner). Lihat docs/TAXONOMY.md.
+// === LOCKED FILE (soft) === Status: STABLE. Default target = defaultOrchestratorID()
+// (orchestrator_default.go): ENV FLOWORK_ORCHESTRATOR, default **mr-flow** (LIVE; mr-flow-next
+// belum ke-deploy — owner 2026-06-25 revert ke akar, lihat lock/mrflow.md §6b). E2E /api/chat →
+// reply orchestrator koheren. LOCKED≠FREEZE (boleh diedit dgn izin owner). Lihat docs/TAXONOMY.md.
 //
 // chat.go — CHANNEL HTTP/CLI (roadmap Channels, langkah AMAN). mr-flow-next = core
 // channel-agnostic: rpc handle_message (route/classify/chat, parity Telegram).
@@ -54,7 +55,7 @@ func chatHandler(host *kernelhost.Host) http.HandlerFunc {
 		}
 		agentID := strings.TrimSpace(body.Agent)
 		if agentID == "" {
-			agentID = "mr-flow-next" // R3: satu orchestrator (mr-flow legacy dipensiunin)
+			agentID = defaultOrchestratorID() // SATU sumber kebenaran + ENV switch (orchestrator_default.go); default mr-flow
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 300*time.Second)
 		defer cancel()

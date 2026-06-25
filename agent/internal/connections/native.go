@@ -14,9 +14,20 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"flowork-gui/internal/loket"
 )
+
+// defaultNativeAgent — default "Target agent" connector native (CLI/MCP). SATU switch
+// dgn host: ENV FLOWORK_ORCHESTRATOR, default mr-flow (orchestrator LIVE; mr-flow-next
+// belum ke-deploy). Lihat lock/mrflow.md §6b.
+func defaultNativeAgent() string {
+	if v := strings.TrimSpace(os.Getenv("FLOWORK_ORCHESTRATOR")); v != "" {
+		return v
+	}
+	return "mr-flow"
+}
 
 // nativeDefs is the built-in connector list. Always present, always enabled (a
 // binary can't be "off"); they cannot be uninstalled — only configured.
@@ -27,12 +38,12 @@ var nativeDefs = []Connector{
 
 // The schema keys are the EXACT keys the cli/mcp binaries read from config.json.
 var nativeCLISchema = []loket.ConfigField{
-	{Key: "agent", Label: "Target agent", Type: "text", Default: "mr-flow-next", Help: "which agent the CLI talks to"},
+	{Key: "agent", Label: "Target agent", Type: "text", Default: defaultNativeAgent(), Help: "which agent the CLI talks to"},
 	{Key: "base", Label: "Flowork URL", Type: "text", Default: "http://127.0.0.1:1987"},
 }
 
 var nativeMCPSchema = []loket.ConfigField{
-	{Key: "agent", Label: "Target agent", Type: "text", Default: "mr-flow-next", Help: "which agent MCP clients chat with"},
+	{Key: "agent", Label: "Target agent", Type: "text", Default: defaultNativeAgent(), Help: "which agent MCP clients chat with"},
 }
 
 func isNative(id string) bool {

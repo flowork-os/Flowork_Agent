@@ -31,6 +31,18 @@ func slashPushEnabled() bool {
 	return false
 }
 
+// effectiveOrchestratorID — id agent orchestrator (yang punya kv "groups" + ask_group).
+// SWITCH abadi (Rule 7): ENV FLOWORK_ORCHESTRATOR, default "mr-flow" (orchestrator LIVE;
+// mr-flow-next belum ke-deploy — owner 2026-06-25 revert ke akar). orchestrator.go (frozen)
+// init `var OrchestratorID = effectiveOrchestratorID()` → migrasi orchestrator nanti cukup
+// set ENV, file frozen GA dibuka lagi. SATU switch dgn host (FLOWORK_ORCHESTRATOR). Lihat lock/mrflow.md §6b.
+func effectiveOrchestratorID() string {
+	if v := strings.TrimSpace(os.Getenv("FLOWORK_ORCHESTRATOR")); v != "" {
+		return v
+	}
+	return "mr-flow"
+}
+
 // GroupSyncHook — hook OPSIONAL yang dijalanin tiap SyncToOrchestrator, dapet daftar
 // group LIVE ("id|command|desc"). Target sync masa depan (menu Discord/WhatsApp,
 // registry eksternal, metrik, dll) daftar lewat sini → orchestrator.go (frozen) GA

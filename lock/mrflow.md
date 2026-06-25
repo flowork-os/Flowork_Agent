@@ -3,7 +3,7 @@
 > Dokumen referensi (white-label). mr-flow = agent owner, orchestrator utama, yang ngobrol sama
 > owner di Telegram. Dok ini: arsitektur, I/O Telegram (format + baca dokumen/foto/voice), routing,
 > switch, build, cabang, freeze. Owner: Aola Sahidin (Mr.Dev).
-> Repo: https://github.com/flowork-os/Flowork-OS. Update: 2026-06-23.
+> Repo: https://github.com/flowork-os/Flowork-OS. Update: 2026-06-25.
 > ⚠️ KE-TRACK repo → NOL data personal owner.
 
 ---
@@ -93,9 +93,41 @@ WASM = **tinygo** (wasi, `-scheduler=none -opt=z`) via `scripts/build-agent.sh` 
 cd agent && GOWORK=off GOTOOLCHAIN=go1.23.4 bash scripts/build-agent.sh mr-flow
 ```
 *(standard-go `GOOS=wasip1 GOARCH=wasm go build` JUGA compile (~4.8MB), tapi yang di-deploy = tinygo.)*
-Deploy: copy `agent.wasm` → `~/.flowork/agents/mr-flow.fwagent/agent.wasm` (runtime yg kernel baca;
+Deploy: copy `agent.wasm` → `~/.flowork/agents/mr-flow.fwagent/agent.wasm` (= **wasm** yg kernel EKSEKUSI;
 start.sh NEVER overwrite yg udah ada) → restart host (kill :1987, docktor rebuild) → kernel load wasm baru.
 Edit main.go (frozen) butuh: chattr -i → edit → rebuild wasm → deploy → **re-hash KERNEL_FREEZE** → chattr +i.
+⚠️ **state.db ≠ ada di samping wasm itu** — buat agent builtin (mr-flow dkk) DB di-redirect ke SOURCE TREE. Lihat §6b.
+
+---
+
+## 6b. RUNTIME DB & ORCHESTRATOR — GROUND TRUTH (anti-misdiagnosis)
+
+**Di mana state.db HIDUP.** Kernel scan agent dari `~/.flowork/agents` (gui log: `kernel: agents dir`), TAPI
+workspace tiap agent di-resolve `agentdb.SourceWorkspace(id, stagedPath)` (`agentdb.go`):
+- `<ProjectRoot>/agents/<id>/` ADA (= agent **builtin**: mr-flow, fb-*, browse-*) → state.db = **`<ProjectRoot>/agents/<id>/workspace/state.db`** (SOURCE TREE).
+- ngga ada (agent **terinstall murni**: scan-distiller, dll) → `<staged>/workspace/state.db` (`~/.flowork/...`).
+`ProjectRoot()` = env `FLOWORK_PROJECT_ROOT` > cwd (non-hardcode, multi-OS). Workspace gitignored.
+→ jadi: **wasm** dieksekusi dari `~/.flowork/.../agent.wasm`, **state.db** mr-flow ditulis di source tree. Beda lokasi.
+
+**Akar "interaction-logging stale" (roadmap d) = MISDIAGNOSIS.** Logging SEHAT — diverifikasi Rule-9 (pesan
+masuk real-time). DB AKTIF mr-flow = `agent/agents/mr-flow/workspace/state.db` (telegram+rpc current).
+`~/.flowork/agents/mr-flow.fwagent/workspace/state.db` **TIDAK PERNAH dipakai** sejak redirect → beku 2026-06-09
+= **STALE, jangan dipercaya buat debug**. Cek DB aktif: `grep "kernel: loaded <id>" /tmp/flowork-gui.log` → `ws=`.
+
+**Data nyangkut:** ~266 interaksi lama (Mar–9 Jun) terdampar di staged DB; DB aktif mulai 2026-06-24 → kontinuitas
+episodic putus di cutover. Kandidat migrasi/merge (roadmap #2B). **JANGAN delete staged DB tanpa izin owner** (history Telegram asli).
+
+**ORCHESTRATOR — default = mr-flow (RESOLVED 2026-06-25, via SWITCH).** Dulu semua channel (chat.go `/api/chat`,
+native.go CLI/MCP, flowork-mcp, connector-template, groupsapi `OrchestratorID`) nge-default ke `mr-flow-next` yg
+BELUM ke-deploy (`~/.flowork/agents/mr-flow-next.fwagent` ngga ada manifest/wasm → kernel reject) → `/api/chat`
+default mati. Owner revert ke akar: **SATU sumber kebenaran + ENV switch `FLOWORK_ORCHESTRATOR` (default `mr-flow`
+= LIVE)**. File: `orchestrator_default.go` → `defaultOrchestratorID()` (host, NON-frozen) + `groupsapi_ext.go` →
+`effectiveOrchestratorID()` (orchestrator.go frozen init `var OrchestratorID = effectiveOrchestratorID()`).
+Verified Rule-9: default-route → mr-flow koheren + ter-log. **Migrasi orchestrator nanti (deploy mr-flow-next):
+cukup set ENV `FLOWORK_ORCHESTRATOR`, NOL buka freeze (Rule 7).**
+
+**Telegram poll 409.** gui log: `getUpdates 409 conflict — instance lain ngambil-alih poll`. Cuma 1 flowork-gui
+lokal → poller LAIN (mesin/sesi lain, bot token sama) rebut long-poll → inbound Telegram bisa ke-grab di tempat lain. Cek: matiin instance/token ganda.
 
 ---
 
