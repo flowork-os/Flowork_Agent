@@ -129,6 +129,13 @@ func main() {
 		} else if nd > 0 || nc > 0 {
 			log.Printf("brain: Flowork doctrine seeded — %d drawers + %d constitution", nd, nc)
 		}
+		// Insting basic (282 refleks) — ship ke tiap install (seed_instinct.go, instinct_* only,
+		// NOL personal). No-op kalau brain udah punya insting (idempotent).
+		if ni, err := brain.SeedInstincts(); err != nil {
+			log.Printf("WARN: seed instinct: %v", err)
+		} else if ni > 0 {
+			log.Printf("brain: Flowork instincts seeded — %d", ni)
+		}
 	}
 	if err := store.PurgeExpiredSessions(d); err != nil {
 		log.Printf("WARN: purge sessions: %v", err)
