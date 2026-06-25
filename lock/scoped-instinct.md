@@ -60,6 +60,23 @@ Selain panel per-agent di atas, **Brain tab** (`router/web/static/index.html`, d
   `/amend/vote`) — edit aturan sakral butuh approve owner, ga langsung apply.
 - **Verified live (Rule-9):** ADD/EDIT/DELETE insting 200; edit domain `universal→crypto` readback OK.
 
+## EXTERNAL SCOPE (#11 brain-as-service) — anti-halu caller LUAR
+Agent LUAR (ber-jiwa-Aola via `:2402/v1`, ga punya tool internal Flowork) kalau dikasih insting
+`instinct_tool` ("WHEN butuh X → panggil tool Y") bakal **HALU** nyoba manggil tool yg ga ada.
+- **`externalScopedSelector`** (`instinctenrich_ext2.go`, NON-frozen): caller external (X-Agent-ID
+  KOSONG) → buang `instinct_tool`, sisanya (universal + reasoning per-domain: coding/security/
+  crypto/bisnis/kehidupan) TETAP lolos (pengetahuan murni, aman). Fails-open kalau ngosongin semua.
+- **Switch `FLOWORK_BRAIN_EXTERNAL_SCOPE`** (default **OFF**): id-kosong AMBIGU (agent template-lama
+  belum-rebuild juga kosong tapi BUTUH instinct_tool) → owner nyalain pas expose brain ke klien luar
+  (saat itu semua agent internal udah kirim X-Agent-ID). **Independen** dari master per-agent switch
+  `FLOWORK_INSTINCT_SCOPED` → bisa amanin brain-luar tanpa scoping internal.
+- Universal DOKTRIN buat external lewat `maybeInjectConstitution` (terpisah, `InjectConstitution`
+  setting). Mode `augment` (jangan clobber persona external) + `AlwaysOn` udah ADA di `BrainConfig`.
+- **Verified:** unit `TestExternalScope_{DropsToolInstinct,InternalUnaffected,OffKeepsToolForLegacy}`
+  (3 PASS). Live `/v1` external (no X-Agent-ID) → HTTP 200 jawaban ber-jiwa-Aola.
+- **Residual:** constitution-scoping buat external (cuma UNIVERSAL doktrin, skip doktrin-internal-Flowork)
+  → butuh tag universal di tabel constitution + nyentuh `brain_constitution.go` (FROZEN). Belum.
+
 ## FAILS-OPEN (anti-rusak) — di TIAP titik balik ke `semanticInstinctSelector` (perilaku lama):
 switch off · agent-id kosong (external / agent belum di-rebuild kirim header) · agent belum di-map ·
 hasil filter kosong. **Baseline `instinct_universal` + `instinct_tool` SELALU lolos** → ga ada agent

@@ -112,15 +112,52 @@ func lookupDomains(agentID string) (map[string]bool, bool) {
 	return d, ok
 }
 
+// brainExternalScopeEnabled — switch #11 brain-as-service: caller EXTERNAL (X-Agent-ID kosong)
+// JANGAN dikasih insting-tool Flowork. Default OFF karena agent-id-kosong AMBIGU (agent
+// template-lama yg belum rebuild juga kosong tapi BUTUH instinct_tool) → owner nyalain pas
+// expose brain ke klien luar (saat itu semua agent internal udah kirim X-Agent-ID).
+func brainExternalScopeEnabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("FLOWORK_BRAIN_EXTERNAL_SCOPE"))) {
+	case "1", "on", "true", "yes":
+		return true
+	}
+	return false
+}
+
+// externalScopedSelector — #11: buat caller LUAR (ber-jiwa-Aola via :2402/v1). Buang insting
+// `instinct_tool` ("WHEN butuh X → panggil tool Y") yg merujuk tool INTERNAL Flowork → model
+// luar (ga punya tool itu) bakal HALU nyoba manggil. Sisanya (universal + reasoning per-domain:
+// coding/security/crypto/bisnis/kehidupan/…) = pengetahuan murni, AMAN buat luar. Fails-open
+// kalau filter ngosongin semua (jaga2). Universal doktrin lewat maybeInjectConstitution (terpisah).
+func externalScopedSelector(all []brain.InstinctDrawer, query string, max int) []brain.InstinctDrawer {
+	filtered := make([]brain.InstinctDrawer, 0, len(all))
+	for _, d := range all {
+		if strings.TrimSpace(d.Room) == "instinct_tool" {
+			continue // skip insting-tool Flowork → anti-halu external
+		}
+		filtered = append(filtered, d)
+	}
+	if len(filtered) == 0 {
+		return semanticInstinctSelector(all, query, max) // jaga2 jangan starve
+	}
+	log.Printf("flow_router instinct-scope: caller=EXTERNAL skip=instinct_tool %d→%d kandidat", len(all), len(filtered))
+	return semanticInstinctSelector(filtered, query, max)
+}
+
 // scopedInstinctSelector — selektor ctx-aware #3. Filter insting by domain-peran, lalu rank
 // pakai semanticInstinctSelector (reuse RI-1 vindex). Fails-open di tiap titik.
 func scopedInstinctSelector(ctx context.Context, all []brain.InstinctDrawer, query string, max int) []brain.InstinctDrawer {
+	agentID := AgentIDFromContext(ctx)
+	// #11 brain-as-service: caller external (id kosong) + switch on → anti-halu (drop instinct_tool).
+	// Independen dari master per-agent switch: owner bisa amanin brain-luar tanpa scoping internal.
+	if agentID == "" && brainExternalScopeEnabled() {
+		return externalScopedSelector(all, query, max)
+	}
 	if !instinctScopedEnabled() {
 		return semanticInstinctSelector(all, query, max) // switch off → perilaku PROVEN
 	}
-	agentID := AgentIDFromContext(ctx)
 	if agentID == "" {
-		return semanticInstinctSelector(all, query, max) // anonim/external/belum-rebuild → fails-open
+		return semanticInstinctSelector(all, query, max) // anonim/internal-belum-rebuild → fails-open
 	}
 	domains, mapped := lookupDomains(agentID)
 	if !mapped {
