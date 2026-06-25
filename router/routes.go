@@ -216,6 +216,7 @@ func registerManagementRoutes(mux *http.ServeMux) {
 	}) // section 10 roadmap
 	mux.HandleFunc("/api/recordings/get", recordingsGetHandler) // section 10 roadmap
 	mux.HandleFunc("/api/brain/search-drawers", brainSearchDrawersHandler) // flowork-kernel-compatible RAG
+	mux.HandleFunc("/api/brain/instincts", brainInstinctsHandler)          // list insting (GUI), lintas-wing room LIKE instinct% — selaras injeksi
 	mux.HandleFunc("/api/brain/init", brainInitHandler)                    // bootstrap empty Memory Palace DB
 	mux.HandleFunc("/api/brain/drawer", brainAddDrawerHandler)             // bring-your-own-knowledge manual add
 	mux.HandleFunc("/api/brain/immune/add", securityImmuneAddHandler)      // sync scan finding → immune_system (defensif)

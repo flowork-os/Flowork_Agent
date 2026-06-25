@@ -83,10 +83,20 @@ instan: set ENV balik 56. Inilah "tool-as-instinct" yg bikin token biang (~55% p
 LIVE** lewat injeksi proaktif **§0.5** (`maybeInjectInstinct`, token-overlap, gak butuh vindex). Jadi "kapan
 manggil tool/fitur" UDAH ketutup. Yang di bawah ini sisa-PR layer koloni (display GUI, scoping, projeksi).
 
+**✅ FIXED 2026-06-25 — GUI Brain→Instincts nampil 36 insting (owner: "list ga muncul, analisa dulu"):**
+36 insting (room `instinct_*`) JALAN buat injeksi (§0.5) TAPI dulu **"No instincts found"** di halaman GUI.
+**Diagnosa LAMA di doc ini SALAH** (nyalahin `SemanticRetrieve`/`vindex`) — akar ASLI (dibuktiin live):
+query browse GUI `/api/brain/wing?wing=training_data&room_like=%instinct` meleset DUA-duanya — (a)
+`%instinct` = SQL **ENDS-with**, room-nya `instinct_*` = **STARTS-with** → 0; (b) `wing=training_data`,
+padahal insting wing-nya `doctrine`(24)+`capability`(12). **FIX (cabut-akar, no migrasi data, no break
+injeksi):** endpoint BARU **`GET /api/brain/instincts`** (`handlers_brain_instincts.go`, NON-frozen) pakai
+**sumber yang SAMA dgn injeksi** = `brain.ListInstinctDrawers` (`room LIKE 'instinct%'` lintas-wing) → GUI
+`loadBrainInstincts` panggil itu. Jadi yang KE-LIHAT = persis yang KE-INJECT. Verified live: endpoint balik
+36 (instinct_tool 12 + bisnis 7 + kehidupan 4 + security 4 + universal 9), pager OK, served HTML kebawa.
+⚠️ **JANGAN** migrasi insting ke room `flowork_instinct` (kanonik lama §2) — injeksi §0.5 query `instinct%`
+(starts-with) → pindah room = injeksi PUTUS. `instinct_*` = konvensi yang dipertahanin.
+
 **Yang BELUM beres (router / shared):**
-- 36 insting di router brain (`flowork-brain.sqlite`, room `instinct_*`) **JALAN buat injeksi (§0.5)** tapi
-  **belum nongol di halaman GUI Brain→Instincts** ("No instincts found") — itu murni isu DISPLAY (GUI pakai
-  `SemanticRetrieve` yg butuh `brain.vindex`; injeksi §0.5 query drawer langsung, gak kena). Beres pas RI-1.
 - **Penyebab + KESALAHAN (catat biar gak diulang):**
   1. ⛔ `brain.vindex` (854MB) ke-HAPUS pas bersih-bersih disk → **index semantik router rusak** →
      `SemanticRetrieve` jalan setengah (FTS-fallback) → drawer baru gak ke-index. **vindex BUKAN sampah.**

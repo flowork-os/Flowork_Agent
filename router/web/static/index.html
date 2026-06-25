@@ -2831,7 +2831,7 @@ done &lt; my_knowledge.jsonl</pre>
         } else {
           // List mode
           const offset = instinctPage * instinctLimit;
-          const r = await (await fetch('/api/brain/wing?wing=training_data&room_like=%25instinct&limit=' + instinctLimit + '&offset=' + offset)).json();
+          const r = await (await fetch('/api/brain/instincts?limit=' + instinctLimit + '&offset=' + offset)).json();
           ds = r.drawers || [];
           
           document.getElementById('btnInstinctPrev').disabled = instinctPage === 0;
@@ -2893,7 +2893,7 @@ done &lt; my_knowledge.jsonl</pre>
         const resp = await fetch('/api/brain/drawer', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: f.content, wing: 'training_data', room: 'flowork_instinct', memType: 'project' })
+          body: JSON.stringify({ content: f.content, wing: 'doctrine', room: 'instinct_universal', memType: 'project' })
         });
         if (!resp.ok) throw new Error('HTTP ' + resp.status + ': ' + (await resp.text()));
         uiToast('Instinct added successfully', 'success');
@@ -2920,7 +2920,7 @@ done &lt; my_knowledge.jsonl</pre>
         const resp = await fetch('/api/brain/drawer', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id, content: f.content, wing: 'training_data', room: 'flowork_instinct', memType: 'project' })
+          body: JSON.stringify({ id, content: f.content, wing: cur.wing || 'doctrine', room: cur.room || 'instinct_universal', memType: 'project' })
         });
         if (!resp.ok) throw new Error('HTTP ' + resp.status + ': ' + (await resp.text()));
         uiToast('Instinct updated successfully', 'success');
