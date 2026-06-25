@@ -27,7 +27,9 @@ const short = (r) => esc(String(r).replace(/^instinct_/, ''));
 async function loadDomains() {
   const counts = {};
   try {
-    const r = await fetch(API_INSTINCTS);
+    // limit=1000 → liat SEMUA room (default 50 nge-cap → domain kaya coding/crypto/filsafat ke-hide).
+    // Domain di GUI = DINAMIS dari brain: tambah insting room=instinct_<domain> → domain auto muncul.
+    const r = await fetch(API_INSTINCTS + '?limit=1000');
     const d = await r.json();
     const items = d.items || d.drawers || d.instincts || (Array.isArray(d) ? d : []);
     for (const it of items) {
