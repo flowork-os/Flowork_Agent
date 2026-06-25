@@ -4,7 +4,8 @@
 > kesadaran. Melanggar = bikin owner (yang lagi produksi, ga ada waktu) rugi.
 
 1. **QC DI GUI BENERAN.** Tiap selesai fitur GUI/host: JANGAN cukup curl/log. Login GUI :1987
-   (password `(lihat flowork-secrets/GITHUB_ACCOUNT.MD)`) → buka tab terkait → pastiin RENDER + JALAN. (Sering ke-skip.)
+   (password GUI ada di `flowork-secrets/GITHUB_ACCOUNT.MD` — JANGAN pernah tulis di repo) → buka
+   tab terkait → pastiin RENDER + JALAN. (Sering ke-skip.)
 2. **TEST LOLOS DULU, BARU FREEZE.** `go test` + `TestKernelFreeze` + Rule-9 (mr-flow via
    `/api/chat` BAHASA-MANUSIA). JANGAN PERNAH freeze kalau test belum lolos.
 3. **SWITCH SEBELUM FREEZE.** Tiap fitur baru WAJIB punya switch (default aman) → AI lain / evolusi
