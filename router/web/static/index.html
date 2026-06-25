@@ -2879,7 +2879,9 @@ done &lt; my_knowledge.jsonl</pre>
       const r = await uiModal({
         title: 'Add FLowork Instinct',
         fields: [
-          { name: 'content', label: 'Instinct Content', value: '', type: 'textarea' }
+          { name: 'content', label: 'Instinct Content (pola WHEN → THEN)', value: '', type: 'textarea', ph: 'WHEN <kondisi> -> <tindakan>' },
+          { name: 'room', label: 'Domain', value: 'instinct_universal', ph: 'instinct_universal | instinct_coding | instinct_security | instinct_crypto | instinct_bisnis | instinct_tool' },
+          { name: 'importance', label: 'Importance (1-10)', value: '6', type: 'number' }
         ],
         actions: [
           { label: 'Add', kind: 'primary', value: true },
@@ -2889,14 +2891,20 @@ done &lt; my_knowledge.jsonl</pre>
       if (!r.action) return;
       const f = r.fields;
       if (!(f.content || '').trim()) { uiToast('Content required', 'warn'); return; }
+      // domain → room=instinct_*. Normalisasi: user boleh ketik "coding" → "instinct_coding".
+      let room = (f.room || 'instinct_universal').trim().toLowerCase().replace(/\s+/g, '_');
+      if (!room.startsWith('instinct_')) room = 'instinct_' + room.replace(/^instinct[_-]?/, '');
+      const importance = Math.max(1, Math.min(10, Number(f.importance) || 6));
       try {
-        const resp = await fetch('/api/brain/drawer', {
+        // ingest/submit: dukung room + importance + pipeline (sanitize/dedup/score). drawer-POST ga dukung importance.
+        const resp = await fetch('/api/brain/ingest/submit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: f.content, wing: 'doctrine', room: 'instinct_universal', memType: 'project' })
+          body: JSON.stringify({ content: f.content, wing: 'doctrine', room, importance, source_type: 'gui-instinct' })
         });
-        if (!resp.ok) throw new Error('HTTP ' + resp.status + ': ' + (await resp.text()));
-        uiToast('Instinct added successfully', 'success');
+        const d = await resp.json().catch(() => ({}));
+        if (!resp.ok || d.error) throw new Error(d.error || ('HTTP ' + resp.status));
+        uiToast(d.added === false ? ('Sudah ada (dedupe) · ' + room) : ('Instinct added → ' + room + ' (index ≤2 mnt)'), 'success');
         loadBrainInstincts();
       } catch (e) { uiToast('Error adding instinct: ' + e, 'error'); }
     }
