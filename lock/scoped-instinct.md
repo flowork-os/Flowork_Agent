@@ -57,6 +57,7 @@ hasil filter kosong. **Baseline `instinct_universal` + `instinct_tool` SELALU lo
 ## CATATAN
 - **Template TAK diubah**: agent-template/worker = `func main(){ agentkit.Main() }` (delegasi) →
   fix agentkit cukup. group/connector-template ga call LLM-router.
-- **Agent lama** (deploy belum di-rebuild dgn agentkit baru) ga kirim X-Agent-ID → fails-open (aman).
-  Rebuild semut (roadmap #5) bikin mereka ikut scoping.
+- **5 worker agentkit** (browse-surfer/-reporter, fbspecial, fb-writer, fb-repofinder) DI-REBUILD 2026-06-26 →
+  kirim X-Agent-ID (verified live: browse-surfer `domains=[coding] 284→212`). Agent template-lama deploy-only (~24,
+  no source) BELUM → fails-open (aman); rebuild pas perlu. Rebuild = `bash scripts/build-agent.sh <id>` (wasm derived).
 - Sumber role belum dari manifest (manifest no field role) → role-map = sumber kebenaran (router-side, editable).
