@@ -12,7 +12,7 @@
 |---|---|
 | **prompt-cache** (reuse prefix sama di slot sama) | ✅ default-ON (llama.cpp `--cache-prompt`) |
 | **cache-reuse** (reuse prefix via KV-shifting walau ada chunk berubah) | ✅ **ENABLED + verified live** (`--cache-reuse 256`) |
-| prompt ordering L0→L3 (statik di DEPAN) buat maksimalin reuse | ⬜ belum diverifikasi/diatur |
+| prompt ordering (statik di DEPAN) buat maksimalin reuse | 🟡 FAVORABLE (message-level confirmed); tool-schema perlu ukur |
 | slot-save-restore (persist KV lintas-restart) | ⬜ tersedia (`--slot-save-path`), belum dipakai |
 | `-np` parallel slots (multi-semut barengan) | ⬜ default auto; belum di-tune buat koloni |
 
@@ -48,9 +48,12 @@ balas koheren (no regression). Reversible: hapus/0-kan ENV → balik perilaku la
 
 ## NEXT (sisa keystone #3 — belum dikerjain)
 
-1. **Prompt ordering L0→L3**: pastiin STATIK (12 AOLA + doktrin-peran + tool-schema) di DEPAN, DINAMIS
-   (insting scoped + recall + working-set + pesan) di BELAKANG → prefix statik konsisten = reuse maksimal.
-   Cek urutan injeksi di router (constitution/brain/instinct enrich) — JANGAN rusak persona (banyak FROZEN).
+1. **Prompt ordering** (🟡 sebagian terverifikasi): di `dispatcher.go` urutan enrich = `maybeInjectConstitution`
+   (STATIK, "di ATAS knowledge", dipanggil PERTAMA) → `maybeEnrichBrain` → `maybeInjectAntibodies` →
+   `maybeInjectInstinct` (DINAMIS, by-query) → pesan user. Jadi message-level udah FAVORABLE (statik konstitusi
+   di depan, dinamis recall/insting di belakang) → cache-reuse reuse prefix statik. **SISA:** konfirmasi posisi
+   render TOOL-SCHEMA (biang ~55% statik) lewat jinja template — kalau di depan = reuse penuh; ukur prompt-eval
+   time call-1 vs call-2 (prefix sama) buat bukti empiris. JANGAN ubah urutan sembarangan (persona FROZEN).
 2. **slot-save-restore** (`--slot-save-path`): persist KV ke disk → warm-start lebih cepat lintas-restart.
 3. **`-np` parallel slots**: tune buat banyak semut jalan barengan (visi 1000 agent) vs RAM/VRAM.
 4. **Ukur**: warm 54s pecah prefill-vs-gen; recall@latency sebelum/sesudah cache-reuse pada beban nyata.
