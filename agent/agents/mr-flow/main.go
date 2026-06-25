@@ -775,8 +775,9 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn, notifyChatID 
 	// Cuma log stderr (→ /tmp/flowork-gui.log), ZERO perubahan perilaku.
 	fmt.Fprintf(os.Stderr, "[%s] D18-ctx: sys=%dch recall=%dch history=%dturn tools=%d\n",
 		selfID(), len(sys), recallLen, len(history), len(toolSpecs))
-	ghostNudges := 0       // ghost-guard: berapa kali udah maksa model lanjut (anti narasi-tanpa-aksi)
-	flail := &flailState{} // flail-guard: anti-mantok (tool sama berulang tanpa progress) — lihat flail_guard.go
+	ghostNudges := 0        // ghost-guard: berapa kali udah maksa model lanjut (anti narasi-tanpa-aksi)
+	forceToolChoice := false // ghost-guard: true → request berikut PAKSA tool_choice=required (anti-ghost struktural, nudge bertaji)
+	flail := &flailState{}  // flail-guard: anti-mantok (tool sama berulang tanpa progress) — lihat flail_guard.go
 	loopStartMs := hostTimeNowMs()
 	budgetNudged := false            // sekali aja kasih peringatan budget (biar model wrap-up/ScheduleWakeup)
 	recovered := map[string]string{} // D32 INC-2: tool→kelas-error yg BELUM ke-recover (scope loop turn ini)
@@ -810,6 +811,12 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn, notifyChatID 
 			// (>1 result/message) → anthropic 400 "multiple tool_result blocks".
 			// Sequential = aman + tetep jalan (cuma butuh iterasi lebih banyak).
 			reqMap["parallel_tool_calls"] = false
+			// GHOST-GUARD struktural: abis nudge, PAKSA model panggil tool turn ini
+			// (tool_choice=required) → ga bisa narasi-kosong ("scanning..." tanpa aksi).
+			if forceToolChoice {
+				reqMap["tool_choice"] = "required"
+				forceToolChoice = false
+			}
 		}
 		body, _ := json.Marshal(reqMap)
 		// Retry transient: 5xx (mis. router 502 "all providers failed" /
@@ -877,18 +884,23 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn, notifyChatID 
 			// nunggu selamanya. JANGAN biarin jadi final: paksa 1 putaran lagi
 			// (panggil tool SEKARANG, atau ScheduleWakeup kalau emang nunggu).
 			// Bounded (maxGhostNudges) → ga infinite. 26B pun ga bisa ghosting.
-			if ghostNudges < maxGhostNudges && looksLikeGhostPromise(m.Content) {
-				ghostNudges++
-				content := m.Content
-				if strings.TrimSpace(content) == "" {
-					content = "(niat lanjut tanpa tool)"
+			if looksLikeGhostPromise(m.Content) {
+				if ghostNudges < maxGhostNudges {
+					ghostNudges++
+					content := m.Content
+					if strings.TrimSpace(content) == "" {
+						content = "(niat lanjut tanpa tool)"
+					}
+					msgs = append(msgs, map[string]any{"role": "assistant", "content": content})
+					msgs = append(msgs, map[string]any{"role": "user", "content": ghostNudgeMsg})
+					forceToolChoice = true // nudge BERTAJI: turn berikut WAJIB panggil tool (anti narasi-kosong)
+					fmt.Fprintf(os.Stderr, "[%s] ghost-guard: nudge %d (narasi tanpa tool → force-tool)\n", selfID(), ghostNudges)
+					continue
 				}
-				msgs = append(msgs, map[string]any{"role": "assistant", "content": content})
-				msgs = append(msgs, map[string]any{"role": "user", "content": ghostNudgeMsg})
-				fmt.Fprintf(os.Stderr, "[%s] ghost-guard: nudge %d (narasi tanpa tool)\n", selfID(), ghostNudges)
-				continue
+				// nudge HABIS + masih ghosting → JUJUR ke owner, JANGAN kirim janji-kosong.
+				return "Sori bro, gw kebanyakan muter rencana tapi tool-nya ga kepanggil (model lokal ngeyel). Coba ulang / lebih spesifik — gw eksekusi langsung, bukan janji."
 			}
-			return m.Content // jawaban final (teks)
+			return m.Content // jawaban final (teks beneran, bukan ghost)
 		}
 		// SERIALIZE tool calls: proses CUMA tool_call PERTAMA per iterasi, walau
 		// model minta paralel (>1). Sebabnya: router subscription path SALAH

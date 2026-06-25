@@ -59,7 +59,7 @@ cuma compile dir itu, gak narik modul host `flowork-gui` yg gede). Share lewat m
 | Bagian | Asal | Catatan |
 |---|---|---|
 | **Tool-loop** (LLM→tool→feed→ulang, serialize 1 tool/iter, `parallel_tool_calls:false`) | worker loop proven | inti |
-| **GHOST-GUARD** (narasi niat tanpa tool → paksa, bounded `maxGhostNudges=6`) | port mr-flow (phrase superset) | anti-ghosting |
+| **GHOST-GUARD v2** (narasi niat tanpa tool → nudge **+ paksa `tool_choice:"required"` di req berikut**, bounded `maxGhostNudges=6`; nudge habis → **honest-fallback** ("tool ga kepanggil, model lokal ngeyel — coba ulang"), BUKAN return ghost-promise) | port mr-flow (phrase superset) | anti-ghosting **stabil** (2026-06-26) |
 | **FLAIL-GUARD** (tool SAMA berulang tanpa progress → koreksi bounded → eskalasi jujur) | port `flail_guard.go` (proven 4/4) | **yang dulu KURANG di worker** |
 | **#2C deferred seam** (`tool_lookup` → re-fetch specs; host-gated, no-op kalau defer off) | port mr-flow §tools.md 7.5 | **yang dulu KURANG di worker** + guard nil (lebih aman dari mr-flow) |
 | **RECOVERY-CAPTURE** (error→sukses tool sama → `mistake_log`) | port `recovery_capture.go` | best-effort, graceful kalau tool ga ada |

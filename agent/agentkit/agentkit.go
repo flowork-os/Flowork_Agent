@@ -253,6 +253,7 @@ func callLLM(cfg agentConfig, userText string) string {
 	}
 	toolSpecs := fetchToolSpecs()
 	ghostNudges := 0
+	forceToolChoice := false          // ghost-guard: true → request berikut PAKSA tool_choice=required (anti-ghost struktural)
 	flail := &flailState{}            // flail-guard: anti-mantok (tool sama berulang tanpa progress)
 	recovered := map[string]string{}  // recovery-capture: tool→kelas-error yg BELUM ke-recover (scope turn)
 	loopStartMs := hostTimeNowMs()
@@ -277,6 +278,10 @@ func callLLM(cfg agentConfig, userText string) string {
 		if len(toolSpecs) > 0 {
 			reqMap["tools"] = toolSpecs
 			reqMap["parallel_tool_calls"] = false // 1 tool/iter → router aman (anti 400 multi tool_result)
+			if forceToolChoice { // ghost-guard: abis nudge, WAJIB panggil tool (anti narasi-kosong)
+				reqMap["tool_choice"] = "required"
+				forceToolChoice = false
+			}
 		}
 		reqJSON, _ := json.Marshal(reqMap)
 		resp, err := callRouterRetry(reqJSON) // retry-backoff transient (transparan ke loop)
@@ -302,19 +307,23 @@ func callLLM(cfg agentConfig, userText string) string {
 		}
 		m := o.Choices[0].Message
 		if len(m.ToolCalls) == 0 {
-			// GHOST-GUARD: narasi niat-aksi tanpa tool → paksa 1 putaran (bounded).
-			if ghostNudges < maxGhostNudges && looksLikeGhostPromise(m.Content) {
-				ghostNudges++
-				c := m.Content
-				if strings.TrimSpace(c) == "" {
-					c = "(niat tanpa tool)"
+			// GHOST-GUARD: narasi niat-aksi tanpa tool → nudge BERTAJI (force tool turn berikut), bounded.
+			if looksLikeGhostPromise(m.Content) {
+				if ghostNudges < maxGhostNudges {
+					ghostNudges++
+					c := m.Content
+					if strings.TrimSpace(c) == "" {
+						c = "(niat tanpa tool)"
+					}
+					msgs = append(msgs, map[string]any{"role": "assistant", "content": c})
+					msgs = append(msgs, map[string]any{"role": "user", "content": ghostNudgeMsg})
+					forceToolChoice = true // turn berikut WAJIB panggil tool → model ga bisa narasi-kosong lagi
+					fmt.Fprintf(os.Stderr, "[%s] ghost-guard: nudge %d (narasi tanpa tool → force-tool)\n", selfID(), ghostNudges)
+					continue
 				}
-				msgs = append(msgs, map[string]any{"role": "assistant", "content": c})
-				msgs = append(msgs, map[string]any{"role": "user", "content": ghostNudgeMsg})
-				fmt.Fprintf(os.Stderr, "[%s] ghost-guard: nudge %d (narasi tanpa tool)\n", selfID(), ghostNudges)
-				continue
+				return "Maaf bro, gw kebanyakan muter rencana tapi tool-nya ga kepanggil — coba ulang/lebih spesifik, gw eksekusi langsung." // jujur, bukan janji-kosong
 			}
-			return m.Content // jawaban final
+			return m.Content // jawaban final (teks beneran)
 		}
 		// SERIALIZE: proses tool_call PERTAMA aja per iterasi (router aman).
 		tc := m.ToolCalls[0]

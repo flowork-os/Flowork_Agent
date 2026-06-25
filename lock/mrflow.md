@@ -86,6 +86,14 @@ POLOS (`stripMarkdown`) — pesan ga pernah ilang. Switch `FLOWORK_TG_FORMAT`: `
   `doctrine_seed.json`/`instinct_seed.json` → "panggil tool LANGSUNG, jangan tulis sintaks sbg teks"). HARNESS:
   `router/internal/router/toolcall_recover_ext.go` (`recoverTextToolCalls`, dipanggil dispatcher) parse-LENIENT teks
   tool_call → native tool_calls + strip content. Switch `FLOWORK_TOOLCALL_RECOVER=0`. Verified Rule-9 + 4 unit test.
+- **GHOST-GUARD v2** (`mr-flow/main.go` + di-port ke `agentkit.go`): model lokal kadang cuma NARASI niat
+  ("Scanning workspace... 🔍") tanpa pernah manggil tool → user nungguin jawaban yg ga balik. AKAR: `tool_choice:"auto"`
+  bikin model boleh milih "ngomong doang". FIX (stabil 2026-06-26): kalau `looksLikeGhostPromise(content)` →
+  nudge **DAN set `forceToolChoice=true`** → req berikutnya `reqMap["tool_choice"]="required"` (paksa model manggil
+  tool, ga bisa ngeles narasi). Bounded `maxGhostNudges=6`; abis itu **honest-fallback** ("tool ga kepanggil, model
+  lokal ngeyel — coba ulang / lebih spesifik"), BUKAN return ghost-promise. Verified Rule-9: prompt yg dulu ghosting →
+  log `ghost-guard: nudge 1 (narasi tanpa tool → force-tool)` → `tool_call: capabilities_list` BENERAN eksekusi →
+  reply berisi hasil. Frozen (re-hash 2026-06-26). Template/worker auto-warisan via `agentkit.Main()`.
 - **Anti-halu + akses internet**: web_search/webfetch + **browser asli** (akses penuh) + cek tahun, ga ngarang. Lihat persona block "ANTI-HALU".
 - **Kontradiksi data**: `cognitive_tensions`/`cognitive_resolve` + tanya owner 3x/hari. Lihat `lock/CognitiveGraph.md`.
 - **Persona** (kv `prompt`): identitas + ROUTER TEAM + ANTI-HALU + browser + kontradiksi. Edit AMAN: GET config UTUH → ubah `prompt` → POST (Save full-replace, secret ke-reconcile).

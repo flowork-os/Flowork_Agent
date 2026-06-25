@@ -34,8 +34,8 @@ async function loadDomains() {
     const d = await r.json();
     Object.assign(counts, d.rooms || {});
   } catch { /* fails-soft */ }
-  const domains = new Set([...KNOWN_DOMAINS, ...Object.keys(counts)]);
-  BASELINE.forEach((b) => domains.delete(b));
+  // baseline (universal+tool) TETAP ditampilkan (locked/always-on) biar owner liat SEMUA domain (7), bukan ke-hide.
+  const domains = new Set([...BASELINE, ...KNOWN_DOMAINS, ...Object.keys(counts)]);
   return { domains: [...domains].sort(), counts };
 }
 
@@ -64,12 +64,12 @@ export async function renderToolCatalog(hostEl, agentId) {
         <code>FLOWORK_INSTINCT_SCOPED=1</code>.
       </p>
       <div style="display:grid;gap:4px;max-height:200px;overflow-y:auto;margin-bottom:8px">
-        ${domains.map((d) => `
-          <label style="display:flex;align-items:center;gap:8px;padding:6px;background:#1e293b;border:1px solid #334155;border-radius:6px;cursor:pointer">
-            <input type="checkbox" data-domain="${escAttr(d)}" ${picked.has(d) ? 'checked' : ''}>
-            <span style="flex:1;color:#f1f5f9;font-family:ui-monospace,monospace;font-size:12px">${short(d)}</span>
+        ${domains.map((d) => { const base = BASELINE.includes(d); return `
+          <label style="display:flex;align-items:center;gap:8px;padding:6px;background:#1e293b;border:1px solid #334155;border-radius:6px;cursor:${base ? 'default' : 'pointer'};${base ? 'opacity:.65' : ''}">
+            <input type="checkbox" data-domain="${escAttr(d)}" ${base || picked.has(d) ? 'checked' : ''} ${base ? 'disabled' : ''}>
+            <span style="flex:1;color:#f1f5f9;font-family:ui-monospace,monospace;font-size:12px">${short(d)}${base ? ' <span style="color:#64748b">· baseline (selalu)</span>' : ''}</span>
             <span style="color:#64748b;font-size:11px">${counts[d] ? counts[d] + ' insting' : ''}</span>
-          </label>`).join('')}
+          </label>`; }).join('')}
       </div>
       <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:11px;color:#94a3b8;margin-bottom:8px">
         <span>defer-tools ${triSelect('cf-defer', cfg.defer_tools)}</span>
@@ -82,7 +82,7 @@ export async function renderToolCatalog(hostEl, agentId) {
 
     const statusEl = hostEl.querySelector('#cf-brain-status');
     hostEl.querySelector('#cf-brain-save').addEventListener('click', async () => {
-      const instinct_domains = [...hostEl.querySelectorAll('input[data-domain]:checked')].map((c) => c.dataset.domain);
+      const instinct_domains = [...hostEl.querySelectorAll('input[data-domain]:checked')].map((c) => c.dataset.domain).filter((d) => !BASELINE.includes(d)); // baseline always-on di router → ga perlu disimpan
       const triVal = (id) => { const v = hostEl.querySelector('#' + id).value; return v === '' ? null : v === 'true'; };
       statusEl.textContent = 'Menyimpan…'; statusEl.style.color = '#94a3b8';
       try {
