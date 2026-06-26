@@ -52,6 +52,9 @@ func chatCompletionsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// System-awareness: sisipin [STATUS_PC] (spek/OS/CPU/GPU/temp + WAKTU) ke tiap chat (switch GUI).
+	InjectSystemStatus(&req)
+
 	// Streaming branch — SSE relay.
 	if req.Stream {
 		status, _, err := router.DispatchChatCompletionStream(r.Context(), req, w)
