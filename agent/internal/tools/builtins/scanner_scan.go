@@ -1,14 +1,7 @@
-// scanner_scan.go — AI-INITIATED defensive code scan (Section 25 + immune).
-//
-// Lets an agent run the SAME static-auditor + trivy pipeline as the background
-// watcher, on demand, over its OWN workspace (or a subpath). Findings land in
-// the agent state.db (scanner_runs/scanner_findings) → show up in Threat Radar
-// and are queryable via scanner_findings_query. The agent runs it, reads the
-// summary, then acts — no manual scanning.
-//
-// DEFENSIVE ONLY: scope is the agent's shared workspace (anti-escape). Offensive
-// target scans (nmap/nuclei against external hosts) stay owner-gated in
-// scan_exec.go — an agent tool never reaches that gate.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/threat-radar.md
 
 package builtins
 
@@ -76,7 +69,7 @@ func (codeScanTool) Run(ctx context.Context, args map[string]any) (tools.Result,
 		_ = store.FinishScannerRun(runID, 0, 0, "fail")
 		return tools.Result{}, fmt.Errorf("scan: %w", err)
 	}
-	// Real-tool layer (trivy) — same as the background watcher / baseline.
+
 	res.Findings = append(res.Findings, scanner.ToolScan(target)...)
 
 	bySev := map[string]int{}
@@ -120,8 +113,6 @@ func (codeScanTool) Run(ctx context.Context, args map[string]any) (tools.Result,
 	}, nil
 }
 
-// topFindings — N findings paling parah (severity order), bentuk ringkas biar
-// AI bisa langsung beraksi tanpa query ulang per-run.
 func topFindings(fs []agentdb.ScannerFinding, n int) []map[string]any {
 	order := map[string]int{"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 	sorted := append([]agentdb.ScannerFinding(nil), fs...)

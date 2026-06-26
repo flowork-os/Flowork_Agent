@@ -1,11 +1,7 @@
-// scanner_allowlist.go — endpoint ALLOWLIST scanner (owner-editable, agent-locked).
-//
-//	GET  /api/scanner/allowlist?kind=exec|target   → list
-//	POST /api/scanner/allowlist  {kind,value,note}  → add/update
-//	POST /api/scanner/allowlist/delete {kind,value} → remove
-//
-// Loopback-only owner-local. AGENT ga pernah dikasih akses endpoint ini (ga ada
-// di cap net:fetch agent) → cuma OWNER (GUI/CLI) yang bisa edit gerbang.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/threat-radar.md
 
 package scanapi
 
@@ -50,8 +46,6 @@ func ScannerAllowlistHandler(store *floworkdb.Store) http.HandlerFunc {
 	}
 }
 
-// ScannerAllowlistCheckHandler — GET ?kind=&value= → {allowed}. Gerbang IsAllowed
-// (owner verifikasi scope sebelum scan; nanti dipake scan tool internal).
 func ScannerAllowlistCheckHandler(store *floworkdb.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		kind := strings.TrimSpace(r.URL.Query().Get("kind"))

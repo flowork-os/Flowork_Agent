@@ -1,14 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 25 phase 1 minimal viable scanner. 6 of 35 Tier 1 auditor
-//   (hardcoded_secret, command_injection, sql_injection, path_traversal,
-//   ssrf, token_leak) — high-value subset yang stdlib-only. Phase 2 add
-//   sisanya (race, crypto, supply_chain, etc.) → tambah file baru.
-//
-// auditors.go — Section 25 phase 1: 6 critical auditors.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/threat-radar.md
 
 package scanner
 
@@ -17,7 +10,6 @@ import (
 	"strings"
 )
 
-// Severity enum.
 const (
 	SevCritical = "critical"
 	SevHigh     = "high"
@@ -26,7 +18,6 @@ const (
 	SevInfo     = "info"
 )
 
-// Finding — one issue surfaced by an auditor.
 type Finding struct {
 	Auditor     string `json:"auditor"`
 	Severity    string `json:"severity"`
@@ -37,22 +28,16 @@ type Finding struct {
 	Remediation string `json:"remediation"`
 }
 
-// AuditFunc — Run terhadap text file. Caller pass filePath + content.
 type AuditFunc func(filePath, content string) []Finding
 
-// Auditors registry — caller iterate. Add to slice = self-register.
 var Auditors = map[string]AuditFunc{
-	"hardcoded_secret_auditor":   AuditHardcodedSecret,
+	"hardcoded_secret_auditor":  AuditHardcodedSecret,
 	"command_injection_auditor": AuditCommandInjection,
 	"sql_injection_auditor":     AuditSQLInjection,
 	"path_traversal_auditor":    AuditPathTraversal,
 	"ssrf_auditor":              AuditSSRF,
 	"token_leak_auditor":        AuditTokenLeak,
 }
-
-// =============================================================================
-// 1. hardcoded_secret_auditor
-// =============================================================================
 
 var hardcodedPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)aws[_\-]?(secret[_\-]?)?access[_\-]?key.*[:=]\s*['"]?([A-Z0-9/+=]{16,40})['"]?`),
@@ -84,15 +69,11 @@ func AuditHardcodedSecret(filePath, content string) []Finding {
 	return out
 }
 
-// =============================================================================
-// 2. command_injection_auditor
-// =============================================================================
-
 var commandInjectionPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`exec\.Command\s*\(\s*"(sh|bash|cmd|powershell)"\s*,\s*"-c"\s*,\s*[a-zA-Z_]\w*\s*\+`),
 	regexp.MustCompile(`exec\.Command\s*\(\s*[a-zA-Z_]\w*\s*\+`),
 	regexp.MustCompile(`exec\.CommandContext\s*\([^,]+,\s*"(sh|bash|cmd)"\s*,\s*"-c"\s*,\s*fmt\.Sprintf`),
-	regexp.MustCompile(`os\.system\s*\(\s*.*\+\s*\w+`), // python style
+	regexp.MustCompile(`os\.system\s*\(\s*.*\+\s*\w+`),
 }
 
 func AuditCommandInjection(filePath, content string) []Finding {
@@ -116,14 +97,6 @@ func AuditCommandInjection(filePath, content string) []Finding {
 	return out
 }
 
-// =============================================================================
-// 3. sql_injection_auditor
-// =============================================================================
-
-// sqlStmt — fragmen yang nandain string BENERAN SQL statement (bukan prosa yang
-// kebetulan ada kata "delete"/"insert"). Wajib struktur: DELETE FROM / INSERT
-// INTO / UPDATE..SET / SELECT..FROM / WHERE. Anti false-positive prosa kayak
-// `"soft-delete missing: "+err` atau `"snapshot insert: "+err`.
 const sqlStmt = `(SELECT\b[^"]*\bFROM\b|INSERT\s+INTO\b|UPDATE\s+\S+\s+SET\b|DELETE\s+FROM\b|\bWHERE\s)`
 
 var sqlInjectionPatterns = []*regexp.Regexp{
@@ -153,13 +126,9 @@ func AuditSQLInjection(filePath, content string) []Finding {
 	return out
 }
 
-// =============================================================================
-// 4. path_traversal_auditor
-// =============================================================================
-
 var pathTraversalPatterns = []*regexp.Regexp{
-	regexp.MustCompile(`filepath\.Join\s*\([^)]*\w+\s*\)`), // join with user var
-	regexp.MustCompile(`os\.Open\s*\(\s*\w+\s*\)`),         // open with raw var
+	regexp.MustCompile(`filepath\.Join\s*\([^)]*\w+\s*\)`),
+	regexp.MustCompile(`os\.Open\s*\(\s*\w+\s*\)`),
 	regexp.MustCompile(`os\.Create\s*\(\s*\w+\s*\)`),
 	regexp.MustCompile(`ioutil\.ReadFile\s*\(\s*\w+\s*\)`),
 	regexp.MustCompile(`os\.ReadFile\s*\(\s*\w+\s*\)`),
@@ -169,8 +138,7 @@ func AuditPathTraversal(filePath, content string) []Finding {
 	out := []Finding{}
 	lines := strings.Split(content, "\n")
 	for lineNo, line := range lines {
-		// Heuristic: skip kalau line ada `filepath.Base(` (sanitization) atau
-		// `filepath.Clean(` atau `strings.Contains(..., "..")` (defense).
+
 		if strings.Contains(line, "filepath.Base") || strings.Contains(line, "filepath.Clean") {
 			continue
 		}
@@ -192,10 +160,6 @@ func AuditPathTraversal(filePath, content string) []Finding {
 	return out
 }
 
-// =============================================================================
-// 5. ssrf_auditor
-// =============================================================================
-
 var ssrfPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`http\.Get\s*\(\s*\w+\s*\)`),
 	regexp.MustCompile(`http\.Post\s*\(\s*\w+`),
@@ -206,7 +170,7 @@ var ssrfPatterns = []*regexp.Regexp{
 func AuditSSRF(filePath, content string) []Finding {
 	out := []Finding{}
 	for lineNo, line := range strings.Split(content, "\n") {
-		// Skip kalau ada SSRF guard hint.
+
 		if strings.Contains(line, "isPrivateIP") || strings.Contains(line, "allowedHosts") ||
 			strings.Contains(line, "blocklist") || strings.Contains(line, "IsCloudMetadata") {
 			continue
@@ -228,10 +192,6 @@ func AuditSSRF(filePath, content string) []Finding {
 	}
 	return out
 }
-
-// =============================================================================
-// 6. token_leak_auditor (log + fmt.Print)
-// =============================================================================
 
 var tokenLeakPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)log\.(Print|Println|Printf|Fatal|Error|Warn).*\b(token|secret|password|key|apiKey)\b`),

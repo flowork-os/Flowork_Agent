@@ -1,22 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-31
-// Reason: Background code scanner (fsnotify debounce, skip-noise, single-file
-//   scan, persist run/findings, audit + Telegram notify on critical/high).
-//   Auto-start di main() — one-click. E2E verified (decoy SQLi → run fail
-//   crit=1 + audit scanner_finding + notify path).
-//
-// Package codescan — background code scanner. Watch source repo + kode yang
-// dibikin AI (/shared/<id>/tools/) via fsnotify; pas ada file kode berubah
-// (lo/AI ngedit/update) → auto-scan file itu pakai auditor scanner (Section 25)
-// → deteksi bug/celah dari perubahan. Hasil di-persist sebagai scanner run
-// (scan_type "auto:*", muncul di tab Scanner), critical/high → audit log +
-// notify owner (Telegram).
-//
-// Tujuan: mastiin tiap perbaikan/update ngga malah buka celah baru — kayak
-// CI lokal yang jalan sendiri di belakang.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/threat-radar.md
+
 package codescan
 
 import (
@@ -36,15 +22,12 @@ import (
 	"flowork-gui/internal/scanner"
 )
 
-// Callbacks di-inject dari main.go.
 type AgentEnumerator func() []string
 type StoreOpener func(agentID string) (*agentdb.Store, error)
 type SharedDirFunc func(agentID string) (string, error)
 
-// Notifier — push ringkasan temuan critical/high ke owner (mis. Telegram).
 type Notifier func(ctx context.Context, title, body string) error
 
-// primaryAgent — store tujuan persist scanner run (dashboard tab Scanner pakai id=mr-flow).
 const primaryAgent = "mr-flow"
 
 const (
@@ -52,20 +35,17 @@ const (
 	maxBatch     = 50
 )
 
-// skipDirs — folder yang ngga di-watch (noise / bukan source).
 var skipDirs = map[string]bool{
 	".git": true, "vendor": true, "node_modules": true, "referensifile": true,
 	"web": true, "bin": true, ".scratch": true, "sdk": true, "__pycache__": true,
-	"workspace": true, // state.db churn — bukan source code
+	"workspace": true,
 }
 
-// scanExt — ekstensi yang di-scan.
 var scanExt = map[string]bool{
 	".go": true, ".py": true, ".js": true, ".ts": true, ".sh": true,
 	".rb": true, ".rs": true, ".php": true, ".java": true, ".c": true, ".cpp": true,
 }
 
-// Engine — top-level background scanner.
 type Engine struct {
 	enum       AgentEnumerator
 	opener     StoreOpener
@@ -79,7 +59,6 @@ type Engine struct {
 	timer   *time.Timer
 }
 
-// New bikin Engine. sourceRoot = root source repo yang di-watch (cwd).
 func New(enum AgentEnumerator, opener StoreOpener, sharedDir SharedDirFunc, notifier Notifier, sourceRoot string) *Engine {
 	return &Engine{
 		enum: enum, opener: opener, sharedDir: sharedDir, notifier: notifier,
@@ -87,7 +66,6 @@ func New(enum AgentEnumerator, opener StoreOpener, sharedDir SharedDirFunc, noti
 	}
 }
 
-// Start — pasang fsnotify watcher + jalanin loop. Stop via ctx cancel.
 func (e *Engine) Start(ctx context.Context) {
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -103,14 +81,10 @@ func (e *Engine) Start(ctx context.Context) {
 	}
 	log.Printf("[codescan] engine started — watching %d dirs (source=%s + shared tools)", added, e.sourceRoot)
 	go e.loop(ctx)
-	// Baseline scan repo sekali pas boot → radar langsung keisi (state terkini),
-	// ga nunggu file berubah dulu. Goroutine biar ga nge-block boot.
+
 	go e.scanRepoBaseline(ctx)
 }
 
-// scanRepoBaseline — SATU run konsolidasi atas seluruh sourceRoot (bukan per-file)
-// biar radar punya data awal tanpa nge-flood scan log. Ga notify Telegram (biar
-// ga spam tiap restart) — cukup persist + audit kalau ada critical/high.
 func (e *Engine) scanRepoBaseline(ctx context.Context) {
 	if e.sourceRoot == "" {
 		return
@@ -130,8 +104,7 @@ func (e *Engine) scanRepoBaseline(ctx context.Context) {
 		_ = store.FinishScannerRun(runID, 0, 0, "fail")
 		return
 	}
-	// IMUN tool NYATA: trivy (CVE dep + secret + misconfig) di-merge ke run yang
-	// SAMA → nyatu di Scan Log + Findings + baseline, sebelah 115 auditor statis.
+
 	res.Findings = append(res.Findings, scanner.ToolScan(e.sourceRoot)...)
 	dbF := make([]agentdb.ScannerFinding, 0, len(res.Findings))
 	crit, high := 0, 0
@@ -169,8 +142,6 @@ func (e *Engine) scanRepoBaseline(ctx context.Context) {
 	log.Printf("[codescan] baseline scan done — %d findings (crit=%d high=%d) di %d file", len(dbF), crit, high, res.FilesScanned)
 }
 
-// watchDirs — kumpulin semua dir yang di-watch: source repo (skip noise) +
-// /shared/<id>/tools/ tiap agent.
 func (e *Engine) watchDirs() []string {
 	seen := map[string]bool{}
 	var dirs []string
@@ -220,7 +191,7 @@ func (e *Engine) loop(ctx context.Context) {
 			if ev.Op&(fsnotify.Write|fsnotify.Create) == 0 {
 				continue
 			}
-			// kode (scanExt) ATAU manifest dependensi (trigger trivy on-change).
+
 			if !scanExt[strings.ToLower(filepath.Ext(ev.Name))] && !scanner.IsDepManifest(ev.Name) {
 				continue
 			}
@@ -249,13 +220,19 @@ func (e *Engine) flush(ctx context.Context) {
 	}
 	e.pending = map[string]bool{}
 	e.mu.Unlock()
-	if len(paths) > 0 {
+	if len(paths) > 0 && scannerAutoscanEnabled() {
 		e.scanPaths(ctx, paths, "auto:filechange")
 	}
 }
 
-// scanPaths — scan tiap file, persist run+findings ke store primaryAgent,
-// audit + notify kalau ada critical/high. Return (totalFindings, totalAlert).
+func scannerAutoscanEnabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("FLOWORK_SCANNER_AUTOSCAN"))) {
+	case "0", "false", "off", "no":
+		return false
+	}
+	return true
+}
+
 func (e *Engine) scanPaths(ctx context.Context, paths []string, scanType string) (int, int) {
 	store, err := e.opener(primaryAgent)
 	if err != nil {
@@ -285,7 +262,7 @@ func (e *Engine) scanPaths(ctx context.Context, paths []string, scanType string)
 			_ = store.FinishScannerRun(runID, 0, 0, "fail")
 			continue
 		}
-		// Manifest dependensi berubah → re-scan trivy (CVE supply-chain) di run ini.
+
 		if scanner.IsDepManifest(p) {
 			res.Findings = append(res.Findings, scanner.ToolScan(p)...)
 		}
@@ -338,7 +315,6 @@ func (e *Engine) scanPaths(ctx context.Context, paths []string, scanType string)
 	return totalFindings, totalAlert
 }
 
-// topFinding — temuan paling parah buat ringkasan notif.
 func topFinding(fs []scanner.Finding) string {
 	for _, f := range fs {
 		if f.Severity == scanner.SevCritical {

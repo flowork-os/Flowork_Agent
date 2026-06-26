@@ -1,13 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 25 phase 1 scanner_runs + scanner_findings schema.
-//   Lazy CREATE. Phase 2 (retention sweep, dashboard aggregate, attack
-//   trend chart) → tambah file baru.
-//
-// scanner.go — Section 25 phase 1: persistence buat scan history.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/threat-radar.md
 
 package agentdb
 
@@ -68,7 +62,6 @@ func (s *Store) ensureScannerSchema() error {
 	return err
 }
 
-// InsertScannerRun — initial pending row. Return run ID.
 func (s *Store) InsertScannerRun(scanType, targetPath string) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -87,7 +80,6 @@ func (s *Store) InsertScannerRun(scanType, targetPath string) (int64, error) {
 	return res.LastInsertId()
 }
 
-// FinishScannerRun — update final stats.
 func (s *Store) FinishScannerRun(runID int64, total, critical int, status string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -104,7 +96,6 @@ func (s *Store) FinishScannerRun(runID int64, total, critical int, status string
 	return err
 }
 
-// InsertScannerFindings — bulk insert.
 func (s *Store) InsertScannerFindings(runID int64, findings []ScannerFinding) error {
 	if len(findings) == 0 {
 		return nil
@@ -136,7 +127,6 @@ func (s *Store) InsertScannerFindings(runID int64, findings []ScannerFinding) er
 	return tx.Commit()
 }
 
-// ListScannerRuns paginated DESC.
 func (s *Store) ListScannerRuns(limit int) ([]ScannerRun, error) {
 	if limit <= 0 {
 		limit = 50
@@ -166,7 +156,6 @@ func (s *Store) ListScannerRuns(limit int) ([]ScannerRun, error) {
 	return out, rows.Err()
 }
 
-// ListScannerFindings by run_id.
 func (s *Store) ListScannerFindings(runID int64) ([]ScannerFinding, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

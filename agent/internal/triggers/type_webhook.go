@@ -1,3 +1,8 @@
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/trigger-schedule.md
+
 package triggers
 
 import (
@@ -8,18 +13,15 @@ import (
 
 func init() { Register(&webhookType{}) }
 
-// webhookType — tipe "webhook": sistem EKSTERNAL POST → fire. Mode push paling AGNOSTIC —
-// sumber apa pun (CCTV/ML/IoT/script/web service) yang bisa HTTP POST bisa memicu aksi,
-// tanpa kode khusus di inti. Payload = field JSON body (untuk {{...}}).
 type webhookType struct{}
 
 func (t *webhookType) ID() string            { return "webhook" }
 func (t *webhookType) Name() string          { return "Webhook (push)" }
 func (t *webhookType) Mode() string          { return "webhook" }
 func (t *webhookType) PayloadKeys() []string { return []string{"body", "key", "event"} }
-func (t *webhookType) ConfigSchema() []Field { return []Field{} } // secret auto-generate, tak ada field config
+func (t *webhookType) ConfigSchema() []Field { return []Field{} }
 func (t *webhookType) Check(_ map[string]string, state string) ([]Event, string, error) {
-	return nil, state, nil // bukan poll
+	return nil, state, nil
 }
 
 func (t *webhookType) OnWebhook(_ map[string]string, body []byte) ([]Event, error) {
@@ -41,7 +43,7 @@ func (t *webhookType) OnWebhook(_ map[string]string, body []byte) ([]Event, erro
 			}
 		}
 		if k, ok := raw["key"].(string); ok && k != "" {
-			key = k // klien boleh kasih "key" untuk dedup; kalau tidak, tiap POST unik
+			key = k
 		}
 	}
 	if key == "" {

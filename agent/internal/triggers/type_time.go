@@ -1,3 +1,8 @@
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/trigger-schedule.md
+
 package triggers
 
 import (
@@ -9,8 +14,6 @@ import (
 
 func init() { Register(&timeType{}) }
 
-// timeType — tipe "time": cron → fire (INI Schedule / ROADMAP 2 yang diserap). Reuse parser
-// cron yang sudah ada (internal/scheduler/cron.go, LOCKED — hanya dipanggil).
 type timeType struct{}
 
 func (t *timeType) ID() string            { return "time" }
@@ -33,7 +36,7 @@ func (t *timeType) Check(cfg map[string]string, state string) ([]Event, string, 
 	now := time.Now()
 	nowMin := now.Format("2006-01-02T15:04")
 	if state == nowMin {
-		return nil, state, nil // sudah fire di menit ini (anti dobel)
+		return nil, state, nil
 	}
 	if !spec.Matches(now) {
 		return nil, state, nil

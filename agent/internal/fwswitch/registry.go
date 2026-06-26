@@ -37,6 +37,7 @@ var Registry = []Switch{
 	{"FLOWORK_CODEMAP_AUTOENRICH", "CodeMap: auto-enrich", "Tiap interval enrich codemap dijalankan (file BERUBAH di-enrich ulang via hash; stabil = murah). OFF = manual.", "bool", "true", "Brain / Codemap"},
 	{"FLOWORK_CODEMAP_AUTOENRICH_MIN", "CodeMap auto-enrich interval (menit)", "Tiap berapa menit auto-enrich jalan (default 30). Tiap siklus proses max 20 file.", "int", "30", "Brain / Codemap"},
 	{"FLOWORK_SYS_STATUS", "System-awareness (status PC)", "Sisipin kondisi PC (OS/CPU/GPU/temp/RAM/load) + WAKTU sekarang ke tiap chat → agent sadar spek, data lama/baru, & panas (saran jeda). OFF = gak disisipin.", "bool", "true", "Router / Context"},
+	{"FLOWORK_SCANNER_AUTOSCAN", "Threat Radar: auto-scan saat file berubah", "Auto-scan file kode yang berubah (fsnotify) → deteksi celah tiap edit. OFF = cuma scan manual/tool (file-watcher tetap idup, security gak mati). Default ON.", "bool", "true", "Security / Scanner"},
 	{"FLOWORK_BINARY_VECTOR", "Binary-vector recall (#5)", "Search korpus JUTAAN: coarse biner (popcount) + rerank int8. auto (default) = aktif otomatis >=1jt drawer; on=paksa; off=int8 biasa. Recall 1.0 (rerank exact).", "string", "auto", "Brain / Search"},
 	{"FLOWORK_BINARY_VECTOR_MIN", "Binary auto threshold", "Jumlah drawer minimum biar binary-vector auto-aktif (default 1000000 = 1 juta).", "int", "1000000", "Brain / Search"},
 	{"FLOWORK_TOOLCALL_RECOVER", "Pulihin <tool_call> bocor", "Parse teks <tool_call> yg bocor dari model lokal jadi tool-call asli (anti-bocor ke user).", "bool", "true", "Router / Tools"},

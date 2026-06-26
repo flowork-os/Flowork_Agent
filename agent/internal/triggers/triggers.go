@@ -1,7 +1,8 @@
-// Package triggers — ROADMAP 3 engine (papan kosong event-driven). Engine GENERIK; logika
-// tipe (time/webhook/file-watch/…) ada di file type_*.go yang self-register via init().
-// Tambah tipe baru = tambah 1 file type_*.go, TANPA menyentuh engine (plug-and-play di tingkat
-// sumber; upgrade ke .fwpack wasm = increment berikut, interface tetap).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/trigger-schedule.md
+
 package triggers
 
 import (
@@ -11,32 +12,29 @@ import (
 	"sync"
 )
 
-// Event — satu kejadian yang memicu aksi.
 type Event struct {
-	Key     string            // id dedup
-	Payload map[string]string // {{key}} ke prompt
+	Key     string
+	Payload map[string]string
 }
 
-// Field — satu field config tipe (untuk GUI form).
 type Field struct {
 	Key      string `json:"key"`
 	Label    string `json:"label"`
-	Type     string `json:"type"` // text|path|number|secret|select
+	Type     string `json:"type"`
 	Default  string `json:"default,omitempty"`
 	Help     string `json:"help,omitempty"`
 	Required bool   `json:"required,omitempty"`
 }
 
-// Type — kontrak satu tipe trigger. Engine tak tahu logikanya.
 type Type interface {
 	ID() string
 	Name() string
-	Mode() string // "poll" | "webhook"
+	Mode() string
 	ConfigSchema() []Field
 	PayloadKeys() []string
-	// Check (mode poll): config + state opaque → events baru + state baru.
+
 	Check(config map[string]string, state string) (events []Event, newState string, err error)
-	// OnWebhook (mode webhook): config + body → events.
+
 	OnWebhook(config map[string]string, body []byte) ([]Event, error)
 }
 
@@ -45,14 +43,12 @@ var (
 	registry = map[string]Type{}
 )
 
-// Register — dipanggil dari init() tiap file type_*.go.
 func Register(t Type) {
 	regMu.Lock()
 	registry[t.ID()] = t
 	regMu.Unlock()
 }
 
-// GetType — ambil tipe by id.
 func GetType(id string) (Type, bool) {
 	regMu.RLock()
 	defer regMu.RUnlock()
@@ -60,7 +56,6 @@ func GetType(id string) (Type, bool) {
 	return t, ok
 }
 
-// ListTypes — semua tipe terdaftar (untuk GUI form).
 func ListTypes() []Type {
 	regMu.RLock()
 	defer regMu.RUnlock()
@@ -71,7 +66,6 @@ func ListTypes() []Type {
 	return out
 }
 
-// parseConfig — JSON config → map string.
 func parseConfig(cfg string) map[string]string {
 	out := map[string]string{}
 	if strings.TrimSpace(cfg) == "" {
@@ -93,13 +87,8 @@ func parseConfig(cfg string) map[string]string {
 
 var tmplRe = regexp.MustCompile(`\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}`)
 
-// maxValLen — batas panjang SATU nilai payload yang disuntik ke prompt. Payload
-// webhook bersumber EKSTERNAL (≤1MB) → tanpa cap, body gede membanjiri prompt LLM
-// (bakar token) + perbesar permukaan prompt-injection. 8KB cukup utk konteks nyata.
 const maxValLen = 8000
 
-// renderTemplate — ganti {{key}} dgn payload[key] (Variable ala GTM). Key tak ada → kosong.
-// Nilai dipotong di maxValLen (anti banjir token dari payload eksternal).
 func renderTemplate(tmpl string, payload map[string]string) string {
 	return tmplRe.ReplaceAllStringFunc(tmpl, func(m string) string {
 		v := payload[tmplRe.FindStringSubmatch(m)[1]]

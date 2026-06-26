@@ -1,13 +1,8 @@
-// === LOCKED FILE (soft) ===
-// STABLE (ROADMAP 3 v1, owner-approved 2026-06-07) — DO NOT MODIFY without owner approval.
-// Engine generik: tick→check→dedup→render→runAction (reuse InvokeAgentMessage + notifyOwnerTelegram).
-// E2E verified (webhook→agent→telegram). Tambah TIPE = file type_*.go baru; JANGAN edit engine.
-// 2026-06-15 (owner-approved, Schedule-Creator): runAction Deliver kini multi-tujuan
-//   (comma-separated) — "telegram" (existing) + "chat" (append hasil ke chat_session di
-//   Config → muncul di tab Chat). Backward-compatible (Deliver="telegram" tetap jalan).
-// 2026-06-15 (owner-approved, R4 extension points): logika deliver DICABUT ke deliver.go
-//   sbg REGISTRY plug-able (RegisterDeliverer) — runAction cukup panggil dispatchDeliver.
-//   Behavior identik; nambah channel = file baru, bukan edit engine. Re-locked.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/trigger-schedule.md
+
 package triggers
 
 import (
@@ -20,13 +15,11 @@ import (
 	"flowork-gui/internal/floworkdb"
 )
 
-// Engine — driver generik: tick→check→dedup→render→aksi→deliver. Satu instance proses.
 type Engine struct {
 	Store  *floworkdb.Store
-	Invoke func(ctx context.Context, target, text, caller string) (string, error) // = host.InvokeAgentMessage
-	Notify func(ctx context.Context, text string) error                           // = notifyOwnerTelegram
-	// SystemAction — aksi SISTEM (bukan invoke agent), mis. "compact-all". Di-wire dari main
-	// (akses host.AgentIDs). target_kind="system" → runAction panggil ini, bukan Invoke. nil = skip.
+	Invoke func(ctx context.Context, target, text, caller string) (string, error)
+	Notify func(ctx context.Context, text string) error
+
 	SystemAction func(ctx context.Context, action string) (string, error)
 }
 
@@ -36,8 +29,6 @@ var (
 	errMode     = errors.New("type is not webhook mode")
 )
 
-// Tick — dipanggil tiap menit dari tick main.go. Proses semua aturan poll yang due.
-// NON-BLOCKING: tiap fire di goroutine sendiri (aksi bisa ≤300 dtk).
 func (e *Engine) Tick(ctx context.Context) {
 	rules, err := e.Store.ListTriggers()
 	if err != nil {
@@ -64,7 +55,7 @@ func (e *Engine) Tick(ctx context.Context) {
 			_ = e.Store.TouchTrigger(r.ID, newState, r.LastFired, r.LastStatus)
 		}
 		for _, ev := range events {
-			fresh, _ := e.Store.MarkTriggerKey(r.ID, ev.Key) // dedup
+			fresh, _ := e.Store.MarkTriggerKey(r.ID, ev.Key)
 			if !fresh {
 				continue
 			}
@@ -74,7 +65,6 @@ func (e *Engine) Tick(ctx context.Context) {
 	}
 }
 
-// HandleWebhook — intake push (mode webhook). Verifikasi secret → events → aksi.
 func (e *Engine) HandleWebhook(ruleID, secret string, body []byte) error {
 	r, err := e.Store.GetTrigger(ruleID)
 	if err != nil || r == nil || !r.Enabled {
@@ -102,7 +92,6 @@ func (e *Engine) HandleWebhook(ruleID, secret string, body []byte) error {
 	return nil
 }
 
-// RunNow — fire manual (tes), payload contoh. Tak menyentuh dedup/state. Balik run id.
 func (e *Engine) RunNow(ruleID string) (int64, error) {
 	r, err := e.Store.GetTrigger(ruleID)
 	if err != nil || r == nil {
@@ -112,16 +101,6 @@ func (e *Engine) RunNow(ruleID string) (int64, error) {
 	return e.runAction(*r, ev, "manual"), nil
 }
 
-// runAction — JANTUNG aksi (poll/webhook/manual): render prompt → invoke agent/group → deliver.
-// Reuse Invoke (InvokeAgentMessage) + Notify (notifyOwnerTelegram). Balik run id.
-//
-// ⚠️ BY DESIGN (audit #5 2026-06-15, keputusan AI owner-delegated): r.Target di-invoke
-// LANGSUNG via InvokeAgentMessage — GROUP itu sendiri agent-coordinator yang fan-out ke
-// member, jadi target=group OTOMATIS jalan sbg gateway (gak perlu logika khusus). target_kind
-// = informational. Konvensi "worker cuma lewat group" DIPEGANG di sisi PEMBUAT (architect/
-// schedule-creator/mr-flow-next semua route ke group). JANGAN tambah hard-block invoke-langsung
-// di sini — itu malah NABRAK jalur debug/test (/api/chat, RPC) yang sengaja ada. Sesuai
-// arsitektur baru (group=gateway by convention, bukan by force).
 func (e *Engine) runAction(r floworkdb.Trigger, ev Event, trigger string) int64 {
 	payloadJSON, _ := json.Marshal(ev.Payload)
 	runID, _ := e.Store.InsertTriggerRun(r.ID, trigger, string(payloadJSON))
@@ -130,7 +109,7 @@ func (e *Engine) runAction(r floworkdb.Trigger, ev Event, trigger string) int64 
 	defer cancel()
 	status, errText, reply := "ok", "", ""
 	if r.TargetKind == "system" {
-		// Aksi sistem (mis. compact-all) — bukan invoke agent. owner 2026-06-20: "all compact ke triger".
+
 		if e.SystemAction == nil {
 			status, errText = "error", "system action not wired"
 		} else if out, ierr := e.SystemAction(cctx, r.Target); ierr != nil {
@@ -148,9 +127,7 @@ func (e *Engine) runAction(r floworkdb.Trigger, ev Event, trigger string) int64 
 		status, errText = "error", ierr.Error()
 	} else {
 		reply = out
-		// Deliver via REGISTRY (R4 extension point — lihat deliver.go). Channel plug-able:
-		// "telegram"+"chat" builtin; tambah channel = RegisterDeliverer, JANGAN edit engine.
-		// Agent OK tapi deliver gagal → hasil tetap di history; error channel terakhir dicatat.
+
 		errText = dispatchDeliver(cctx, e, r, reply)
 	}
 	_ = e.Store.FinishTriggerRun(runID, status, reply, errText)

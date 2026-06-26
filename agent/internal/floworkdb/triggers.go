@@ -1,9 +1,8 @@
-// triggers.go — ROADMAP 3 (Trigger framework) data layer, owner-level (flowork.db).
-//
-// Sebuah TRIGGER = aturan otomasi "KALAU <event> MAKA suruh <agent|group> dgn <prompt>
-// → kirim hasil". Tipe event (time/webhook/file-watch/…) bersifat plug-and-play; tabel
-// ini menyimpan ATURAN (instance) + ledger dedup + audit run. Tipe-nya sendiri bukan di
-// DB (itu logika engine/plugin). Skema additive, idempotent, dipanggil saat boot.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/trigger-schedule.md
+
 package floworkdb
 
 import (
@@ -11,38 +10,35 @@ import (
 	"time"
 )
 
-// Trigger — satu aturan otomasi.
 type Trigger struct {
 	ID            string `json:"id"`
 	Name          string `json:"name"`
-	TypeID        string `json:"type_id"`     // "time" | "webhook" | "file-watch" | …
-	Config        string `json:"config"`      // JSON isian config tipe (mis. {"cron":"0 9 * * *"})
-	Target        string `json:"target"`      // agent id ATAU group id
-	TargetKind    string `json:"target_kind"` // "agent" | "group"
-	Prompt        string `json:"prompt"`      // template {{payload}}
-	Deliver       string `json:"deliver"`     // "telegram" (v1)
+	TypeID        string `json:"type_id"`
+	Config        string `json:"config"`
+	Target        string `json:"target"`
+	TargetKind    string `json:"target_kind"`
+	Prompt        string `json:"prompt"`
+	Deliver       string `json:"deliver"`
 	Enabled       bool   `json:"enabled"`
-	State         string `json:"state"`          // blob opaque per-rule (dipakai tipe poll)
-	WebhookSecret string `json:"webhook_secret"` // untuk tipe push
+	State         string `json:"state"`
+	WebhookSecret string `json:"webhook_secret"`
 	LastFired     string `json:"last_fired"`
-	LastStatus    string `json:"last_status"` // ""|ok|error|bad_config
+	LastStatus    string `json:"last_status"`
 	CreatedAt     string `json:"created_at"`
 }
 
-// TriggerRun — audit satu kali fire.
 type TriggerRun struct {
 	ID          int64  `json:"id"`
 	RuleID      string `json:"rule_id"`
 	FiredAt     string `json:"fired_at"`
 	FinishedAt  string `json:"finished_at"`
-	Trigger     string `json:"trigger"` // cron|poll|webhook|manual
-	Status      string `json:"status"`  // running|ok|error
+	Trigger     string `json:"trigger"`
+	Status      string `json:"status"`
 	PayloadJSON string `json:"payload_json"`
 	ResultText  string `json:"result_text"`
 	ErrorText   string `json:"error_text"`
 }
 
-// EnsureTriggerSchema — bikin 3 tabel (idempotent). Dipanggil saat boot.
 func (s *Store) EnsureTriggerSchema() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -96,7 +92,6 @@ func scanTrigger(rows *sql.Rows) (Trigger, error) {
 
 const triggerCols = `id,name,type_id,config,target,target_kind,prompt,deliver,enabled,state,webhook_secret,last_fired,last_status,created_at`
 
-// ListTriggers — semua aturan (urut terbaru).
 func (s *Store) ListTriggers() ([]Trigger, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -116,7 +111,6 @@ func (s *Store) ListTriggers() ([]Trigger, error) {
 	return out, rows.Err()
 }
 
-// GetTrigger — satu aturan (nil kalau tak ada).
 func (s *Store) GetTrigger(id string) (*Trigger, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -135,8 +129,6 @@ func (s *Store) GetTrigger(id string) (*Trigger, error) {
 	return &t, nil
 }
 
-// UpsertTrigger — create/update field yang di-set owner (TIDAK menimpa state/last_*/secret
-// kalau kosong di-skip — itu diurus method khusus). Menyimpan field konfigurasi.
 func (s *Store) UpsertTrigger(t Trigger) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -159,7 +151,6 @@ func (s *Store) UpsertTrigger(t Trigger) error {
 	return err
 }
 
-// DeleteTrigger — hapus aturan + ledger + runs (isolasi: cuma baris ini).
 func (s *Store) DeleteTrigger(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -180,7 +171,6 @@ func (s *Store) DeleteTrigger(id string) error {
 	return tx.Commit()
 }
 
-// SetTriggerEnabled — toggle.
 func (s *Store) SetTriggerEnabled(id string, on bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -192,7 +182,6 @@ func (s *Store) SetTriggerEnabled(id string, on bool) error {
 	return err
 }
 
-// DisableTriggersByType — saat tipe di-uninstall, matikan aturan yang memakainya.
 func (s *Store) DisableTriggersByType(typeID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -200,7 +189,6 @@ func (s *Store) DisableTriggersByType(typeID string) error {
 	return err
 }
 
-// TouchTrigger — engine simpan state/last_fired/last_status setelah ronde.
 func (s *Store) TouchTrigger(id, state, lastFired, lastStatus string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -209,7 +197,6 @@ func (s *Store) TouchTrigger(id, state, lastFired, lastStatus string) error {
 	return err
 }
 
-// MarkTriggerFired — update HANYA last_fired + last_status (tanpa menyentuh state).
 func (s *Store) MarkTriggerFired(id, lastFired, lastStatus string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -217,7 +204,6 @@ func (s *Store) MarkTriggerFired(id, lastFired, lastStatus string) error {
 	return err
 }
 
-// MarkTriggerKey — dedup: tandai key sudah fire. Balik true kalau BARU (belum pernah).
 func (s *Store) MarkTriggerKey(ruleID, key string) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -229,7 +215,6 @@ func (s *Store) MarkTriggerKey(ruleID, key string) (bool, error) {
 	return n > 0, nil
 }
 
-// SweepTriggerKeys — buang key dedup lama (anti bengkak). Boot/retensi.
 func (s *Store) SweepTriggerKeys(olderThanDays int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -238,7 +223,6 @@ func (s *Store) SweepTriggerKeys(olderThanDays int) error {
 	return err
 }
 
-// InsertTriggerRun — mulai audit (status running). Balik run id.
 func (s *Store) InsertTriggerRun(ruleID, trigger, payloadJSON string) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -250,7 +234,6 @@ func (s *Store) InsertTriggerRun(ruleID, trigger, payloadJSON string) (int64, er
 	return res.LastInsertId()
 }
 
-// FinishTriggerRun — tutup audit (ok/error + hasil/error).
 func (s *Store) FinishTriggerRun(runID int64, status, result, errText string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -263,7 +246,6 @@ func (s *Store) FinishTriggerRun(runID int64, status, result, errText string) er
 	return err
 }
 
-// ListTriggerRuns — history aturan (terbaru dulu).
 func (s *Store) ListTriggerRuns(ruleID string, limit int) ([]TriggerRun, error) {
 	if limit <= 0 || limit > 500 {
 		limit = 50

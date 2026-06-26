@@ -1,12 +1,7 @@
-// scanner_registry.go — KATALOG scanner (arsenal) + install/uninstall.
-//
-// Jawaban "115 itu bukan hacker, harusnya ribuan": arsenal = auditor defensif
-// (scanner.Names) + tool imun (trivy) + SEMUA nuclei template (1 file = 1 check,
-// ribuan) yang dikelompokin per pack kategori. Owner bisa install/uninstall pack
-// nuclei (state di flowork.db); auditor/tool = CORE defensif (ga di-uninstall).
-//
-//	GET  /api/scanner/registry          → {planes[], total_installed}
-//	POST /api/scanner/registry/toggle   → {id, installed}   (owner-only loopback)
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/threat-radar.md
 
 package scanapi
 
@@ -24,9 +19,6 @@ import (
 	"flowork-gui/internal/scanner"
 )
 
-// nucleiTemplatesDir — resolve dir template nuclei (NO-HARDCODE): env >
-// ~/nuclei-templates > ~/.local/nuclei-templates > ~/.config/nuclei/templates.
-// "" kalau ga ketemu (plane nuclei jadi kosong, graceful).
 func nucleiTemplatesDir() string {
 	if v := strings.TrimSpace(os.Getenv("NUCLEI_TEMPLATES_DIR")); v != "" {
 		if st, err := os.Stat(v); err == nil && st.IsDir() {
@@ -49,7 +41,6 @@ func nucleiTemplatesDir() string {
 	return ""
 }
 
-// nucleiPack — 1 kategori top-level template = 1 scanner pack install/uninstall.
 type nucleiPack struct {
 	ID    string
 	Name  string
@@ -62,17 +53,12 @@ var (
 	nucleiPackReady bool
 )
 
-// resetNucleiPackCache — invalidasi cache (dipanggil pas check privat di-ingest/
-// dihapus → pack flowork-private ke-recount tanpa restart).
 func resetNucleiPackCache() {
 	nucleiPackMu.Lock()
 	nucleiPackCache, nucleiPackReady = nil, false
 	nucleiPackMu.Unlock()
 }
 
-// enumerateNucleiPacks — walk top-level dir template, hitung .yaml per kategori.
-// Di-cache (template jarang berubah; walk belasan-ribu file tiap request = mahal),
-// tapi BISA di-reset pas check privat berubah.
 func enumerateNucleiPacks() []nucleiPack {
 	nucleiPackMu.Lock()
 	defer nucleiPackMu.Unlock()
@@ -110,8 +96,6 @@ func enumerateNucleiPacks() []nucleiPack {
 	return nucleiPackCache
 }
 
-// nucleiExclusionArgs — bangun arg `-exclude-templates <dir>/<pack>` buat tiap pack
-// yang di-UNINSTALL. PURE (gampang di-test): urut deterministik biar audit stabil.
 func nucleiExclusionArgs(disabled map[string]bool, dir string) []string {
 	if dir == "" || len(disabled) == 0 {
 		return nil
@@ -125,16 +109,13 @@ func nucleiExclusionArgs(disabled map[string]bool, dir string) []string {
 	for _, id := range ids {
 		name, ok := strings.CutPrefix(id, "nuclei:")
 		if !ok || strings.TrimSpace(name) == "" {
-			continue // cuma pack nuclei yg punya bentuk dir; core auditor ga relevan
+			continue
 		}
 		out = append(out, "-exclude-templates", filepath.Join(dir, name))
 	}
 	return out
 }
 
-// applyNucleiExclusions — kalau binary = nuclei, INJECT exclude buat pack yang
-// dicopot (disabled-set flowork.db). Jadi uninstall BENERAN nyetop pack pas scan,
-// bukan cuma ilang dari itungan katalog. Selain nuclei → args apa adanya.
 func applyNucleiExclusions(store *floworkdb.Store, binary string, args []string) []string {
 	if strings.ToLower(strings.TrimSuffix(filepath.Base(binary), ".exe")) != "nuclei" {
 		return args
@@ -165,7 +146,6 @@ type registryPlane struct {
 	Items     []registryItem `json:"items"`
 }
 
-// ScannerRegistryHandler — GET katalog arsenal + state install + total kepasang.
 func ScannerRegistryHandler(store *floworkdb.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		disabled, err := store.ListScannerDisabled()
@@ -203,8 +183,6 @@ func ScannerRegistryHandler(store *floworkdb.Store) http.HandlerFunc {
 	}
 }
 
-// ScannerRegistryToggleHandler — POST install/uninstall pack nuclei. CORE
-// (auditor/tool) DITOLAK uninstall — perisai defensif Flowork ga di-copot.
 func ScannerRegistryToggleHandler(store *floworkdb.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

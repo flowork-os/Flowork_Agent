@@ -1,14 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 25 phase 1 runner — walk target path, dispatch each
-//   file ke semua auditor, aggregate findings. Phase 2 (parallel
-//   goroutine per auditor, language-specific subset .py/.go/.js,
-//   incremental rescan) → tambah file baru.
-//
-// runner.go — Section 25 phase 1: filesystem walker + auditor dispatch.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/threat-radar.md
 
 package scanner
 
@@ -20,16 +13,14 @@ import (
 	"strings"
 )
 
-// RunOptions — scan input.
 type RunOptions struct {
-	Target string // absolute path file atau dir
-	// Optional auditor filter (empty = run all).
+	Target string
+
 	OnlyAuditors []string
-	// Skip file > N bytes. 0 = default 2MB.
+
 	MaxFileBytes int64
 }
 
-// RunResult — aggregated output untuk DB persist + API response.
 type RunResult struct {
 	Target       string    `json:"target"`
 	FilesScanned int       `json:"files_scanned"`
@@ -37,7 +28,6 @@ type RunResult struct {
 	Findings     []Finding `json:"findings"`
 }
 
-// Scannable extensions.
 var scannableExt = map[string]bool{
 	".go": true, ".py": true, ".js": true, ".ts": true, ".tsx": true,
 	".sh": true, ".rb": true, ".java": true, ".kt": true,
@@ -45,7 +35,6 @@ var scannableExt = map[string]bool{
 	".yaml": true, ".yml": true, ".json": true, ".env": true, ".toml": true,
 }
 
-// Run — walk target, dispatch auditors per file. Limit results 5000.
 func Run(opts RunOptions) (RunResult, error) {
 	if opts.Target == "" {
 		return RunResult{}, fmt.Errorf("target required")
@@ -55,7 +44,6 @@ func Run(opts RunOptions) (RunResult, error) {
 	}
 	res := RunResult{Target: opts.Target}
 
-	// Build auditor list.
 	chosen := map[string]AuditFunc{}
 	if len(opts.OnlyAuditors) == 0 {
 		for k, v := range Auditors {
@@ -74,7 +62,7 @@ func Run(opts RunOptions) (RunResult, error) {
 		return res, fmt.Errorf("stat: %w", err)
 	}
 	if !info.IsDir() {
-		// Single file scan.
+
 		runOnFile(opts.Target, &res, chosen, opts.MaxFileBytes)
 		return res, nil
 	}
@@ -84,12 +72,11 @@ func Run(opts RunOptions) (RunResult, error) {
 			return walkErr
 		}
 		if info.IsDir() {
-			// Skip common noise dirs.
+
 			base := filepath.Base(path)
 			if base == "node_modules" || base == ".git" || base == "vendor" || base == "__pycache__" ||
 				base == ".work" {
-				// .work = build work dir (gitignored, berisi duplikat src + rootfs/stdlib
-				// hasil ekstrak OS build) — bukan source kita, jangan di-scan.
+
 				return filepath.SkipDir
 			}
 			return nil
@@ -103,7 +90,7 @@ func Run(opts RunOptions) (RunResult, error) {
 		}
 		runOnFile(path, &res, chosen, opts.MaxFileBytes)
 		if len(res.Findings) > 5000 {
-			return io.EOF // graceful stop
+			return io.EOF
 		}
 		return nil
 	})
@@ -114,9 +101,7 @@ func Run(opts RunOptions) (RunResult, error) {
 }
 
 func runOnFile(path string, res *RunResult, auditors map[string]AuditFunc, maxBytes int64) {
-	// Skip file DEFINISI auditor (internal/scanner/auditors*.go) — file ini
-	// nyimpen SEMUA pola jahat sebagai regex string, jadi pasti self-match
-	// (false positive). Pattern-dictionary, bukan kode beneran.
+
 	if strings.Contains(filepath.ToSlash(path), "internal/scanner/auditors") {
 		return
 	}
@@ -133,8 +118,7 @@ func runOnFile(path string, res *RunResult, auditors map[string]AuditFunc, maxBy
 	lines := strings.Split(content, "\n")
 	for _, f := range auditors {
 		for _, fd := range f(path, content) {
-			// Suppression: skip temuan di baris ber-marker `// scanner:ignore`
-			// (atau `nosec`) di baris itu sendiri atau baris tepat di atasnya.
+
 			if suppressedAt(lines, fd.LineNumber) {
 				continue
 			}
@@ -143,8 +127,6 @@ func runOnFile(path string, res *RunResult, auditors map[string]AuditFunc, maxBy
 	}
 }
 
-// suppressedAt — true kalau baris ln (1-indexed) atau baris di atasnya punya
-// marker suppression. Standar industri (mirip gosec #nosec / nolint).
 func suppressedAt(lines []string, ln int) bool {
 	has := func(i int) bool {
 		if i < 1 || i > len(lines) {
@@ -155,13 +137,12 @@ func suppressedAt(lines []string, ln int) bool {
 	return has(ln) || has(ln-1)
 }
 
-// Names — return registered auditor names sorted.
 func Names() []string {
 	out := make([]string, 0, len(Auditors))
 	for k := range Auditors {
 		out = append(out, k)
 	}
-	// Manual sort (avoid extra import for tiny list).
+
 	for i := 0; i < len(out); i++ {
 		for j := i + 1; j < len(out); j++ {
 			if out[j] < out[i] {

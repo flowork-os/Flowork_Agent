@@ -1,17 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Phase 2 — Tool Registry (warga_caps.js) + Audit Log (commits.js)
-//   reference GUI tab shim. Extend (legacy_compat.go + _v2.go locked).
-//   Single-warga BY DESIGN — semua endpoint shim ke agent_id 'mr-flow'.
-//
-// legacy_compat_v3.go — 2 reference GUI tab compat:
-//   /api/warga-caps/{catalog,warga,effective,override,seed}
-//     → backend tools.ListSummaries + store.SubscribedSet + store.SubscribeTool
-//   /api/commits → backend store.ListAudit
-// Shape transform per endpoint di handler.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/code-progress.md
 
 package agentmgr
 
@@ -28,17 +18,8 @@ import (
 	"flowork-gui/internal/tools"
 )
 
-// =============================================================================
-// /api/warga-caps/* (reference: warga_caps.js)
-// =============================================================================
-
-// AgentIDsFunc — di-wire dari main.go (host.AgentIDs). Daftar warga yang
-// ke-load kernel. Nil/empty → fallback ke defaultAgentID (single-warga dev).
 var AgentIDsFunc func() []string
 
-// WargaListCompatHandler — GET /api/warga-caps/warga
-// Reference shape: {warga: [{name, display_name, role, active}]}
-// Real list dari kernel (multi-warga ready); fallback mr-flow kalau kosong.
 func WargaListCompatHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
@@ -63,15 +44,12 @@ func WargaListCompatHandler(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, map[string]any{"warga": warga, "count": len(warga)})
 }
 
-// WargaCapsCatalogCompatHandler — GET /api/warga-caps/catalog
-// Reference shape: {catalog: [{category, tools: [toolname...]}], roles: []}
-// Tool registry (tools.ListSummaries) di-group by category.
 func WargaCapsCatalogCompatHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
 		return
 	}
-	// Group nama tool per kategori, urut stabil.
+
 	byCat := map[string][]string{}
 	order := []string{}
 	for _, c := range buildToolCatalog() {
@@ -96,11 +74,6 @@ func WargaCapsCatalogCompatHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// WargaCapsEffectiveCompatHandler — GET /api/warga-caps/effective?warga=mr-flow
-// Reference shape: {caps: [{tool, enabled, is_override}]}
-// Sumber: store.SubscribedSet (subscription state) + tools registry catalog.
-// Field enabled = tool subscribed; is_override = true kalau row di-tulis user
-// (semua subscribe explicit di-flag override; seed default reset ke false).
 func WargaCapsEffectiveCompatHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
@@ -121,7 +94,7 @@ func WargaCapsEffectiveCompatHandler(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(w, map[string]any{"error": "list subs: " + err.Error()})
 		return
 	}
-	// Map tool_name → source. Source != "default" treated as override.
+
 	subSource := map[string]string{}
 	for _, s := range subs {
 		subSource[s.ToolName] = s.Source
@@ -141,9 +114,6 @@ func WargaCapsEffectiveCompatHandler(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, map[string]any{"caps": caps, "warga": warga})
 }
 
-// WargaCapsOverrideCompatHandler — POST /api/warga-caps/override
-// Reference body: {warga, tool, enabled}
-// Subscribe (enabled=true source='manual') atau unsubscribe (delete row).
 func WargaCapsOverrideCompatHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
@@ -191,8 +161,6 @@ func WargaCapsOverrideCompatHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// WargaCapsSeedCompatHandler — POST /api/warga-caps/seed
-// Reset semua override → re-subscribe semua tool registry sebagai 'default'.
 func WargaCapsSeedCompatHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
@@ -218,8 +186,6 @@ func WargaCapsSeedCompatHandler(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, map[string]any{"ok": true, "seeded": count})
 }
 
-// buildToolCatalog — internal helper. tools.ListSummaries → reference shape
-// {tool, description, category}.
 func buildToolCatalog() []map[string]any {
 	summaries := tools.ListSummaries()
 	out := make([]map[string]any, 0, len(summaries))
@@ -233,7 +199,6 @@ func buildToolCatalog() []map[string]any {
 	return out
 }
 
-// extractCategory — split capability "exec:shell" → "exec".
 func extractCategory(capability string) string {
 	if idx := strings.Index(capability, ":"); idx > 0 {
 		return capability[:idx]
@@ -244,18 +209,6 @@ func extractCategory(capability string) string {
 	return capability
 }
 
-// =============================================================================
-// /api/commits (reference: commits.js) — adapt audit log → fake git log
-// =============================================================================
-
-// CommitsCompatHandler — GET /api/commits
-// Reference shape: {commits: [{date, author, subject, hash}]}
-// Sumber: store.ListAudit("", "", "", 100) → AuditEntry list.
-// Map:
-//   date    = e.OccurredAt
-//   author  = e.Actor
-//   subject = e.EventType + " — " + detail_summary
-//   hash    = hex(e.ID) 7-char (kayak git short hash).
 func CommitsCompatHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
@@ -309,5 +262,4 @@ func formatAuditHash(id int64) string {
 	return h
 }
 
-// keep agentdb import used (struct field type reference).
 var _ = agentdb.AuditEntry{}

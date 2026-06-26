@@ -1,12 +1,7 @@
-// scan_allowlist.go — ALLOWLIST scanner (owner-level, flowork.db). OWNER yang
-// edit (lewat GUI/endpoint loopback); AGENT/Coder GA bisa nyentuh (gerbang).
-//
-//	kind "exec"   → executable yang boleh di-spawn scan tool (mis. nmap, nuclei).
-//	kind "target" → scope target yang boleh di-scan (per-engagement/klien).
-//
-// IsAllowed = gerbang yang dicek SEBELUM scan tool jalan / target dihajar.
-// Default DENY (kosong = ga ada yang boleh). Defensif: tanpa entry, scanner
-// aktif mati total. Tabel di owner-level DB → terpusat, bukan per-agent.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/threat-radar.md
 
 package floworkdb
 
@@ -16,7 +11,6 @@ import (
 	"strings"
 )
 
-// AllowEntry — 1 baris allowlist.
 type AllowEntry struct {
 	Kind    string `json:"kind"`
 	Value   string `json:"value"`
@@ -26,7 +20,6 @@ type AllowEntry struct {
 
 func validAllowKind(k string) bool { return k == "exec" || k == "target" }
 
-// EnsureScanSchema — bikin tabel scan_allowlist + scan_runs (idempotent). Boot.
 func (s *Store) EnsureScanSchema() error {
 	if _, err := s.db.Exec(`CREATE TABLE IF NOT EXISTS scan_allowlist (
 		kind     TEXT NOT NULL,
@@ -37,7 +30,7 @@ func (s *Store) EnsureScanSchema() error {
 	)`); err != nil {
 		return err
 	}
-	// scan_runs — audit trail tiap gated-exec (defensif + bahan laporan).
+
 	if _, err := s.db.Exec(`CREATE TABLE IF NOT EXISTS scan_runs (
 		id         INTEGER PRIMARY KEY AUTOINCREMENT,
 		binary     TEXT NOT NULL,
@@ -52,11 +45,10 @@ func (s *Store) EnsureScanSchema() error {
 	)`); err != nil {
 		return err
 	}
-	// scan_findings — finding terstruktur hasil parse output (immune P2.2b).
+
 	return s.ensureScanFindingsSchema()
 }
 
-// ScanRun — 1 baris audit gated-exec.
 type ScanRun struct {
 	ID        int64  `json:"id"`
 	Binary    string `json:"binary"`
@@ -70,7 +62,6 @@ type ScanRun struct {
 	CreatedAt string `json:"created_at"`
 }
 
-// AddScanRun — catat 1 eksekusi (status ran|denied|error). Stdout/stderr di-cap.
 func (s *Store) AddScanRun(r ScanRun) (int64, error) {
 	cap64 := func(x string) string {
 		if len(x) > 64<<10 {
@@ -87,7 +78,6 @@ func (s *Store) AddScanRun(r ScanRun) (int64, error) {
 	return res.LastInsertId()
 }
 
-// ListScanRuns — N run terakhir (desc).
 func (s *Store) ListScanRuns(limit int) ([]ScanRun, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
@@ -109,7 +99,6 @@ func (s *Store) ListScanRuns(limit int) ([]ScanRun, error) {
 	return out, rows.Err()
 }
 
-// ListAllowlist — entri allowlist (kind kosong = semua). Sorted.
 func (s *Store) ListAllowlist(kind string) ([]AllowEntry, error) {
 	var rows *sql.Rows
 	var err error
@@ -133,7 +122,6 @@ func (s *Store) ListAllowlist(kind string) ([]AllowEntry, error) {
 	return out, rows.Err()
 }
 
-// AddAllowlist — tambah/update entri. Validasi kind + value non-kosong.
 func (s *Store) AddAllowlist(kind, value, note string) error {
 	kind = strings.TrimSpace(strings.ToLower(kind))
 	value = strings.TrimSpace(value)
@@ -150,18 +138,12 @@ func (s *Store) AddAllowlist(kind, value, note string) error {
 	return err
 }
 
-// RemoveAllowlist — hapus 1 entri.
 func (s *Store) RemoveAllowlist(kind, value string) error {
 	_, err := s.db.Exec(`DELETE FROM scan_allowlist WHERE kind=? AND value=?`,
 		strings.TrimSpace(strings.ToLower(kind)), strings.TrimSpace(value))
 	return err
 }
 
-// IsAllowed — GERBANG. true kalau value ada di allowlist kind.
-//
-//	exec   → exact match (binary persis).
-//	target → exact ATAU wildcard prefix "*.host" (mis. allow "*.example.com"
-//	         cover "api.example.com"). Default DENY.
 func (s *Store) IsAllowed(kind, value string) (bool, error) {
 	kind = strings.TrimSpace(strings.ToLower(kind))
 	value = strings.TrimSpace(strings.ToLower(value))
@@ -178,7 +160,7 @@ func (s *Store) IsAllowed(kind, value string) (bool, error) {
 			return true, nil
 		}
 		if kind == "target" && strings.HasPrefix(ev, "*.") {
-			suffix := ev[1:] // ".example.com"
+			suffix := ev[1:]
 			if strings.HasSuffix(value, suffix) {
 				return true, nil
 			}

@@ -1,13 +1,7 @@
-// tool_immune.go — IMUN lewat TOOL NYATA (trivy), nyatu ke pipeline auditor.
-//
-// 115 auditor statis = pattern-match (regex) di kode sendiri. Ini NAMBAHIN tool
-// nyata: trivy fs → CVE dependensi (DB CVE beneran) + secret + IaC misconfig —
-// hal yang pattern-auditor ga bisa. Output = []Finding (FORMAT SAMA auditor) →
-// codescan engine nyimpennya lewat jalur yang SAMA → muncul di Scan Log + Findings
-// + baseline Threat Radar, persis kayak auditor.
-//
-// Kode SENDIRI = selalu authorized (defensif) → NO gerbang allowlist target.
-// trivy ga kepasang → nil (imun tetep jalan pakai auditor). Bounded + graceful.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/threat-radar.md
 
 package scanner
 
@@ -22,15 +16,12 @@ import (
 	"time"
 )
 
-// ToolScan — scan `target` (repo root atau file manifest) pakai trivy. Return
-// []Finding (kosong/nil kalau bersih / trivy ga ada / error). Aman dipanggil
-// dari engine codescan: ga panic, ada timeout.
 func ToolScan(target string) []Finding {
 	if strings.TrimSpace(target) == "" {
 		return nil
 	}
 	if _, err := exec.LookPath("trivy"); err != nil {
-		return nil // trivy ga kepasang → imun tetep jalan pakai auditor statis
+		return nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
@@ -41,7 +32,7 @@ func ToolScan(target string) []Finding {
 		target)
 	var out bytes.Buffer
 	cmd.Stdout = &out
-	_ = cmd.Run() // trivy exit != 0 kalau nemu temuan — output JSON tetep valid
+	_ = cmd.Run()
 	if out.Len() == 0 {
 		return nil
 	}
@@ -132,16 +123,8 @@ func trivySev(s string) string {
 	}
 }
 
-// immuneToolset — tool NYATA yang nambah deteksi imun AUTO-scan (jalan sendiri
-// tiap kode/dependensi berubah). Plug-and-play seam: tambah binari di sini →
-// OTOMATIS keitung sebagai scanner aktif KALAU binari-nya beneran kepasang.
 var immuneToolset = []string{"trivy"}
 
-// ToolNames — tool imun yang BENERAN kepasang (auto-detect via PATH). Dipakai
-// buat hitung "scanner aktif" → angka ngikut realita: pasang tool → naik, copot
-// → turun. BUKAN angka hardcode. Tool on-demand (nmap/nuclei/subfinder/dig)
-// SENGAJA ga diitung di sini — dia owner-gated manual, muncul di scan log pas
-// dijalanin, bukan auto-scan latar.
 func ToolNames() []string {
 	names := make([]string, 0, len(immuneToolset))
 	for _, bin := range immuneToolset {
@@ -152,8 +135,6 @@ func ToolNames() []string {
 	return names
 }
 
-// IsDepManifest — file = manifest dependensi? Kalau berubah → re-scan trivy
-// (CVE supply-chain). File kode biasa cukup auditor statis.
 func IsDepManifest(path string) bool {
 	switch strings.ToLower(filepath.Base(path)) {
 	case "go.mod", "go.sum", "package.json", "package-lock.json", "yarn.lock",

@@ -1,3 +1,8 @@
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/trigger-schedule.md
+
 package triggers
 
 import (
@@ -10,9 +15,6 @@ import (
 
 func init() { Register(&fileWatchType{}) }
 
-// fileWatchType — tipe "file-watch": file baru di folder → fire. Poll (list+diff), portable
-// (bukan inotify OS-spesifik). Built-in (Go host) → akses fs langsung; owner menetapkan folder.
-// (Plugin wasm pihak-ketiga kelak pakai cap fs.list scoped — increment berikut, interface tetap.)
 type fileWatchType struct{}
 
 func (t *fileWatchType) ID() string            { return "file-watch" }
@@ -27,8 +29,6 @@ func (t *fileWatchType) ConfigSchema() []Field {
 }
 func (t *fileWatchType) OnWebhook(_ map[string]string, _ []byte) ([]Event, error) { return nil, nil }
 
-// Check — state = JSON array "name|mtime" yang sudah terlihat. Run pertama (state=="") = SEED
-// (tandai file lama sebagai terlihat, JANGAN fire) → hanya file BARU setelah rule dibuat yang fire.
 func (t *fileWatchType) Check(cfg map[string]string, state string) ([]Event, string, error) {
 	folder := strings.TrimSpace(cfg["folder"])
 	if folder == "" {
@@ -40,7 +40,7 @@ func (t *fileWatchType) Check(cfg map[string]string, state string) ([]Event, str
 	}
 	entries, err := os.ReadDir(folder)
 	if err != nil {
-		return nil, state, nil // folder belum ada / tak terbaca → diam (jangan crash)
+		return nil, state, nil
 	}
 	seen := map[string]bool{}
 	if state != "" {
@@ -70,7 +70,7 @@ func (t *fileWatchType) Check(cfg map[string]string, state string) ([]Event, str
 		key := name + "|" + mt
 		cur = append(cur, key)
 		if seen[key] || firstRun {
-			continue // sudah pernah, atau seed pertama
+			continue
 		}
 		events = append(events, Event{Key: key, Payload: map[string]string{
 			"path": filepath.Join(folder, name), "name": name,

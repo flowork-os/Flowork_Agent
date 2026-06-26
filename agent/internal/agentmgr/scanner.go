@@ -1,13 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 25 phase 1 scanner endpoints. Anti-escape: target_path
-//   harus di dalam shared workspace agent. Phase 2 (background goroutine
-//   long scan, GitHub repo scan, ZIP scan inline) → tambah file baru.
-//
-// scanner.go — Section 25 phase 1: scan + runs + findings + auditors list.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/threat-radar.md
 
 package agentmgr
 
@@ -24,9 +18,6 @@ import (
 	"flowork-gui/internal/scanner"
 )
 
-// ScannerScanHandler — POST /api/agents/scanner/scan?id=<agent>
-// Body: {target_path, scan_type}. target_path resolved relative ke shared
-// workspace agent (anti-escape).
 func ScannerScanHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
@@ -53,7 +44,6 @@ func ScannerScanHandler(w http.ResponseWriter, r *http.Request) {
 		body.ScanType = "manual"
 	}
 
-	// Resolve target ke dalam shared workspace.
 	sharedRoot := filepath.Join(agentFolder(agentID), "workspace")
 	target := filepath.Join(sharedRoot, body.TargetPath)
 	if rel, rerr := filepath.Rel(sharedRoot, target); rerr != nil || strings.HasPrefix(rel, "..") {
@@ -81,7 +71,6 @@ func ScannerScanHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Convert findings → DB rows.
 	dbFindings := make([]agentdb.ScannerFinding, 0, len(res.Findings))
 	criticalCount := 0
 	for _, f := range res.Findings {
@@ -128,7 +117,6 @@ func relPathTo(root, abs string) string {
 	return abs
 }
 
-// ScannerRunsHandler — GET /api/agents/scanner/runs?id=&limit=
 func ScannerRunsHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
@@ -159,7 +147,6 @@ func ScannerRunsHandler(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, map[string]any{"items": rows, "count": len(rows)})
 }
 
-// ScannerFindingsHandler — GET /api/agents/scanner/findings?id=&run_id=
 func ScannerFindingsHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
@@ -189,13 +176,12 @@ func ScannerFindingsHandler(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, map[string]any{"items": rows, "count": len(rows)})
 }
 
-// ScannerAuditorsHandler — GET /api/agents/scanner/auditors
 func ScannerAuditorsHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
 		return
 	}
-	// auditor statis + tool nyata (trivy imun + nmap/nuclei/dst) → count ga stuck.
+
 	names := append(append([]string{}, scanner.Names()...), scanner.ToolNames()...)
 	httpx.WriteJSON(w, map[string]any{
 		"items": names,

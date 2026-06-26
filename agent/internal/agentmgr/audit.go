@@ -1,12 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 26 phase 1 — audit + watchdog endpoints. Append +
-//   query. Watchdog rule eval phase 2 (cron + Telegram dispatch).
-//
-// audit.go — Section 26 phase 1: audit log + watchdog endpoints.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/code-progress.md
 
 package agentmgr
 
@@ -20,7 +15,6 @@ import (
 	"flowork-gui/internal/httpx"
 )
 
-// AuditLogHandler — GET/POST /api/agents/audit/log?id=<agent>
 func AuditLogHandler(w http.ResponseWriter, r *http.Request) {
 	agentID := strings.TrimSpace(r.URL.Query().Get("id"))
 	if agentID == "" {
@@ -63,10 +57,8 @@ func AuditLogHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// WatchdogFireFunc — Section 26 phase 2: callback wired ke watchdog.Engine.FireNow.
 var WatchdogFireFunc func() (int, int)
 
-// WatchdogTickHandler — POST /api/agents/watchdog/tick (admin manual sweep)
 func WatchdogTickHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
@@ -84,7 +76,6 @@ func WatchdogTickHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// WatchdogAlertsHandler — GET /api/agents/watchdog/alerts?id=&limit=
 func WatchdogAlertsHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})

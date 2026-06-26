@@ -1,14 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 26 phase 1 — audit_log + watchdog_alerts schema. Append-
-//   only enforced via Go API (no Update/Delete methods). Phase 2 (trigger
-//   block UPDATE/DELETE, hash-chain rows, real-time watchdog daemon) →
-//   tambah file baru.
-//
-// audit.go — Section 26 phase 1: audit log + watchdog alerts.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/code-progress.md
 
 package agentdb
 
@@ -18,10 +11,10 @@ import (
 )
 
 const (
-	EventToolCall        = "tool_call"
-	EventProtectorBlock  = "protector_block"
-	EventScannerFinding  = "scanner_finding"
-	EventConfigChange    = "config_change"
+	EventToolCall       = "tool_call"
+	EventProtectorBlock = "protector_block"
+	EventScannerFinding = "scanner_finding"
+	EventConfigChange   = "config_change"
 )
 
 const (
@@ -73,7 +66,6 @@ func (s *Store) ensureAuditSchema() error {
 	return err
 }
 
-// AppendAudit — append-only. NO Update/Delete API exposed (immutability).
 func (s *Store) AppendAudit(e AuditEntry) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -149,8 +141,6 @@ func (s *Store) ListAudit(eventType, from, to string, limit int) ([]AuditEntry, 
 	return out, rows.Err()
 }
 
-// CountAuditInWindow — buat watchdog rule eval (mis. "≥10 protector_block
-// in 60s"). Return count of rows yang match event_type + occurred_at >= sinceISO.
 func (s *Store) CountAuditInWindow(eventType, sinceISO string) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

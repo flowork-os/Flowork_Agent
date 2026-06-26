@@ -1,9 +1,7 @@
-// bodyscan.go — "Scan Tubuh Flowork": orkestrasi scan KODE semua repo Flowork
-// (auditor statis + trivy) → tulis ke state.db mr-flow (ScannerRun + Findings) →
-// MUNCUL di Threat Radar (radar + scan log + findings), jalur SAMA kayak codescan.
-// Owner-only loopback. READ-ONLY ke kode (cuma baca). NOL token (deterministik).
-//
-//	POST /api/scanner/bodyscan {roots[]?}  → posture per-repo + run_id (ke radar)
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/threat-radar.md
 
 package scanapi
 
@@ -34,14 +32,11 @@ type bodyRepo struct {
 	Files      int            `json:"files"`
 	Total      int            `json:"total"`
 	BySeverity map[string]int `json:"by_severity"`
-	Top        []bodyFinding  `json:"top"` // cuma critical+high (yg penting diliat dulu)
+	Top        []bodyFinding  `json:"top"`
 }
 
 var sevRank = map[string]int{"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 
-// safeBodyScanRoot rejects sensitive/system directories so a body scan can't be
-// pointed at the whole filesystem or system paths (which would slurp secrets into
-// the findings DB). Owner-only feature, but defense-in-depth for production.
 func safeBodyScanRoot(root string) bool {
 	abs, err := filepath.Abs(root)
 	if err != nil {
@@ -57,12 +52,11 @@ func safeBodyScanRoot(root string) bool {
 		}
 	}
 	if home, herr := os.UserHomeDir(); herr == nil && filepath.Clean(home) == abs {
-		return false // the home dir root itself is too broad — scan a repo under it
+		return false
 	}
 	return true
 }
 
-// scanOneRoot — scan 1 repo (auditor + trivy) → posture + SEMUA finding (urut severity).
 func scanOneRoot(root string) (bodyRepo, []scanner.Finding) {
 	br := bodyRepo{Root: root, BySeverity: map[string]int{}}
 	res, err := scanner.Run(scanner.RunOptions{Target: root})
@@ -96,8 +90,6 @@ func relTo(root, abs string) string {
 	return abs
 }
 
-// writeRadar — tulis hasil 1 repo ke state.db mr-flow → tampil di Threat Radar
-// (scan log "body:<repo>" + findings + radar). Best-effort. Return run_id.
 func writeRadar(openAgent func(string) (*agentdb.Store, error), root string, all []scanner.Finding, crit int) int64 {
 	if openAgent == nil {
 		return 0
@@ -128,8 +120,6 @@ func writeRadar(openAgent func(string) (*agentdb.Store, error), root string, all
 	return runID
 }
 
-// ScannerBodyScanHandler — POST {roots[]}: scan tiap repo → tulis ke radar → agregasi.
-// Default roots = [cwd]. Owner kasih [agent, router, ...] buat tubuh penuh.
 func ScannerBodyScanHandler(openAgent func(string) (*agentdb.Store, error)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
