@@ -46,3 +46,9 @@ Konsol terpadu untuk **jaringan kedaulatan (mesh)** antar-node Flowork + **engin
 - Live GUI/API: identity, peers, packets, karma, filter/test, policy/tick, pricing/calc JALAN.
 - FROZEN: semua handlers_mesh*.go + handlers_llm_policy.go + internal/mesh/* + internal/policy/*.
 - NON-FROZEN (sengaja): `index.html` (GUI), `internal/fwswitch/registry.go` (switch), `routes_ext.go` (seam).
+
+## GUI Share & Approve (2026-06-27)
+Panel "🔄 Share & Approve Pengetahuan Mesh": tampil state (`GET /api/mesh/policy` → share/approve) +
+antrian pending knowledge + tombol Approve/Reject (`GET /api/mesh/knowledge/pending`,
+`POST /api/mesh/knowledge/approve|reject`). Switch ON/OFF & manual/auto = tab "🎛️ Switch Fitur"
+(FLOWORK_MESH_SHARE/APPROVE). Reciprocity: share OFF → tak nerima. Detail: lock/mesh-sharing.md.

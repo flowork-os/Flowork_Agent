@@ -48,3 +48,9 @@ Sub-route di dalam router:
 - `internal/clitools/detect.go` — FROZEN.
 - `routes.go` — FROZEN.
 - `web/static/index.html` (GUI) — TIDAK frozen.
+
+## GUI plug-and-play (2026-06-27)
+Section "➕ Custom CLI tool": Add/Delete CLI tool custom dari GUI (DB kv `clitool_custom:`).
+Endpoint: `GET/POST /api/cli-tools/custom`, `DELETE /api/cli-tools/custom/<id>`. ADD live →
+`RegisterCustomCLITool` → masuk `All()`/`/api/cli-tools`. DELETE = hapus DB (drop penuh registry saat
+restart). Backend NON-frozen: `store/clitool_custom.go`, `clitools/custom_db.go`, `handlers_cli_custom_ext.go`.

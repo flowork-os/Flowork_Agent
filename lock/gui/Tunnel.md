@@ -40,3 +40,9 @@ Go `net/http` + `os/exec` (shell-out ke cloudflared & tailscale), regexp parsing
 
 ## Status freeze
 FROZEN — `handlers_tunnel.go` punya header `⚠️ FROZEN — jangan edit file ini`. Begitu juga `internal/store/kvmisc.go` dan `internal/kiromodels`. Penambahan fitur lewat SEAM non-frozen + SWITCH (`internal/fwswitch/registry.go`). GUI `web/static/index.html` TIDAK frozen.
+
+## GUI plug-and-play (2026-06-27)
+Section "🔌 Provider Tunnel (plug-and-play)": list `GET /api/tunnel/providers` + Enable/Disable per
+provider (`POST /api/tunnel/provider/<name>/<action>`). Provider BARU = file sibling
+`tunnel_<x>_ext.go` + `RegisterTunnelProvider` (registry FROZEN, nol buka frozen). Built-in
+cloudflared/tailscale tetap di card khusus. JS: `loadTunnelProviders`/`tunnelProvider`.
