@@ -283,6 +283,14 @@ func RunFilterPipeline(db *sql.DB, pkt Packet, drawerContent string) []FilterDec
 		return out
 	}
 	out = append(out, FilterDecision{Layer: "L8-consensus", Decision: "pass"})
+	// Extension seam (Rule 7): lapis filter tambahan via RegisterMeshFilter (filter_ext.go,
+	// NON-frozen) → nambah lapis baru TANPA buka file frozen ini. Reject 1 lapis = pipeline stop.
+	if extra, rej := runExtraMeshFilters(db, pkt, drawerContent); len(extra) > 0 {
+		out = append(out, extra...)
+		if rej {
+			return out
+		}
+	}
 	// L9 promote-decision = ditentukan ProcessKnowledgePacket (reject/dup/flag/promote)
 	// berdasar agregat L1-L8 di atas (single source of truth, bukan stub ganda).
 	out = append(out, FilterDecision{Layer: "L9-promote", Decision: "pass"})
