@@ -167,10 +167,10 @@ func registerManagementRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/brain/config", brainConfigHandler)
 	mux.HandleFunc("/api/brain/test", brainTestHandler)
 	mux.HandleFunc("/api/brain/explore", brainExploreHandler)
-	mux.HandleFunc("/api/brain/constitution", brainConstitutionHandler)
+	mux.HandleFunc("/api/brain/constitution", editionGate(brainConstitutionHandler))
 	mux.HandleFunc("/api/brain/by-type", brainByTypeHandler)
 	mux.HandleFunc("/api/brain/wing", brainWingHandler) // enumerate corpus per-wing (sumber topik distilasi)
-	mux.HandleFunc("/api/brain/personas", brainPersonasHandler)
+	mux.HandleFunc("/api/brain/personas", editionGate(brainPersonasHandler))
 	mux.HandleFunc("/api/brain/contributions", brainContributionsHandler)
 	mux.HandleFunc("/api/brain/contributions/ingest", brainContributionsIngestHandler)
 	mux.HandleFunc("/api/brain/ingest/run", brainIngestRunHandler)
@@ -188,12 +188,12 @@ func registerManagementRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/brain/tool-patterns", brainToolSuggestHandler)      // section 6 roadmap
 	mux.HandleFunc("/api/brain/models", brainModelsHandler)                  // section 11 roadmap
 	mux.HandleFunc("/api/brain/models/get", brainModelsGetHandler)           // section 11 roadmap
-	mux.HandleFunc("/api/brain/constitution/propose", brainProposeHandler)   // section 12 roadmap
+	mux.HandleFunc("/api/brain/constitution/propose", editionGate(brainProposeHandler))   // section 12 roadmap
 	mux.HandleFunc("/api/brain/constitution/proposals", brainProposalsListHandler) // section 12 roadmap
-	mux.HandleFunc("/api/brain/constitution/vote", brainVoteHandler)         // section 12 roadmap
-	mux.HandleFunc("/api/brain/constitution/amend", brainAmendProposeHandler)        // section 12 phase 2 (P1 amend)
+	mux.HandleFunc("/api/brain/constitution/vote", editionGate(brainVoteHandler))         // section 12 roadmap
+	mux.HandleFunc("/api/brain/constitution/amend", editionGate(brainAmendProposeHandler))        // section 12 phase 2 (P1 amend)
 	mux.HandleFunc("/api/brain/constitution/amendments", brainAmendListHandler)      // section 12 phase 2 (P1 amend)
-	mux.HandleFunc("/api/brain/constitution/amend/vote", brainAmendVoteHandler)      // section 12 phase 2 (P1 amend)
+	mux.HandleFunc("/api/brain/constitution/amend/vote", editionGate(brainAmendVoteHandler))      // section 12 phase 2 (P1 amend)
 	// P2 A2 fase-2a: signed skill pack (gerbang #1 sign/provenance) + karma-gate publish (gerbang #3)
 	mux.HandleFunc("/api/skills/pack/export-signed", skillPackExportSignedHandler)
 	mux.HandleFunc("/api/skills/pack/verify", skillPackVerifyHandler)

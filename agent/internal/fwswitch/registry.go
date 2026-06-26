@@ -33,6 +33,7 @@ var Registry = []Switch{
 	{"FLOWORK_EXPOSE_ALL_TOOLS", "Buka semua tool", "Semua agent boleh akses semua tool (subscription-gating udah dicabut).", "bool", "false", "Router / Tools"},
 	{"FLOWORK_ROUTER_RETRY", "Retry router transient", "Coba ulang (exp-backoff) pas error sementara ke model lokal.", "bool", "false", "Router / Resilience"},
 	{"FLOWORK_ORCHESTRATOR", "Orkestrator default", "Agent yg jadi orkestrator utama (default mr-flow).", "string", "mr-flow", "Agent"},
+	{"FLOWORK_EDITION", "Edisi (FREE/CORPORATE)", "FREE (default) = identitas (persona/konstitusi) READ-ONLY, anti-rebrand. 'corporate' = unlock white-label/edit identitas.", "string", "free", "Bisnis / Edition"},
 	{"FLOWORK_CACHE_REUSE", "KV cache-reuse (#8)", "Reuse prefix prompt statik (konstitusi+tool-schema) lintas-call via KV-shift → skip re-prefill. Isi N (mis. 256). Kosong/0=off. Berlaku saat LLM reload.", "int", "0", "Engine / KV-cache"},
 	{"FLOWORK_PARALLEL_SLOTS", "Parallel slots (#8)", "-np N: N slot server biar multi-semut share 1 engine barengan. ⚠️ ctx kebagi N → naikin FLOWORK_CTX. Kosong/0=off (auto). Berlaku saat LLM reload.", "int", "0", "Engine / KV-cache"},
 	{"FLOWORK_SLOT_SAVE_PATH", "Slot KV persist (#8)", "--slot-save-path dir: simpan KV slot ke disk → warm-restore lintas-restart (skip re-prefill). Kosong=off. Berlaku saat LLM reload.", "string", "", "Engine / KV-cache"},
