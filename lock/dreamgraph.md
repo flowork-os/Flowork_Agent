@@ -36,6 +36,18 @@ DreamGraph mirror dari: **constitution + persona + skill + agent** (core, `syncC
 BUKAN node-per-drawer biar 860k gak meledak). Semua spoke → hub `flowork` (anti orphan). Idempotent
 (cleanup by-source dulu), MIRROR-only (gak hapus sumber/memory).
 
+## EXTENSION SEAM — RegisterGraphProjection (2026-06-26, nutup gap audit)
+**Akar:** INSTINCTS + KNOWLEDGE dipanggil INLINE di `SyncGraphExtended` (FROZEN). Nambah proyeksi
+BARU = kepaksa buka file frozen. Skill udah punya `RegisterSkillProvider`; graph projection BELUM → ditutup.
+**Fix (cabut-akar):** file NON-frozen `router/internal/brain/graph_extras_ext.go` = registry
+`RegisterGraphProjection` (switch-aware via `extraSwitchOn` + fails-open). `SyncGraphExtended` (frozen)
+di-hook 1 baris (`runExtraGraphProjectionsTx(ctx,tx)` sebelum RAG-mirror) → proyeksi jalan dalam tx yg sama.
+**Nambah proyeksi baru (zero edit frozen):** bikin file sibling di `internal/brain` →
+`func init(){ RegisterGraphProjection(GraphProjection{Name,Switch:"FLOWORK_DREAMGRAPH_XXX",Run:func(ctx,tx)(int,error)}) }`
+\+ tambah switch di `agent/internal/fwswitch/registry.go` → muncul GUI. Run WAJIB idempotent + mirror-only.
+**Test:** `TestRegisterGraphProjectionRouter` / `TestRouterProjectionSwitch` (pkg brain) PASS. Re-freeze
+`graph_extras.go` PASS (`TestKernelFreeze`).
+
 ## VERIFIKASI (2026-06-26)
 - Boot log: `dreamgraph: boot sync OK`.
 - `cognitive_graph_stats` 0/0 → **325 node / 324 edge**: 285 instinct + 24 knowledge-wing + 14

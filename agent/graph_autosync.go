@@ -188,6 +188,10 @@ func SyncSourcesToGraph(ctx context.Context, host *kernelhost.Host) int {
 		}
 	}
 
+	// Extension seam (Rule 7): proyeksi sumber CGM tambahan didaftarin via RegisterGraphProjection
+	// (graph_autosync_ext.go, NON-frozen) → nambah sumber baru TANPA buka file frozen ini lagi.
+	changed += runExtraGraphProjections(ctx, store, scope)
+
 	return changed
 }
 

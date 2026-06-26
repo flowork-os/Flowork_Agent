@@ -153,6 +153,9 @@ func SyncGraphExtended(ctx context.Context) error {
 			return fmt.Errorf("knowledge: %w", err)
 		}
 	}
+	// Extension seam (Rule 7): proyeksi DreamGraph tambahan via RegisterGraphProjection
+	// (graph_extras_ext.go, NON-frozen) → nambah sumber baru TANPA buka file frozen ini lagi.
+	runExtraGraphProjectionsTx(ctx, tx)
 	if err := syncGraphToRAGTx(ctx, tx); err != nil {
 		return fmt.Errorf("rag: %w", err)
 	}

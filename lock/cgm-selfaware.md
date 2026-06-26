@@ -36,3 +36,17 @@ Hasil: `graph_recall` nyurfacing "file ini ngapain". Verified: code-node-with-su
 gagal permanen (`agent_runs.state='error'`) → node type `dead_letter` + Why=error + edge member_of
 → brain-root. Switch FLOWORK_CGM_DEADLETTER. Agent jadi SADAR kegagalan & bisa graph_recall/belajar.
 Verified: inject error-row uji → node `dead_letter` ke-projeksi (label+why+edge), lalu artefak uji dibersihin.
+
+## EXTENSION SEAM — RegisterGraphProjection (2026-06-26, nutup gap audit)
+**Akar:** 3 proyeksi di atas (codemap/dead-letter/orphan) dipanggil INLINE di `SyncSourcesToGraph`
+(FROZEN). Nambah SUMBER proyeksi BARU = kepaksa buka file frozen (langgar prinsip evolusi). Skill
+(`RegisterSkillProvider`) & instinct (`RegisterInstinctSelector`) udah punya registry-seam; graph
+projection BELUM → ditutup.
+**Fix (cabut-akar):** file NON-frozen `agent/graph_autosync_ext.go` = registry `RegisterGraphProjection`
+(switch-aware + fails-open). Dispatcher frozen di-hook 1 baris (`runExtraGraphProjections(ctx,store,scope)`
+di akhir `SyncSourcesToGraph`). Sekali hook, selamanya plug-and-play.
+**Nambah proyeksi baru (zero edit frozen):** bikin file sibling `agent/graph_proj_xxx.go` →
+`func init(){ RegisterGraphProjection(GraphProjection{Name,Switch:"FLOWORK_CGM_XXX",Run:func(ctx,store,scope)(int,error)}) }`
+\+ tambah entri switch di `internal/fwswitch/registry.go` → muncul GUI. Run WAJIB idempotent + fails-open.
+**Test:** `TestRegisterGraphProjection` / `*SwitchGate` / `*FailsOpen` (package main) PASS. Re-freeze
+`graph_autosync.go` PASS (`TestKernelFreeze`).
