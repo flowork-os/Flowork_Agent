@@ -44,6 +44,16 @@ Existing stable code = beku. Nambah fitur = **FILE BARU + mekanisme seam** yang 
 > baru + `init(){ RegisterExtraRoute(func(m){ m.HandleFunc(...) }) }`. Bukti: `TestRouteSeamWired`.
 > Status: **71/71 handler router frozen** (chat_learn, ssrf_guard, pentest, brain_wing ikut).
 
+### Router freeze-sweep 2026-06-26 — 396/510 .go frozen
+Konversi 15 logic stabil (soft-LOCK→FREEZE): `cmd/brain-{buildindex,reembed,search}`,
+`localai_autostart`, `vecindex/{ann,builder,vecindex}`, `brain/{fresh_index,skill_provider}`,
+`providers/embedding/local`, `router/modellock`, `sidecar/sidecar`, `creds/{login,refresh,save}`.
+**SENGAJA non-frozen di router (JANGAN dibekuin — bukan lupa):**
+- `edition_gate.go`, `internal/router/instinctenrich_ext2.go` — GROWTH-POINT/switch (FREE↔CORPORATE, scoped-instinct).
+- `internal/brain/dream_cycle.go` — disabled, **under rebuild (Phase 0)**.
+- `internal/brain/{mem_type_registry,reclassify,reclassify_rules}.go` — Phase 2 typed-memory, Phase 3 (LLM) direncanakan → enum/rules tumbuh.
+- semua `*_ext.go` (seam), `routes_ext.go`, `fwswitch`, `*_test.go`.
+
 ## KALAU BENERAN HARUS UBAH FILE FROZEN (mis. migrasi schema baru)
 Arsitektur cacat = idealnya kasih seam. Kalau terpaksa: ikut CARAFREEZE.MD —
 `sudo chattr -i <file>` → edit → re-hash `sha256sum` → update `KERNEL_FREEZE.md` →
