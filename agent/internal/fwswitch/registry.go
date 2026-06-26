@@ -20,6 +20,7 @@ type Switch struct {
 
 // Registry — switch fitur yg DIKELOLA dari GUI. Default HARUS sama dgn default di call-site.
 var Registry = []Switch{
+	{"FLOWORK_INTEGRITY_GATE", "Gate anti-tamper mesh", "Kalau frozen-core node berubah (root-hash mismatch) → TOLAK semua pembelajaran mesh masuk. Node yang dimodifikasi tak dipercaya nyerap data baru. OFF = matiin gate (TIDAK disarankan).", "bool", "true", "Mesh / Security"},
 	{"FLOWORK_INSTINCT_SCOPED", "Scoped instinct per-peran", "Tiap agent cuma dapet insting domain-nya (+ baseline). Hemat token + anti-noise.", "bool", "false", "Brain / Instinct"},
 	{"FLOWORK_INSTINCT_SEMANTIC", "Seleksi insting semantic", "Pilih insting by-makna (vektor bge-m3). OFF = token-overlap (lebih kasar).", "bool", "true", "Brain / Instinct"},
 	{"FLOWORK_INSTINCT_INJECT", "Injeksi insting", "Suntik insting relevan ke tiap request. OFF = matiin total.", "bool", "true", "Brain / Instinct"},
