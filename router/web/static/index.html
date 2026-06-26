@@ -1137,6 +1137,20 @@ done &lt; my_knowledge.jsonl</pre>
         <div class="text-slate-500 text-center py-6 text-sm col-span-2">Loading…</div>
       </div>
 
+      <!-- Custom CLI tools (plug-and-play, DB) -->
+      <div class="glass p-4 mt-4">
+        <h3 class="font-semibold text-purple-300 mb-2">➕ Custom CLI tool (plug-and-play)</h3>
+        <div class="flex flex-wrap gap-2 mb-3">
+          <input id="cc-id" class="inp" placeholder="id (mis. my-ai)" style="max-width:140px">
+          <input id="cc-name" class="inp" placeholder="Display name" style="max-width:160px">
+          <input id="cc-bin" class="inp" placeholder="binary (mis. myai)" style="max-width:140px">
+          <input id="cc-path" class="inp flex-1" placeholder="settings path (mis. ~/.myai/config.json)" style="min-width:180px">
+          <button class="btn-primary text-xs" onclick="addCustomCli()">+ Add</button>
+        </div>
+        <div id="cc-list" class="space-y-1"></div>
+        <p class="text-xs text-slate-500 mt-2">Tersimpan di DB → masuk daftar CLI di atas. Delete berlaku penuh setelah restart router.</p>
+      </div>
+
       <!-- Manual setup (copy-paste) — dynamic endpoints -->
       <details class="mt-5">
         <summary class="text-slate-400 cursor-pointer hover:text-slate-200 text-sm">📋 Manual setup (copy-paste env)</summary>
@@ -1641,6 +1655,14 @@ done &lt; my_knowledge.jsonl</pre>
           </div>
           <pre id="tsOut" class="text-xs text-slate-500 mt-3 whitespace-pre-wrap"></pre>
         </div>
+      </div>
+
+      <div class="glass p-5 mt-4">
+        <div class="mb-3">
+          <h3 class="font-semibold text-purple-300">🔌 Provider Tunnel (plug-and-play)</h3>
+          <p class="text-xs text-slate-400 mt-0.5">Provider terdaftar via registry. Tambah baru (ngrok/bore/dst) = file sibling <code>tunnel_&lt;x&gt;_ext.go</code> + RegisterTunnelProvider — nol buka frozen.</p>
+        </div>
+        <div id="tunnel-providers" class="space-y-2"></div>
       </div>
     </section>
 
@@ -5700,7 +5722,35 @@ done &lt; my_knowledge.jsonl</pre>
     }
 
     // ── CLI Tools: detect + one-click configure/reset ───────────────────
+    async function loadCustomCli() {
+      const el = document.getElementById('cc-list');
+      if (!el) return;
+      let items = [];
+      try { const r = await (await fetch('/api/cli-tools/custom')).json(); items = r.data || []; } catch (e) {}
+      el.innerHTML = items.length ? items.map(t =>
+        `<div class="flex items-center justify-between text-xs bg-slate-800/40 border border-slate-700/50 rounded px-3 py-2">
+           <span><b>${escapeHtml(t.id)}</b> · ${escapeHtml(t.binaryName || '')} · ${escapeHtml(t.settingsPath || '')}</span>
+           <button class="text-red-400 hover:text-red-300" onclick="delCustomCli('${escapeHtml(t.id)}')">✕</button>
+         </div>`).join('')
+        : '<div class="text-xs text-slate-500">Belum ada custom CLI tool.</div>';
+    }
+    async function addCustomCli() {
+      const id = document.getElementById('cc-id').value.trim();
+      const bin = document.getElementById('cc-bin').value.trim();
+      if (!id || !bin) { alert('id & binary wajib'); return; }
+      const body = { id, displayName: document.getElementById('cc-name').value.trim() || id, binaryName: bin, settingsPath: document.getElementById('cc-path').value.trim(), format: 'env', envKeys: [] };
+      const r = await (await fetch('/api/cli-tools/custom', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json();
+      if (r.error) { alert(r.error); return; }
+      ['cc-id', 'cc-name', 'cc-bin', 'cc-path'].forEach(i => document.getElementById(i).value = '');
+      loadCustomCli(); loadCliTools();
+    }
+    async function delCustomCli(id) {
+      await fetch('/api/cli-tools/custom/' + encodeURIComponent(id), { method: 'DELETE' });
+      loadCustomCli(); loadCliTools();
+    }
+
     async function loadCliTools() {
+      loadCustomCli();
       const grid = document.getElementById('cliToolsGrid');
       try {
         const j = await (await fetch('/api/cli-tools')).json();
@@ -5965,7 +6015,41 @@ done &lt; my_knowledge.jsonl</pre>
     boot();
 
     // ── BATCH 21: Infrastructure tab loaders ────────────────────────────
+    async function loadTunnelProviders() {
+      const el = document.getElementById('tunnel-providers');
+      if (!el) return;
+      let items = [];
+      try { const r = await (await fetch('/api/tunnel/providers')).json(); items = r.data || []; } catch (e) {}
+      if (!items.length) { el.innerHTML = '<div class="text-xs text-slate-500">Belum ada provider terdaftar.</div>'; return; }
+      el.innerHTML = items.map(p => {
+        const st = p.status || {};
+        const enc = (p.name || '').replace(/[^a-zA-Z0-9_-]/g, '');
+        return `<div class="bg-slate-800/40 border border-slate-700/50 rounded-lg p-3 flex items-center justify-between gap-2 flex-wrap">
+          <div>
+            <span class="font-semibold">${enc}</span>
+            <span class="text-xs ml-2 ${p.installed ? 'text-green-400' : 'text-slate-500'}">${p.installed ? 'installed' : 'not installed'}</span>
+            ${st.enabled ? '<span class="text-xs ml-1 text-green-300">· running</span>' : ''}
+            ${st.url ? `<div class="text-xs font-mono text-purple-300 mt-1">${String(st.url).replace(/[<>"]/g, '')}</div>` : ''}
+          </div>
+          <div class="flex gap-2">
+            <button class="text-xs btn-primary" onclick="tunnelProvider('${enc}','enable',this)">Enable</button>
+            <button class="text-xs btn-secondary" onclick="tunnelProvider('${enc}','disable',this)">Disable</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+    async function tunnelProvider(name, action, btn) {
+      if (btn) btn.disabled = true;
+      try {
+        const r = await (await fetch('/api/tunnel/provider/' + name + '/' + action, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).json();
+        if (r.authUrl) window.open(r.authUrl, '_blank');
+      } catch (e) {}
+      if (btn) btn.disabled = false;
+      loadTunnelProviders();
+    }
+
     async function loadTunnel() {
+      loadTunnelProviders();
       try {
         const s = await (await fetch('/api/tunnel/status')).json();
         document.getElementById('cfState').textContent = s.cloudflareEnabled ? 'Enabled' : 'Disabled';
