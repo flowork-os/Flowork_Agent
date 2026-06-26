@@ -2678,11 +2678,34 @@ done &lt; my_knowledge.jsonl</pre>
       document.querySelectorAll('#tab-brain .brain-sub').forEach(p => p.classList.toggle('hidden', p.dataset.sub !== name));
       document.querySelectorAll('#tab-brain .brain-subtab').forEach(b => b.classList.toggle('active', b.dataset.sub === name));
       if (name === 'constitution') { loadBrainConstitution(); loadBrainAmendments(); }
-      if (name === 'typed') loadBrainTyped();
+      if (name === 'typed') { loadMemTypes(); loadBrainTyped(); }
+      if (name === 'add') loadMemTypes();
       if (name === 'personas') loadBrainPersonas();
       if (name === 'registry') loadRegistry();
       if (name === 'instincts') loadBrainInstincts();
       if (name === 'graph') loadBrainGraph();
+    }
+
+    // loadMemTypes — isi DUA dropdown (#drawerMemType Add + #brainTypeSel Typed) dari SATU sumber
+    // kanonik /api/brain/mem-types (Bagian 3: GUI=truth, anti hardcode beda-beda). Pertahankan
+    // value terpilih kalau masih ada.
+    let _memTypesLoaded = false;
+    async function loadMemTypes(force) {
+      if (_memTypesLoaded && !force) return;
+      let types = [];
+      try {
+        const r = await (await fetch('/api/brain/mem-types')).json();
+        types = r.types || [];
+      } catch (e) { return; }
+      if (!types.length) return;
+      _memTypesLoaded = true;
+      for (const id of ['drawerMemType', 'brainTypeSel']) {
+        const sel = document.getElementById(id);
+        if (!sel) continue;
+        const cur = sel.value;
+        sel.innerHTML = types.map(t => `<option value="${t}">${t}</option>`).join('');
+        if (cur && types.includes(cur)) sel.value = cur;
+      }
     }
     // Per-drawer + per-persona caches so edit/delete handlers can read full
     // content without re-fetching (typed_view + personas return everything).

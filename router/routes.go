@@ -171,6 +171,7 @@ func registerManagementRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/brain/by-type", brainByTypeHandler)
 	mux.HandleFunc("/api/brain/wing", brainWingHandler) // enumerate corpus per-wing (sumber topik distilasi)
 	mux.HandleFunc("/api/brain/graph/sync", dreamGraphSyncHandler) // DreamGraph manual sync (auto-sync: dreamgraph_autosync.go)
+	mux.HandleFunc("/api/brain/mem-types", brainMemTypesHandler)   // daftar mem_type kanonik+present buat GUI dropdown (Bagian 3)
 	mux.HandleFunc("/api/brain/personas", editionGate(brainPersonasHandler))
 	mux.HandleFunc("/api/brain/contributions", brainContributionsHandler)
 	mux.HandleFunc("/api/brain/contributions/ingest", brainContributionsIngestHandler)
