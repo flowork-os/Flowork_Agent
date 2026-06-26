@@ -26,8 +26,8 @@ func TestCloakClaudeTools_SuffixAndDecoy(t *testing.T) {
 	}
 	tools := m["tools"].([]any)
 	// 1 client tool + 20 decoys.
-	if len(tools) != 1+len(ccDecoyToolNames) {
-		t.Fatalf("expected %d tools, got %d", 1+len(ccDecoyToolNames), len(tools))
+	if len(tools) != 1+len(ccDecoyToolNames()) {
+		t.Fatalf("expected %d tools, got %d", 1+len(ccDecoyToolNames()), len(tools))
 	}
 	first := tools[0].(map[string]any)
 	if first["name"] != "my_search_cc" {

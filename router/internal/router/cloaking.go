@@ -15,9 +15,6 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-const claudeToolSuffix = "_cc"
-const claudeVersion = "2.1.92"
-
 func claudeUsesOAuth(p *store.ProviderConnection) bool {
 	if p == nil {
 		return false
@@ -32,15 +29,9 @@ func claudeUsesOAuth(p *store.ProviderConnection) bool {
 	return false
 }
 
-var ccDecoyToolNames = []string{
-	"Task", "TaskOutput", "TaskStop", "TaskCreate", "TaskGet", "TaskUpdate",
-	"TaskList", "Bash", "Glob", "Grep", "Read", "Edit", "Write", "NotebookEdit",
-	"WebFetch", "WebSearch", "AskUserQuestion", "Skill", "EnterPlanMode", "ExitPlanMode",
-}
-
 func ccDecoyTools() []map[string]any {
-	out := make([]map[string]any, 0, len(ccDecoyToolNames))
-	for _, n := range ccDecoyToolNames {
+	out := make([]map[string]any, 0, len(ccDecoyToolNames()))
+	for _, n := range ccDecoyToolNames() {
 		out = append(out, map[string]any{
 			"name":         n,
 			"description":  "This tool is currently unavailable.",
@@ -61,7 +52,7 @@ func cloakClaudeTools(body []byte) ([]byte, map[string]string) {
 	}
 
 	toolNameMap := make(map[string]string)
-	cloaked := make([]any, 0, len(rawTools)+len(ccDecoyToolNames))
+	cloaked := make([]any, 0, len(rawTools)+len(ccDecoyToolNames()))
 	for _, t := range rawTools {
 		tm, ok := t.(map[string]any)
 		if !ok {
@@ -73,7 +64,7 @@ func cloakClaudeTools(body []byte) ([]byte, map[string]string) {
 			cloaked = append(cloaked, t)
 			continue
 		}
-		suffixed := name + claudeToolSuffix
+		suffixed := name + claudeToolSuffix()
 		toolNameMap[suffixed] = name
 		copyTool := make(map[string]any, len(tm))
 		for k, v := range tm {
@@ -105,7 +96,7 @@ func cloakClaudeTools(body []byte) ([]byte, map[string]string) {
 				}
 				if bm["type"] == "tool_use" {
 					if bn, _ := bm["name"].(string); bn != "" {
-						bm["name"] = bn + claudeToolSuffix
+						bm["name"] = bn + claudeToolSuffix()
 					}
 				}
 			}
@@ -205,7 +196,7 @@ func generateBillingHeader(payload []byte) string {
 	cch := hex.EncodeToString(sum[:])[:5]
 	buildHash := randHex(2)[:3]
 	return fmt.Sprintf("x-anthropic-billing-header: cc_version=%s.%s; cc_entrypoint=sdk-cli; cch=%s;",
-		claudeVersion, buildHash, cch)
+		claudeVersion(), buildHash, cch)
 }
 
 func generateFakeUserID(sessionID string) string {
