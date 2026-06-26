@@ -1,17 +1,7 @@
-// Claude Per-Device OAuth Login (authorization-code + PKCE).
-//
-// To run Claude on a device that has NO Claude Code — the USB appliance, Android — WITHOUT borrowing
-// (and fighting over) the desktop's shared refresh token, each device performs its OWN login: it
-// gets an INDEPENDENT refresh token that it can rotate on its own, so no device ever invalidates
-// another's credential. This is the "login sendiri per device" model.
-//
-// Flow (the same manual-code flow `claude login` uses on a headless box):
-//  1. ClaudeAuthorizeURL(challenge,state) → owner opens it, signs in, authorizes.
-//  2. claude.ai redirects to the code-callback page which DISPLAYS "code#state".
-//  3. Owner pastes that back; ExchangeClaudeCode swaps it (with the PKCE verifier) for tokens.
-//
-// All endpoints/ids are the public Claude Code values, env-overridable so a future change needs no
-// rebuild. Never logs token material.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package creds
 
@@ -45,7 +35,6 @@ func claudeScopes() string {
 	return "org:create_api_key user:profile user:inference"
 }
 
-// PKCEPair returns a fresh code_verifier and its S256 code_challenge.
 func PKCEPair() (verifier, challenge string, err error) {
 	b := make([]byte, 32)
 	if _, err = rand.Read(b); err != nil {
@@ -57,7 +46,6 @@ func PKCEPair() (verifier, challenge string, err error) {
 	return verifier, challenge, nil
 }
 
-// RandomState returns a high-entropy opaque state value for CSRF protection.
 func RandomState() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
@@ -66,7 +54,6 @@ func RandomState() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
-// ClaudeAuthorizeURL builds the authorize URL the owner opens to log this device in independently.
 func ClaudeAuthorizeURL(challenge, state string) string {
 	q := url.Values{}
 	q.Set("response_type", "code")
@@ -79,8 +66,6 @@ func ClaudeAuthorizeURL(challenge, state string) string {
 	return claudeAuthURL() + "?" + q.Encode()
 }
 
-// ExchangeClaudeCode swaps a pasted authorization code (+ the stored PKCE verifier) for a fresh,
-// independent access/refresh token pair. Returns expiry in unix-milliseconds.
 func ExchangeClaudeCode(code, verifier, state string) (access, refresh string, expiresAtMs int64, err error) {
 	return postClaudeToken(map[string]string{
 		"grant_type":    "authorization_code",

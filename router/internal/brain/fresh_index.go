@@ -1,16 +1,7 @@
-// === LOCKED FILE (soft) === Status: STABLE — owner-approved 2026-06-22 (F5 fresh-recall).
-// AI lain: JANGAN otak-atik tanpa izin owner. Additive + vector-only + 0-regresi by-construction.
-//
-// fresh_index.go — F5 (D32-INC4 enabler): FRESH-RECALL untuk knowledge yang BARU di-promote
-// ke shared-brain. Akar masalah: index utama `brain.vindex` di-build MANUAL + di-cache, jadi
-// drawer baru (mis. recovery-instinct dari INC-4) KESIMPAN tapi belum ke-recall sampe rebuild
-// (~jam-an) + restart. Tanpa fresh-recall, imunitas-kolektif INC-4 mati.
-//
-// SOLUSI (cabut-akar, VECTOR-ONLY, hormatin "jangan hybrid"): index VECTOR KEDUA yang KECIL &
-// in-memory, isinya cuma drawer federation (mem_type='recovery_instinct'), di-rebuild periodik
-// dari DB (change-detect → hemat). Di-query BARENG index utama di SemanticRetrieve lalu di-MERGE.
-// AMAN by-construction: index utama (859k) GAK DISENTUH; fresh-index kosong/error → SemanticRetrieve
-// persis perilaku lama (0 regresi). Begitu index utama rebuild (nyerap yg baru), fresh-index reset.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package brain
 
@@ -24,9 +15,6 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/brain/vecindex"
 )
 
-// freshMemTypes — mem_type yang masuk fresh-index (knowledge fresh hasil federation/promote):
-// recovery-instinct (INC-4) + fakta umum collective-graph (C). Sengaja sempit (murah + relevan);
-// lebarin di sini kalau mau fresh-recall lebih luas.
 var freshMemTypes = []string{"recovery_instinct", "collective_knowledge"}
 
 const freshMaxDrawers = 2000
@@ -34,10 +22,9 @@ const freshMaxDrawers = 2000
 var (
 	freshMu  sync.Mutex
 	freshIdx *vecindex.Index
-	freshSig string // signature set terakhir (count|maxfiled) → skip rebuild kalau sama
+	freshSig string
 )
 
-// freshWhereIn — "?,?,..." + args buat freshMemTypes.
 func freshWhereIn() (string, []any) {
 	ph := ""
 	args := make([]any, 0, len(freshMemTypes))
@@ -51,9 +38,6 @@ func freshWhereIn() (string, []any) {
 	return ph, args
 }
 
-// RebuildFreshIndex — rebuild fresh vector-index dari drawer federation aktif. Change-detect:
-// skip kalau set ga berubah (count|max(filed_at)). Di-panggil ticker boot router + periodik.
-// Resilient: error apa pun → fresh-index lama dipertahankan (atau nil), SemanticRetrieve aman.
 func RebuildFreshIndex(ctx context.Context) (int, error) {
 	if !Available() {
 		return 0, nil
@@ -64,7 +48,6 @@ func RebuildFreshIndex(ctx context.Context) (int, error) {
 	}
 	inPH, inArgs := freshWhereIn()
 
-	// signature (change-detection).
 	var cnt int
 	var maxFiled sql.NullString
 	if err := db.QueryRowContext(ctx,
@@ -77,7 +60,7 @@ func RebuildFreshIndex(ctx context.Context) (int, error) {
 	same := sig == freshSig
 	freshMu.Unlock()
 	if same {
-		return cnt, nil // ga berubah → skip embed (hemat)
+		return cnt, nil
 	}
 	if cnt == 0 {
 		freshMu.Lock()
@@ -86,7 +69,6 @@ func RebuildFreshIndex(ctx context.Context) (int, error) {
 		return 0, nil
 	}
 
-	// ambil konten → embed (engine SAMA dgn index utama → vektor align).
 	rows, err := db.QueryContext(ctx,
 		"SELECT id, content FROM drawers WHERE deleted_at IS NULL AND mem_type IN ("+inPH+") ORDER BY filed_at DESC LIMIT ?",
 		append(append([]any{}, inArgs...), freshMaxDrawers)...)
@@ -103,13 +85,13 @@ func RebuildFreshIndex(ctx context.Context) (int, error) {
 		}
 		v, eerr := embedQueryLocal(ctx, content)
 		if eerr != nil || len(v) == 0 {
-			continue // skip yg gagal embed; sisanya tetep ke-index
+			continue
 		}
 		ids = append(ids, id)
 		vecs = append(vecs, v)
 	}
 	if len(ids) == 0 {
-		return 0, nil // semua gagal embed → jangan timpa index lama
+		return 0, nil
 	}
 	idx, berr := vecindex.Build(ids, vecs)
 	if berr != nil {
@@ -121,8 +103,6 @@ func RebuildFreshIndex(ctx context.Context) (int, error) {
 	return len(ids), nil
 }
 
-// freshRetrieve — query fresh-index by-makna (vector). nil kalau fresh-index kosong → caller
-// (SemanticRetrieve) jatuh ke perilaku lama. Skor di-normalisasi (0,1] mirror vectorRetrieve.
 func freshRetrieve(ctx context.Context, db *sql.DB, query string, limit, maxLen int, wings []string) []Snippet {
 	freshMu.Lock()
 	idx := freshIdx
@@ -185,8 +165,6 @@ func freshRetrieve(ctx context.Context, db *sql.DB, query string, limit, maxLen 
 	return out
 }
 
-// mergeFresh — gabung hasil index-utama + fresh, dedup by DrawerID, urut skor desc, cap limit.
-// Dipakai SemanticRetrieve (additive — main tetep prioritas via skor-nya sendiri).
 func mergeFresh(main, fresh []Snippet, limit int) []Snippet {
 	if len(fresh) == 0 {
 		return main

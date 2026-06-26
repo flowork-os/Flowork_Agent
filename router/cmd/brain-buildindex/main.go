@@ -1,14 +1,8 @@
-// === LOCKED FILE (soft) === Status: STABLE — owner-approved 2026-06-16 (LOCKED ≠ FREEZE).
-// AI lain: JANGAN otak-atik tanpa izin owner.
-//
-// Command brain-buildindex — bangun INDEX VEKTOR 8-bit (vecindex) dari db v2 hasil brain-reembed.
-//
-// TUJUAN (buat AI lain): ubah vektor fp32 (db v2) jadi index ter-kuantisasi yang dipakai router
-// buat semantic search (RAG anti-halu). 2-PASS biar muat RAM di 5jt: pass-1 scan max|komponen|
-// (skala global, recall optimal) → pass-2 STREAM Build (vecindex.Builder, kode int8 numbuh) → Save.
-// Output ~1 byte/dim (5jt ≈ 5GB). Pure-Go, no-cgo. Owner-run ops; router load file ini on boot (#6).
-//
-// Pakai: go run ./cmd/brain-buildindex -vec <vec_v2.sqlite> -out <brain.vindex> [-scale 0]
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
+
 package main
 
 import (
@@ -58,7 +52,7 @@ func main() {
 
 	scale := float32(fixedScale)
 	if scale <= 0 {
-		// PASS-1: scan max|komponen| (constant memory — gak nyimpen vektor).
+
 		rows, err := db.Query(`SELECT vector FROM drawer_vec_v2`)
 		if err != nil {
 			log.Fatalf("pass1 query: %v", err)
@@ -85,7 +79,6 @@ func main() {
 		log.Printf("scale tetap = %.5f (skip pass-1)", scale)
 	}
 
-	// PASS-2: STREAM build (kuantisasi tiap vektor → kode int8 numbuh).
 	b := vecindex.NewBuilder(dim, scale)
 	rows, err := db.Query(`SELECT drawer_id, vector FROM drawer_vec_v2`)
 	if err != nil {

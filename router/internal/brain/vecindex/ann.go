@@ -1,16 +1,7 @@
-// === LOCKED FILE (soft) === Status: STABLE — owner-approved 2026-06-22 (ANN IVF, recall@10=0.918). Edit + re-lock.
-//
-// ann.go — IVF ANN (approximate nearest-neighbor) buat skala BESAR (>jutaan vektor).
-//
-// AKAR (roadmap ANN): Search flat = O(N) scan tiap query. Di jutaan vektor lambat. IVF:
-// partisi vektor ke CLUSTER (k-means) → query probe `nprobe` cluster terdekat → SearchSubset
-// (EXACT di kandidat itu). O(nClusters + kandidat) << O(N). Recall tunable via nprobe
-// (nprobe>=nClusters = identik flat).
-//
-// ⚠️ ADDITIVE & SAFE (owner: "jangan rip-replace index 860k yg jalan"): Index flat TIDAK
-// disentuh — ANN ini WRAPPER terpisah, opsional. Jalur search live TETAP flat (terbukti,
-// recall@10=0.985). ANN = kapabilitas SIAP, di-flip nanti pas korpus nyentuh jutaan (dgn
-// flat sbg fallback). Pure-Go, no-cgo, portable.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package vecindex
 
@@ -19,12 +10,11 @@ import (
 	"sort"
 )
 
-// ANNIndex — wrapper IVF di atas Index flat. centroids = float32 (presisi k-means mean).
 type ANNIndex struct {
 	ix        *Index
 	nClusters int
-	centroids []float32 // nClusters*dim
-	members   [][]int   // per cluster: index baris ke ix
+	centroids []float32
+	members   [][]int
 }
 
 const kmeansIters = 6
@@ -37,7 +27,6 @@ func dotI8(a, b []int8) int32 {
 	return d
 }
 
-// assignCluster — cluster terdekat (max dot) buat baris i (codes) vs centroids float.
 func assignCluster(code []int8, centroids []float32, nClusters, dim int) int {
 	best, bestScore := 0, float32(-math.MaxFloat32)
 	for c := 0; c < nClusters; c++ {
@@ -53,8 +42,6 @@ func assignCluster(code []int8, centroids []float32, nClusters, dim int) int {
 	return best
 }
 
-// BuildANN — k-means (dot/spherical, kmeansIters pass) → nClusters cluster. nClusters<=0 →
-// auto ~sqrt(N). Deterministik (init evenly-spaced, no rng). ADDITIVE (Index flat ga disentuh).
 func BuildANN(ix *Index, nClusters int) *ANNIndex {
 	n := ix.Len()
 	if n == 0 {
@@ -70,7 +57,7 @@ func BuildANN(ix *Index, nClusters int) *ANNIndex {
 		nClusters = n
 	}
 	dim := ix.dim
-	// init centroids = baris evenly-spaced (sbg float).
+
 	centroids := make([]float32, nClusters*dim)
 	stride := n / nClusters
 	if stride < 1 {
@@ -99,7 +86,7 @@ func BuildANN(ix *Index, nClusters int) *ANNIndex {
 		}
 		for c := 0; c < nClusters; c++ {
 			if counts[c] == 0 {
-				continue // centroid kosong → biarin (jarang ke-probe)
+				continue
 			}
 			inv := 1.0 / float32(counts[c])
 			for j := 0; j < dim; j++ {
@@ -115,11 +102,8 @@ func BuildANN(ix *Index, nClusters int) *ANNIndex {
 	return &ANNIndex{ix: ix, nClusters: nClusters, centroids: centroids, members: members}
 }
 
-// Len — jumlah vektor (delegasi).
 func (a *ANNIndex) Len() int { return a.ix.Len() }
 
-// Search — top-k approx: probe `nprobe` cluster terdekat (query float vs centroid float) →
-// SearchSubset EXACT di member. nprobe<=0 → auto ~sqrt(nClusters). nprobe>=nClusters → flat.
 func (a *ANNIndex) Search(query []float32, k, nprobe int) []Hit {
 	if k <= 0 || a.ix.Len() == 0 || a.nClusters == 0 {
 		return nil

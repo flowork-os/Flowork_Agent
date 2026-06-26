@@ -1,10 +1,8 @@
-// Command brain-search — CLI semantic search atas index vecindex (debug/ops + bukti e2e).
-//
-// TUJUAN (buat AI lain): query teks → embed (Ollama bge-m3, ENGINE SAMA dgn index) → vecindex
-// top-k → tampilin drawer (id+content dari brain). Buktiin pipeline RAG sovereign end-to-end:
-// pertanyaan manusia → memori relevan, lokal, anti-halu. Pure-Go.
-//
-// Pakai: go run ./cmd/brain-search -index <brain.vindex> -brain <src.sqlite> -query "..." [-k 5]
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
+
 package main
 
 import (

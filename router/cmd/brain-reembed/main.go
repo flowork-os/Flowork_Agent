@@ -1,22 +1,8 @@
-// === LOCKED FILE (soft) === Status: STABLE — owner-approved 2026-06-16 (LOCKED ≠ FREEZE).
-// AI lain: JANGAN otak-atik tanpa izin owner. Teruji: norm 1.0, resumable (lanjut rowid), nol dup.
-//
-// Command brain-reembed — RE-EMBED ulang SEMUA drawer brain pakai bge-m3 via Ollama.
-//
-// TUJUAN (buat AI lain): bikin embedding brain KONSISTEN dengan embedder runtime (query). Embedding
-// LAMA dibikin sentence-transformers (PyTorch); query-embed runtime pakai Ollama/llama.cpp bge-m3 —
-// dua runtime itu beda ~0.07 cosine (terukur), cukup buat nurunin recall RAG diam-diam (= halu).
-// Solusi: embed ULANG semua drawer pakai engine query (Ollama bge-m3) → vektor align → anti-halu.
-//
-// SIFAT: NON-DESTRUKTIF (brain asli read-only; hasil ke db v2 TERPISAH). RESUMABLE (lanjut dari
-// rowid terakhir kalau ke-stop — aman buat job jam-an). Pure-Go (modernc sqlite, no cgo), no torch.
-// Vektor disimpan UNIT-NORMALIZED float32 (index builder #5 yang kuantisasi 8-bit). Owner-run ops
-// (GPU), BUKAN bagian runtime produk.
-//
-// Pakai:
-//
-//	go run ./cmd/brain-reembed -brain <src.sqlite> -out <vec_v2.sqlite> \
-//	     [-ollama http://127.0.0.1:11434] [-model bge-m3] [-batch 64] [-conc 3] [-limit 0]
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
+
 package main
 
 import (
@@ -69,14 +55,12 @@ func main() {
 		log.Fatalf("schema: %v", err)
 	}
 
-	// RESUME: rowid terakhir yang udah selesai.
 	lastRowid := int64(0)
 	_ = out.QueryRow(`SELECT v FROM reembed_state WHERE k='last_rowid'`).Scan(&lastRowid)
 	var already int
 	_ = out.QueryRow(`SELECT COUNT(*) FROM drawer_vec_v2`).Scan(&already)
 	var total int
-	// deleted_at IS NULL: skip drawer SOFT-DELETED (tombstone) — 2026-06-17. 83% corpus
-	// tombstoned → embed semua = 5x boros + index nyimpen data ke-hapus. Vektorin yg HIDUP doang.
+
 	_ = src.QueryRow(`SELECT COUNT(*) FROM drawers WHERE length(content)>0 AND deleted_at IS NULL`).Scan(&total)
 	log.Printf("brain=%s out=%s | total drawer(non-empty)=%d | udah=%d | resume dari rowid>%d",
 		brainPath, outPath, total, already, lastRowid)
@@ -107,12 +91,7 @@ func main() {
 				rows.Close()
 				log.Fatalf("scan: %v", err)
 			}
-			// Truncate konten kepanjangan (rune-safe) → cegah Ollama 400 "input length exceeds
-			// the context length" (bge-m3 ctx 4096 tok). Tanpa ini, 1 drawer kepanjangan = embed
-			// gagal → resume retry rowid SAMA → loop infinite (re-embed stuck, gak pernah DONE).
-			// 1500 rune: konten dense/CJK bisa >1 token/rune, jadi 3000 rune masih ke-exceed
-			// ctx 4096 (terbukti); 1500 rune ≈ worst-case CJK ~3000 token < 4096 = aman. Prefix
-			// 1500 rune tetap representatif buat embedding makna drawer.
+
 			if r := []rune(it.txt); len(r) > 1500 {
 				it.txt = string(r[:1500])
 			}
@@ -120,10 +99,9 @@ func main() {
 		}
 		rows.Close()
 		if len(items) == 0 {
-			break // habis
+			break
 		}
 
-		// embed per-batch, PARALEL (conc request sekaligus).
 		vecs := make([][]float32, len(items))
 		errc := make(chan error, conc+1)
 		sem := make(chan struct{}, conc)
@@ -163,7 +141,6 @@ func main() {
 		default:
 		}
 
-		// tulis 1 page = 1 transaksi (atomic progress).
 		tx, err := out.Begin()
 		if err != nil {
 			log.Fatalf("begin: %v", err)
@@ -201,7 +178,6 @@ func main() {
 	log.Printf("SELESAI: %d drawer ter-embed di %s (%.0fs)", done, outPath, time.Since(start).Seconds())
 }
 
-// ollamaEmbed — batch embed via Ollama /api/embed (input array → embeddings array).
 func ollamaEmbed(c *http.Client, base, model string, texts []string) ([][]float32, error) {
 	body, _ := json.Marshal(map[string]any{"model": model, "input": texts})
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, base+"/api/embed", bytes.NewReader(body))

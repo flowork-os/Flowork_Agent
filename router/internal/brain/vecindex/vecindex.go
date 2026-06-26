@@ -1,19 +1,8 @@
-// === LOCKED FILE (soft) === Status: STABLE — owner-approved 2026-06-16 (LOCKED ≠ FREEZE).
-// AI lain: JANGAN otak-atik tanpa izin owner. TUJUAN FILE: indeks vektor sovereign (anti-halu
-// grounding) buat semantic RAG brain — kuantisasi 8-bit + top-k search, pure-Go no-cgo, portable
-// (ikut OS flashdisk). TERUJI di data bge-m3 ASLI: recall@10=0.985, recall@1=1.000 (vecindex_test).
-// Pasangan: embedder bge-m3 via llama.cpp (Ollama@OS / llama-server@dev), query+drawer L2-normalized.
-//
-// Package vecindex — indeks vektor SOVEREIGN in-process buat semantic search brain.
-// Pure-Go, NO cgo, NO dependency luar (sesuai doktrin "tubuh mandiri, portable multi-OS").
-//
-// Embedding (bge-m3, dim 1024) datang UNIT-NORMALIZED → cosine = dot product. Tiap vektor
-// disimpan sbg kode 8-bit symmetric scalar terhadap SATU skala global (max|komponen|).
-// Ranking pakai int8 dot product itu order-equivalent sama cosine (konstanta dequant sama
-// buat semua baris) → dequant di-skip. Di data bge-m3 ASLI: recall@1 ~0.99, recall@10 ~0.98
-// vs exact float32 cosine, di 1 byte/dim (~5GB buat 5jt vektor) — diverifikasi 2026-06-16.
-// 4-bit TurboQuant (lebih kecil, buat RAM ketat spt Android) = opsi nanti; 8-bit menang di
-// kesederhanaan + recall buat tubuh local-first.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
+
 package vecindex
 
 import (
@@ -28,24 +17,20 @@ import (
 	"sync"
 )
 
-const qLevels = 127 // rentang int8 symmetric [-127, 127]
+const qLevels = 127
 
-// Index — store vektor ter-kuantisasi, immutable. Build sekali, search berkali-kali.
 type Index struct {
 	dim   int
-	scale float32 // skala kuantisasi global: max|komponen| seluruh vektor
-	codes []int8  // n*dim row-major
+	scale float32
+	codes []int8
 	ids   []string
 }
 
-// Hit — satu hasil search.
 type Hit struct {
 	ID    string
-	Score float32 // int8 dot product (proporsional cosine; makin tinggi makin dekat)
+	Score float32
 }
 
-// Build — kuantisasi vecs (tiap len==dim, idealnya unit-normalized) jadi Index. ids[i] label
-// buat vecs[i]. Error kalau shape mismatch / kosong.
 func Build(ids []string, vecs [][]float32) (*Index, error) {
 	if len(ids) != len(vecs) {
 		return nil, errors.New("vecindex: panjang ids/vecs beda")
@@ -78,7 +63,6 @@ func Build(ids []string, vecs [][]float32) (*Index, error) {
 	return ix, nil
 }
 
-// quantizeInto — tulis kode 8-bit symmetric dari v (skala `scale`) ke dst (len==dim).
 func quantizeInto(v []float32, scale float32, dst []int8) {
 	inv := float32(qLevels) / scale
 	for j, x := range v {
@@ -92,7 +76,6 @@ func quantizeInto(v []float32, scale float32, dst []int8) {
 	}
 }
 
-// Len — jumlah vektor. Dim — dimensi.
 func (ix *Index) Len() int { return len(ix.ids) }
 func (ix *Index) Dim() int { return ix.dim }
 
@@ -101,18 +84,17 @@ type scored struct {
 	score int32
 }
 
-// pushTopK — sisipkan kandidat ke slice top-k (terurut DESCENDING by score, panjang ≤k).
 func pushTopK(top []scored, k int, cand scored) []scored {
 	if len(top) < k {
 		top = append(top, cand)
-		// bubble ke posisi terurut
+
 		for x := len(top) - 1; x > 0 && top[x].score > top[x-1].score; x-- {
 			top[x], top[x-1] = top[x-1], top[x]
 		}
 		return top
 	}
 	if cand.score <= top[k-1].score {
-		return top // gak masuk top-k
+		return top
 	}
 	top[k-1] = cand
 	for x := k - 1; x > 0 && top[x].score > top[x-1].score; x-- {
@@ -121,7 +103,6 @@ func pushTopK(top []scored, k int, cand scored) []scored {
 	return top
 }
 
-// Search — top-k id terdekat ke query (cosine via int8 dot), full parallel scan.
 func (ix *Index) Search(query []float32, k int) []Hit {
 	if k <= 0 || ix.Len() == 0 {
 		return nil
@@ -129,8 +110,7 @@ func (ix *Index) Search(query []float32, k int) []Hit {
 	if k > ix.Len() {
 		k = ix.Len()
 	}
-	// #5 binary-vector: korpus JUTAAN → coarse-biner + rerank-int8 (auto >=1jt, lihat binary_ext.go).
-	// Default OFF (auto: <1jt = int8 full-scan biasa di bawah ini → ZERO perubahan skala sekarang).
+
 	if ix.useBinary() {
 		return ix.searchBinary(query, k)
 	}
@@ -185,8 +165,6 @@ func (ix *Index) Search(query []float32, k int) []Hit {
 	return hits
 }
 
-// SearchSubset — sama spt Search TAPI cuma nilai baris di `cand` (index ke ix). Buat HYBRID:
-// FTS keyword nyaring kandidat → vector RE-RANK kandidat itu aja (cepat, gak scan jutaan).
 func (ix *Index) SearchSubset(query []float32, cand []int, k int) []Hit {
 	if k <= 0 || len(cand) == 0 {
 		return nil
@@ -212,10 +190,8 @@ func (ix *Index) SearchSubset(query []float32, cand []int, k int) []Hit {
 	return hits
 }
 
-// ── persist (format biner sendiri; portable, no dep) ──────────────────────────
-const magic = "FWVQ1\n" // Flowork Vector Quant v1
+const magic = "FWVQ1\n"
 
-// Save — tulis index ke path (atomic-ish: caller urus rename kalau perlu).
 func (ix *Index) Save(path string) error {
 	f, err := os.Create(path)
 	if err != nil {
@@ -233,7 +209,7 @@ func (ix *Index) Save(path string) error {
 	if _, err := w.Write(hdr[:]); err != nil {
 		return err
 	}
-	// ids: tiap baris = uint16 len + bytes
+
 	for _, id := range ix.ids {
 		var l [2]byte
 		binary.LittleEndian.PutUint16(l[:], uint16(len(id)))
@@ -244,7 +220,7 @@ func (ix *Index) Save(path string) error {
 			return err
 		}
 	}
-	// codes: raw int8 bytes
+
 	buf := make([]byte, len(ix.codes))
 	for i, c := range ix.codes {
 		buf[i] = byte(c)
@@ -255,7 +231,6 @@ func (ix *Index) Save(path string) error {
 	return w.Flush()
 }
 
-// Load — baca index dari path yang ditulis Save.
 func Load(path string) (*Index, error) {
 	f, err := os.Open(path)
 	if err != nil {

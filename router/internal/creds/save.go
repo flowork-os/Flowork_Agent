@@ -1,3 +1,8 @@
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
+
 package creds
 
 import (
@@ -8,17 +13,6 @@ import (
 	"strings"
 )
 
-// SaveClaude writes a pasted Claude OAuth token to the SAME credential file that Load() reads
-// (FLOW_CREDS_PATH, else ~/.claude/.credentials.json). This is what makes a GUI-pasted Claude token
-// actually work on a machine that has NO Claude Code installed — Android and the USB appliance —
-// where there is no existing ~/.claude/.credentials.json to borrow. Without this, the Claude
-// subscription provider fails auth ("creds: no such file") and the cloak has nothing to send.
-//
-// accessToken is required. expiresAt may be "" or a unix-millisecond string; if absent/unparseable a
-// far-future expiry is written so a long-lived pasted token is not immediately treated as expired by
-// IsExpired(). Existing fields in the file (org UUID, scopes) are preserved. File mode is 0600 (same
-// as Claude Code writes); on the appliance the credential path lives on the LUKS-encrypted DATA
-// partition, so the token is encrypted at rest there.
 func SaveClaude(accessToken, refreshToken, expiresAt string) error {
 	accessToken = strings.TrimSpace(accessToken)
 	if accessToken == "" {
@@ -27,11 +21,11 @@ func SaveClaude(accessToken, refreshToken, expiresAt string) error {
 	p := credentialsPath()
 
 	var cf CredentialsFile
-	if raw, err := os.ReadFile(p); err == nil { // preserve any pre-existing fields
+	if raw, err := os.ReadFile(p); err == nil {
 		_ = json.Unmarshal(raw, &cf)
 	}
 
-	exp := int64(9999999999999) // ~year 2286 — a long-lived pasted token shouldn't read as expired
+	exp := int64(9999999999999)
 	if v, err := strconv.ParseInt(strings.TrimSpace(expiresAt), 10, 64); err == nil && v > 0 {
 		exp = v
 	}
@@ -55,9 +49,7 @@ func SaveClaude(accessToken, refreshToken, expiresAt string) error {
 	if err := os.WriteFile(p, out, 0o600); err != nil {
 		return err
 	}
-	// A fresh token just landed on disk — drop the 30s read cache so the NEXT Load() (the dispatcher
-	// authenticating the very next request, or a refresh persisting a rotated token) reflects it
-	// immediately instead of serving a stale copy.
+
 	InvalidateCache()
 	return nil
 }
