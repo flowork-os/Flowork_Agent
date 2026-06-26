@@ -44,6 +44,14 @@ BUKAN node-per-drawer biar 860k gak meledak). Semua spoke → hub `flowork` (ant
   tab "🎛️ Switch Fitur".
 - `POST /api/brain/graph/sync` works. Build+vet+TestKernelFreeze PASS. Idempotent.
 
+## GUI CANVAS (router dashboard, `web/static/index.html`)
+Node banyak (325) bikin 3 masalah → fix (verified via headless screenshot):
+- Label numpuk/smear → label cuma render pas HOVER / node HUB kalau graph padat (>40). Full di panel.
+- Node ke-fling ke luar layar → `resetGraphView` = FIT-TO-BOUNDS (contek codemap `fitGraph`) +
+  auto-fit setelah settle + clamp velocity.
+- Gerak terus (bikin pusing) → `graphCool`: physics jalan ~240 frame nyusun, lalu BEKU. Idup lagi
+  cuma pas drag.
+
 ## KEPUTUSAN FREEZE
 File-file ini = **orchestration/extension seam + switch-protected**, SENGAJA non-frozen:
 - `main.go`/`routes.go` → harus tetap terbuka buat nambah route/boot-hook (freeze = mateng evolusi).
