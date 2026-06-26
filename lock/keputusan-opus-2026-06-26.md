@@ -53,13 +53,13 @@
 `FLOWORK_DREAMGRAPH_AUTOSYNC`, `_SYNC_MIN`, `_INSTINCTS`, `_KNOWLEDGE`, `FLOWORK_CGM_CODEMAP`,
 `FLOWORK_CGM_ORPHAN_BACKFILL`. (Default aman; tunable dari tab "🎛️ Switch Fitur".)
 
-## ⏭️ PARKED / FUTURE (butuh sesi owner-attended fokus, bukan kerjaan harian)
-- **Skill Central reference-model PENUH**: agent simpan REF, resolve live + version/hash + GUI link-vs-copy.
-  Resiko TINGGI: nyentuh `kernelhost.go`/`mr-flow/main.go` (paling sakral) + skill-handler router (frozen).
-  Sekarang: propagasi manual via tombol "Sync from Router" (cukup buat keseharian). `lock/skill-central.md`.
-- **CodeMap M4 auto-enrich on-code-change**: trigger enrich otomatis pas kode berubah. M1 (content-hash)
-  udah jadi fondasi. Akar = hook self-evolve write-path (core sensitif). Aman-alternatif: job terjadwal.
-- (M3 enrich→brain_search: SUPERSEDED oleh #2 enrich→GRAPH — self-awareness udah via `graph_recall`.)
+## ⏭️ PARKED / FUTURE (versi PURIST opsional — goal PRAKTIS udah tercapai via jalur aman)
+- Skill Central: AUTO-SYNC SELESAI (`feature_autosync.go`, switch FLOWORK_SKILL_AUTOSYNC) → edit skill
+  di router nyebar otomatis. Versi PURIST (zero-copy, resolve live di `kernelhost.go` frozen) = parked
+  (sakral, gak perlu — auto-sync udah cukup).
+- CodeMap M4 AUTO-ENRICH SELESAI (`feature_autosync.go`, switch FLOWORK_CODEMAP_AUTOENRICH, verified
+  firing). Versi PURIST (hook self-evolve write-path) = parked (core sensitif, gak perlu — scheduled cukup).
+- M3 enrich→brain_search: SUPERSEDED oleh #2 enrich→GRAPH (self-awareness udah via graph_recall).
 
 ## KONDISI AKHIR
 Router :2402 + agent :1987 sehat. DreamGraph 325 node. CGM 1256 node / 0 orphan. TestKernelFreeze
