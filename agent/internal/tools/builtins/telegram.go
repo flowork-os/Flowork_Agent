@@ -1,27 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 11 phase 1f (telegram_send) DONE. API stable.
-//   Triple security: (1) token from agent.Secrets() NEVER logged,
-//   (2) chat_id WAJIB di TELEGRAM_ALLOWED_CHATS (anti-spam), (3) text
-//   cap 4096 char Telegram API limit + truncate dengan …. HTTP timeout
-//   15s. Phase 1f+ comms tools (sms/discord/etc) → tambah file baru,
-//   JANGAN modify ini.
-//
-// telegram.go — Section 11 phase 1f: telegram_send tool.
-//
-// Tool: telegram_send — kirim message ke Telegram chat via Bot API.
-// Bot token + allowed_chats di-read dari agent `secrets` table.
-//
-// SECURITY:
-//   - Bot token via Store.Secrets() — never log atau echo back.
-//   - Chat ID validation: chat_id WAJIB ada di TELEGRAM_ALLOWED_CHATS list
-//     (anti-spam ke chat luar).
-//   - Text body cap 4096 char (Telegram API limit).
-//
-// CAPABILITY: net:fetch:telegram (declared but not enforced phase 1)
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package builtins
 
@@ -39,14 +19,10 @@ import (
 )
 
 const (
-	telegramAPIBase  = "https://api.telegram.org"
-	telegramMaxText  = 4096 // Telegram API limit
-	telegramTimeout  = 15 * time.Second
+	telegramAPIBase = "https://api.telegram.org"
+	telegramMaxText = 4096
+	telegramTimeout = 15 * time.Second
 )
-
-// =============================================================================
-// telegram_send — send message
-// =============================================================================
 
 type telegramSendTool struct{}
 
@@ -69,7 +45,6 @@ func (telegramSendTool) Run(ctx context.Context, args map[string]any) (tools.Res
 		return tools.Result{}, fmt.Errorf("agent store not in context")
 	}
 
-	// chat_id parsing (JSON number → float64).
 	var chatID int64
 	switch v := args["chat_id"].(type) {
 	case float64:
@@ -79,7 +54,7 @@ func (telegramSendTool) Run(ctx context.Context, args map[string]any) (tools.Res
 	case int64:
 		chatID = v
 	case string:
-		// fallback string parse (some clients send as string)
+
 		n, perr := strconv.ParseInt(v, 10, 64)
 		if perr != nil {
 			return tools.Result{}, fmt.Errorf("chat_id must be int (got string '%s')", v)
@@ -98,7 +73,6 @@ func (telegramSendTool) Run(ctx context.Context, args map[string]any) (tools.Res
 		text = text[:telegramMaxText-3] + "…"
 	}
 
-	// Resolve token + allowed chats dari secrets.
 	secrets, serr := store.Secrets()
 	if serr != nil {
 		return tools.Result{}, fmt.Errorf("read secrets: %w", serr)
@@ -127,7 +101,6 @@ func (telegramSendTool) Run(ctx context.Context, args map[string]any) (tools.Res
 		return tools.Result{}, fmt.Errorf("chat_id %d not in TELEGRAM_ALLOWED_CHATS (anti-spam guard)", chatID)
 	}
 
-	// Call Telegram Bot API: POST /bot<token>/sendMessage
 	url := fmt.Sprintf("%s/bot%s/sendMessage", telegramAPIBase, token)
 	body := map[string]any{
 		"chat_id": chatID,

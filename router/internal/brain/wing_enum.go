@@ -1,18 +1,12 @@
-// === LOCKED FILE ===
-// Status: STABLE — brain/intelligence subsystem, audited working 2026-06-07. Corpus wing/room enumeration over the 5M-drawer brain (powers /api/brain/wing).
-// Do not edit without owner approval.
-
-// wing_enum.go — enumerate drawer per WING (corpus kategori: exploitdb, hackerone,
-// red_team, ...). READ-ONLY + paginated (offset) buat nyisir corpus gede
-// (exploitdb 44.955) jadi sumber topik distilasi scanner. File baru — views.go LOCKED.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package brain
 
 import "context"
 
-// ListByWing — drawer dari satu wing, paginated. Read-only. limit<=0 → 100, cap 500.
-// roomLike (opsional, mis. "%webapps%") → filter room SQL biar fetch cuma kategori
-// relevan (anti boros nyisir local/dos). Urut importance (resumable lewat offset).
 func ListByWing(ctx context.Context, wing, roomLike string, limit, offset, maxContentLen int) ([]Snippet, error) {
 	if limit <= 0 {
 		limit = 100

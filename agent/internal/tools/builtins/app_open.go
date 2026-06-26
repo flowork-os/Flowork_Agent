@@ -1,20 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — computer-operator feature, tested end-to-end 2026-06-08. Allowlist desktop-app launcher (exec:app).
-// Do not edit without owner approval.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// app_open.go — launch a whitelisted desktop app on the host (Chrome, VS Code, …).
-//
-// Companion to system_power for the operator agent: lets the owner say "buka
-// chrome" / "open vscode" from Telegram and have it open on the PC. SAFE BY
-// ALLOWLIST: the user only ever picks an allowlist KEY ("chrome"); the actual
-// command is fixed by the owner, never built from chat text — so even a prompt-
-// injected request can't launch an arbitrary binary (no injection surface, argv
-// exec, no shell on Linux/macOS). Requires the exec:app capability (privileged
-// operator agent only). Owner-extensible: drop ~/.flowork/operator-apps.json to
-// add or override apps.
-//
-// Multi-OS: Linux (binary on PATH), macOS (open -a), Windows (start). Linux is
-// the tested path; Windows/macOS are written but unverified on a real machine.
 package builtins
 
 import (
@@ -30,8 +18,6 @@ import (
 	"flowork-gui/internal/tools"
 )
 
-// appDefaults — built-in allowlist. key → GOOS → ordered candidate commands.
-// First candidate found on PATH wins (macOS uses the app name with `open -a`).
 var appDefaults = map[string]map[string][]string{
 	"chrome": {
 		"linux":   {"google-chrome", "google-chrome-stable", "chromium", "chromium-browser"},
@@ -45,14 +31,11 @@ var appDefaults = map[string]map[string][]string{
 	},
 }
 
-// appAliases — friendly names → allowlist key.
 var appAliases = map[string]string{
 	"chrome": "chrome", "google chrome": "chrome", "google-chrome": "chrome", "browser": "chrome",
 	"code": "code", "vscode": "code", "vs code": "code", "visual studio code": "code", "vsc": "code",
 }
 
-// loadAppAllow merges the built-in allowlist with an owner-editable
-// ~/.flowork/operator-apps.json (same shape as appDefaults). Owner entries win.
 func loadAppAllow() map[string]map[string][]string {
 	out := map[string]map[string][]string{}
 	for k, v := range appDefaults {
@@ -95,7 +78,7 @@ func (appOpenTool) Run(_ context.Context, args map[string]any) (tools.Result, er
 	key, ok := appAliases[want]
 	if !ok {
 		if _, direct := allow[want]; direct {
-			key = want // a key added via operator-apps.json without an alias
+			key = want
 		}
 	}
 	allowedKeys := make([]string, 0, len(allow))
@@ -125,11 +108,11 @@ func (appOpenTool) Run(_ context.Context, args map[string]any) (tools.Result, er
 			}
 		}
 		if resolved == "" {
-			resolved = cands[0] // let `start` resolve via App Paths (e.g. chrome)
+			resolved = cands[0]
 		}
-		// argv fixed from the allowlist (not chat) → no injection.
+
 		cmd = exec.Command("cmd", "/c", "start", "", resolved)
-	default: // linux & others
+	default:
 		for _, c := range cands {
 			if p, err := exec.LookPath(c); err == nil {
 				resolved = p
@@ -141,7 +124,7 @@ func (appOpenTool) Run(_ context.Context, args map[string]any) (tools.Result, er
 		}
 		cmd = exec.Command(resolved)
 	}
-	// Detach: don't wait, release the process so it outlives this call.
+
 	if err := cmd.Start(); err != nil {
 		return tools.Result{Output: map[string]any{"opened": false, "error": err.Error(), "app": key, "command": resolved}}, nil
 	}

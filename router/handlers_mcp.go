@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — HTTP handler.
-
-// MCP Server Registry HTTP Handlers.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -26,7 +22,6 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-// mcpRouterHandler — dispatch /api/mcp/* paths.
 func mcpRouterHandler(w http.ResponseWriter, r *http.Request) {
 	rest := strings.TrimPrefix(r.URL.Path, "/api/mcp")
 	rest = strings.TrimPrefix(rest, "/")
@@ -52,9 +47,6 @@ func mcpRouterHandler(w http.ResponseWriter, r *http.Request) {
 	mcpCRUDHandler(w, r, id)
 }
 
-// mcpGatewayMessageHandler — POST /api/mcp/:id/message. Forward a single
-// JSON-RPC message to the registered MCP server and return its response.
-// stdio: spawn, initialize, send message, read matching id. http/sse: POST through.
 func mcpGatewayMessageHandler(w http.ResponseWriter, r *http.Request, id string) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -92,7 +84,7 @@ func mcpGatewayMessageHandler(w http.ResponseWriter, r *http.Request, id string)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(resp.StatusCode)
 		_, _ = io.Copy(w, resp.Body)
-	default: // stdio
+	default:
 		out, err := mcpStdioRoundTrip(ctx, srv, msg)
 		if err != nil {
 			writeJSON(w, http.StatusBadGateway, map[string]any{"error": err.Error()})
@@ -103,16 +95,11 @@ func mcpGatewayMessageHandler(w http.ResponseWriter, r *http.Request, id string)
 	}
 }
 
-// mcpStdioRoundTrip — spawn the server, run initialize, forward `msg`, return
-// the first response whose id matches msg's id (or first non-init response).
 func mcpStdioRoundTrip(ctx context.Context, srv *store.MCPServer, msg []byte) ([]byte, error) {
 	if srv.Command == "" {
 		return nil, fmt.Errorf("stdio server missing command")
 	}
-	// Security gate: only allow well-known interpreters / wrappers. A
-	// malicious or compromised settings row could otherwise spawn arbitrary
-	// executables on the host. Operators can extend the list at runtime via
-	// mcpsecurity.Allow().
+
 	if !mcpsecurity.IsAllowed(srv.Command) {
 		return nil, fmt.Errorf("command %q is not on the MCP allowlist (npx/node/uvx/python/bunx/bun/deno/pnpm/yarn). Run mcpsecurity.Allow(%q) to extend.", srv.Command, filepath.Base(srv.Command))
 	}
@@ -130,10 +117,7 @@ func mcpStdioRoundTrip(ctx context.Context, srv *store.MCPServer, msg []byte) ([
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("spawn: %w", err)
 	}
-	// Pipes are file descriptors backed by OS resources — close them when
-	// the handler returns regardless of which exit path fires. cmd.Wait()
-	// would close them too but we kill the process before Wait, so we own
-	// the close ourselves.
+
 	defer stdin.Close()
 	defer stdout.Close()
 	defer func() { _ = cmd.Process.Kill() }()
@@ -156,7 +140,7 @@ func mcpStdioRoundTrip(ctx context.Context, srv *store.MCPServer, msg []byte) ([
 		if json.Unmarshal(line, &resp) != nil {
 			continue
 		}
-		// Skip our own initialize response (id==1).
+
 		if fmt.Sprint(resp["id"]) == "1" {
 			if res, ok := resp["result"].(map[string]any); ok {
 				if _, hasCaps := res["capabilities"]; hasCaps {
@@ -174,8 +158,6 @@ func mcpStdioRoundTrip(ctx context.Context, srv *store.MCPServer, msg []byte) ([
 	return nil, fmt.Errorf("no response for message within timeout")
 }
 
-// mcpGatewaySSEHandler — GET /api/mcp/:id/sse. For http/sse servers, proxy the
-// upstream SSE stream; for stdio, return 501 with guidance.
 func mcpGatewaySSEHandler(w http.ResponseWriter, r *http.Request, id string) {
 	d, _ := store.Open()
 	srv, err := store.GetMCPServer(d, id)
@@ -295,9 +277,6 @@ func mcpCRUDHandler(w http.ResponseWriter, r *http.Request, id string) {
 	}
 }
 
-// mcpToolsHandler — live MCP handshake. Spawns the server (stdio) or POSTs
-// JSON-RPC (http), runs initialize → notifications/initialized → tools/list,
-// returns the discovered tool specs.
 func mcpToolsHandler(w http.ResponseWriter, r *http.Request, id string) {
 	d, _ := store.Open()
 	srv, err := store.GetMCPServer(d, id)
@@ -320,7 +299,6 @@ func mcpToolsHandler(w http.ResponseWriter, r *http.Request, id string) {
 	})
 }
 
-// mcpListToolsLive runs the live handshake for a server per its transport.
 func mcpListToolsLive(ctx context.Context, srv *store.MCPServer) ([]map[string]any, error) {
 	switch srv.Transport {
 	case "stdio", "":
@@ -332,7 +310,6 @@ func mcpListToolsLive(ctx context.Context, srv *store.MCPServer) ([]map[string]a
 	}
 }
 
-// jsonRPCMsg builds a JSON-RPC 2.0 frame.
 func jsonRPCMsg(id any, method string, params any) []byte {
 	m := map[string]any{"jsonrpc": "2.0", "method": method}
 	if id != nil {
@@ -351,14 +328,11 @@ var mcpInitParams = map[string]any{
 	"clientInfo":      map[string]any{"name": "flow_router", "version": "1.0"},
 }
 
-// mcpStdioListTools spawns the server command and runs the handshake over
-// stdin/stdout (newline-delimited JSON-RPC).
 func mcpStdioListTools(ctx context.Context, srv *store.MCPServer) ([]map[string]any, error) {
 	if srv.Command == "" {
 		return nil, fmt.Errorf("stdio server missing command")
 	}
-	// Same allowlist guard as mcpStdioRoundTrip — never spawn an arbitrary
-	// binary on behalf of a settings row.
+
 	if !mcpsecurity.IsAllowed(srv.Command) {
 		return nil, fmt.Errorf("command %q is not on the MCP allowlist", srv.Command)
 	}
@@ -378,13 +352,11 @@ func mcpStdioListTools(ctx context.Context, srv *store.MCPServer) ([]map[string]
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("spawn: %w", err)
 	}
-	// Same rationale as mcpInvoke: own the pipe close ourselves because we
-	// kill the process before Wait would clean them up.
+
 	defer stdin.Close()
 	defer stdout.Close()
 	defer func() { _ = cmd.Process.Kill() }()
 
-	// Send initialize, initialized notification, then tools/list.
 	_, _ = stdin.Write(jsonRPCMsg(1, "initialize", mcpInitParams))
 	_, _ = stdin.Write(jsonRPCMsg(nil, "notifications/initialized", nil))
 	_, _ = stdin.Write(jsonRPCMsg(2, "tools/list", map[string]any{}))
@@ -412,7 +384,7 @@ func mcpStdioListTools(ctx context.Context, srv *store.MCPServer) ([]map[string]
 		if json.Unmarshal(line, &resp) != nil {
 			continue
 		}
-		// tools/list response has id==2
+
 		if fmt.Sprint(resp.ID) == "2" {
 			if resp.Error != nil {
 				return nil, fmt.Errorf("mcp error: %s", resp.Error.Message)
@@ -426,7 +398,6 @@ func mcpStdioListTools(ctx context.Context, srv *store.MCPServer) ([]map[string]
 	return nil, fmt.Errorf("no tools/list response within timeout")
 }
 
-// mcpHTTPListTools POSTs the JSON-RPC tools/list to an HTTP/SSE MCP server.
 func mcpHTTPListTools(ctx context.Context, srv *store.MCPServer) ([]map[string]any, error) {
 	if srv.URL == "" {
 		return nil, fmt.Errorf("http server missing url")
@@ -444,7 +415,7 @@ func mcpHTTPListTools(ctx context.Context, srv *store.MCPServer) ([]map[string]a
 	}
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4*1024*1024))
-	// Handle both bare JSON and SSE-framed (data: {...}) responses.
+
 	payload := raw
 	if bytes.Contains(raw, []byte("data:")) {
 		for _, ln := range bytes.Split(raw, []byte("\n")) {

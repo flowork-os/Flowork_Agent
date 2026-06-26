@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Store SQLite layer.
-
-// DB Migrations Framework.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package store
 
@@ -16,11 +12,10 @@ import (
 	"sync"
 )
 
-// Migration describes one ordered, idempotent schema change.
 type Migration struct {
-	ID   int    // monotonic, unique
-	Name string // short slug for logs and the schemaMigrations table
-	SQL  string // statements; runs inside a single transaction
+	ID   int
+	Name string
+	SQL  string
 }
 
 var (
@@ -28,17 +23,12 @@ var (
 	migrations   []Migration
 )
 
-// RegisterMigration adds a migration to the registry. Call from an init()
-// function in a sibling file so the registry is populated before Open().
 func RegisterMigration(m Migration) {
 	migrationsMu.Lock()
 	defer migrationsMu.Unlock()
 	migrations = append(migrations, m)
 }
 
-// applyMigrations runs every registered migration with id > the highest id
-// already recorded in schemaMigrations. Called from Open() after the base
-// schema is in place. Safe to call repeatedly.
 func applyMigrations(d *sql.DB) error {
 	if _, err := d.Exec(`CREATE TABLE IF NOT EXISTS schemaMigrations (
 		id        INTEGER PRIMARY KEY,
@@ -56,7 +46,6 @@ func applyMigrations(d *sql.DB) error {
 	}
 	sort.Slice(pending, func(i, j int) bool { return pending[i].ID < pending[j].ID })
 
-	// Filter out already-applied
 	applied := map[int]bool{}
 	rows, err := d.Query(`SELECT id FROM schemaMigrations`)
 	if err != nil {
@@ -81,9 +70,6 @@ func applyMigrations(d *sql.DB) error {
 		return nil
 	}
 
-	// Best-effort pre-migration snapshot using the SAME conn we are migrating
-	// against. MUST NOT call Backup() here — Backup() goes through Open() which
-	// re-enters sync.Once and deadlocks (this function runs INSIDE dbOnce.Do).
 	_, _ = backupWithConn(d, "pre-migrate", defaultKeepBackups)
 
 	for _, m := range todo {
@@ -106,7 +92,6 @@ func applyMigrations(d *sql.DB) error {
 	return nil
 }
 
-// MigrationStatus reports applied vs pending for the dashboard UI / debug.
 type MigrationStatus struct {
 	ID        int    `json:"id"`
 	Name      string `json:"name"`
@@ -114,8 +99,6 @@ type MigrationStatus struct {
 	AppliedAt string `json:"appliedAt,omitempty"`
 }
 
-// ListMigrationStatus returns one record per registered migration, with the
-// applied/timestamp filled when present in schemaMigrations.
 func ListMigrationStatus(d *sql.DB) ([]MigrationStatus, error) {
 	migrationsMu.Lock()
 	all := append([]Migration(nil), migrations...)

@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — CLI command/menu.
-
-// flow-cli HTTP client.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package api
 
@@ -19,14 +15,12 @@ import (
 	"time"
 )
 
-// Client is the shared HTTP client used by every CLI menu.
 type Client struct {
 	BaseURL string
 	APIKey  string
 	HTTP    *http.Client
 }
 
-// New returns a client configured for baseURL + optional bearer apiKey.
 func New(baseURL, apiKey string) *Client {
 	return &Client{
 		BaseURL: baseURL,
@@ -35,19 +29,14 @@ func New(baseURL, apiKey string) *Client {
 	}
 }
 
-// Get fetches path and unmarshals the response into out (which may be nil).
 func (c *Client) Get(path string, out any) error { return c.do("GET", path, nil, out) }
 
-// Post sends body as JSON and unmarshals the response into out.
 func (c *Client) Post(path string, body, out any) error { return c.do("POST", path, body, out) }
 
-// Put is the PUT variant.
 func (c *Client) Put(path string, body, out any) error { return c.do("PUT", path, body, out) }
 
-// Delete sends a DELETE for path.
 func (c *Client) Delete(path string) error { return c.do("DELETE", path, nil, nil) }
 
-// GetQuery convenience: appends a query string from params and GETs.
 func (c *Client) GetQuery(path string, params map[string]string, out any) error {
 	if len(params) > 0 {
 		v := url.Values{}

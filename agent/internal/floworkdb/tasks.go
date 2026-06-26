@@ -1,32 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-06-02
-// 2026-06-20 (owner-approved, DB-driven flexible): DeleteCategory +CASCADE trigger_rules
-//   (target=id) → hapus crew = auto-hapus jadwal cron-nya juga (anti trigger hantu).
-//   +CategoryIDs() helper buat reconcileDeadCrews (boot self-heal). Re-locked.
-// Reason: FASE 5 — data model Category Task (owner-level). E2E verified:
-//   seed SAHAM, run async DB-driven, timeline live persist, synth adaptif
-//   partial-failure. Extend (kategori baru/kolom) → tambah migrasi, jaga
-//   EnsureTaskSchema idempotent.
-//   2026-06-03 EXTEND (additif, backward-compat): kolom synth_directive —
-//   per-kategori override format keputusan synthesizer (kosong = default
-//   finansial BUY/HOLD/AVOID). Buat kategori non-finansial (YouTube Ops dst).
-//   Migrasi idempotent via columnExists. Core run/timeline TIDAK diubah.
-//
-// tasks.go — FASE 5: data model Category Task (owner-level, flowork.db).
-//
-// Bikin definisi task (kategori + crew) bisa diatur owner dari GUI, BUKAN
-// hardcoded di taskflow.go (Fase 4). + simpen run history + step status buat
-// timeline live. Worker tetep kerja di state.db-nya sendiri (isolated); ini
-// cuma DEFINISI + AUDIT run, bukan memori warga.
-//
-// Tabel (per doc/category_task_design.md §5):
-//   task_categories(id, name, icon, trigger_hint, synthesizer, enabled, created_at)
-//   task_agents(category_id, agent_id, role_label, order_idx, mode, optional)
-//   task_runs(id, category_id, input_text, status, requested_by, summary, started_at, finished_at)
-//   task_run_steps(id, run_id, agent_id, role_label, order_idx, status, output_ref, err, ms)
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package floworkdb
 
@@ -35,23 +10,15 @@ import (
 	"fmt"
 )
 
-// ── Types ────────────────────────────────────────────────────────────────────
-
 type TaskCategory struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
 	Icon        string `json:"icon"`
 	TriggerHint string `json:"trigger_hint"`
 	Synthesizer string `json:"synthesizer"`
-	// SynthDirective: OPSIONAL. Format keputusan yang dipaksa ke synthesizer.
-	// Kosong = default finansial (BUY/HOLD/AVOID) — backward-compat crypto/saham.
-	// Diisi buat kategori non-finansial (mis. YouTube Ops → paket metadata /
-	// keputusan portfolio keep-kill, bukan BUY/HOLD/AVOID).
+
 	SynthDirective string `json:"synth_directive"`
-	// WorkerDirective: OPSIONAL. Cara worker/analis kerja. Kosong = default
-	// analysis-shaped ("cari data REAL, jangan ngarang") — backward-compat
-	// saham/crypto. Diisi buat kategori KREATIF (mis. zodiak: ngarang ramalan
-	// = MEMANG tugasnya, ga ada "data real").
+
 	WorkerDirective string      `json:"worker_directive"`
 	Enabled         bool        `json:"enabled"`
 	Crew            []TaskAgent `json:"crew,omitempty"`
@@ -61,7 +28,7 @@ type TaskAgent struct {
 	AgentID   string `json:"agent_id"`
 	RoleLabel string `json:"role_label"`
 	OrderIdx  int    `json:"order_idx"`
-	Mode      string `json:"mode"` // "seq" | "par" (Phase 1: seq doang)
+	Mode      string `json:"mode"`
 	Optional  bool   `json:"optional"`
 }
 
@@ -69,12 +36,12 @@ type TaskRun struct {
 	ID          int64      `json:"id"`
 	CategoryID  string     `json:"category_id"`
 	InputText   string     `json:"input_text"`
-	Status      string     `json:"status"` // running|done|error
+	Status      string     `json:"status"`
 	RequestedBy string     `json:"requested_by"`
 	Summary     string     `json:"summary"`
 	StartedAt   string     `json:"started_at"`
 	FinishedAt  string     `json:"finished_at"`
-	NotifyChat  string     `json:"notify_chat,omitempty"` // chat_id Telegram buat lapor hasil/interrupt
+	NotifyChat  string     `json:"notify_chat,omitempty"`
 	Steps       []TaskStep `json:"steps,omitempty"`
 }
 
@@ -84,15 +51,12 @@ type TaskStep struct {
 	AgentID   string `json:"agent_id"`
 	RoleLabel string `json:"role_label"`
 	OrderIdx  int    `json:"order_idx"`
-	Status    string `json:"status"` // pending|running|done|error
+	Status    string `json:"status"`
 	OutputRef string `json:"output_ref"`
 	Err       string `json:"err"`
 	MS        int64  `json:"ms"`
 }
 
-// ── Schema (idempotent; dipanggil EnsureTaskSchema, ga sentuh floworkdb.go) ──
-
-// EnsureTaskSchema bikin tabel task kalau belum ada. Aman dipanggil berkali2.
 func (s *Store) EnsureTaskSchema() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -144,23 +108,21 @@ func (s *Store) EnsureTaskSchema() error {
 			return fmt.Errorf("task schema: %w", err)
 		}
 	}
-	// Migrasi additif (idempotent): kolom synth_directive ditambah belakangan.
-	// ALTER ADD COLUMN error kalau udah ada → cek dulu via pragma, add kalau belum.
+
 	if !s.columnExists("task_categories", "synth_directive") {
 		if _, err := s.db.Exec(
 			`ALTER TABLE task_categories ADD COLUMN synth_directive TEXT NOT NULL DEFAULT ''`); err != nil {
 			return fmt.Errorf("task schema migrate synth_directive: %w", err)
 		}
 	}
-	// worker_directive: additif idempotent (kategori KREATIF override cara worker kerja).
+
 	if !s.columnExists("task_categories", "worker_directive") {
 		if _, err := s.db.Exec(
 			`ALTER TABLE task_categories ADD COLUMN worker_directive TEXT NOT NULL DEFAULT ''`); err != nil {
 			return fmt.Errorf("task schema migrate worker_directive: %w", err)
 		}
 	}
-	// notify_chat: persist chat_id Telegram per-run biar hasil/interrupt bisa
-	// dilapor walau proses restart (notify dulu cuma in-memory di goroutine → ilang).
+
 	if !s.columnExists("task_runs", "notify_chat") {
 		if _, err := s.db.Exec(
 			`ALTER TABLE task_runs ADD COLUMN notify_chat TEXT NOT NULL DEFAULT ''`); err != nil {
@@ -170,8 +132,6 @@ func (s *Store) EnsureTaskSchema() error {
 	return nil
 }
 
-// columnExists cek apakah kolom ada di tabel (buat migrasi idempotent).
-// Dipanggil dari EnsureTaskSchema yang udah pegang s.mu — JANGAN lock lagi.
 func (s *Store) columnExists(table, col string) bool {
 	rows, err := s.db.Query(`SELECT name FROM pragma_table_info(?)`, table)
 	if err != nil {
@@ -187,9 +147,6 @@ func (s *Store) columnExists(table, col string) bool {
 	return false
 }
 
-// ── Category CRUD ────────────────────────────────────────────────────────────
-
-// UpsertCategory insert/update kategori (tanpa crew — crew via SetCrew).
 func (s *Store) UpsertCategory(c TaskCategory) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -214,15 +171,12 @@ func (s *Store) DeleteCategory(id string) error {
 	if _, err := s.db.Exec(`DELETE FROM task_agents WHERE category_id=?`, id); err != nil {
 		return err
 	}
-	// CASCADE (owner 2026-06-20, DB-driven flexible): hapus crew → auto-hapus juga
-	// trigger_rules cron yg nargetin crew ini, biar ga ada jadwal hantu nge-fire
-	// crew mati ("delete = auto ilang TOTAL"). Best-effort (ga ada trigger = ok).
+
 	_, _ = s.db.Exec(`DELETE FROM trigger_rules WHERE target=?`, id)
 	_, err := s.db.Exec(`DELETE FROM task_categories WHERE id=?`, id)
 	return err
 }
 
-// CategoryIDs — semua id task_categories (buat reconcile orphan di boot).
 func (s *Store) CategoryIDs() ([]string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -241,7 +195,6 @@ func (s *Store) CategoryIDs() ([]string, error) {
 	return out, rows.Err()
 }
 
-// SetCrew ganti seluruh crew 1 kategori (replace).
 func (s *Store) SetCrew(categoryID string, crew []TaskAgent) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -272,7 +225,6 @@ func (s *Store) SetCrew(categoryID string, crew []TaskAgent) error {
 	return tx.Commit()
 }
 
-// GetCategory ambil 1 kategori + crew-nya (ordered).
 func (s *Store) GetCategory(id string) (*TaskCategory, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -317,7 +269,6 @@ func (s *Store) crewLocked(categoryID string) ([]TaskAgent, error) {
 	return out, rows.Err()
 }
 
-// ListCategories semua kategori (tanpa crew, ringan buat list view).
 func (s *Store) ListCategories() ([]TaskCategory, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -340,7 +291,6 @@ func (s *Store) ListCategories() ([]TaskCategory, error) {
 	return out, rows.Err()
 }
 
-// CategoryRunStat — agregat health per kategori (buat REAPER apoptosis).
 type CategoryRunStat struct {
 	CategoryID  string `json:"category_id"`
 	Done        int    `json:"done"`
@@ -349,8 +299,6 @@ type CategoryRunStat struct {
 	Total       int    `json:"total"`
 }
 
-// CategoryRunStats — hitung done/error/interrupted per kategori dari task_runs.
-// Dipakai REAPER (2.4) buat deteksi app ber-"karma rendah" (error-rate tinggi).
 func (s *Store) CategoryRunStats() (map[string]CategoryRunStat, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -382,8 +330,6 @@ func (s *Store) CategoryRunStats() (map[string]CategoryRunStat, error) {
 	return out, rows.Err()
 }
 
-// ── Run persistence (timeline) ───────────────────────────────────────────────
-
 func (s *Store) CreateRun(categoryID, input, requestedBy, notifyChat string) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -396,7 +342,6 @@ func (s *Store) CreateRun(categoryID, input, requestedBy, notifyChat string) (in
 	return res.LastInsertId()
 }
 
-// StartStep catat step mulai (status running) → return step id buat FinishStep.
 func (s *Store) StartStep(runID int64, agentID, role string, idx int) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -427,7 +372,6 @@ func (s *Store) FinishRun(runID int64, status, summary string) error {
 	return err
 }
 
-// ListRuns N run terakhir 1 kategori (ringkas, tanpa steps).
 func (s *Store) ListRuns(categoryID string, limit int) ([]TaskRun, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -453,7 +397,6 @@ func (s *Store) ListRuns(categoryID string, limit int) ([]TaskRun, error) {
 	return out, rows.Err()
 }
 
-// GetRun 1 run + steps (buat timeline live).
 func (s *Store) GetRun(runID int64) (*TaskRun, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -486,10 +429,6 @@ func (s *Store) GetRun(runID int64) (*TaskRun, error) {
 	return &r, rows.Err()
 }
 
-// MarkRunningInterrupted — boot hygiene: run yang status 'running' dari proses
-// SEBELUMNYA (mati/restart) ga akan pernah kelar (goroutine-nya ilang). Tandai
-// 'interrupted' biar ga zombie "running" selamanya di timeline, DAN balikin
-// daftarnya (dgn notify_chat) biar caller bisa ngabarin owner "task ke-interrupt".
 func (s *Store) MarkRunningInterrupted() ([]TaskRun, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -522,7 +461,3 @@ func (s *Store) MarkRunningInterrupted() ([]TaskRun, error) {
 	}
 	return orphans, nil
 }
-
-// Categories are NOT seeded/hardcoded — they are registered when a task/agent pack
-// is installed (plug-and-play). EnsureTaskSchema (above) creates the tables; the rows
-// come from real installs only. (Removed SeedSahamIfEmpty — no phantom crews.)

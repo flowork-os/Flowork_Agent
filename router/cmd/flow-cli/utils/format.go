@@ -1,11 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — audit pass surface review.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Formatters for currency, duration, and JSON pretty-print.
 package utils
 
 import (
@@ -15,7 +12,6 @@ import (
 	"time"
 )
 
-// USD formats a float as "$1.23" / "$0.0042" depending on magnitude.
 func USD(v float64) string {
 	switch {
 	case v >= 1:
@@ -27,7 +23,6 @@ func USD(v float64) string {
 	}
 }
 
-// Duration formats a millisecond count as a human-friendly string.
 func Duration(ms int64) string {
 	if ms < 1000 {
 		return fmt.Sprintf("%dms", ms)
@@ -36,8 +31,6 @@ func Duration(ms int64) string {
 	return d.Truncate(10 * time.Millisecond).String()
 }
 
-// PrettyJSON renders v as 2-space indented JSON. Falls back to fmt.Sprintf on
-// marshal error so the call site is one-liner safe.
 func PrettyJSON(v any) string {
 	b, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
@@ -46,7 +39,6 @@ func PrettyJSON(v any) string {
 	return string(b)
 }
 
-// Truncate cuts s at n characters, appending "…" when cut.
 func Truncate(s string, n int) string {
 	if len(s) <= n {
 		return s
@@ -54,7 +46,6 @@ func Truncate(s string, n int) string {
 	return s[:n] + "…"
 }
 
-// Joiner returns a comma-separated string from a string slice (empty when nil).
 func Joiner(items []string) string {
 	if len(items) == 0 {
 		return ""

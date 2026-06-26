@@ -1,13 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Port batch 2 — 6 tool tambahan dari referensi. Auto-register via init.
-//
-// v3_extras.go — 6 tool:
-//   mistake_log, interaction_recall, decision_log, audit_event,
-//   workspace_list, karma_query.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package builtins
 
@@ -28,10 +22,6 @@ func init() {
 	tools.Register(&workspaceListTool{})
 	tools.Register(&karmaQueryTool{})
 }
-
-// =============================================================================
-// 1. mistake_log — log halu/error ke mistakes table (Section 2)
-// =============================================================================
 
 type mistakeLogTool struct{}
 
@@ -72,10 +62,6 @@ func (mistakeLogTool) Run(ctx context.Context, args map[string]any) (tools.Resul
 	}, nil
 }
 
-// =============================================================================
-// 2. interaction_recall — query interactions history (Section 1)
-// =============================================================================
-
 type interactionRecallTool struct{}
 
 func (interactionRecallTool) Name() string       { return "interaction_recall" }
@@ -115,10 +101,6 @@ func (interactionRecallTool) Run(ctx context.Context, args map[string]any) (tool
 	}, nil
 }
 
-// =============================================================================
-// 3. decision_log — log keputusan ke decisions table (Section 3)
-// =============================================================================
-
 type decisionLogTool struct{}
 
 func (decisionLogTool) Name() string       { return "decision_log" }
@@ -157,10 +139,6 @@ func (decisionLogTool) Run(ctx context.Context, args map[string]any) (tools.Resu
 		Output: map[string]any{"ok": true, "id": id},
 	}, nil
 }
-
-// =============================================================================
-// 4. audit_event — append-only audit log (event-driven, Section 8 reten policy)
-// =============================================================================
 
 type auditEventTool struct{}
 
@@ -210,10 +188,6 @@ func (auditEventTool) Run(ctx context.Context, args map[string]any) (tools.Resul
 	}, nil
 }
 
-// =============================================================================
-// 5. workspace_list — list workspace_meta entries (Section 6)
-// =============================================================================
-
 type workspaceListTool struct{}
 
 func (workspaceListTool) Name() string       { return "workspace_list" }
@@ -250,10 +224,6 @@ func (workspaceListTool) Run(ctx context.Context, args map[string]any) (tools.Re
 		Output: map[string]any{"count": len(items), "items": items},
 	}, nil
 }
-
-// =============================================================================
-// 6. karma_query — read karma_self metric (Section 5)
-// =============================================================================
 
 type karmaQueryTool struct{}
 

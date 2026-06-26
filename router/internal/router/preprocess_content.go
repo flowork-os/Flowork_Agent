@@ -1,20 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Router dispatcher.
-
-// Pre-dispatch content-shape normalisation. Two passes:
-//
-//  - stripContentTypes: removes image / audio parts from multi-part message
-//    content when the target provider doesn't support them. Cheap text path
-//    is left untouched.
-//
-//  - normalizeThinkingConfig: drops `thinking` knobs when the trailing
-//    message isn't user-role. Anthropic rejects thinking-mode requests that
-//    end with assistant or tool messages, so we strip the config to keep
-//    the request acceptable.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package router
 
@@ -23,18 +10,8 @@ import (
 	"strings"
 )
 
-// StripList enumerates content categories the caller wants pruned out of
-// each message. Recognised tokens:
-//
-//	"image"  → drops image_url / image parts
-//	"audio"  → drops audio_url / input_audio parts
 type StripList []string
 
-// stripContentTypes walks req.Messages and removes any content part whose
-// type falls under one of the listed strip categories. Plain string content
-// stays untouched. When an entire content array is emptied we leave a "" so
-// the message slot survives — providers that require ≥1 content part still
-// see a well-formed (if empty) entry.
 func stripContentTypes(req *OpenAIRequest, list StripList) {
 	if len(list) == 0 {
 		return
@@ -44,9 +21,7 @@ func stripContentTypes(req *OpenAIRequest, list StripList) {
 		strip[strings.ToLower(strings.TrimSpace(c))] = true
 	}
 	for i, m := range req.Messages {
-		// Content is stored as a string; the multi-part shape arrives as a
-		// JSON-encoded array. Cheap gate: only round-trip when content
-		// looks like an array.
+
 		raw := strings.TrimSpace(m.Content)
 		if !strings.HasPrefix(raw, "[") {
 			continue
@@ -82,10 +57,6 @@ func stripContentTypes(req *OpenAIRequest, list StripList) {
 	}
 }
 
-// normalizeThinkingConfig operates on the raw decoded body so it can run in
-// the same round-trip pass as the tool-call validators. When the trailing
-// message isn't user-role the thinking knobs are removed — Anthropic rejects
-// thinking-mode requests that end with assistant or tool messages.
 func normalizeThinkingConfig(body map[string]any) {
 	msgs, ok := body["messages"].([]any)
 	if !ok || len(msgs) == 0 {
@@ -94,9 +65,9 @@ func normalizeThinkingConfig(body map[string]any) {
 	last, _ := msgs[len(msgs)-1].(map[string]any)
 	role, _ := last["role"].(string)
 	if role == "user" {
-		return // user-trailing requests are fine — keep thinking config
+		return
 	}
-	// Drop every known thinking knob.
+
 	for _, key := range []string{"thinking", "reasoning", "enable_thinking"} {
 		delete(body, key)
 	}

@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — audit pass surface review.
-
-// Search dispatcher (multi-provider normalizer).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package search
 
@@ -19,7 +15,6 @@ import (
 	"time"
 )
 
-// Request is the canonical search shape used by /v1/search.
 type Request struct {
 	Query      string
 	MaxResults int
@@ -28,21 +23,18 @@ type Request struct {
 	Extra      map[string]any
 }
 
-// Result is the normalized envelope returned to the caller.
 type Result struct {
 	Provider string         `json:"provider"`
 	Query    string         `json:"query"`
 	Results  []SearchResult `json:"results"`
 }
 
-// SearchResult is one item.
 type SearchResult struct {
 	Title   string `json:"title"`
 	URL     string `json:"url"`
 	Snippet string `json:"snippet,omitempty"`
 }
 
-// SearchProvider is the vendor contract.
 type SearchProvider interface {
 	Name() string
 	Search(ctx context.Context, req Request) (*Result, error)
@@ -53,7 +45,6 @@ var (
 	registry = map[string]SearchProvider{}
 )
 
-// Register adds a provider.
 func Register(p SearchProvider) {
 	if p == nil || p.Name() == "" {
 		return
@@ -63,14 +54,12 @@ func Register(p SearchProvider) {
 	registry[p.Name()] = p
 }
 
-// Get returns a provider by name, or nil.
 func Get(name string) SearchProvider {
 	regMu.RLock()
 	defer regMu.RUnlock()
 	return registry[name]
 }
 
-// List returns every registered name.
 func List() []string {
 	regMu.RLock()
 	defer regMu.RUnlock()
@@ -80,8 +69,6 @@ func List() []string {
 	}
 	return out
 }
-
-// ── shared helpers ──────────────────────────────────────────────────────
 
 var searchHTTPClient = &http.Client{Timeout: 30 * time.Second}
 

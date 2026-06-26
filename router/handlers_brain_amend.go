@@ -1,27 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-06-17
-// Reason: Section 12 phase 2 — constitution AMENDMENT endpoints (PRYORITY.MD P1).
-//   Owner-approved 2026-06-17, tested via real HTTP path. Engine:
-//   internal/constitution/amendments.go. Endpoints stable: POST .../amend,
-//   GET .../amendments, POST .../amend/vote. Future → tambah file baru, JANGAN modify ini.
-//
-// handlers_brain_amend.go — Section 12 phase 2: constitution AMENDMENT endpoints.
-//
-// Phase 1 (handlers_brain_proposals.go, LOCKED) hanya bisa propose rule BARU.
-// Phase 2 menambah amendment ke rule EXISTING (reword / amplitude / soft-delete),
-// di-antre PENDING, di-apply HANYA setelah owner approve. Append-only +
-// governance-gated. File BARU — tidak menyentuh handler/engine phase 1.
-//
-// Endpoints:
-//   POST /api/brain/constitution/amend        — antre amendment pending
-//   GET  /api/brain/constitution/amendments?status=&limit=
-//   POST /api/brain/constitution/amend/vote?id=<n>&approve=1 (0=reject)
-//        header X-Voter-ID untuk audit
-//
-// Engine: internal/constitution/amendments.go.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -37,8 +17,6 @@ import (
 
 const maxAmendBodyBytes = 32 * 1024
 
-// amendErrStatus memetakan error engine ke HTTP status: validasi caller → 400,
-// sisanya (DB/transaksi) → 500.
 func amendErrStatus(err error) int {
 	if errors.Is(err, constitution.ErrInvalidInput) {
 		return http.StatusBadRequest
@@ -46,7 +24,6 @@ func amendErrStatus(err error) int {
 	return http.StatusInternalServerError
 }
 
-// brainAmendProposeHandler — POST /api/brain/constitution/amend
 func brainAmendProposeHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed (use POST)", http.StatusMethodNotAllowed)
@@ -90,7 +67,6 @@ func brainAmendProposeHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// brainAmendListHandler — GET /api/brain/constitution/amendments
 func brainAmendListHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed (use GET)", http.StatusMethodNotAllowed)
@@ -117,7 +93,6 @@ func brainAmendListHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// brainAmendVoteHandler — POST /api/brain/constitution/amend/vote?id=<n>&approve=1
 func brainAmendVoteHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed (use POST)", http.StatusMethodNotAllowed)

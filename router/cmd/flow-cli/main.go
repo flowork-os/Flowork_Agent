@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — CLI command/menu.
-
-// flow-cli (stand-alone control binary).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -85,8 +81,6 @@ ENV:
 `)
 }
 
-// ── commands ───────────────────────────────────────────────────────────
-
 func cmdStatus() error {
 	body, err := apiGET("/api/health")
 	if err != nil {
@@ -123,7 +117,7 @@ func cmdProviders() error {
 		Priority int    `json:"priority"`
 	}
 	if err := json.Unmarshal(body, &arr); err != nil {
-		// /api/providers may return {data: [...]} or [...] depending on path
+
 		var wrap struct {
 			Data []struct {
 				ID, Name, Provider string
@@ -177,7 +171,7 @@ func cmdSettings() error {
 	if err != nil {
 		return err
 	}
-	// Pretty-print
+
 	var buf bytes.Buffer
 	if err := json.Indent(&buf, body, "", "  "); err == nil {
 		fmt.Println(buf.String())
@@ -186,8 +180,6 @@ func cmdSettings() error {
 	fmt.Println(string(body))
 	return nil
 }
-
-// ── HTTP helpers ────────────────────────────────────────────────────────
 
 var httpc = &http.Client{Timeout: 15 * time.Second}
 
@@ -223,8 +215,6 @@ func doReq(req *http.Request) ([]byte, error) {
 	}
 	return body, nil
 }
-
-// ── utils ───────────────────────────────────────────────────────────────
 
 func envOr(k, def string) string {
 	if v := os.Getenv(k); v != "" {

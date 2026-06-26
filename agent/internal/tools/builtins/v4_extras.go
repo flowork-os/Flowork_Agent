@@ -1,13 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Port batch 3 — 6 tool tambahan. Auto-register via init.
-//
-// v4_extras.go — 6 tool:
-//   tool_audit_log, scheduler_list, mistake_search, death_letter_read,
-//   workspace_lookup, system_health.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package builtins
 
@@ -30,10 +24,6 @@ func init() {
 	tools.Register(&workspaceLookupTool{})
 	tools.Register(&systemHealthTool{})
 }
-
-// =============================================================================
-// 1. tool_audit_log — query tool_audit table (Section 26)
-// =============================================================================
 
 type toolAuditLogTool struct{}
 
@@ -74,10 +64,6 @@ func (toolAuditLogTool) Run(ctx context.Context, args map[string]any) (tools.Res
 	}, nil
 }
 
-// =============================================================================
-// 2. scheduler_list — list scheduled tasks (Section 18)
-// =============================================================================
-
 type schedulerListTool struct{}
 
 func (schedulerListTool) Name() string       { return "scheduler_list" }
@@ -103,10 +89,6 @@ func (schedulerListTool) Run(ctx context.Context, args map[string]any) (tools.Re
 		Output: map[string]any{"count": len(items), "items": items},
 	}, nil
 }
-
-// =============================================================================
-// 3. mistake_search — substring search di mistakes_local
-// =============================================================================
 
 type mistakeSearchTool struct{}
 
@@ -156,10 +138,6 @@ func (mistakeSearchTool) Run(ctx context.Context, args map[string]any) (tools.Re
 	}, nil
 }
 
-// =============================================================================
-// 4. death_letter_read — baca wasiat pendahulu (Section 4 ADR-010)
-// =============================================================================
-
 type deathLetterReadTool struct{}
 
 func (deathLetterReadTool) Name() string       { return "death_letter_read" }
@@ -205,10 +183,6 @@ func (deathLetterReadTool) Run(ctx context.Context, args map[string]any) (tools.
 	}, nil
 }
 
-// =============================================================================
-// 5. workspace_lookup — single workspace_meta entry by (category, path)
-// =============================================================================
-
 type workspaceLookupTool struct{}
 
 func (workspaceLookupTool) Name() string       { return "workspace_lookup" }
@@ -248,10 +222,6 @@ func (workspaceLookupTool) Run(ctx context.Context, args map[string]any) (tools.
 		Output: map[string]any{"found": true, "item": item},
 	}, nil
 }
-
-// =============================================================================
-// 6. system_health — kernel runtime status snapshot
-// =============================================================================
 
 type systemHealthTool struct{}
 

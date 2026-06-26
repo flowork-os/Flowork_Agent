@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — MITM proxy module.
-
-// MITM dbReader (mitm alias cache from kv store).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package mitm
 
@@ -19,11 +15,9 @@ import (
 
 var (
 	aliasMu    sync.RWMutex
-	aliasCache = map[string]string{} // canonical alias key → handler hint
+	aliasCache = map[string]string{}
 )
 
-// LoadAliasCache refreshes the in-memory cache by scanning the kv table for
-// keys with the "mitm:alias:" prefix.
 func LoadAliasCache() error {
 	d, err := store.Open()
 	if err != nil {
@@ -49,11 +43,6 @@ func LoadAliasCache() error {
 	return nil
 }
 
-// GetMitmAlias resolves rawModel to a canonical alias key.
-// Resolution order (matches upstream):
-//  1. ModelSynonyms[tool][rawModel] exact map.
-//  2. The first matching ModelPatterns[tool] regex.
-//  3. ""  when nothing matches (caller should pass rawModel through).
 func GetMitmAlias(tool, rawModel string) string {
 	if rawModel == "" || tool == "" {
 		return ""
@@ -71,14 +60,12 @@ func GetMitmAlias(tool, rawModel string) string {
 	return ""
 }
 
-// LookupAlias returns the kv "mitm:alias:<key>" value (handler hint) when set.
 func LookupAlias(key string) string {
 	aliasMu.RLock()
 	defer aliasMu.RUnlock()
 	return aliasCache[key]
 }
 
-// Probe is a helper used by tests to inject custom aliases without touching DB.
 func InjectAliasForTest(d *sql.DB, key, value string) error {
 	_, err := d.Exec(
 		`INSERT INTO kv (k, v, updatedAt) VALUES (?, ?, datetime('now'))

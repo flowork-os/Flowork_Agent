@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — HTTP handler.
-
-// STT dispatch handler.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -21,16 +17,12 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-// transcriptionsHandler — POST /v1/audio/transcriptions (and /translations).
-// Reads multipart/form-data, dispatches to the active STT MediaProvider's
-// vendor implementation, and returns OpenAI-compat JSON.
 func transcriptionsHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// 32 MiB cap — same envelope as dispatchMedia's body limit.
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
 		http.Error(w, "parse multipart: "+err.Error(), http.StatusBadRequest)
 		return
@@ -48,7 +40,6 @@ func transcriptionsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Look up active STT provider.
 	d, _ := store.Open()
 	providers, err := store.ListMediaProviders(d, store.MediaCategorySTT)
 	if err != nil {
@@ -86,7 +77,6 @@ func transcriptionsHandler(w http.ResponseWriter, r *http.Request) {
 		filename = header.Filename
 	}
 
-	// AssemblyAI's poll loop is 120s; allow margin for upload + submit.
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Minute)
 	defer cancel()
 
@@ -108,8 +98,6 @@ func transcriptionsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Honour `response_format` like OpenAI: "text" → plain text; "verbose_json"
-	// → upstream raw passthrough when available; anything else → JSON {text}.
 	switch strings.ToLower(r.FormValue("response_format")) {
 	case "text":
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -137,9 +125,6 @@ func transcriptionsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// pickFormValue returns the form value if set; otherwise the first item of
-// fallback (or "" if fallback is empty). Used to seed model from provider
-// defaults when the OpenAI-compat client doesn't pass one.
 func pickFormValue(r *http.Request, name string, fallback []string) string {
 	if v := r.FormValue(name); v != "" {
 		return v

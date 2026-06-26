@@ -1,16 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 14 phase 1 (Registry). API stable: Register (panic on
-//   dup name OR alias collision — early bug catch), Lookup (resolve name
-//   atau alias), List, Count, ListSummaries. sync.RWMutex thread-safe.
-//
-// registry.go — singleton registry slash commands.
-//
-// Same pattern dengan tools/registry.go: Register, Lookup (incl. alias
-// resolution), List, Count.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package slashcmd
 
@@ -23,12 +14,10 @@ import (
 
 var (
 	regMu       sync.RWMutex
-	registry    = map[string]SlashCommand{} // canonical name → cmd
-	aliasLookup = map[string]string{}        // alias → canonical name
+	registry    = map[string]SlashCommand{}
+	aliasLookup = map[string]string{}
 )
 
-// Register — add command to registry. Panic on duplicate name OR alias
-// collision dengan existing name/alias (early bug catch).
 func Register(c SlashCommand) {
 	if c == nil {
 		panic("slashcmd.Register: nil command")
@@ -43,7 +32,7 @@ func Register(c SlashCommand) {
 		panic(fmt.Sprintf("slashcmd.Register: duplicate name %q (existing=%T, new=%T)", name, existing, c))
 	}
 	registry[name] = c
-	// Index aliases.
+
 	for _, a := range c.Aliases() {
 		a = strings.ToLower(strings.TrimSpace(a))
 		if a == "" {
@@ -59,7 +48,6 @@ func Register(c SlashCommand) {
 	}
 }
 
-// Lookup — fetch command by name OR alias (case-insensitive).
 func Lookup(name string) (SlashCommand, bool) {
 	name = strings.ToLower(strings.TrimSpace(name))
 	regMu.RLock()
@@ -73,7 +61,6 @@ func Lookup(name string) (SlashCommand, bool) {
 	return nil, false
 }
 
-// List — return semua canonical commands sorted by name.
 func List() []SlashCommand {
 	regMu.RLock()
 	defer regMu.RUnlock()
@@ -85,21 +72,18 @@ func List() []SlashCommand {
 	return out
 }
 
-// Count — total registered commands (canonical, alias tidak di-count).
 func Count() int {
 	regMu.RLock()
 	defer regMu.RUnlock()
 	return len(registry)
 }
 
-// Summary — minimal payload buat /help list.
 type Summary struct {
 	Name        string   `json:"name"`
 	Aliases     []string `json:"aliases,omitempty"`
 	Description string   `json:"description"`
 }
 
-// ListSummaries — slice of Summary, sorted by name.
 func ListSummaries() []Summary {
 	regMu.RLock()
 	defer regMu.RUnlock()

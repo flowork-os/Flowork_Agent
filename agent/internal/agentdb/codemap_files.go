@@ -1,21 +1,12 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-31
-// Reason: Tabel file-level codemap (graph). Plug-in, ngga sentuh codemap.go
-//   locked. ReplaceCodemapFiles transaksional, dependent_count agregat.
-//   E2E verified.
-//
-// codemap_files.go — plug-in extension: tabel file-level codemap untuk GUI
-// graph tab (codemap_files + codemap_file_edges). Terpisah dari codemap.go
-// (LOCKED, simbol-level) supaya ngga ganggu endpoint tool warga.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package agentdb
 
 import "encoding/json"
 
-// CodemapFile — satu file node (graph).
 type CodemapFile struct {
 	Path            string   `json:"path"`
 	Name            string   `json:"name"`
@@ -29,7 +20,6 @@ type CodemapFile struct {
 	Issues          []string `json:"issues"`
 }
 
-// CodemapFileEdge — edge file→file (import).
 type CodemapFileEdge struct {
 	From string `json:"from"`
 	To   string `json:"to"`
@@ -59,8 +49,6 @@ func (s *Store) ensureCodemapFilesSchema() error {
 	return err
 }
 
-// ReplaceCodemapFiles — full replace (reindex): wipe + insert nodes + edges
-// dalam satu transaksi.
 func (s *Store) ReplaceCodemapFiles(files []CodemapFile, edges []CodemapFileEdge) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -105,14 +93,13 @@ func (s *Store) ReplaceCodemapFiles(files []CodemapFile, edges []CodemapFileEdge
 	return tx.Commit()
 }
 
-// ListCodemapFiles — semua file node + dependent_count (edge masuk).
 func (s *Store) ListCodemapFiles() ([]map[string]any, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := s.ensureCodemapFilesSchema(); err != nil {
 		return nil, err
 	}
-	// dependent_count = jumlah edge yang nunjuk ke file ini.
+
 	depCount := map[string]int{}
 	erows, err := s.db.Query(`SELECT to_path, COUNT(*) FROM codemap_file_edges GROUP BY to_path`)
 	if err != nil {
@@ -156,7 +143,6 @@ func (s *Store) ListCodemapFiles() ([]map[string]any, error) {
 	return out, rows.Err()
 }
 
-// ListCodemapFileEdges — semua edge.
 func (s *Store) ListCodemapFileEdges() ([]CodemapFileEdge, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

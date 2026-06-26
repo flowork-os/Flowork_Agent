@@ -1,33 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 11 phase 1b (file ops 3 tools) DONE. API stable:
-//   file_read/file_write/file_list. Path safety via category whitelist
-//   (tools/job/document/media/cache/log) + filepath.Base strip
-//   traversal + defense-in-depth HasPrefix check post-Join. 4MB content
-//   cap. Symlink skip di file_list (audit Section 6 pattern). Phase 1c+
-//   add edit/glob/grep → tambah file baru (mis. `file_advanced.go`),
-//   JANGAN modify ini.
-//
-// file.go — Section 11 phase 1b: 3 file ops tools.
-//
-// Tools:
-//   1. file_read   — read file in shared workspace category
-//   2. file_write  — write file (create or overwrite)
-//   3. file_list   — list filenames in category
-//
-// SECURITY:
-//   - Path NEVER raw from user — caller pass {category, name}.
-//   - category WHITELIST (mirror SharedSubfolders di kernelhost).
-//   - name sanitized via filepath.Base — strip any slashes/dots.
-//   - Resolved path: <shared_dir>/<category>/<name>.
-//   - Read/write cap 4MB content.
-//
-// REGISTRATION:
-//   `Init()` di builtins.go panggil register5 demo + register3 file
-//   (overall 8 tools). Phase 1c/1d/etc tambah lebih banyak.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package builtins
 
@@ -42,7 +16,6 @@ import (
 	"flowork-gui/internal/tools"
 )
 
-// fileCategoryWhitelist — mirror kernelhost.SharedSubfolders.
 var fileCategoryWhitelist = map[string]struct{}{
 	"tools":    {},
 	"job":      {},
@@ -52,10 +25,8 @@ var fileCategoryWhitelist = map[string]struct{}{
 	"log":      {},
 }
 
-const maxFileBytes = 4 * 1024 * 1024 // 4MB cap
+const maxFileBytes = 4 * 1024 * 1024
 
-// validateCategoryAndName — safe path resolver. Return (absPath, error).
-// Sanity: category whitelist, name via filepath.Base (anti-traversal).
 func validateCategoryAndName(ctx context.Context, category, name string) (string, error) {
 	category = strings.TrimSpace(category)
 	name = strings.TrimSpace(name)
@@ -68,7 +39,7 @@ func validateCategoryAndName(ctx context.Context, category, name string) (string
 	if name == "" {
 		return "", fmt.Errorf("name required")
 	}
-	// filepath.Base strips any path traversal attempts.
+
 	safeName := filepath.Base(name)
 	if safeName == "." || safeName == ".." || safeName == "/" {
 		return "", fmt.Errorf("invalid name after sanitize")
@@ -78,16 +49,12 @@ func validateCategoryAndName(ctx context.Context, category, name string) (string
 		return "", fmt.Errorf("shared workspace not in context")
 	}
 	abs := filepath.Join(sharedDir, category, safeName)
-	// Defense in depth — ensure resolved abs masih di bawah sharedDir.
+
 	if !strings.HasPrefix(abs, sharedDir+string(os.PathSeparator)) && abs != sharedDir {
 		return "", fmt.Errorf("resolved path escapes shared dir")
 	}
 	return abs, nil
 }
-
-// =============================================================================
-// file_read — read file content
-// =============================================================================
 
 type fileReadTool struct{}
 
@@ -105,7 +72,7 @@ func (fileReadTool) Schema() tools.Schema {
 	}
 }
 func (fileReadTool) Run(ctx context.Context, args map[string]any) (tools.Result, error) {
-	// file_path (relative, workspace-confined) preferred; {category,name} fallback.
+
 	abs, rel, err := resolveFileArgs(ctx, args)
 	if err != nil {
 		return tools.Result{}, err
@@ -144,10 +111,6 @@ func (fileReadTool) Run(ctx context.Context, args map[string]any) (tools.Result,
 	}}, nil
 }
 
-// =============================================================================
-// file_write — write file (create or overwrite)
-// =============================================================================
-
 type fileWriteTool struct{}
 
 func (fileWriteTool) Name() string       { return "file_write" }
@@ -172,12 +135,12 @@ func (fileWriteTool) Run(ctx context.Context, args map[string]any) (tools.Result
 	if len(content) > maxFileBytes {
 		return tools.Result{}, fmt.Errorf("content > %d bytes cap", maxFileBytes)
 	}
-	// file_path (relative, workspace-confined) preferred; {category,name} fallback.
+
 	abs, rel, err := resolveFileArgs(ctx, args)
 	if err != nil {
 		return tools.Result{}, err
 	}
-	// Ensure parent dir exists (file_path may nest new subdirs in the workspace).
+
 	if mkerr := os.MkdirAll(filepath.Dir(abs), 0o755); mkerr != nil {
 		return tools.Result{}, fmt.Errorf("mkdir: %w", mkerr)
 	}
@@ -189,10 +152,6 @@ func (fileWriteTool) Run(ctx context.Context, args map[string]any) (tools.Result
 		"bytes_written": len(content),
 	}}, nil
 }
-
-// =============================================================================
-// file_list — list filenames in category
-// =============================================================================
 
 type fileListTool struct{}
 
@@ -232,7 +191,7 @@ func (fileListTool) Run(ctx context.Context, args map[string]any) (tools.Result,
 	}
 	files := []string{}
 	for _, e := range entries {
-		// Skip symlinks for safety (anti symlink follow leak).
+
 		if e.Type()&os.ModeSymlink != 0 {
 			continue
 		}

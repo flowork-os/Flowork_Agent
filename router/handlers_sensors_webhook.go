@@ -1,27 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-29
-// Reason: Section 9 (HTTP webhook boundary) phase 1 DONE. Endpoint
-//   stable: POST /api/sensors/webhook?source= header X-Sensor-Token,
-//   body raw content → ingest.Submit dengan wing='webhook' room=source.
-//   MaxBytesReader 256KB. Constant-time token compare anti timing
-//   attack. Future file watcher / scheduler endpoints → tambah file
-//   baru, JANGAN modify ini.
-//
-// handlers_sensors_webhook.go — Section 9 roadmap: webhook receiver.
-//
-// POST /api/sensors/webhook?source=<id>
-//   Header: X-Sensor-Token: <token>
-//   Body:   content text (UTF-8)
-//
-// Validate token → forward content ke ingest.Submit (source_type='webhook').
-//
-// Roadmap:
-//   - internal/sensors/sensors.go (AuthSource + token validation)
-//   - internal/ingest/ingest.go (Submit pipeline — LOCKED)
-//   - flowork_Router/roadmap.md Section 9
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -38,7 +18,6 @@ import (
 
 const maxWebhookBodyBytes = 256 * 1024
 
-// sensorsWebhookHandler — POST /api/sensors/webhook?source=<id>
 func sensorsWebhookHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed (use POST)", http.StatusMethodNotAllowed)
@@ -60,7 +39,7 @@ func sensorsWebhookHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := sensors.AuthSource(sourceID, token); err != nil {
-		// Opaque error untuk client. Internal log via log.Printf (caller).
+
 		status := http.StatusUnauthorized
 		if errors.Is(err, sensors.ErrInvalidSourceID) {
 			status = http.StatusBadRequest
@@ -69,7 +48,6 @@ func sensorsWebhookHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Body content — read raw bytes.
 	bodyBytes, rerr := io.ReadAll(r.Body)
 	if rerr != nil {
 		http.Error(w, "read body: "+rerr.Error(), http.StatusBadRequest)
@@ -81,8 +59,6 @@ func sensorsWebhookHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Submit via existing ingest pipeline. SourceType='webhook', wing
-	// hardcoded 'webhook', room = source ID supaya bisa di-filter / browse.
 	res := ingest.Submit(r.Context(), ingest.Req{
 		Content:    content,
 		Wing:       "webhook",
@@ -102,6 +78,4 @@ func sensorsWebhookHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Compile-time check: json package imported (kept for future webhook variants
-// dengan structured payload).
 var _ = json.Marshal

@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Provider adapter.
-
-// Embedding provider catalog.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package embedding
 
@@ -19,7 +15,6 @@ import (
 	"time"
 )
 
-// Request is the canonical embedding request.
 type Request struct {
 	Model      string
 	Input      []string
@@ -28,7 +23,6 @@ type Request struct {
 	Dimensions int
 }
 
-// Result is the OpenAI-shape embeddings response.
 type Result struct {
 	Object string  `json:"object"`
 	Data   []Embed `json:"data"`
@@ -47,7 +41,6 @@ type Usage struct {
 	TotalTokens  int `json:"total_tokens"`
 }
 
-// EmbeddingProvider is the vendor contract.
 type EmbeddingProvider interface {
 	Name() string
 	Embed(ctx context.Context, req Request) (*Result, error)
@@ -58,7 +51,6 @@ var (
 	registry = map[string]EmbeddingProvider{}
 )
 
-// Register adds a provider.
 func Register(p EmbeddingProvider) {
 	if p == nil || p.Name() == "" {
 		return
@@ -68,14 +60,12 @@ func Register(p EmbeddingProvider) {
 	registry[p.Name()] = p
 }
 
-// Get returns a provider by name, or nil.
 func Get(name string) EmbeddingProvider {
 	regMu.RLock()
 	defer regMu.RUnlock()
 	return registry[name]
 }
 
-// List returns every registered name.
 func List() []string {
 	regMu.RLock()
 	defer regMu.RUnlock()
@@ -85,8 +75,6 @@ func List() []string {
 	}
 	return out
 }
-
-// ── shared helpers ────────────────────────────────────────────────────────
 
 var embedHTTPClient = &http.Client{Timeout: 2 * time.Minute}
 

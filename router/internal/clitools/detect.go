@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — CLI command/menu.
-
-// CLI Tools Detection + Settings Read/Write.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package clitools
 
@@ -18,7 +14,6 @@ import (
 	"strings"
 )
 
-// Status — per-tool detection snapshot.
 type Status struct {
 	ID             string         `json:"id"`
 	DisplayName    string         `json:"displayName"`
@@ -34,7 +29,6 @@ type Status struct {
 	ErrorMessage   string         `json:"errorMessage,omitempty"`
 }
 
-// Detect — full status for one tool.
 func Detect(toolID string) (*Status, error) {
 	t := Get(toolID)
 	if t == nil {
@@ -46,7 +40,7 @@ func Detect(toolID string) (*Status, error) {
 		SettingsPath: t.SettingsPath,
 		Format:       t.Format,
 	}
-	// Binary lookup
+
 	if t.BinaryName != "" {
 		bp := findBinary(t.BinaryName, t.BinaryAliases...)
 		if bp != "" {
@@ -54,12 +48,12 @@ func Detect(toolID string) (*Status, error) {
 			st.BinaryPath = bp
 		}
 	}
-	// Settings file
+
 	if _, err := os.Stat(t.SettingsPath); err == nil {
 		st.SettingsExists = true
-		st.Installed = true // having settings counts as "installed-ish"
+		st.Installed = true
 	}
-	// Read settings to surface baseURL + flow_router flag
+
 	settings, err := readSettings(t)
 	if err == nil && settings != nil {
 		st.Settings = settings
@@ -74,7 +68,6 @@ func Detect(toolID string) (*Status, error) {
 	return st, nil
 }
 
-// DetectAll — concurrent detection of every registered tool.
 func DetectAll() []Status {
 	tools := All()
 	out := make([]Status, len(tools))
@@ -89,21 +82,18 @@ func DetectAll() []Status {
 	return out
 }
 
-// WriteEnv — apply { key: value } map to tool settings, format-aware.
-// Returns updated settings (without secret values shown).
 func WriteEnv(toolID string, env map[string]any) (map[string]any, error) {
 	t := Get(toolID)
 	if t == nil {
 		return nil, fmt.Errorf("unknown tool: %s", toolID)
 	}
-	// Bespoke per-tool format (hermes config.yaml, openclaw nested json) takes
-	// precedence over the generic writer.
+
 	if hasCustomWriter(toolID) {
 		home, _ := os.UserHomeDir()
 		return customWriters[toolID](home, env)
 	}
 	if t.Format == FormatProxy {
-		// MITM-style: write to our own state file (just for record-keeping).
+
 		return writeJSONSettings(t.SettingsPath, env, "")
 	}
 	switch t.Format {
@@ -117,7 +107,6 @@ func WriteEnv(toolID string, env map[string]any) (map[string]any, error) {
 	return nil, fmt.Errorf("unsupported format: %s", t.Format)
 }
 
-// ResetEnv — remove known env keys from tool settings, leaving other config intact.
 func ResetEnv(toolID string) error {
 	t := Get(toolID)
 	if t == nil {
@@ -125,7 +114,7 @@ func ResetEnv(toolID string) error {
 	}
 	if _, err := os.Stat(t.SettingsPath); err != nil {
 		if os.IsNotExist(err) {
-			return nil // nothing to reset
+			return nil
 		}
 		return err
 	}
@@ -141,8 +130,6 @@ func ResetEnv(toolID string) error {
 	}
 	return nil
 }
-
-// ── helpers ────────────────────────────────────────────────────────────
 
 func findBinary(name string, aliases ...string) string {
 	candidates := append([]string{name}, aliases...)
@@ -168,7 +155,7 @@ func readSettings(t *Tool) (map[string]any, error) {
 		if err := json.Unmarshal(data, &out); err != nil {
 			return nil, fmt.Errorf("parse json: %w", err)
 		}
-		// Claude wraps env in `env`, surface it flat too for convenience.
+
 		if t.ID == "claude" {
 			if envMap, ok := out["env"].(map[string]any); ok {
 				flat := map[string]any{}
@@ -190,8 +177,6 @@ func readSettings(t *Tool) (map[string]any, error) {
 	return nil, nil
 }
 
-// lookupNested — read a nested key like "model_providers.openai.base_url"
-// from a flat-or-nested map. Best-effort.
 func lookupNested(m map[string]any, key string) string {
 	if key == "" || m == nil {
 		return ""
@@ -224,8 +209,6 @@ func isFlowRouterURL(s string) bool {
 		strings.Contains(low, "flow-router")
 }
 
-// ── JSON settings ──────────────────────────────────────────────────────
-
 func writeJSONSettings(path string, env map[string]any, toolID string) (map[string]any, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, err
@@ -238,7 +221,7 @@ func writeJSONSettings(path string, env map[string]any, toolID string) (map[stri
 		existing = map[string]any{}
 	}
 	if toolID == "claude" {
-		// nested `env` map convention; force base URL to /v1 suffix
+
 		envMap, _ := existing["env"].(map[string]any)
 		if envMap == nil {
 			envMap = map[string]any{}
@@ -254,7 +237,7 @@ func writeJSONSettings(path string, env map[string]any, toolID string) (map[stri
 		existing["env"] = envMap
 		existing["hasCompletedOnboarding"] = true
 	} else {
-		// Generic: deep-merge dotted keys into existing
+
 		for k, v := range env {
 			setNested(existing, k, v)
 		}
@@ -295,7 +278,6 @@ func resetJSONKeys(path string, keys []string, toolID string) error {
 	return os.WriteFile(path, out, 0o600)
 }
 
-// setNested — walk dotted path, create intermediate maps as needed.
 func setNested(m map[string]any, key string, val any) {
 	parts := strings.Split(key, ".")
 	cur := m
@@ -333,8 +315,6 @@ func deleteNested(m map[string]any, key string) {
 	}
 }
 
-// ── TOML (simple key=value with optional [section] headers) ────────────
-
 func parseSimpleTOML(s string) map[string]any {
 	out := map[string]any{}
 	section := ""
@@ -367,7 +347,7 @@ func writeTOMLSettings(path string, env map[string]any) (map[string]any, error) 
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, err
 	}
-	// Load existing values
+
 	existing := map[string]string{}
 	if data, err := os.ReadFile(path); err == nil {
 		for k, v := range parseSimpleTOML(string(data)) {
@@ -376,7 +356,7 @@ func writeTOMLSettings(path string, env map[string]any) (map[string]any, error) 
 			}
 		}
 	}
-	// Apply incoming
+
 	for k, v := range env {
 		if s, ok := v.(string); ok {
 			existing[k] = s
@@ -385,7 +365,7 @@ func writeTOMLSettings(path string, env map[string]any) (map[string]any, error) 
 			existing[k] = string(b)
 		}
 	}
-	// Group keys by section
+
 	bySection := map[string]map[string]string{}
 	var rootKeys []string
 	for k, v := range existing {
@@ -398,7 +378,7 @@ func writeTOMLSettings(path string, env map[string]any) (map[string]any, error) 
 			bySection[""][k] = v
 			continue
 		}
-		// section can itself be dotted (model_providers.openai)
+
 		lastDot := strings.LastIndex(k, ".")
 		sec := k[:lastDot]
 		field := k[lastDot+1:]
@@ -444,8 +424,6 @@ func resetTOMLKeys(path string, keys []string) error {
 	_, err = writeTOMLSettings(path, current)
 	return err
 }
-
-// ── .env (KEY=VALUE per line) ──────────────────────────────────────────
 
 func parseDotEnv(s string) map[string]any {
 	out := map[string]any{}

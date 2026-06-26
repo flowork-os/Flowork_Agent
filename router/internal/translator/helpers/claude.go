@@ -1,17 +1,12 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Provider request/response translator.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Helper: Claude/Anthropic shape ↔ canonical.
 package helpers
 
 import "strings"
 
-// FlattenAnthropicSystem accepts either a string or `[{type:"text", text:...}]`
-// system field and returns the flattened string.
 func FlattenAnthropicSystem(system any) string {
 	switch v := system.(type) {
 	case string:
@@ -32,8 +27,6 @@ func FlattenAnthropicSystem(system any) string {
 	return ""
 }
 
-// FlattenAnthropicContent accepts either a string or `[{type:"text", text:...}]`
-// content field and returns the joined string (no separator — matches upstream).
 func FlattenAnthropicContent(content any) string {
 	switch v := content.(type) {
 	case string:
@@ -54,7 +47,6 @@ func FlattenAnthropicContent(content any) string {
 	return ""
 }
 
-// MapClaudeStopReason maps OpenAI finish_reason → Anthropic stop_reason.
 func MapClaudeStopReason(finishReason string) string {
 	switch finishReason {
 	case "length":

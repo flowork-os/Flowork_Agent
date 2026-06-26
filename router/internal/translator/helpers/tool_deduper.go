@@ -1,29 +1,12 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Provider request/response translator.
-
-// Tool deduplication: strip built-in or duplicate tool definitions when an
-// equivalent MCP tool is already in the request. Reduces token bloat on
-// Claude clients that mix Anthropic's built-in tools with MCP servers
-// covering the same surface (web search, web fetch, Chrome control).
-//
-// Rule shape:
-//
-//	triggers: substring/regex patterns that must be present in the tool list
-//	strip:    substring/regex patterns whose matching tools are removed
-//
-// All matching is case-sensitive and exact (no implicit prefix scan) —
-// callers use the regex form for prefix rules.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package helpers
 
 import "regexp"
 
-// toolDedupPattern is either a literal name or a compiled regex; only one
-// field is populated per entry.
 type toolDedupPattern struct {
 	literal string
 	re      *regexp.Regexp
@@ -39,13 +22,6 @@ type toolDedupRule struct {
 	Strip    []toolDedupPattern
 }
 
-// dedupRules holds the canonical rule set. Three current entries:
-//   - Exa MCP → drop built-in WebSearch/WebFetch + workspace web_fetch
-//   - Tavily MCP → drop the same trio
-//   - Browser MCP → drop the Cowork Claude_in_Chrome connector
-//
-// Add a new entry to extend coverage; the matching is order-independent so
-// rule order doesn't affect correctness.
 var dedupRules = []toolDedupRule{
 	{
 		Triggers: []toolDedupPattern{
@@ -79,8 +55,6 @@ var dedupRules = []toolDedupRule{
 	},
 }
 
-// patternMatches reports whether name satisfies pat. Literal patterns
-// require equality; regex patterns require a match anywhere.
 func patternMatches(name string, pat toolDedupPattern) bool {
 	if pat.re != nil {
 		return pat.re.MatchString(name)
@@ -88,8 +62,6 @@ func patternMatches(name string, pat toolDedupPattern) bool {
 	return pat.literal != "" && name == pat.literal
 }
 
-// extractToolName surfaces the tool id from either the OpenAI shape
-// ({type:"function", function:{name}}) or the Anthropic shape ({name}).
 func extractToolName(t any) string {
 	tool, ok := t.(map[string]any)
 	if !ok {
@@ -106,9 +78,6 @@ func extractToolName(t any) string {
 	return ""
 }
 
-// DedupeTools returns a copy of the tool list with built-in tools removed
-// when an equivalent MCP tool is present, plus the slice of stripped tool
-// names for logging.
 func DedupeTools(tools []any) (out []any, stripped []string) {
 	if len(tools) == 0 {
 		return tools, nil

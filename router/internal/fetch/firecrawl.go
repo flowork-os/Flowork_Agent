@@ -1,13 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — audit pass surface review.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Vendor: firecrawl — Firecrawl /scrape (POST JSON, returns cleaned markdown).
-// Endpoint: https://api.firecrawl.dev/v1/scrape
-// Auth: Bearer <api_key>. Response shape: { success, data: { markdown, html?, metadata: { title, … } } }.
 package fetch
 
 import (

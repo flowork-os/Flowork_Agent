@@ -1,9 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Platform-specific build constraint. No cross-platform risk.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 //go:build !windows
 
@@ -14,7 +12,6 @@ import (
 	"syscall"
 )
 
-// restartImpl replaces the running process with a fresh exec.
 func restartImpl(exe string) error {
 	return syscall.Exec(exe, os.Args, os.Environ())
 }

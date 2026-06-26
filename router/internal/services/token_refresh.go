@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — audit pass surface review.
-
-// Token Refresh Worker (background OAuth refresh).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package services
 
@@ -16,33 +12,24 @@ import (
 	"time"
 )
 
-// RefreshLead is the default lead time used when a provider doesn't appear
-// in RefreshLeadByProvider. Long-lived OAuth tokens (e.g. Claude consumer
-// OAuth at ~4h) get more lead than short-lived device tokens (qwen ~20m).
 var RefreshLead = 5 * time.Minute
 
-// RefreshLeadByProvider lets per-provider token lifetimes drive their own
-// refresh cadence. Keys are normalised lower-case provider identifiers as
-// returned by TokenSource.Provider(). Unknown providers fall back to the
-// package-level RefreshLead constant.
 var RefreshLeadByProvider = map[string]time.Duration{
-	"codex":       5 * 24 * time.Hour, // 5 days — Codex tokens last ~30d
-	"openai":      5 * 24 * time.Hour, // alias
-	"claude":      4 * time.Hour,      // Claude consumer OAuth ~12h
-	"anthropic":   4 * time.Hour,      // alias
-	"iflow":       24 * time.Hour,     // iFlow tokens ~14 days
-	"qwen":        20 * time.Minute,   // Qwen device tokens ~1h
-	"kimi-coding": 5 * time.Minute,    // Kimi tokens ~30m
+	"codex":       5 * 24 * time.Hour,
+	"openai":      5 * 24 * time.Hour,
+	"claude":      4 * time.Hour,
+	"anthropic":   4 * time.Hour,
+	"iflow":       24 * time.Hour,
+	"qwen":        20 * time.Minute,
+	"kimi-coding": 5 * time.Minute,
 	"kimi":        5 * time.Minute,
-	"antigravity": 5 * time.Minute, // Google CloudCode tokens ~1h
-	"gemini-cli":  5 * time.Minute, // alias
-	"github":      4 * time.Hour,   // Copilot tokens ~12h
-	"copilot":     4 * time.Hour,   // alias
-	"kiro":        4 * time.Hour,   // AWS SSO tokens ~8h
+	"antigravity": 5 * time.Minute,
+	"gemini-cli":  5 * time.Minute,
+	"github":      4 * time.Hour,
+	"copilot":     4 * time.Hour,
+	"kiro":        4 * time.Hour,
 }
 
-// leadFor returns the refresh lead time for a provider, falling back to the
-// package-level RefreshLead when the provider is unknown.
 func leadFor(provider string) time.Duration {
 	if d, ok := RefreshLeadByProvider[provider]; ok && d > 0 {
 		return d
@@ -50,38 +37,30 @@ func leadFor(provider string) time.Duration {
 	return RefreshLead
 }
 
-// FailureRetry is the polling interval when a refresh failed.
 var FailureRetry = 60 * time.Second
 
-// TokenSource is what the caller provides per provider: a way to read the
-// current expiry and to perform the refresh. flow_router uses it from
-// internal/store/oauth tokens. Refresh returns the new expiry.
 type TokenSource interface {
 	Provider() string
 	ExpiresAt() time.Time
 	Refresh(ctx context.Context) (time.Time, error)
 }
 
-// Worker polls TokenSources and refreshes each just before expiry.
 type Worker struct {
 	mu      sync.Mutex
 	sources []TokenSource
 	cancel  context.CancelFunc
 	started bool
-	wg      sync.WaitGroup // Stop() waits on this so the loop actually exited
+	wg      sync.WaitGroup
 }
 
-// NewWorker returns an empty worker. Add() to register sources, then Start().
 func NewWorker() *Worker { return &Worker{} }
 
-// Add registers a TokenSource. Safe to call before or after Start.
 func (w *Worker) Add(src TokenSource) {
 	w.mu.Lock()
 	w.sources = append(w.sources, src)
 	w.mu.Unlock()
 }
 
-// Start launches the background refresh loop. Idempotent.
 func (w *Worker) Start() {
 	w.mu.Lock()
 	if w.started {
@@ -99,8 +78,6 @@ func (w *Worker) Start() {
 	}()
 }
 
-// Stop ends the worker AND waits for the background goroutine to exit, so
-// callers can safely tear down shared state after returning.
 func (w *Worker) Stop() {
 	w.mu.Lock()
 	if w.cancel != nil {
@@ -117,18 +94,17 @@ func (w *Worker) loop(ctx context.Context) {
 		sources := append([]TokenSource(nil), w.sources...)
 		w.mu.Unlock()
 
-		// Find the soonest source needing refresh
 		now := time.Now()
 		var nextWake time.Duration = FailureRetry
 		var due TokenSource
 		for _, s := range sources {
 			exp := s.ExpiresAt()
 			if exp.IsZero() {
-				continue // no expiry recorded yet → leave alone
+				continue
 			}
 			refreshAt := exp.Add(-leadFor(s.Provider()))
 			if !refreshAt.After(now) {
-				// already due → handle this one first
+
 				due = s
 				nextWake = 0
 				break
@@ -145,11 +121,10 @@ func (w *Worker) loop(ctx context.Context) {
 				nextWake = FailureRetry
 			} else {
 				log.Printf("flow_router token refreshed for %s; next expiry %s", due.Provider(), newExp.Format(time.RFC3339))
-				continue // re-evaluate immediately, another source may also be due
+				continue
 			}
 		}
 
-		// No source registered, or nothing due — wait nextWake (or 1h cap)
 		if nextWake <= 0 {
 			nextWake = time.Hour
 		}

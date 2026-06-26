@@ -1,20 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — audit pass surface review.
-
-// OpenAI Codex (ChatGPT backend) usage.
-// GET https://chatgpt.com/backend-api/wham/usage with Bearer token.
-//
-// Codex carries TWO rate-limit surfaces:
-//   • primary rate_limit (chat / completion)
-//   • review rate_limit used by Codex's /review mode — surfaced via
-//     code_review_rate_limit, rate_limits_by_limit_id.code_review, or
-//     additional_rate_limits[].limit_name="code_review"
-// Each surface has primary_window + secondary_window (session + weekly).
-// We turn them into separate Windows so the dashboard can render both.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package quotalive
 
@@ -73,7 +60,6 @@ func (c *codexFetcher) Fetch(ctx context.Context, p Params) (Snapshot, error) {
 	return snap, nil
 }
 
-// pickCodexPlan reads plan_type or summary.plan.
 func pickCodexPlan(raw map[string]any) string {
 	if s, _ := raw["plan_type"].(string); s != "" {
 		return s
@@ -86,9 +72,6 @@ func pickCodexPlan(raw map[string]any) string {
 	return ""
 }
 
-// getCodexRateLimitBody unwraps the rate_limit sub-object if present,
-// otherwise treats the snapshot itself as the rate_limit (some responses
-// inline the window fields at the root).
 func getCodexRateLimitBody(snapshot map[string]any) map[string]any {
 	if rl, ok := snapshot["rate_limit"].(map[string]any); ok {
 		return rl
@@ -96,8 +79,6 @@ func getCodexRateLimitBody(snapshot map[string]any) map[string]any {
 	return snapshot
 }
 
-// findCodexReviewRateLimit walks the three shapes upstream may use for the
-// review-specific rate limit; returns nil when none are present.
 func findCodexReviewRateLimit(raw map[string]any) map[string]any {
 	if v, ok := raw["code_review_rate_limit"].(map[string]any); ok {
 		return v
@@ -132,10 +113,6 @@ func findCodexReviewRateLimit(raw map[string]any) map[string]any {
 	return nil
 }
 
-// appendCodexWindows folds primary_window + secondary_window from snapshot
-// (or the unwrapped rate_limit) into snap.Windows with the given prefix.
-// prefix "" → labels "session" / "weekly"; prefix "review" → "review_session"
-// / "review_weekly". Either window can be absent.
 func appendCodexWindows(snap *Snapshot, prefix string, snapshot map[string]any) {
 	if snapshot == nil {
 		return
@@ -160,7 +137,6 @@ func appendCodexWindows(snap *Snapshot, prefix string, snapshot map[string]any) 
 	}
 }
 
-// pickCodexWindow looks for keyA or keyB on rate (preferred) then snapshot.
 func pickCodexWindow(rate, snapshot map[string]any, keyA, keyB string) map[string]any {
 	for _, src := range []map[string]any{rate, snapshot} {
 		if src == nil {
@@ -175,8 +151,6 @@ func pickCodexWindow(rate, snapshot map[string]any, keyA, keyB string) map[strin
 	return nil
 }
 
-// formatCodexWindow converts a Codex window into a Window struct. The
-// used_percent / percent_used field carries a 0-100 percentage which we clamp.
 func formatCodexWindow(label string, window map[string]any) Window {
 	used := toCodexNumber(window["used_percent"])
 	if used == 0 {
@@ -208,14 +182,13 @@ func formatCodexWindow(label string, window map[string]any) Window {
 	return w
 }
 
-// parseCodexResetTime accepts seconds, milliseconds, or RFC3339-ish strings.
 func parseCodexResetTime(v any) (time.Time, bool) {
 	switch t := v.(type) {
 	case float64:
 		if t == 0 {
 			return time.Time{}, false
 		}
-		if t < 1e12 { // seconds
+		if t < 1e12 {
 			return time.Unix(int64(t), 0).UTC(), true
 		}
 		return time.Unix(0, int64(t)*int64(time.Millisecond)).UTC(), true
@@ -257,7 +230,6 @@ func atoi64(s string) int64 {
 	return n
 }
 
-// firstStringField returns the first non-empty string value among keys, or "".
 func firstStringField(m map[string]any, keys ...string) string {
 	for _, k := range keys {
 		if v, _ := m[k].(string); v != "" {
@@ -267,7 +239,6 @@ func firstStringField(m map[string]any, keys ...string) string {
 	return ""
 }
 
-// toCodexNumber pulls a numeric value out of an unknown type.
 func toCodexNumber(v any) float64 {
 	switch t := v.(type) {
 	case float64:

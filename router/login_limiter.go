@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — audit pass surface review.
-
-// Dashboard Login Rate Limiter (in-memory).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -19,14 +15,6 @@ import (
 	"time"
 )
 
-// clientIPForLock returns the host portion of r.RemoteAddr, falling back to the
-// raw value when SplitHostPort fails (e.g. unix sockets or test fakes).
-//
-// Behind a trusted reverse proxy / the built-in tunnel the TCP peer is always
-// the proxy (127.0.0.1), which would lump every remote client into one lockout
-// bucket. When FLOW_ROUTER_TRUST_PROXY=1 we instead key on the left-most
-// X-Forwarded-For entry. This is gated on explicit opt-in so an untrusted direct
-// client cannot spoof XFF to evade (or DoS) the limiter.
 func clientIPForLock(r *http.Request) string {
 	if r == nil {
 		return "unknown"
@@ -50,8 +38,6 @@ func clientIPForLock(r *http.Request) string {
 	return "unknown"
 }
 
-// strconvItoa is a tiny local alias so handlers_auth.go does not need to import
-// strconv just for the Retry-After header value.
 func strconvItoa(n int) string { return strconv.Itoa(n) }
 
 const (
@@ -78,8 +64,6 @@ var (
 	loginLocks  = map[string]*loginLockEntry{}
 )
 
-// loginCheckLock returns (locked, retryAfterSeconds).
-// Auto-prunes stale entries whose window elapsed and lock expired.
 func loginCheckLock(ip string) (bool, int) {
 	loginLockMu.Lock()
 	defer loginLockMu.Unlock()
@@ -88,7 +72,7 @@ func loginCheckLock(ip string) (bool, int) {
 		return false, 0
 	}
 	now := time.Now()
-	// auto reset if window elapsed AND no active lock
+
 	if !e.lastFailAt.IsZero() && now.Sub(e.lastFailAt) > loginFailWindow &&
 		(e.lockUntil.IsZero() || !now.Before(e.lockUntil)) {
 		delete(loginLocks, ip)
@@ -104,10 +88,6 @@ func loginCheckLock(ip string) (bool, int) {
 	return true, remaining
 }
 
-// loginRecordFail increments the fail counter and, on threshold, sets the lock.
-// Returns (locked, retryAfterSeconds) AFTER the increment, so the caller can
-// emit a 429 + Retry-After when the threshold is just crossed.
-// FIX #5: Check if already locked before incrementing to prevent race condition
 func loginRecordFail(ip string) (bool, int) {
 	loginLockMu.Lock()
 	defer loginLockMu.Unlock()
@@ -119,17 +99,14 @@ func loginRecordFail(ip string) (bool, int) {
 
 	now := time.Now()
 
-	// ✓ NEW: Check if ALREADY LOCKED before incrementing
-	// This prevents multiple concurrent threads from bypassing the lock
 	if !e.lockUntil.IsZero() && now.Before(e.lockUntil) {
 		remaining := int(e.lockUntil.Sub(now).Seconds())
 		if remaining < 1 {
 			remaining = 1
 		}
-		return true, remaining // RETURN IMMEDIATELY if already locked
+		return true, remaining
 	}
 
-	// Otherwise increment fail counter
 	e.fails++
 	e.lastFailAt = now
 	if e.fails >= loginMaxFailsBeforeLock {
@@ -145,7 +122,6 @@ func loginRecordFail(ip string) (bool, int) {
 	return false, 0
 }
 
-// loginRecordSuccess clears the IP's fail history on a successful login.
 func loginRecordSuccess(ip string) {
 	loginLockMu.Lock()
 	defer loginLockMu.Unlock()

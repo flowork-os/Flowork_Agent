@@ -1,36 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 11 (Model pool phase 1) DONE — adapted ke EXISTING
-//   schema (model_id/model_name/category/context_window/cost_prompt/
-//   cost_completion/is_free/created_at). API stable: Upsert (idempotent
-//   by model_id UNIQUE), Get (return zero+id on miss), List (filter
-//   category/is_free/max_cost, ordered cheap-first), Delete (DESTRUCTIVE
-//   physical row remove — schema NO deleted_at), Count. Phase 2/3
-//   (refresh provider API, resolver best-fit, last_seen_at column) →
-//   tambah file/function baru, JANGAN modify ini.
-//
-// Package modelpool — Section 11 phase 1: multi-model registry library.
-//
-// PURPOSE:
-//   Catalog model dengan cost, context_window, is_free, category.
-//   Caller pakai untuk: discovery (Get/List), routing decision (Section
-//   10 future), cost analytics. Phase 1 = pure CRUD; refresh (provider
-//   API sync) + resolver (best-fit pick) defer phase 2/3.
-//
-// SCHEMA NOTE:
-//   Reuse EXISTING `model_pool` table di brain DB (bukan bikin baru).
-//   Existing columns: id, model_id, model_name, category, context_window,
-//   cost_prompt, cost_completion, is_free, created_at. NO deleted_at —
-//   delete = physical row remove (DESTRUCTIVE).
-//
-// NAMESPACE:
-//   /api/brain/models — avoid collision dengan existing /api/models
-//   (handlers_models_meta.go) yang serve flowork-settings store skill.
-//
-// Source: flowork_Router/roadmap.md Section 11 phase 1.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package modelpool
 
@@ -44,10 +15,8 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/brain"
 )
 
-// AlgoVersion — library version.
 const AlgoVersion = "v1"
 
-// Model — satu row di model_pool. Field map ke existing schema.
 type Model struct {
 	ID             int64   `json:"id"`
 	ModelID        string  `json:"model_id"`
@@ -60,20 +29,16 @@ type Model struct {
 	CreatedAt      string  `json:"created_at"`
 }
 
-// UpsertOpts — argument struct buat Upsert.
 type UpsertOpts struct {
 	ModelID        string
 	ModelName      string
-	Category       string  // default 'Text/Chat'
+	Category       string
 	ContextWindow  int64
-	CostPrompt     float64 // USD per 1M token (caller convention)
+	CostPrompt     float64
 	CostCompletion float64
 	IsFree         bool
 }
 
-// Upsert — INSERT or UPDATE by `model_id` UNIQUE constraint. Validate
-// required: model_id + model_name. Category default 'Text/Chat' kalau
-// kosong. Return (id, isNew bool, error).
 func Upsert(ctx context.Context, opts UpsertOpts) (int64, bool, error) {
 	modelID := strings.TrimSpace(opts.ModelID)
 	modelName := strings.TrimSpace(opts.ModelName)
@@ -97,7 +62,6 @@ func Upsert(ctx context.Context, opts UpsertOpts) (int64, bool, error) {
 		return 0, false, err
 	}
 
-	// Lookup existing untuk distinguish isNew.
 	var existingID int64
 	qerr := db.QueryRowContext(ctx,
 		`SELECT id FROM model_pool WHERE model_id = ?`, modelID,
@@ -126,7 +90,6 @@ func Upsert(ctx context.Context, opts UpsertOpts) (int64, bool, error) {
 		return 0, false, fmt.Errorf("lookup model: %w", qerr)
 	}
 
-	// UPDATE existing — preserve created_at, refresh metadata.
 	_, uerr := db.ExecContext(ctx,
 		`UPDATE model_pool SET
 		    model_name      = ?,
@@ -145,8 +108,6 @@ func Upsert(ctx context.Context, opts UpsertOpts) (int64, bool, error) {
 	return existingID, false, nil
 }
 
-// Get — single by modelID. Return zero Model + modelID kalau ngga ada
-// (caller bedakan via ModelName == "").
 func Get(ctx context.Context, modelID string) (Model, error) {
 	if modelID == "" {
 		return Model{}, fmt.Errorf("model_id required")
@@ -174,15 +135,13 @@ func Get(ctx context.Context, modelID string) (Model, error) {
 	return m, nil
 }
 
-// ListOpts — filter.
 type ListOpts struct {
-	Category   string // exact match
-	IsFreeOnly bool   // only is_free=1 rows
-	MaxCost    float64 // 0 = no max; otherwise cost_prompt <= MaxCost AND cost_completion <= MaxCost
-	Limit      int    // default 50, max 500
+	Category   string
+	IsFreeOnly bool
+	MaxCost    float64
+	Limit      int
 }
 
-// List — paginated. Order: cost_prompt ASC then model_id ASC (cheap-first).
 func List(ctx context.Context, opts ListOpts) ([]Model, error) {
 	limit := opts.Limit
 	if limit <= 0 || limit > 500 {
@@ -231,8 +190,6 @@ func List(ctx context.Context, opts ListOpts) ([]Model, error) {
 	return out, rows.Err()
 }
 
-// Delete — DESTRUCTIVE physical row remove. Existing schema NO deleted_at
-// column. Return rows affected.
 func Delete(ctx context.Context, modelID string) (int64, error) {
 	if modelID == "" {
 		return 0, fmt.Errorf("model_id required")
@@ -250,7 +207,6 @@ func Delete(ctx context.Context, modelID string) (int64, error) {
 	return res.RowsAffected()
 }
 
-// Count — total row count, optional filter category.
 func Count(ctx context.Context, category string) (int64, error) {
 	db, err := brain.OpenRW()
 	if err != nil {
@@ -269,7 +225,4 @@ func Count(ctx context.Context, category string) (int64, error) {
 	return n, nil
 }
 
-// Touch — admin set last-touch indirectly via UPDATE created_at? Existing
-// schema cuma punya created_at. Future schema add last_seen_at — defer.
-// Skip implement.
 var _ = time.Now

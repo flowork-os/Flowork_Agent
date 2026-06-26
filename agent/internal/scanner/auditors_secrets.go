@@ -1,18 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-31
-// Reason: Plug-in auditor secret by-value (nutup false-negative auditors.go).
-//   Verified: detect AWS/GitHub/Google/JWT/stripe/slack/telegram/private-key +
-//   generic; 0 false-positive di 141 file repo internal/.
-//
-// auditors_secrets.go — plug-in auditor: deteksi hardcoded secret by VALUE
-// FORMAT (bukan cuma by nama variabel). Nutup false-negative auditors.go
-// (LOCKED) yang cuma match kalau var-name punya keyword (github_token=, dst).
-//
-// Daftar diri via init() ke Auditors map — ga sentuh file locked.
-// Pattern value spesifik (AKIA…, ghp_…, AIza…, sk-…) → false-positive rendah.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package scanner
 
@@ -21,7 +10,6 @@ import (
 	"strings"
 )
 
-// secretValuePatterns — format value secret yang terkenal. Specific = low FP.
 var secretValuePatterns = []struct {
 	name string
 	re   *regexp.Regexp
@@ -38,19 +26,13 @@ var secretValuePatterns = []struct {
 	{"private-key-block", regexp.MustCompile(`-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----`)},
 }
 
-// genericSecretRe — var sensitif = string literal padat (no spasi, 16+ char).
 var genericSecretRe = regexp.MustCompile(`(?i)\b(secret|token|passwd|password|api[_-]?key|access[_-]?key|private[_-]?key|client[_-]?secret|auth[_-]?token)\b\s*[:=]+\s*` + "`?" + `"([^"\s]{16,})"`)
 
-// envLookupRe + placeholderRe — kurangin false positive (env / contoh dummy).
 var envLookupRe = regexp.MustCompile(`(?i)getenv|os\.environ|process\.env|config\.|flag\.|viper\.|secret_get|GetSecret|\$\{|\$\(`)
 var placeholderRe = regexp.MustCompile(`(?i)example|placeholder|your[_-]?|xxxx|changeme|<[a-z]|redacted|dummy|sample|todo|fixme|test[_-]?key`)
 
-// fakeSecretRe — penanda nilai yang JELAS dummy (dicek pada VALUE yang match, BUKAN
-// seluruh baris — biar secret asli di file _test tetap ke-flag). Token acak asli tak
-// pernah memuat kata-kata ini.
 var fakeSecretRe = regexp.MustCompile(`(?i)example|fake|realsecret|test[_-]?token|testtoken|placeholder|change[_-]?me|change[_-]?this|dummy|sample|redacted|paste[_-]?your|your[_-]?(key|token|secret)`)
 
-// AuditHardcodedSecretValue — scan per baris, match format value + generic.
 func AuditHardcodedSecretValue(filePath, content string) []Finding {
 	var out []Finding
 	for i, line := range strings.Split(content, "\n") {
@@ -58,9 +40,7 @@ func AuditHardcodedSecretValue(filePath, content string) []Finding {
 		matched := false
 		for _, p := range secretValuePatterns {
 			if hit := p.re.FindString(line); hit != "" {
-				// Skip kalau VALUE-nya jelas dummy (mis. fixture test sk-ant-...TESTTOKEN,
-				// ghp_EXAMPLEfake). Dicek pada nilai yang match, bukan baris → secret
-				// ASLI di file _test tetap ketangkap.
+
 				if fakeSecretRe.MatchString(hit) {
 					continue
 				}
@@ -82,7 +62,7 @@ func AuditHardcodedSecretValue(filePath, content string) []Finding {
 		}
 		if m := genericSecretRe.FindStringSubmatch(line); m != nil {
 			if envLookupRe.MatchString(line) || placeholderRe.MatchString(line) {
-				continue // env lookup atau placeholder dummy → skip
+				continue
 			}
 			out = append(out, Finding{
 				Auditor:     "hardcoded_secret_value_auditor",
@@ -98,7 +78,6 @@ func AuditHardcodedSecretValue(filePath, content string) []Finding {
 	return out
 }
 
-// snippetOf — trim + cap, JANGAN bocorin secret penuh di laporan.
 func snippetOf(line string) string {
 	s := strings.TrimSpace(line)
 	if len(s) > 120 {

@@ -1,16 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 18 phase 1 scheduler engine. Tick interval 60s. Per
-//   tick: iterate agent IDs (callback) → ListSchedulesForRunner → parse
-//   cron → match? → executeViaCallback. Phase 2 (per-second precision,
-//   priority queue, distributed lock) → tambah file baru.
-//
-// engine.go — Section 18 phase 1: scheduler engine. Run di goroutine
-// kernel-side (host process), bukan WASM (avoid per-tick wakeup cost
-// di sandbox).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package scheduler
 
@@ -24,19 +15,12 @@ import (
 	"flowork-gui/internal/agentdb"
 )
 
-// AgentEnumerator — return active agent IDs. Provided by caller (kernelhost).
 type AgentEnumerator func() []string
 
-// StoreOpener — open per-agent Store. Provided by caller. Engine HARUS
-// Close() after use.
 type StoreOpener func(agentID string) (*agentdb.Store, error)
 
-// Executor — invoked saat schedule fire. agentID + task + scheduleID.
-// Return resultText + error. Caller (main.go) implement: RPC
-// handle_message kalau agent ready, atau slashRun kalau task mulai `/`.
 type Executor func(ctx context.Context, agentID, scheduleID, task string) (string, error)
 
-// Engine — top-level. Start spawn goroutine yang tick tiap interval.
 type Engine struct {
 	mu       sync.Mutex
 	running  bool
@@ -47,7 +31,6 @@ type Engine struct {
 	stop     chan struct{}
 }
 
-// New — caller wajib supply 3 callback.
 func New(enum AgentEnumerator, opener StoreOpener, executor Executor) *Engine {
 	return &Engine{
 		enum:     enum,
@@ -57,8 +40,6 @@ func New(enum AgentEnumerator, opener StoreOpener, executor Executor) *Engine {
 	}
 }
 
-// Start — kalau belum running, spawn goroutine. ctx cancellation hentikan.
-// Idempotent: 2nd call no-op.
 func (e *Engine) Start(ctx context.Context) {
 	e.mu.Lock()
 	if e.running {
@@ -72,8 +53,6 @@ func (e *Engine) Start(ctx context.Context) {
 	go e.loop(ctx)
 }
 
-// FireNow — trigger schedule manually (admin endpoint / test). Find row,
-// execute via executor, append audit. Return runID + err.
 func (e *Engine) FireNow(ctx context.Context, agentID, scheduleID string) (int64, error) {
 	store, err := e.opener(agentID)
 	if err != nil {
@@ -124,7 +103,6 @@ func (e *Engine) FireNow(ctx context.Context, agentID, scheduleID string) (int64
 	return id, nil
 }
 
-// Stop — signal goroutine + clear flag. Idempotent.
 func (e *Engine) Stop() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -135,10 +113,8 @@ func (e *Engine) Stop() {
 	e.running = false
 }
 
-// loop — main tick. Align ke top-of-minute supaya cron minute resolution
-// fires on `xx:00.000`.
 func (e *Engine) loop(ctx context.Context) {
-	// Align: sleep until next minute boundary, then tick every interval.
+
 	now := time.Now().UTC()
 	delay := time.Duration(60-now.Second())*time.Second -
 		time.Duration(now.Nanosecond())*time.Nanosecond
@@ -160,8 +136,6 @@ func (e *Engine) loop(ctx context.Context) {
 	}
 }
 
-// tick — per-minute scan. Each agent: list schedules → for due → spawn
-// goroutine execute + record audit. Caller goroutine ngga blocking.
 func (e *Engine) tick(ctx context.Context) {
 	now := time.Now().UTC()
 	agentIDs := e.enum()
@@ -178,7 +152,6 @@ func (e *Engine) tickAgent(ctx context.Context, agentID string, now time.Time) {
 	}
 	defer store.Close()
 
-	// Ensure schema (idempotent).
 	if err := store.SchedulerSchemaInit(); err != nil {
 		log.Printf("[scheduler] schema init %s: %v", agentID, err)
 		return
@@ -236,7 +209,7 @@ func (e *Engine) execute(ctx context.Context, agentID string, sched agentdb.Sche
 		status = "fail"
 		errText = err.Error()
 	}
-	// Update final audit row.
+
 	finalRun := agentdb.SchedulerRun{
 		ScheduleID: sched.ID,
 		Cron:       sched.Cron,
@@ -248,13 +221,10 @@ func (e *Engine) execute(ctx context.Context, agentID string, sched agentdb.Sche
 		ResultText: truncate(result, 16*1024),
 		ErrorText:  truncate(errText, 4*1024),
 	}
-	// Phase 1: simple append — append final row dengan complete data.
-	// (Phase 2: UPDATE row by ID — saat ini insert 2nd row dengan status
-	// final, runID pending row tetap untuk debug crash mid-execution.)
+
 	_ = runID
 	_, _ = store.InsertSchedulerRun(finalRun)
 
-	// Next-fire calc + update schedule.
 	if next, nerr := spec.Next(firedAt); nerr == nil {
 		_ = store.UpdateScheduleRunTime(sched.ID,
 			startedAt, agentdb.AbsTime(next))

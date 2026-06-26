@@ -1,14 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Provider executor HTTP call.
-
-// Cursor x-cursor-checksum header generator (Jyh cipher).
-// The Cursor API rejects requests without a valid checksum derived from
-// the current timestamp + the caller's machine id. This file ports the
-// algorithm + a header bundle builder.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package executors
 
@@ -23,19 +16,13 @@ import (
 
 const cursorBase64Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
 
-// CursorHashed64Hex returns the lowercase 64-char hex of sha256(input+salt).
-// Used to derive deterministic machine ids and client keys from the access
-// token when the caller didn't supply one.
 func CursorHashed64Hex(input, salt string) string {
 	sum := sha256.Sum256([]byte(input + salt))
 	return hex.EncodeToString(sum[:])
 }
 
-// GenerateCursorChecksum produces the x-cursor-checksum value for the given
-// machineId. The format is `<base64-jyh-cipher>{machineId}` where the prefix
-// is the timestamp obfuscated with a rolling XOR + URL-safe base64.
 func GenerateCursorChecksum(machineID string) string {
-	// timestamp = floor(now_ms / 1_000_000); same scale as the JS source.
+
 	ts := time.Now().UnixMilli() / 1_000_000
 
 	bytes := [6]byte{
@@ -47,14 +34,12 @@ func GenerateCursorChecksum(machineID string) string {
 		byte(ts & 0xFF),
 	}
 
-	// Jyh cipher: XOR-then-shift rolling key.
 	t := byte(165)
 	for i := 0; i < len(bytes); i++ {
 		bytes[i] = byte((int(bytes[i]^t) + (i % 256)) & 0xFF)
 		t = bytes[i]
 	}
 
-	// URL-safe base64 (no padding) using the same alphabet as upstream.
 	var encoded []byte
 	for i := 0; i < len(bytes); i += 3 {
 		a := bytes[i]
@@ -77,12 +62,8 @@ func GenerateCursorChecksum(machineID string) string {
 	return string(encoded) + machineID
 }
 
-// BuildCursorHeaders returns the full header map Cursor's ConnectRPC
-// endpoint expects. machineID is optional — when empty it's derived from
-// the access token. ghostMode toggles the x-ghost-mode privacy header.
 func BuildCursorHeaders(accessToken, machineID string, ghostMode bool) map[string]string {
-	// Some tokens are prefixed "userId::actualToken" — strip the prefix
-	// before any derivation so the deterministic ids match Cursor's own.
+
 	cleanToken := accessToken
 	for i := 0; i < len(cleanToken)-1; i++ {
 		if cleanToken[i] == ':' && cleanToken[i+1] == ':' {
@@ -137,9 +118,6 @@ func BuildCursorHeaders(accessToken, machineID string, ghostMode bool) map[strin
 	}
 }
 
-// cursorUUIDv5DNS produces a UUID v5 from name in the DNS namespace.
-// The DNS namespace is 6ba7b810-9dad-11d1-80b4-00c04fd430c8 per RFC 4122.
-// RFC 4122 v5 mandates SHA-1 (not SHA-256).
 func cursorUUIDv5DNS(name string) string {
 	dnsNs := []byte{
 		0x6b, 0xa7, 0xb8, 0x10,
@@ -152,7 +130,7 @@ func cursorUUIDv5DNS(name string) string {
 	h.Write(dnsNs)
 	h.Write([]byte(name))
 	hash := h.Sum(nil)
-	// Set version (5) and variant (RFC 4122) bits.
+
 	hash[6] = (hash[6] & 0x0F) | 0x50
 	hash[8] = (hash[8] & 0x3F) | 0x80
 	return formatUUID(hash[:16])
@@ -176,11 +154,10 @@ func formatUUID(b []byte) string {
 	return string(out)
 }
 
-// randomUUIDStr returns a random v4 UUID. Used for per-request trace ids.
 func randomUUIDStr() string {
 	var b [16]byte
 	_, _ = rand.Read(b[:])
-	b[6] = (b[6] & 0x0F) | 0x40 // v4
-	b[8] = (b[8] & 0x3F) | 0x80 // variant
+	b[6] = (b[6] & 0x0F) | 0x40
+	b[8] = (b[8] & 0x3F) | 0x80
 	return formatUUID(b[:])
 }

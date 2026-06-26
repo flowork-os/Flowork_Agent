@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — HTTP handler.
-
-// Claude-CLI bypass HTTP adapter.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -21,10 +17,6 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-// tryClaudeCliBypass returns true when the request matched a no-op pattern
-// AND a stub response was written to w. Caller MUST return immediately on
-// true. Returns false when settings are off, UA doesn't match, or no pattern
-// fires — in which case w has not been touched.
 func tryClaudeCliBypass(w http.ResponseWriter, r *http.Request, req *router.OpenAIRequest) bool {
 	d, err := store.Open()
 	if err != nil {
@@ -58,8 +50,6 @@ func tryClaudeCliBypass(w http.ResponseWriter, r *http.Request, req *router.Open
 	return true
 }
 
-// writeBypassJSON emits a single OpenAI chat.completion response with the
-// stub as the assistant message.
 func writeBypassJSON(w http.ResponseWriter, model, text string) {
 	id := fmt.Sprintf("chatcmpl-%d", time.Now().UnixNano())
 	resp := map[string]any{
@@ -84,12 +74,10 @@ func writeBypassJSON(w http.ResponseWriter, model, text string) {
 	_, _ = w.Write(raw)
 }
 
-// writeBypassSSE emits one delta chunk carrying the stub text plus the
-// standard OpenAI stop chunk and [DONE] sentinel.
 func writeBypassSSE(w http.ResponseWriter, model, text string) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		// Caller doesn't support flushing — degrade to JSON.
+
 		writeBypassJSON(w, model, text)
 		return
 	}

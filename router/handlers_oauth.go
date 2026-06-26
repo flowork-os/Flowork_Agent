@@ -1,15 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — HTTP handler.
-// 2026-06-13 OWNER-APPROVED (audit→review→test→lock): a pasted Claude/anthropic token is now ALSO
-//   written to the credential file the dispatcher reads (creds.SaveClaude) so Claude works on
-//   Android / the USB appliance (no Claude Code to borrow ~/.claude from). Additive, best-effort;
-//   the token already lives encrypted in the KV store. No auth/route/dispatcher change.
-
-// OAuth Provider HTTP Handlers.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -32,14 +24,13 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-// oauthProviderTemplate — known OAuth provider config for init URL.
 type oauthProviderTemplate struct {
 	Provider      string   `json:"provider"`
 	AuthURL       string   `json:"authUrl"`
 	TokenURL      string   `json:"tokenUrl"`
-	DeviceAuthURL string   `json:"deviceAuthUrl,omitempty"` // RFC 8628 device_authorization_endpoint
+	DeviceAuthURL string   `json:"deviceAuthUrl,omitempty"`
 	DefaultScope  string   `json:"defaultScope"`
-	ClientIDEnv   string   `json:"clientIdEnv"` // env var name where the client ID lives
+	ClientIDEnv   string   `json:"clientIdEnv"`
 	Scopes        []string `json:"scopes"`
 	Notes         string   `json:"notes,omitempty"`
 }
@@ -84,8 +75,7 @@ var oauthTemplates = map[string]oauthProviderTemplate{
 		ClientIDEnv:  "ANTHROPIC_CLIENT_ID",
 		Notes:        "Subscription mode currently reads ~/.claude/.credentials.json directly.",
 	},
-	// Device Code flow (RFC 8628) providers — no browser redirect, user enters a
-	// code at a URL; we poll the token endpoint until authorised.
+
 	"github": {
 		Provider: "github", AuthURL: "https://github.com/login/oauth/authorize",
 		TokenURL:      "https://github.com/login/oauth/access_token",
@@ -109,7 +99,6 @@ var oauthTemplates = map[string]oauthProviderTemplate{
 	},
 }
 
-// oauthRouterHandler — dispatch /api/oauth/{provider}[/sub] paths.
 func oauthRouterHandler(w http.ResponseWriter, r *http.Request) {
 	rest := strings.TrimPrefix(r.URL.Path, "/api/oauth")
 	rest = strings.TrimPrefix(rest, "/")
@@ -134,10 +123,10 @@ func oauthRouterHandler(w http.ResponseWriter, r *http.Request) {
 	case strings.HasPrefix(sub, "callback"):
 		oauthCallbackHandler(w, r, provider)
 	case sub == "social-authorize":
-		// First leg of a social login = same as init (returns auth URL).
+
 		oauthInitHandler(w, r, provider)
 	case sub == "social-exchange":
-		// Second leg = exchange code for token (same as callback).
+
 		oauthCallbackHandler(w, r, provider)
 	case sub == "device-code":
 		oauthDeviceStartHandler(w, r, provider)
@@ -152,10 +141,6 @@ func oauthRouterHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// oauthImportActionHandler — provider-specific manual credential import.
-// Accepts POST { token | accessToken | apiKey | pat | cookie } and stores it
-// as the provider's OAuth record. One code path for codex import-token,
-// cursor import, gitlab pat, iflow cookie.
 func oauthImportActionHandler(w http.ResponseWriter, r *http.Request, provider, kind string) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -199,8 +184,6 @@ func oauthImportActionHandler(w http.ResponseWriter, r *http.Request, provider, 
 	})
 }
 
-// oauthAutoImportHandler — detect the provider's local credential file AND
-// actually import the token (store it as an OAuth record), not just report it.
 func oauthAutoImportHandler(w http.ResponseWriter, _ *http.Request, provider string) {
 	statuses := creds.DetectAll()
 	var found *creds.ImportStatus
@@ -218,7 +201,7 @@ func oauthAutoImportHandler(w http.ResponseWriter, _ *http.Request, provider str
 		})
 		return
 	}
-	// Read the actual token from the detected credential file.
+
 	tok, err := loadDetectedToken(provider)
 	if err != nil || tok == "" {
 		writeJSON(w, http.StatusOK, map[string]any{
@@ -239,8 +222,6 @@ func oauthAutoImportHandler(w http.ResponseWriter, _ *http.Request, provider str
 	})
 }
 
-// loadDetectedToken reads the actual access token for a provider whose local
-// credential file the detector found.
 func loadDetectedToken(provider string) (string, error) {
 	switch strings.ToLower(provider) {
 	case "codex", "openai", "codex-cli":
@@ -267,7 +248,6 @@ func firstNonEmptyStr(vals ...string) string {
 	return ""
 }
 
-// oauthListHandler — list all stored tokens (masked).
 func oauthListHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -290,7 +270,6 @@ func oauthListHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// oauthProviderHandler — GET/POST/DELETE for /api/oauth/{provider}.
 func oauthProviderHandler(w http.ResponseWriter, r *http.Request, provider string) {
 	d, _ := store.Open()
 	switch r.Method {
@@ -306,7 +285,7 @@ func oauthProviderHandler(w http.ResponseWriter, r *http.Request, provider strin
 		}
 		writeJSON(w, http.StatusOK, maskOAuthToken(t))
 	case http.MethodPost:
-		// Paste-token mode: client uploads {accessToken, refreshToken?, expiresAt?, scope?}
+
 		var body struct {
 			AccessToken  string `json:"accessToken"`
 			RefreshToken string `json:"refreshToken,omitempty"`
@@ -341,10 +320,7 @@ func oauthProviderHandler(w http.ResponseWriter, r *http.Request, provider strin
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		// FATAL fix for Android / USB appliance: a pasted Claude token must ALSO land in the
-		// credential file the dispatcher reads (creds.Load) — otherwise the Claude subscription
-		// provider has nothing to authenticate with on a machine that has no Claude Code installed.
-		// Best-effort: the token is already safely in the encrypted KV store above.
+
 		if provider == "claude" || provider == "anthropic" {
 			if serr := creds.SaveClaude(body.AccessToken, body.RefreshToken, body.ExpiresAt); serr != nil {
 				fmt.Fprintf(os.Stderr, "oauth: claude token stored in KV but credential-file write failed: %v\n", serr)
@@ -362,8 +338,6 @@ func oauthProviderHandler(w http.ResponseWriter, r *http.Request, provider strin
 	}
 }
 
-// oauthInitHandler — POST initialize OAuth flow. Returns auth URL + state.
-// Body: { clientId, redirectUri, scope? }. Phase 2 will store PKCE verifier.
 func oauthInitHandler(w http.ResponseWriter, r *http.Request, provider string) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -386,17 +360,14 @@ func oauthInitHandler(w http.ResponseWriter, r *http.Request, provider string) {
 	if body.ClientID == "" {
 		body.ClientID = "PLACEHOLDER_" + tpl.ClientIDEnv
 	}
-	// Build the OAuth redirect_uri WITHOUT trusting attacker-controlled Host /
-	// X-Forwarded-Proto headers. The value must be deterministic (it has to match
-	// what's registered with the provider) and a spoofed Host could hijack the
-	// authorization code. See oauthCallbackURL.
+
 	if body.RedirectURI == "" {
 		body.RedirectURI = oauthCallbackURL(r, provider)
 	}
 	if body.Scope == "" {
 		body.Scope = tpl.DefaultScope
 	}
-	// FIX #2: Increase state entropy from 128 to 256 bits
+
 	stateBytes := make([]byte, 32)
 	_, _ = rand.Read(stateBytes)
 	state := hex.EncodeToString(stateBytes)
@@ -404,7 +375,6 @@ func oauthInitHandler(w http.ResponseWriter, r *http.Request, provider string) {
 	_, _ = rand.Read(verifierBytes)
 	verifier := hex.EncodeToString(verifierBytes)
 
-	// Persist transient state for callback validation (10 min TTL)
 	d, _ := store.Open()
 	_ = store.UpsertOAuthToken(d, &store.OAuthTokenRecord{
 		Provider:  provider + ":pending",
@@ -425,8 +395,7 @@ func oauthInitHandler(w http.ResponseWriter, r *http.Request, provider string) {
 	q.Set("redirect_uri", body.RedirectURI)
 	q.Set("scope", body.Scope)
 	q.Set("state", state)
-	// Real PKCE S256: challenge = base64url(sha256(verifier)). The verifier is
-	// stored above and replayed as code_verifier on the callback exchange.
+
 	sum := sha256.Sum256([]byte(verifier))
 	q.Set("code_challenge", base64.RawURLEncoding.EncodeToString(sum[:]))
 	q.Set("code_challenge_method", "S256")
@@ -440,8 +409,6 @@ func oauthInitHandler(w http.ResponseWriter, r *http.Request, provider string) {
 	})
 }
 
-// oauthCallbackHandler — GET handle OAuth redirect. Validates state, exchanges
-// code for token via TokenURL. Phase 1: best-effort exchange + paste fallback.
 func oauthCallbackHandler(w http.ResponseWriter, r *http.Request, provider string) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -461,20 +428,19 @@ func oauthCallbackHandler(w http.ResponseWriter, r *http.Request, provider strin
 	}
 	extra, _ := pending.Extra.(map[string]any)
 	storedState, _ := extra["state"].(string)
-	// FIX #1: Use crypto/subtle.ConstantTimeCompare instead of phantom function
+
 	if extra == nil || subtle.ConstantTimeCompare([]byte(storedState), []byte(state)) != 1 {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "state mismatch"})
 		return
 	}
-	// Phase 1: return raw code so user can complete exchange manually OR
-	// flow_router does it automatically (only when client secret known).
+
 	resp := map[string]any{
 		"provider": provider,
 		"code":     code,
 		"state":    state,
 		"note":     "Exchange code → token via /api/oauth/" + provider + " POST { accessToken: ... } once obtained.",
 	}
-	// Best-effort exchange if both clientId and clientSecret available
+
 	tpl := oauthTemplates[provider]
 	clientID, _ := extra["clientId"].(string)
 	redirectURI, _ := extra["redirectUri"].(string)
@@ -546,41 +512,25 @@ func keysOf(m map[string]oauthProviderTemplate) []string {
 }
 
 func init() {
-	_ = fmt.Sprintf // keep fmt referenced
+	_ = fmt.Sprintf
 }
 
-// oauthCallbackURL builds the OAuth callback URL for a provider, hardened against
-// Host-header / X-Forwarded injection. The redirect_uri must be deterministic
-// (it has to match the value registered with the upstream provider), so we never
-// derive it from an arbitrary, attacker-controllable request header.
-//
-// Precedence:
-//  1. FLOW_ROUTER_PUBLIC_URL  — explicit full base, e.g. https://router.example.com
-//  2. FLOW_ROUTER_HOST [+ FLOW_ROUTER_SCHEME] — explicit host configured by operator
-//  3. request Host — ONLY when it is a loopback host (self-hosted default)
-//  4. loopback default 127.0.0.1:2402
-//
-// X-Forwarded-Proto is honoured ONLY when the operator opts in via
-// FLOW_ROUTER_TRUST_PROXY=1 (i.e. they run behind a trusted reverse proxy).
 func oauthCallbackURL(r *http.Request, provider string) string {
 	path := "/api/oauth/" + provider + "/callback"
 
-	// 1. explicit public base wins outright.
 	if base := strings.TrimRight(strings.TrimSpace(os.Getenv("FLOW_ROUTER_PUBLIC_URL")), "/"); base != "" {
 		return base + path
 	}
 
-	// 2/3/4. resolve host.
 	host := strings.TrimSpace(os.Getenv("FLOW_ROUTER_HOST"))
 	if host == "" {
 		if r != nil && isLoopbackHostPort(r.Host) {
-			host = r.Host // self-hosted: only a loopback Host is trusted
+			host = r.Host
 		} else {
 			host = "127.0.0.1:2402"
 		}
 	}
 
-	// resolve scheme: explicit env > loopback-aware default > trusted proxy header.
 	scheme := strings.TrimSpace(os.Getenv("FLOW_ROUTER_SCHEME"))
 	if scheme == "" {
 		scheme = "https"
@@ -596,9 +546,6 @@ func oauthCallbackURL(r *http.Request, provider string) string {
 	return scheme + "://" + host + path
 }
 
-// isLoopbackHostPort reports whether host[:port] points at the local machine
-// (localhost / 127.0.0.0/8 / ::1). Used to gate which request Hosts may seed an
-// OAuth redirect_uri.
 func isLoopbackHostPort(hostport string) bool {
 	hostport = strings.TrimSpace(hostport)
 	if hostport == "" {

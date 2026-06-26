@@ -1,29 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 7 phase 2 (retry + circuit breaker primitive). API stable:
-//   WithRetry, RetryOpts, IsRetryable. Circuit breaker via simple sliding
-//   window (failure rate threshold) — full hystrix-style breaker JANGAN
-//   over-engineer (single user). Phase 3 (per-endpoint state, half-open
-//   probe, distributed breaker) → tambah file baru.
-//
-// retry.go — Section 7 phase 2: retry + minimal circuit breaker.
-//
-// Pattern: helper generik buat wrap any Client method. Bukan middleware
-// HTTP layer — supaya caller bisa pilih per-call kapan butuh retry.
-//
-// Usage:
-//
-//	opts := routerclient.DefaultRetry()
-//	resp, err := routerclient.WithRetry(ctx, opts, func(ctx context.Context) error {
-//	    var ierr error
-//	    resp, ierr = c.ListSkills(ctx, q, 10)
-//	    return ierr
-//	})
-//
-// Source: Flowork_Agent/roadmap.md Section 7 phase 2.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package routerclient
 
@@ -36,19 +14,16 @@ import (
 	"time"
 )
 
-// RetryOpts — knobs untuk retry policy.
 type RetryOpts struct {
-	// MaxAttempts — total attempt (incl. first). 1 = no retry. Default 3.
 	MaxAttempts int
-	// InitialDelay — backoff awal sebelum attempt #2. Default 200ms.
+
 	InitialDelay time.Duration
-	// MaxDelay — cap exponential growth. Default 5s.
+
 	MaxDelay time.Duration
-	// Multiplier — exponential factor. Default 2.0.
+
 	Multiplier float64
 }
 
-// DefaultRetry — sane default buat single-user agent → router LAN call.
 func DefaultRetry() RetryOpts {
 	return RetryOpts{
 		MaxAttempts:  3,
@@ -58,9 +33,6 @@ func DefaultRetry() RetryOpts {
 	}
 }
 
-// WithRetry — execute fn dengan exponential backoff. Stop kalau fn return
-// non-retryable error (lihat IsRetryable) atau MaxAttempts tercapai. Ctx
-// cancellation immediately halt.
 func WithRetry(ctx context.Context, opts RetryOpts, fn func(ctx context.Context) error) error {
 	if opts.MaxAttempts <= 0 {
 		opts.MaxAttempts = 1
@@ -78,7 +50,7 @@ func WithRetry(ctx context.Context, opts RetryOpts, fn func(ctx context.Context)
 	delay := opts.InitialDelay
 	var lastErr error
 	for attempt := 1; attempt <= opts.MaxAttempts; attempt++ {
-		// Ctx check sebelum attempt (kalau parent udah cancel).
+
 		if cerr := ctx.Err(); cerr != nil {
 			if lastErr != nil {
 				return lastErr
@@ -96,7 +68,7 @@ func WithRetry(ctx context.Context, opts RetryOpts, fn func(ctx context.Context)
 		if attempt == opts.MaxAttempts {
 			break
 		}
-		// Sleep dengan ctx-aware timer.
+
 		t := time.NewTimer(delay)
 		select {
 		case <-ctx.Done():
@@ -104,7 +76,7 @@ func WithRetry(ctx context.Context, opts RetryOpts, fn func(ctx context.Context)
 			return lastErr
 		case <-t.C:
 		}
-		// Exponential growth, capped.
+
 		next := time.Duration(float64(delay) * opts.Multiplier)
 		if next > opts.MaxDelay {
 			next = opts.MaxDelay
@@ -114,20 +86,18 @@ func WithRetry(ctx context.Context, opts RetryOpts, fn func(ctx context.Context)
 	return lastErr
 }
 
-// IsRetryable — return true kalau err kemungkinan transient (network blip,
-// timeout, 5xx). 4xx (terutama 400/401/403/404) ngga retry — bug client.
 func IsRetryable(err error) bool {
 	if err == nil {
 		return false
 	}
-	// Network-level: temporary / timeout.
+
 	var ne net.Error
 	if errors.As(err, &ne) {
 		if ne.Timeout() {
 			return true
 		}
 	}
-	// Heuristic message scan (paling robust di Go ngga ada error class system).
+
 	msg := strings.ToLower(err.Error())
 	transientHints := []string{
 		"timeout",
@@ -149,25 +119,13 @@ func IsRetryable(err error) bool {
 	return false
 }
 
-// CircuitBreaker — minimal sliding-window failure counter.
-//
-// Semantik:
-//   - Tiap call Mark(success bool). Buffer last N=10 result.
-//   - Allow() return false kalau failure rate > threshold (default 0.6)
-//     dan window penuh.
-//   - State auto-recover saat success kembali masuk ke window.
-//
-// Single-user reality: per-router instance ada 1 breaker shared. Concurrency
-// safe via mutex. Phase 3 → per-endpoint breaker.
 type CircuitBreaker struct {
 	mu        sync.Mutex
-	window    []bool // true = success
+	window    []bool
 	cap       int
-	threshold float64 // failure rate yang trigger open. 0.6 = 60% gagal → open
+	threshold float64
 }
 
-// NewCircuitBreaker — return breaker dengan window size + threshold.
-// size <= 0 → 10. threshold <= 0 atau >= 1 → 0.6.
 func NewCircuitBreaker(size int, threshold float64) *CircuitBreaker {
 	if size <= 0 {
 		size = 10
@@ -181,7 +139,6 @@ func NewCircuitBreaker(size int, threshold float64) *CircuitBreaker {
 	}
 }
 
-// Mark — record outcome. Drop oldest kalau window penuh.
 func (b *CircuitBreaker) Mark(success bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -191,8 +148,6 @@ func (b *CircuitBreaker) Mark(success bool) {
 	b.window = append(b.window, success)
 }
 
-// Allow — return true kalau breaker masih CLOSED (boleh request). False =
-// open / probationary. Window ngga penuh → always allow.
 func (b *CircuitBreaker) Allow() bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -209,12 +164,10 @@ func (b *CircuitBreaker) Allow() bool {
 	return rate < b.threshold
 }
 
-// Reset — clear window. Buat manual reset setelah operator fix issue.
 func (b *CircuitBreaker) Reset() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.window = nil
 }
 
-// ErrCircuitOpen — sentinel buat caller branch.
 var ErrCircuitOpen = errors.New("router client: circuit breaker open")

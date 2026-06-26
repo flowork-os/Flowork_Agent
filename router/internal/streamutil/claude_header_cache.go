@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — audit pass surface review.
-
-// Claude Header Cache (forward real CLI identity).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package streamutil
 
@@ -15,8 +11,6 @@ import (
 	"sync/atomic"
 )
 
-// ClaudeIdentityHeaders mirrors upstream's allow-list — only these headers are
-// copied to the cache to avoid leaking client IPs, auth tokens, etc.
 var ClaudeIdentityHeaders = []string{
 	"user-agent",
 	"anthropic-beta",
@@ -40,21 +34,16 @@ var ClaudeIdentityHeaders = []string{
 }
 
 var (
-	cachedHeaders atomic.Value // map[string]string
+	cachedHeaders atomic.Value
 	cacheMu       sync.Mutex
 )
 
-// IsClaudeCodeClient sniffs the request headers (lowercased keys) for the
-// signature of a real Claude Code / Claude CLI session.
 func IsClaudeCodeClient(headers map[string]string) bool {
 	ua := strings.ToLower(headers["user-agent"])
 	xApp := strings.ToLower(headers["x-app"])
 	return strings.Contains(ua, "claude-cli") || strings.Contains(ua, "claude-code") || xApp == "cli"
 }
 
-// CaptureFromRequest grabs the identity headers from headers (lowercased
-// keys) and stores them as the new cache snapshot. No-op when the request
-// does not look like a Claude Code client.
 func CaptureFromRequest(headers map[string]string) {
 	if !IsClaudeCodeClient(headers) {
 		return
@@ -73,8 +62,6 @@ func CaptureFromRequest(headers map[string]string) {
 	cacheMu.Unlock()
 }
 
-// GetCachedClaudeHeaders returns the latest captured headers, or nil when
-// nothing has been cached yet.
 func GetCachedClaudeHeaders() map[string]string {
 	v := cachedHeaders.Load()
 	if v == nil {
@@ -84,7 +71,7 @@ func GetCachedClaudeHeaders() map[string]string {
 	if m == nil {
 		return nil
 	}
-	// Return a copy to keep the snapshot immutable.
+
 	out := make(map[string]string, len(m))
 	for k, vv := range m {
 		out[k] = vv
@@ -92,5 +79,4 @@ func GetCachedClaudeHeaders() map[string]string {
 	return out
 }
 
-// HasCachedClaudeHeaders reports whether at least one snapshot has been stored.
 func HasCachedClaudeHeaders() bool { return cachedHeaders.Load() != nil }

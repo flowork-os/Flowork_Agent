@@ -1,16 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-06-12
-// Reason: Centralize connector SECRETS into Settings → API Keys (global floworkdb),
-//   the single secret store. GlobalSecretEnvKeys feeds kernelhost.EnvForwardKeys
-//   (the frozen plug-and-play hook) so a connector's token reaches it via env with
-//   NO frozen edit; MigrateSchemaSecretsToGlobal relocates pre-existing per-agent
-//   tokens once. Secret keys are derived from each connector's own schema — a new
-//   connector is centralized automatically. Audited + build/test green.
-//
-// central.go — central (Settings-backed) secret storage for connectors.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
+
 package connections
 
 import (
@@ -23,7 +15,6 @@ import (
 	"flowork-gui/internal/loket"
 )
 
-// connectorIDs returns every installed channel-kind connector id.
 func connectorIDs() []string {
 	entries, err := os.ReadDir(loader.AgentsDir())
 	if err != nil {
@@ -47,12 +38,10 @@ func connectorIDs() []string {
 	return out
 }
 
-// isSecretField reports whether a connector schema field holds a secret.
 func isSecretField(f loket.ConfigField) bool {
 	return f.Type == "secret" || secretKeyRe.MatchString(f.Key)
 }
 
-// connectorSecretKeys returns the secret-typed env keys a connector declares.
 func connectorSecretKeys(id string) []string {
 	var out []string
 	for _, f := range schemaOf(id) {
@@ -63,12 +52,6 @@ func connectorSecretKeys(id string) []string {
 	return out
 }
 
-// GlobalSecretEnvKeys — the secret-typed env keys that THIS agent should receive
-// from Settings → API Keys (global floworkdb). It returns a connector's OWN declared
-// secret keys, and nothing for any other agent — so a bot token reaches only its
-// connector, never an unrelated agent (which could double-poll the same bot). Wired
-// into the per-agent kernelhost.EnvForwardKeys hook from main.go; a NEW connector
-// with a secret field is handled automatically — no frozen-file edit.
 func GlobalSecretEnvKeys(agentID string) []string {
 	dir, ok := folder(agentID)
 	if !ok {
@@ -76,16 +59,11 @@ func GlobalSecretEnvKeys(agentID string) []string {
 	}
 	m := readManifest(dir)
 	if m == nil || m.Kind != loket.KindChannel {
-		return nil // not a connector → forward no connector secret to it
+		return nil
 	}
 	return connectorSecretKeys(agentID)
 }
 
-// MigrateSchemaSecretsToGlobal moves connector secrets that still sit in a per-agent
-// store into the global Settings store, then drops the per-agent copy (so a stale
-// copy can't shadow a Settings edit). Idempotent; never overwrites a value already
-// set in Settings. Returns how many it moved. Call once at boot, BEFORE global
-// secrets are injected into the process env.
 func MigrateSchemaSecretsToGlobal() int {
 	fdb, err := floworkdb.Shared()
 	if err != nil {

@@ -1,14 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — CLI command/menu.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// cmdTray launches the per-OS tray helper script. On Windows, that is a
-// PowerShell script using System.Windows.Forms.NotifyIcon (real native tray);
-// on Linux/macOS it is a shell script providing a CGO-free control surface
-// (notify-send / osascript + xdg-open / open).
 package main
 
 import (
@@ -53,8 +47,6 @@ func runShell(script string, args []string) error {
 	return c.Run()
 }
 
-// locateScriptsDir returns the path to the bundled scripts/. Tries (in order):
-// FLOW_ROUTER_SCRIPTS env, ./scripts (CWD), and ../scripts (binary's parent).
 func locateScriptsDir() string {
 	if d := os.Getenv("FLOW_ROUTER_SCRIPTS"); d != "" {
 		return d

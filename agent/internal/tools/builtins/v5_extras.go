@@ -1,13 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Port batch 4 — 6 tool tambahan.
-//
-// v5_extras.go:
-//   slash_history, edu_error_lookup, edu_error_list, audit_search,
-//   protector_audit_query, tool_subscribed_list.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package builtins
 
@@ -27,10 +21,6 @@ func init() {
 	tools.Register(&protectorAuditQueryTool{})
 	tools.Register(&toolSubscribedListTool{})
 }
-
-// =============================================================================
-// 1. slash_history — list slash_invocations log
-// =============================================================================
 
 type slashHistoryTool struct{}
 
@@ -68,10 +58,6 @@ func (slashHistoryTool) Run(ctx context.Context, args map[string]any) (tools.Res
 		Output: map[string]any{"count": len(items), "items": items},
 	}, nil
 }
-
-// =============================================================================
-// 2. edu_error_lookup — single educational error by code
-// =============================================================================
 
 type eduErrorLookupTool struct{}
 
@@ -118,10 +104,6 @@ func (eduErrorLookupTool) Run(ctx context.Context, args map[string]any) (tools.R
 	}, nil
 }
 
-// =============================================================================
-// 3. edu_error_list — list educational errors
-// =============================================================================
-
 type eduErrorListTool struct{}
 
 func (eduErrorListTool) Name() string       { return "edu_error_list" }
@@ -158,10 +140,6 @@ func (eduErrorListTool) Run(ctx context.Context, args map[string]any) (tools.Res
 		Output: map[string]any{"count": len(items), "items": items},
 	}, nil
 }
-
-// =============================================================================
-// 4. audit_search — query audit log by event_type
-// =============================================================================
 
 type auditSearchTool struct{}
 
@@ -200,10 +178,6 @@ func (auditSearchTool) Run(ctx context.Context, args map[string]any) (tools.Resu
 	}, nil
 }
 
-// =============================================================================
-// 5. protector_audit_query — query protector_audit table
-// =============================================================================
-
 type protectorAuditQueryTool struct{}
 
 func (protectorAuditQueryTool) Name() string       { return "protector_audit_query" }
@@ -238,10 +212,6 @@ func (protectorAuditQueryTool) Run(ctx context.Context, args map[string]any) (to
 		Output: map[string]any{"count": len(items), "items": items},
 	}, nil
 }
-
-// =============================================================================
-// 6. tool_subscribed_list — list tools agent ini subscribe ke
-// =============================================================================
 
 type toolSubscribedListTool struct{}
 

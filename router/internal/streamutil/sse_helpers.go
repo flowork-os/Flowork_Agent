@@ -1,17 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — audit pass surface review.
-
-// SSE-line + chunk helpers shared across the streaming pipeline.
-//
-// Three exported helpers:
-//
-//	ParseSSELine(line, format)   → decode one wire-format line into a map
-//	HasValuableContent(chunk, fmt) → tell whether a chunk carries real signal
-//	FixInvalidID(chunk)          → patch generic/too-short ids in-place
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package streamutil
 
@@ -22,9 +12,6 @@ import (
 	"time"
 )
 
-// Stream formats this package understands. Callers pass these as the
-// `format` argument so per-format quirks (NDJSON for Ollama, "data:" prefix
-// for OpenAI/Claude/Gemini) get the right parsing path.
 const (
 	FormatOpenAI    = "openai"
 	FormatClaude    = "claude"
@@ -33,25 +20,16 @@ const (
 	FormatOllama    = "ollama"
 )
 
-// SSEParsed is the result of ParseSSELine. Either Object is set (the
-// decoded JSON object) or Done is true (`data: [DONE]` sentinel).
 type SSEParsed struct {
 	Object map[string]any
 	Done   bool
 }
 
-// ParseSSELine decodes one line of an upstream stream into a chunk object.
-// Returns nil when the line carries no payload (empty / comment / wrong
-// prefix / malformed JSON).
-//
-// Ollama format uses raw NDJSON (no `data:` prefix); every other format
-// uses the standard `data: {…}` SSE shape with `[DONE]` as the sentinel.
 func ParseSSELine(line, format string) *SSEParsed {
 	if line == "" {
 		return nil
 	}
 
-	// NDJSON — Ollama style.
 	if format == FormatOllama {
 		trimmed := strings.TrimSpace(line)
 		if !strings.HasPrefix(trimmed, "{") {
@@ -64,7 +42,6 @@ func ParseSSELine(line, format string) *SSEParsed {
 		return &SSEParsed{Object: obj}
 	}
 
-	// Standard SSE — must start with 'd' (data:).
 	if line[0] != 'd' || !strings.HasPrefix(line, "data:") {
 		return nil
 	}
@@ -82,13 +59,6 @@ func ParseSSELine(line, format string) *SSEParsed {
 	return &SSEParsed{Object: obj}
 }
 
-// HasValuableContent reports whether chunk carries real signal — non-empty
-// content delta, reasoning delta, tool_calls activity, role announcement,
-// or a finish_reason. Used to filter heartbeats / no-op deltas before
-// piping to clients (saves wire bandwidth + avoids inflating chunk counts).
-//
-// Returns true for unknown formats so callers default to keep-everything
-// rather than silently dropping signal.
 func HasValuableContent(chunk map[string]any, format string) bool {
 	if chunk == nil {
 		return false
@@ -124,7 +94,7 @@ func HasValuableContent(chunk map[string]any, format string) bool {
 	case FormatClaude:
 		typ, _ := chunk["type"].(string)
 		if typ != "content_block_delta" {
-			return true // non-delta events (message_start, etc.) are always kept
+			return true
 		}
 		delta, _ := chunk["delta"].(map[string]any)
 		if delta == nil {
@@ -146,11 +116,6 @@ func HasValuableContent(chunk map[string]any, format string) bool {
 	}
 }
 
-// FixInvalidID rewrites chunk["id"] when it's the generic placeholder "chat"
-// or "completion", or any value shorter than 8 characters. The replacement
-// is `chatcmpl-<fallback>` where fallback is, in order of preference:
-// extend_fields.requestId / extend_fields.traceId / a fresh base36 stamp.
-// Returns true when the id was changed.
 func FixInvalidID(chunk map[string]any) bool {
 	if chunk == nil {
 		return false
@@ -163,11 +128,9 @@ func FixInvalidID(chunk map[string]any) bool {
 	return true
 }
 
-// isInvalidID reports whether id is one of the generic placeholders or too
-// short to be a stable identifier.
 func isInvalidID(id string) bool {
 	if id == "" {
-		return false // missing id is a different concern (caller may want to mint a new one upstream)
+		return false
 	}
 	if id == "chat" || id == "completion" {
 		return true
@@ -175,9 +138,6 @@ func isInvalidID(id string) bool {
 	return len(id) < 8
 }
 
-// chooseFallbackID extracts a stable token from the chunk's extend_fields, or
-// falls back to a base36 timestamp when neither requestId nor traceId is
-// present. Never returns "".
 func chooseFallbackID(chunk map[string]any) string {
 	if ef, ok := chunk["extend_fields"].(map[string]any); ok {
 		if v, _ := ef["requestId"].(string); v != "" {
@@ -187,6 +147,6 @@ func chooseFallbackID(chunk map[string]any) string {
 			return v
 		}
 	}
-	// base36 of nanos so we don't share state with the streaming generator.
+
 	return strconv.FormatInt(time.Now().UnixNano(), 36)
 }

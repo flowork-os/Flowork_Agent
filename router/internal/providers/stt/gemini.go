@@ -1,14 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Provider adapter.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Vendor: gemini — Google Gemini multimodal transcription.
-// Protocol: send audio as base64 inline_data inside a generateContent
-// request with a "transcribe this audio" prompt. Gemini returns plain
-// text in candidates[0].content.parts[0].text.
 package stt
 
 import (
@@ -33,7 +27,7 @@ func (g *geminiProvider) Transcribe(ctx context.Context, req Request) (Result, e
 
 	mime := resolveAudioMIME(req)
 	if mime == "application/octet-stream" {
-		// Gemini rejects octet-stream for audio — default to mpeg as a guess.
+
 		mime = "audio/mpeg"
 	}
 

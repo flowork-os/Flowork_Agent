@@ -1,34 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval (reversible, owner-editable).
-// Owner: Aola Sahidin (Mr.Dev)
-// Locked: 2026-06-06
-// Reason: CLI connector (Connections Phase 2) + the project's QC harness (chats the
-//   agent over the real /api/kernel/rpc pipeline). Self-managed config; multi-OS.
-//
-// flowork-connect — the CLI CONNECTOR for the Connections family.
-//
-// A CLI can't be a wasm module (a terminal can't be driven from inside wazero), so
-// — exactly as the Connections design says — the CLI connector is HOST-SIDE: a tiny
-// standalone binary. It is still a dumb pipe like every other connector: it forwards
-// a line of text to a target agent and prints the reply. ALL the thinking lives in
-// the agent; this owns nothing but its own little config.
-//
-// It reaches the agent through the SAME message entry the live Telegram connector
-// drives — the loaded module's handle_message — via the loopback-only kernel RPC
-// endpoint (/api/kernel/rpc, no token needed on 127.0.0.1). That means a reply here
-// is the SAME reply a Telegram user gets, which is exactly why this doubles as the
-// project's automated QC harness (chat the agent over the real pipeline, no human).
-//
-// Self-managed config (owner's rule "every connector manages itself"): the connector
-// keeps its OWN settings file in its OWN folder — target agent + base URL — and
-// nothing central. Multi-OS: home dir resolved at runtime, paths via filepath only.
-//
-//	flowork-connect "halo, kamu siapa?"     # one-shot
-//	echo "harga BTC?" | flowork-connect      # piped: one message per line
-//	flowork-connect                          # interactive REPL (tty)
-//	flowork-connect --agent mr-flow-next --base http://127.0.0.1:1987 --save
-//
-// Exit: 0 ok · 1 transport error.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
+
 package main
 
 import (
@@ -46,15 +20,11 @@ import (
 	"time"
 )
 
-// config is the connector's self-owned settings, stored in its own folder.
 type config struct {
 	Agent string `json:"agent"`
 	Base  string `json:"base"`
 }
 
-// configPath resolves the connector's OWN settings file. Override with
-// FLOWORK_CONNECT_CONFIG; otherwise <home>/.flowork/connectors/cli/config.json.
-// Built with filepath so it is correct on Windows/macOS/Linux alike.
 func configPath() string {
 	if v := strings.TrimSpace(os.Getenv("FLOWORK_CONNECT_CONFIG")); v != "" {
 		return v
@@ -112,12 +82,10 @@ func main() {
 
 	c := &client{base: strings.TrimRight(*base, "/"), agent: *agent, asJSON: *asJSON, debug: *debug}
 
-	// one-shot: everything after flags is a single message.
 	if args := flag.Args(); len(args) > 0 {
 		os.Exit(c.send(strings.Join(args, " ")))
 	}
 
-	// piped stdin: one message per line. Interactive tty: a REPL prompt.
 	info, _ := os.Stdin.Stat()
 	interactive := (info.Mode() & os.ModeCharDevice) != 0
 	if interactive {
@@ -151,8 +119,6 @@ type client struct {
 	debug  bool
 }
 
-// send forwards one message to the agent via /api/kernel/rpc → handle_message and
-// prints the reply. Returns a process exit code (0 ok, 1 transport error).
 func (c *client) send(text string) int {
 	payload, _ := json.Marshal(map[string]any{
 		"plugin":   c.agent,
@@ -186,7 +152,7 @@ func (c *client) send(text string) int {
 	case parsed.Reply != "":
 		fmt.Println(parsed.Reply)
 	default:
-		fmt.Println(string(body)) // unknown shape — show raw so nothing is hidden
+		fmt.Println(string(body))
 	}
 	return 0
 }

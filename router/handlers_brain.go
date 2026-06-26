@@ -1,13 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — HTTP handler.
-// Update 2026-06-16 (owner-approved #6): brain search handler pakai brain.SemanticRetrieve (by-MAKNA)
-// ganti Retrieve (FTS). Re-locked.
-
-// Brain dashboard API for the shared knowledge brain..
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -20,15 +14,12 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-// applyBrainPath points the brain package at the configured DB path (if set)
-// so status/test reflect the same DB the dispatcher would use.
 func applyBrainPath(s *store.Settings) {
 	if s != nil && s.Brain.DBPath != "" {
 		brain.SetDBPath(s.Brain.DBPath)
 	}
 }
 
-// brainStatusHandler — GET /api/brain/status
 func brainStatusHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -44,7 +35,6 @@ func brainStatusHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, brain.GetStats(r.Context()))
 }
 
-// brainConfigHandler — GET/PUT /api/brain/config
 func brainConfigHandler(w http.ResponseWriter, r *http.Request) {
 	d, err := store.Open()
 	if err != nil {
@@ -82,9 +72,6 @@ func brainConfigHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// brainExploreHandler — GET /api/brain/explore
-// Content overview of the knowledge brain (counts + breakdowns), mirroring the
-// flowork FQ-Brain Explorer overview.
 func brainExploreHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -96,15 +83,6 @@ func brainExploreHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, brain.Explore(r.Context()))
 }
 
-// brainConstitutionHandler — sacred rules from the knowledge brain.
-//
-//	GET    /api/brain/constitution[?limit=N]  — list
-//	POST   /api/brain/constitution            — add {section,content,amplitude,source}
-//	PUT    /api/brain/constitution            — update {id,content,amplitude}
-//	DELETE /api/brain/constitution?id=N        — soft-delete (tombstone)
-//
-// Writes make flow_router the sole brain owner (option C); deletes are
-// tombstones (never hard DROP), honoring the brain's append-only doctrine.
 func brainConstitutionHandler(w http.ResponseWriter, r *http.Request) {
 	d, _ := store.Open()
 	s, _ := store.LoadSettings(d)
@@ -170,8 +148,6 @@ func brainConstitutionHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// brainContributionsHandler — GET /api/brain/contributions[?pending=1&limit=N]
-// Lists queued interactions + total/pending counts for the compounding loop.
 func brainContributionsHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -191,9 +167,6 @@ func brainContributionsHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// brainContributionsIngestHandler — POST /api/brain/contributions/ingest
-// {"maxId":N} marks contributions up to maxId as ingested (called by whatever
-// consumes the queue into the master brain).
 func brainContributionsIngestHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -215,7 +188,6 @@ func brainContributionsIngestHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"marked": n})
 }
 
-// atoiDefault parses an int, returning def on failure/empty.
 func atoiDefault(s string, def int) int {
 	if s == "" {
 		return def
@@ -227,8 +199,6 @@ func atoiDefault(s string, def int) int {
 	return n
 }
 
-// brainTestHandler — POST /api/brain/test {"query":"...","wings":[...],"topK":n}
-// Previews exactly what enrichment would inject: retrieved snippets + skills.
 func brainTestHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -266,7 +236,7 @@ func brainTestHandler(w http.ResponseWriter, r *http.Request) {
 	if topK <= 0 {
 		topK = 5
 	}
-	// #6 (owner 2026-06-16): search by-MAKNA (SemanticRetrieve), fallback FTS sementara.
+
 	snips, _ := brain.SemanticRetrieve(r.Context(), db, body.Query, brain.RetrieveOpts{
 		Limit: topK, Wings: body.Wings, MaxContentLen: 400,
 	})

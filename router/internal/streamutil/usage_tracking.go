@@ -1,13 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — audit pass surface review.
-
-// Usage-shape helpers: normalize between OpenAI / Claude / Gemini, estimate
-// when the upstream omits usage, and add a small token buffer to avoid
-// context-window edge cases.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package streamutil
 
@@ -16,17 +10,10 @@ import (
 	"math"
 )
 
-// BufferTokens is the small fixed pad added to estimated usage so the next
-// turn's context-window calculation has slack. Matches the reference.
 const BufferTokens = 2000
 
-// charsPerToken is the rough rule-of-thumb (1 token ≈ 4 chars) used by
-// EstimateInputTokens / EstimateOutputTokens. Good enough for fallback
-// reporting when the upstream didn't include real usage.
 const charsPerToken = 4
 
-// AddBufferToUsage returns a copy of usage with BufferTokens added to every
-// "input"/prompt counter and total. nil/empty input passes through.
 func AddBufferToUsage(usage map[string]any) map[string]any {
 	if usage == nil {
 		return usage
@@ -35,15 +22,15 @@ func AddBufferToUsage(usage map[string]any) map[string]any {
 	for k, v := range usage {
 		out[k] = v
 	}
-	// Claude shape.
+
 	if v, ok := toFiniteFloat(out["input_tokens"]); ok {
 		out["input_tokens"] = v + BufferTokens
 	}
-	// OpenAI shape.
+
 	if v, ok := toFiniteFloat(out["prompt_tokens"]); ok {
 		out["prompt_tokens"] = v + BufferTokens
 	}
-	// Total — bump if present, derive if absent and both halves known.
+
 	if v, ok := toFiniteFloat(out["total_tokens"]); ok {
 		out["total_tokens"] = v + BufferTokens
 	} else {
@@ -56,9 +43,6 @@ func AddBufferToUsage(usage map[string]any) map[string]any {
 	return out
 }
 
-// NormalizeUsage extracts the numeric usage fields into a single canonical
-// map: OpenAI keys for the counters, plus prompt/completion details when
-// the source carried them. Returns nil for nil/non-map input.
 func NormalizeUsage(usage map[string]any) map[string]any {
 	if usage == nil {
 		return nil
@@ -85,16 +69,13 @@ func NormalizeUsage(usage map[string]any) map[string]any {
 	return out
 }
 
-// FilterUsageForFormat keeps only the keys the target format expects on the
-// wire. Stops accidental leakage of OpenAI-only fields into Claude/Gemini
-// responses (and vice versa). Unknown formats pass through unchanged.
 func FilterUsageForFormat(usage map[string]any, targetFormat string) map[string]any {
 	if usage == nil {
 		return nil
 	}
 	allowed, ok := allowedUsageFields[targetFormat]
 	if !ok {
-		return usage // unknown format → leave intact
+		return usage
 	}
 	out := map[string]any{}
 	for _, k := range allowed {
@@ -105,9 +86,6 @@ func FilterUsageForFormat(usage map[string]any, targetFormat string) map[string]
 	return out
 }
 
-// allowedUsageFields lists the wire-shape per target format. Keep in sync
-// with translator/response writers so we don't filter out fields the
-// downstream encoder needs.
 var allowedUsageFields = map[string][]string{
 	FormatOpenAI: {
 		"prompt_tokens", "completion_tokens", "total_tokens",
@@ -131,9 +109,6 @@ var allowedUsageFields = map[string][]string{
 	},
 }
 
-// EstimateInputTokens approximates the prompt token count from the request
-// body's JSON size — a rough chars/4 estimate suitable for fallback when
-// the provider doesn't include usage in its response.
 func EstimateInputTokens(body any) int {
 	if body == nil {
 		return 0
@@ -145,8 +120,6 @@ func EstimateInputTokens(body any) int {
 	return int(math.Ceil(float64(len(raw)) / float64(charsPerToken)))
 }
 
-// EstimateOutputTokens approximates the completion token count from the
-// assistant response's character length. Same rough chars/4 mapping.
 func EstimateOutputTokens(contentLength int) int {
 	if contentLength <= 0 {
 		return 0
@@ -157,18 +130,12 @@ func EstimateOutputTokens(contentLength int) int {
 	return contentLength / charsPerToken
 }
 
-// EstimateUsage returns a fallback usage map for targetFormat. Marks the
-// result with estimated=true so callers / analytics can tell the difference
-// from real upstream counts.
 func EstimateUsage(body any, contentLength int, targetFormat string) map[string]any {
 	in := EstimateInputTokens(body)
 	out := EstimateOutputTokens(contentLength)
 	return formatEstimatedUsage(in, out, targetFormat)
 }
 
-// formatEstimatedUsage emits the estimate in the right wire shape and adds
-// the BufferTokens pad so downstream "did we run out of context?" math is
-// conservative.
 func formatEstimatedUsage(input, output int, targetFormat string) map[string]any {
 	switch targetFormat {
 	case FormatClaude:
@@ -185,7 +152,7 @@ func formatEstimatedUsage(input, output int, targetFormat string) map[string]any
 			"totalTokenCount":      float64(total),
 			"estimated":            true,
 		})
-	default: // OpenAI
+	default:
 		total := input + output
 		return AddBufferToUsage(map[string]any{
 			"prompt_tokens":     float64(input),
@@ -196,9 +163,6 @@ func formatEstimatedUsage(input, output int, targetFormat string) map[string]any
 	}
 }
 
-// HasValidUsage reports whether usage carries at least one positive token
-// counter. Used by streaming dispatch to decide whether to fall back to
-// EstimateUsage.
 func HasValidUsage(usage map[string]any) bool {
 	if usage == nil {
 		return false
@@ -215,8 +179,6 @@ func HasValidUsage(usage map[string]any) bool {
 	return false
 }
 
-// toFiniteFloat coerces any numeric type to float64 and reports whether the
-// value was actually a finite number (filters NaN / Inf and non-numeric).
 func toFiniteFloat(v any) (float64, bool) {
 	var f float64
 	switch t := v.(type) {

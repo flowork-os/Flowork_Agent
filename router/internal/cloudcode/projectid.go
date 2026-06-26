@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — audit pass surface review.
-
-// Google CloudCode project-id resolver.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package cloudcode
 
@@ -49,21 +45,12 @@ var (
 	httpDoer HTTPDoer = &http.Client{Timeout: fetchTimeout}
 )
 
-// HTTPDoer is the minimal HTTP contract; exposed so tests can swap in a
-// httptest-backed client without monkey-patching package state.
 type HTTPDoer interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
-// SetHTTPDoer swaps the package HTTP client. Useful for tests; the production
-// default is a 30s-timeout http.Client.
 func SetHTTPDoer(d HTTPDoer) { httpDoer = d }
 
-// GetProjectID returns the cached or freshly fetched project id for the
-// given (connectionID, token) pair. Returns ("", nil) when the upstream
-// reports no project bound to the account — callers should treat that as
-// "use random id" and continue. Concurrent calls for the same connectionID
-// are deduplicated: only one HTTP round-trip in flight at a time.
 func GetProjectID(ctx context.Context, connectionID, token string) (string, error) {
 	if connectionID == "" || token == "" {
 		return "", errors.New("cloudcode: connectionID and token required")
@@ -100,24 +87,18 @@ func GetProjectID(ctx context.Context, connectionID, token string) (string, erro
 	return pid, err
 }
 
-// Invalidate drops the cached project id for a connection. Call after the
-// connection's credentials are revoked or rotated.
 func Invalidate(connectionID string) {
 	cacheMu.Lock()
 	delete(cache, connectionID)
 	cacheMu.Unlock()
 }
 
-// InvalidateAll drops every cached entry. Useful when the global token
-// store is wiped during a settings reset.
 func InvalidateAll() {
 	cacheMu.Lock()
 	cache = map[string]cacheEntry{}
 	cacheMu.Unlock()
 }
 
-// fetchOnce calls loadCodeAssist first; if no project surfaces in the
-// response, it falls back to onboardUser (which polls up to 5 attempts).
 func fetchOnce(ctx context.Context, token string) (string, error) {
 	loadResp, err := postCloudCode(ctx, urlLoadCodeAssist, token, map[string]any{
 		"metadata": defaultMetadata(),
@@ -159,7 +140,7 @@ func fetchOnce(ctx context.Context, token string) (string, error) {
 		if pid := extractProjectID(onboardResp); pid != "" {
 			return pid, nil
 		}
-		// Upstream may return a "still pending" envelope — wait then retry.
+
 		select {
 		case <-time.After(2 * time.Second):
 		case <-ctx.Done():
@@ -169,8 +150,6 @@ func fetchOnce(ctx context.Context, token string) (string, error) {
 	return "", errors.New("onboardUser: no project after retries")
 }
 
-// postCloudCode is the shared POST helper — builds the CloudCode-flavored
-// headers + JSON-decodes the response, with the 8 MiB read cap.
 func postCloudCode(ctx context.Context, url, token string, body map[string]any) (map[string]any, error) {
 	raw, _ := json.Marshal(body)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(raw))
@@ -199,8 +178,6 @@ func postCloudCode(ctx context.Context, url, token string, body map[string]any) 
 	return parsed, nil
 }
 
-// extractProjectID looks for "cloudaicompanionProject" (the actual field
-// CloudCode returns) and the alternative "project" field for safety.
 func extractProjectID(m map[string]any) string {
 	if v, _ := m["cloudaicompanionProject"].(string); v != "" {
 		return v
@@ -216,8 +193,6 @@ func extractProjectID(m map[string]any) string {
 	return ""
 }
 
-// defaultMetadata is the IDE/platform fingerprint that CloudCode expects.
-// Multi-OS aware: platform string follows runtime.GOOS.
 func defaultMetadata() map[string]any {
 	return map[string]any{
 		"ideType":    "ANTIGRAVITY",
@@ -231,7 +206,6 @@ func clientMetadataHeader() string {
 	return string(raw)
 }
 
-// platformEnum maps runtime.GOOS to the CloudCode-side enum names.
 func platformEnum() string {
 	switch runtime.GOOS {
 	case "darwin":

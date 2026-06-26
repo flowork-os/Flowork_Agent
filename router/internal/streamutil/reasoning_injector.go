@@ -1,17 +1,12 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — audit pass surface review.
-
-// Reasoning Content Injector (DeepSeek / Kimi thinking).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package streamutil
 
 import "strings"
 
-// scope values mirror upstream constants.
 const (
 	scopeAll       = "all"
 	scopeToolCalls = "toolCalls"
@@ -19,24 +14,20 @@ const (
 
 const reasoningPlaceholder = " "
 
-// ProviderRules — provider name → injection scope. Lowercased keys.
 var ProviderRules = map[string]string{
 	"deepseek": scopeAll,
 }
 
-// ModelRule is a predicate-based fallback when the provider rule does not apply.
 type ModelRule struct {
 	Match func(model string) bool
 	Scope string
 }
 
-// ModelRules mirror upstream's MODEL_RULES.
 var ModelRules = []ModelRule{
 	{Match: func(m string) bool { return strings.HasPrefix(m, "kimi-") }, Scope: scopeToolCalls},
 	{Match: func(m string) bool { return strings.HasPrefix(m, "deepseek-") }, Scope: scopeAll},
 }
 
-// resolveScope returns the effective injection scope for (provider, model), or "" when none.
 func resolveScope(provider, model string) string {
 	if s, ok := ProviderRules[strings.ToLower(provider)]; ok {
 		return s
@@ -49,7 +40,6 @@ func resolveScope(provider, model string) string {
 	return ""
 }
 
-// shouldInject decides per-message whether the placeholder should be added.
 func shouldInject(msg map[string]any, scope string) bool {
 	if msg == nil || msg["role"] != "assistant" {
 		return false
@@ -64,8 +54,6 @@ func shouldInject(msg map[string]any, scope string) bool {
 	return true
 }
 
-// InjectReasoningContent rewrites body["messages"] in-place when the
-// provider/model rule asks for it. Safe to call on any request body.
 func InjectReasoningContent(provider, model string, body map[string]any) map[string]any {
 	scope := resolveScope(provider, model)
 	if scope == "" || body == nil {

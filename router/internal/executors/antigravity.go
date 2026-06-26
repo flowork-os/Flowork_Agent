@@ -1,11 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Provider executor HTTP call.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Executor: antigravity — Google Cloud Code Assist Antigravity backend.
 package executors
 
 import (
@@ -43,11 +40,7 @@ func (a *antigravityExecutor) headers(p *store.ProviderConnection, stream bool) 
 	if tok, ok := p.Data[store.CfgAPIKey].(string); ok && tok != "" {
 		h["Authorization"] = "Bearer " + tok
 	}
-	// X-Machine-Session-Id scopes Antigravity's prompt cache. The native
-	// binary mints one id per launch and keeps it for the process lifetime.
-	// We replicate that — stable per provider.ID within a single router
-	// run, fresh on every restart — so prompt-cache continuity works.
-	// Explicit sessionId on the provider record still wins.
+
 	sid, _ := p.Data["sessionId"].(string)
 	if sid == "" {
 		sid = DeriveAntigravitySessionID(p.ID)
@@ -61,11 +54,6 @@ func (a *antigravityExecutor) headers(p *store.ProviderConnection, stream bool) 
 	return h
 }
 
-// Cloud Code Assist wraps the request in {project, model, request: <body>}.
-// When the provider record sets useRealProjectId=true, we resolve a stable
-// project id from cloudcode-pa (cached 1h) instead of the random id stored
-// in projectId — significantly reduces the chance of Google's anti-abuse
-// system flagging the connection.
 func (a *antigravityExecutor) body(ctx context.Context, p *store.ProviderConnection, req Request) []byte {
 	contents := make([]map[string]any, len(req.Messages))
 	for i, m := range req.Messages {

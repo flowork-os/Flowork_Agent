@@ -1,20 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-29
-// Reason: Section 7 (HTTP boundary) phase 1 DONE + audit passed.
-//   Endpoints stable: POST /api/mistakes/submit body {agent_id,
-//   category, title, content, hit_count}, GET /api/mistakes?tier=
-//   &source=&limit=. MaxBytesReader 32KB, DisallowUnknownFields.
-//   Future /api/mistakes/promote → tambah file baru, JANGAN modify.
-//
-// handlers_brain_mistakes.go — Section 7 roadmap: Mistakes journal
-// global endpoints. POST submit (receive promotion from agent) + GET list.
-//
-// Roadmap:
-//   - internal/brain/mistakes.go (SubmitMistake / ListMistakes / CountMistakes)
-//   - flowork_Router/roadmap.md Section 7
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -29,9 +16,6 @@ import (
 
 const maxMistakeBodyBytes = 32 * 1024
 
-// brainMistakesSubmitHandler — POST /api/mistakes/submit
-// Body: {agent_id, category, title, content, hit_count}.
-// Return {id, added bool}. Validate hit_count ≥ 3 + category whitelist.
 func brainMistakesSubmitHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed (use POST)", http.StatusMethodNotAllowed)
@@ -64,11 +48,6 @@ func brainMistakesSubmitHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"id": id, "added": isNew})
 }
 
-// brainMistakesListHandler — GET /api/mistakes?tier=&source=&limit=
-// List mistakes journal — default 50, max 500.
-//
-// ⚠️ Anti over-prompt: list endpoint untuk dashboard/admin. JANGAN
-// auto-inject ke chat — pakai semantic match query future.
 func brainMistakesListHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed (use GET)", http.StatusMethodNotAllowed)

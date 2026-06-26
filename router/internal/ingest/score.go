@@ -1,26 +1,14 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-29
-// Reason: Pure heuristic (deterministic, no I/O, no state). API stable:
-//   Score(content, sourceType) → 0.0–10.0 clamped. Section 2 (Re-score worker)
-//   akan TAMBAH function baru `Rescore(drawerID, retrievalCount)` di file lain
-//   — JANGAN ubah Score() ini, downstream test bisa drift.
-//
-// score.go — heuristic importance scoring untuk drawer baru. Output 0-10.
-//
-// Anti over-engineer: cuma signal sederhana (panjang, signal word, source
-// reputation). Re-score job lebih kompleks (frequency-of-retrieval) di
-// roadmap section 2 (Importance scorer).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
+
 package ingest
 
 import (
 	"strings"
 )
 
-// signalWords — kata yang sering muncul di knowledge important. Mostly
-// code/process keyword. Lower-case match.
 var signalWords = []string{
 	"bug", "fix", "incident", "rootcause", "root cause", "regression",
 	"security", "vulnerability", "cve", "exploit", "patch", "mitigation",
@@ -31,29 +19,15 @@ var signalWords = []string{
 	"todo", "fixme", "hack", "xxx",
 }
 
-// sourceTypeBoost — reputation per source taxonomy. Manual admin > federation,
-// chat lower (kemungkinan ephemeral). Range 0-2.
 var sourceTypeBoost = map[string]float64{
-	"manual":      2.0, // explicit admin submit
-	"doc":         1.5, // import dari source-of-truth file
-	"federation":  1.0, // dari peer sync (trust netral)
-	"chat":        0.5, // kompoundkan dari interaksi (banyak noise)
+	"manual":      2.0,
+	"doc":         1.5,
+	"federation":  1.0,
+	"chat":        0.5,
 	"compounding": 0.5,
-	"":            1.0, // default
+	"":            1.0,
 }
 
-// Score — heuristic importance 0-10. Komponen:
-//
-//	base                = 3.0    (DB default)
-//	source reputation   = 0..2   (sourceTypeBoost)
-//	signal words        = +0.5 / hit (max 2.0)
-//	length penalty/boost:
-//	    < 50 char        → -1.5  (terlalu pendek, sering noise)
-//	    50–200 char      → 0     (neutral)
-//	    200–1500 char    → +1.0  (rich content)
-//	    > 1500 char      → +0.5  (panjang ok tapi tidak >2K bonus, biasanya copy-paste)
-//
-// Hasil clamp ke [0.5, 10.0].
 func Score(content, sourceType string) float64 {
 	if content == "" {
 		return 0.5
@@ -82,7 +56,7 @@ func Score(content, sourceType string) float64 {
 	case n < 50:
 		score -= 1.5
 	case n < 200:
-		// no change
+
 	case n < 1500:
 		score += 1.0
 	default:

@@ -1,21 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Provider executor HTTP call.
-
-// Antigravity session ID cache.
-//
-// Antigravity's CloudCode endpoint uses an X-Machine-Session-Id header to
-// scope its prompt cache. The native binary generates ONE session id at
-// startup (`uuidv4() + Date.now()`) and keeps it for the process lifetime,
-// scoped per connection. flow_router is long-running, so we simulate
-// per-launch behaviour: stable id per connectionId within a single binary
-// run, but a fresh one when the router restarts.
-//
-// Without this, every Antigravity request looks like a new session →
-// prompt cache misses → significantly higher per-request cost.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package executors
 
@@ -27,12 +13,10 @@ import (
 )
 
 const (
-	// sessionTTL — entries unused for this long are evicted.
 	sessionTTL = 2 * time.Hour
-	// sessionCleanupInterval — how often the eviction sweep runs.
+
 	sessionCleanupInterval = 30 * time.Minute
-	// sessionMaxEntries — safety cap between sweeps so a buggy caller
-	// flooding fresh ids can't OOM the process.
+
 	sessionMaxEntries = 1000
 )
 
@@ -47,7 +31,6 @@ var (
 	sessionInit  sync.Once
 )
 
-// startSessionSweeper launches the eviction goroutine exactly once.
 func startSessionSweeper() {
 	sessionInit.Do(func() {
 		go func() {
@@ -67,10 +50,6 @@ func startSessionSweeper() {
 	})
 }
 
-// DeriveAntigravitySessionID returns a stable session id for connectionID.
-// First call per connection mints a new id; subsequent calls return the same
-// value (with last-used touched for TTL). An empty connectionID always mints
-// a one-off id (never cached).
 func DeriveAntigravitySessionID(connectionID string) string {
 	startSessionSweeper()
 	if connectionID == "" {
@@ -82,7 +61,7 @@ func DeriveAntigravitySessionID(connectionID string) string {
 		e.lastUsed = time.Now()
 		return e.id
 	}
-	// Safety cap: drop the oldest entry before we exceed the max.
+
 	if len(sessionStore) >= sessionMaxEntries {
 		var oldestKey string
 		var oldestTime time.Time
@@ -99,13 +78,11 @@ func DeriveAntigravitySessionID(connectionID string) string {
 	return id
 }
 
-// GenerateAntigravitySessionID mints an id in the native binary's exact
-// format: `<uuid_v4><millis_since_epoch>` (no separator).
 func GenerateAntigravitySessionID() string {
 	var b [16]byte
 	_, _ = rand.Read(b[:])
-	b[6] = (b[6] & 0x0F) | 0x40 // RFC 4122 version 4
-	b[8] = (b[8] & 0x3F) | 0x80 // variant
+	b[6] = (b[6] & 0x0F) | 0x40
+	b[8] = (b[8] & 0x3F) | 0x80
 	const hexd = "0123456789abcdef"
 	out := make([]byte, 36)
 	bi := 0
@@ -122,15 +99,12 @@ func GenerateAntigravitySessionID() string {
 	return string(out) + strconv.FormatInt(time.Now().UnixMilli(), 10)
 }
 
-// ClearAntigravitySessionStore wipes every cached id. Useful for tests and
-// for explicit "rotate all sessions" admin actions.
 func ClearAntigravitySessionStore() {
 	sessionMu.Lock()
 	defer sessionMu.Unlock()
 	sessionStore = map[string]*sessionEntry{}
 }
 
-// AntigravitySessionStoreSize returns the current entry count (test helper).
 func AntigravitySessionStoreSize() int {
 	sessionMu.Lock()
 	defer sessionMu.Unlock()

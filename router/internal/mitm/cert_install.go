@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — MITM proxy module.
-
-// MITM root CA install / uninstall to OS trust store.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package mitm
 
@@ -18,9 +14,6 @@ import (
 	"strings"
 )
 
-// InstallRootCA copies/imports rootCA.pem into the OS trust store. Returns
-// (manualHint, error). manualHint is set when elevation is missing so the
-// caller can surface the exact command for the user to run themselves.
 func InstallRootCA() (manualHint string, err error) {
 	certPath := filepath.Join(MITMDir(), "rootCA.pem")
 	if _, statErr := os.Stat(certPath); statErr != nil {
@@ -37,7 +30,6 @@ func InstallRootCA() (manualHint string, err error) {
 	return "", fmt.Errorf("cert install not supported on %s", runtime.GOOS)
 }
 
-// UninstallRootCA reverses InstallRootCA. Returns (hint, error) the same way.
 func UninstallRootCA() (manualHint string, err error) {
 	switch runtime.GOOS {
 	case "darwin":
@@ -49,8 +41,6 @@ func UninstallRootCA() (manualHint string, err error) {
 	}
 	return "", fmt.Errorf("cert uninstall not supported on %s", runtime.GOOS)
 }
-
-// ── macOS ───────────────────────────────────────────────────────────────
 
 func installMacOS(certPath string) (string, error) {
 	manual := "sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain " + certPath
@@ -72,10 +62,8 @@ func uninstallMacOS() (string, error) {
 	return "", nil
 }
 
-// ── Linux ───────────────────────────────────────────────────────────────
-
 func installLinux(certPath string) (string, error) {
-	// Most distros honour /usr/local/share/ca-certificates/*.crt
+
 	dest := "/usr/local/share/ca-certificates/flow_router-root.crt"
 	manual := fmt.Sprintf("sudo cp %s %s && sudo update-ca-certificates", certPath, dest)
 	if !IsSudoAvailable() {
@@ -102,12 +90,10 @@ func uninstallLinux() (string, error) {
 	return "", nil
 }
 
-// ── Windows ─────────────────────────────────────────────────────────────
-
 func installWindows(certPath string) (string, error) {
 	manual := fmt.Sprintf(`certutil -addstore -f Root "%s"`, certPath)
 	if !IsAdmin() {
-		// Try elevated PowerShell launch.
+
 		if err := RunElevatedPowerShell(`Start-Process certutil -ArgumentList @('-addstore','-f','Root','` + certPath + `') -Verb RunAs -Wait`); err == nil {
 			return "", nil
 		}

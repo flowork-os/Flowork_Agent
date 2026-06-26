@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — CLI command/menu.
-
-// CLI Tool Custom Writers (complex per-tool formats).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package clitools
 
@@ -18,13 +14,10 @@ import (
 	"strings"
 )
 
-// flowRouterProviderKey —  provider id written into tool configs.
 const flowRouterProviderKey = "flow_router"
 
-// customWriter signature: apply env → tool config files, return summary map.
 type customWriter func(home string, env map[string]any) (map[string]any, error)
 
-// customWriters — tools whose config format needs bespoke handling.
 var customWriters = map[string]customWriter{
 	"hermes":   writeHermes,
 	"openclaw": writeOpenclaw,
@@ -32,19 +25,13 @@ var customWriters = map[string]customWriter{
 	"kilo":     writeKilo,
 }
 
-// hasCustomWriter reports whether toolID uses a bespoke writer.
 func hasCustomWriter(toolID string) bool {
 	_, ok := customWriters[toolID]
 	return ok
 }
 
-// IsCustom reports whether a tool uses a bespoke multi-file writer.
 func IsCustom(toolID string) bool { return hasCustomWriter(toolID) }
 
-// BuildConnectEnv maps a uniform { baseURL, apiKey, model } into the exact
-// env map a given tool expects, so the UI can offer one-click "Configure"
-// without knowing each tool's key names. Custom-writer tools receive the raw
-// trio (their writers map it); generic tools get their BaseURLKey/TokenKey.
 func BuildConnectEnv(toolID, baseURL, apiKey, model string) map[string]any {
 	t := Get(toolID)
 	if t == nil {
@@ -55,7 +42,7 @@ func BuildConnectEnv(toolID, baseURL, apiKey, model string) map[string]any {
 	}
 	env := map[string]any{}
 	if t.BaseURLKey != "" {
-		// Claude expects the base URL to end with /v1; harmless for others.
+
 		url := baseURL
 		if toolID == "claude" {
 			url = ensureV1(baseURL)
@@ -90,16 +77,6 @@ func ensureV1(u string) string {
 	return u + "/v1"
 }
 
-// ── Hermes: ~/.hermes/config.yaml (model block) + ~/.hermes/.env ────────
-// config.yaml:
-//
-//	model:
-//	  provider: "custom"
-//	  base_url: "<baseUrl>"
-//
-// .env:
-//
-//	OPENAI_API_KEY=<apiKey>
 func writeHermes(home string, env map[string]any) (map[string]any, error) {
 	dir := filepath.Join(home, ".hermes")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -111,8 +88,6 @@ func writeHermes(home string, env map[string]any) (map[string]any, error) {
 		return nil, fmt.Errorf("hermes: baseUrl required")
 	}
 
-	// config.yaml — replace/insert the model: block, preserve other top-level
-	// keys if file exists.
 	cfgPath := filepath.Join(dir, "config.yaml")
 	modelBlock := fmt.Sprintf("model:\n  provider: \"custom\"\n  base_url: %q\n", baseURL)
 	existing := ""
@@ -130,7 +105,6 @@ func writeHermes(home string, env map[string]any) (map[string]any, error) {
 		return nil, err
 	}
 
-	// .env — OPENAI_API_KEY
 	envPath := filepath.Join(dir, ".env")
 	if apiKey != "" {
 		envContent := map[string]string{}
@@ -158,12 +132,6 @@ func writeHermes(home string, env map[string]any) (map[string]any, error) {
 	}, nil
 }
 
-// ── OpenClaw: ~/.openclaw/openclaw.json + ~/.openclaw/models.json ───────
-// openclaw.json: agents.defaults.model.primary = "flow_router/<model>",
-//
-//	models.providers ensured.
-//
-// models.json: providers["flow_router"] = { baseUrl(/v1), apiKey, models:[{id}] }
 func writeOpenclaw(home string, env map[string]any) (map[string]any, error) {
 	dir := filepath.Join(home, ".openclaw")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -179,7 +147,6 @@ func writeOpenclaw(home string, env map[string]any) (map[string]any, error) {
 		apiKey = "your_api_key"
 	}
 
-	// models.json
 	modelsPath := filepath.Join(dir, "models.json")
 	modelsDoc := map[string]any{}
 	if b, err := os.ReadFile(modelsPath); err == nil {
@@ -200,7 +167,6 @@ func writeOpenclaw(home string, env map[string]any) (map[string]any, error) {
 		return nil, err
 	}
 
-	// openclaw.json
 	cfgPath := filepath.Join(dir, "openclaw.json")
 	cfg := map[string]any{}
 	if b, err := os.ReadFile(cfgPath); err == nil {
@@ -221,7 +187,7 @@ func writeOpenclaw(home string, env map[string]any) (map[string]any, error) {
 	primary := flowRouterProviderKey + "/" + model
 	modelObj["primary"] = primary
 	defaults["model"] = modelObj
-	// prune stale flow_router/* entries in defaults.models
+
 	if dm, ok := defaults["models"].(map[string]any); ok {
 		for k := range dm {
 			if strings.HasPrefix(k, flowRouterProviderKey+"/") {
@@ -247,19 +213,6 @@ func writeOpenclaw(home string, env map[string]any) (map[string]any, error) {
 	}, nil
 }
 
-// ── Codex: ~/.codex/config.toml (model_provider block) + ~/.codex/auth.json ─
-// config.toml:
-//
-//	model = "<model>"
-//	model_provider = "flow_router"
-//	[model_providers.flow_router]
-//	name = "flow_router"
-//	base_url = "<baseUrl>/v1"
-//	wire_api = "responses"
-//
-// auth.json:
-//
-//	{ "OPENAI_API_KEY": "<apiKey>" }
 func writeCodex(home string, env map[string]any) (map[string]any, error) {
 	dir := filepath.Join(home, ".codex")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -272,7 +225,6 @@ func writeCodex(home string, env map[string]any) (map[string]any, error) {
 		return nil, fmt.Errorf("codex: baseUrl required")
 	}
 
-	// config.toml — preserve unrelated lines, rewrite our keys + provider block.
 	cfgPath := filepath.Join(dir, "config.toml")
 	existing := map[string]string{}
 	if b, err := os.ReadFile(cfgPath); err == nil {
@@ -294,7 +246,6 @@ func writeCodex(home string, env map[string]any) (map[string]any, error) {
 		return nil, err
 	}
 
-	// auth.json — { OPENAI_API_KEY }
 	authPath := filepath.Join(dir, "auth.json")
 	auth := map[string]any{}
 	if b, err := os.ReadFile(authPath); err == nil {
@@ -316,7 +267,6 @@ func writeCodex(home string, env map[string]any) (map[string]any, error) {
 	}, nil
 }
 
-// ── Kilo (VS Code ext): settings.json kilocode.customProvider + auth.json ──
 func writeKilo(home string, env map[string]any) (map[string]any, error) {
 	cfgDir := filepath.Join(home, ".config", "kilo")
 	if err := os.MkdirAll(cfgDir, 0o700); err != nil {
@@ -329,7 +279,6 @@ func writeKilo(home string, env map[string]any) (map[string]any, error) {
 		return nil, fmt.Errorf("kilo: baseUrl, apiKey and model required")
 	}
 
-	// settings.json — kilocode.customProvider block.
 	settingsPath := filepath.Join(cfgDir, "settings.json")
 	settings := map[string]any{}
 	if b, err := os.ReadFile(settingsPath); err == nil {
@@ -346,7 +295,6 @@ func writeKilo(home string, env map[string]any) (map[string]any, error) {
 		return nil, err
 	}
 
-	// auth.json companion.
 	authPath := filepath.Join(cfgDir, "auth.json")
 	auth := map[string]any{flowRouterProviderKey: map[string]any{"apiKey": apiKey, "baseUrl": baseURL}}
 	ab, _ := json.MarshalIndent(auth, "", "  ")
@@ -361,7 +309,6 @@ func writeKilo(home string, env map[string]any) (map[string]any, error) {
 	}, nil
 }
 
-// mapStrToAny converts map[string]string → map[string]any for writeTOMLSettings.
 func mapStrToAny(m map[string]string) map[string]any {
 	out := make(map[string]any, len(m))
 	for k, v := range m {

@@ -1,20 +1,12 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-31
-// Reason: Read-only secret getter (plug-in, ga sentuh agentdb.go locked).
-//   Dipakai host buat notify Telegram owner.
-//
-// secret_read.go — plug-in: baca nilai secret per-agent dari host (read-only).
-// Terpisah dari agentdb.go (LOCKED). Dipakai host buat ambil TELEGRAM_BOT_TOKEN
-// + TELEGRAM_ALLOWED_CHATS waktu notify owner (mis. codescan critical finding).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package agentdb
 
 import "database/sql"
 
-// GetSecretValue — value secret by key. Empty string kalau ngga ada.
 func (s *Store) GetSecretValue(k string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

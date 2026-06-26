@@ -1,27 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-06-20
-// 2026-06-20 (owner-approved): startTaskflowRun +LIVE-MEMBER GUARD — tolak fire crew
-//   kalau GAK ADA member yg live (host.AgentIDs). Anti-halu "panggil crew/group mati":
-//   kategori bisa ketinggalan di DB walau agent member-nya udah dihapus → guard bikin
-//   "hapus crew = auto ga bisa dipanggil" (state live = sumber kebenaran). Verified live.
-//
-// taskflow_handler.go — FASE 4/5: HTTP API Category Task.
-//
-// Trigger + CRUD kategori/crew + run history (timeline). Definisi task di
-// flowork.db (owner-level), di-edit dari GUI tab "Tasks". Run jalan ASYNC
-// (background) + step di-persist live → GUI poll run-detail buat timeline.
-//
-//	POST /api/taskflow/run?category=saham&subject=BBCA  → start run (async), balik run_id
-//	     ?solo=1                                          → baseline A/B (sync, 1 agent)
-//	GET  /api/taskflow/categories                        → list kategori
-//	GET  /api/taskflow/category?id=saham                 → 1 kategori + crew
-//	POST /api/taskflow/category                          → upsert kategori + crew (JSON)
-//	POST /api/taskflow/category/delete?id=saham          → hapus kategori
-//	GET  /api/taskflow/runs?category=saham[&limit=N]     → run history
-//	GET  /api/taskflow/run-detail?id=123                 → 1 run + steps (timeline)
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -47,24 +27,12 @@ import (
 	"flowork-gui/internal/taskflow"
 )
 
-// notifyTelegram — kirim teks ke chat Telegram pakai bot token Mr.Flow (dibaca
-// dari secrets state.db-nya). Best-effort: gagal = silent (cuma log). Dipakai
-// Fase 6c buat ngirim hasil task balik ke chat yang men-trigger.
-// notifyTelegram — kirim hasil task ke chat Telegram (token Mr.Flow). LOGGED di
-// tiap titik gagal — anti GHOSTING silent (kalau ga nyampe, ketauan di log,
-// bukan diem-diem ilang).
 func notifyTelegram(host *kernelhost.Host, chatID, text string) {
 	if strings.TrimSpace(chatID) == "" {
 		log.Printf("[notify] SKIP — chat_id kosong (task ga di-trigger dari Telegram?)")
 		return
 	}
-	// R3 (orchestrator merge): baca bot token dari telegram-channel (channel LIVE yg
-	// punya token), BUKAN dari mr-flow legacy — biar notify ini independen + mr-flow
-	// bisa dipensiun. Fallback ke env TELEGRAM_BOT_TOKEN kalau channel store kosong.
-	// ROOT-FIX (owner 2026-06-23 "notif kirimnya ke GROUP bukan ke gue, beda dgn mr-flow"):
-	// hasil squad HARUS nyampe DM owner = pakai BOT MR-FLOW (bot yg owner DM), BUKAN bot global/
-	// telegram-channel (= bot GRUP, token beda → notif nyasar ke grup). notify(chat_id) = chat asal
-	// (DM owner). Kirim pakai token mr-flow → mendarat di DM owner. PRIMARY = mr-flow store.
+
 	token := ""
 	if store, err := host.OpenAgentStore("mr-flow"); err == nil {
 		if secrets, serr := store.Secrets(); serr == nil {
@@ -72,7 +40,7 @@ func notifyTelegram(host *kernelhost.Host, chatID, text string) {
 		}
 		store.Close()
 	}
-	// Fallback (kalau mr-flow store kosong): telegram-channel → global secret → env.
+
 	if token == "" {
 		if store, err := host.OpenAgentStore("telegram-channel"); err == nil {
 			if secrets, serr := store.Secrets(); serr == nil {
@@ -123,7 +91,6 @@ func notifyTelegram(host *kernelhost.Host, chatID, text string) {
 	}
 }
 
-// dbRecorder — implement taskflow.Recorder, persist step ke flowork.db (timeline).
 type dbRecorder struct {
 	store *floworkdb.Store
 	runID int64
@@ -145,7 +112,6 @@ func tfWriteJSON(w http.ResponseWriter, code int, body any) {
 	_ = json.NewEncoder(w).Encode(body)
 }
 
-// toTaskflowCategory — map floworkdb.TaskCategory → taskflow.Category.
 func toTaskflowCategory(c *floworkdb.TaskCategory) taskflow.Category {
 	tc := taskflow.Category{ID: c.ID, Name: c.Name, Synthesizer: c.Synthesizer, SynthDirective: c.SynthDirective, WorkerDirective: c.WorkerDirective}
 	for _, a := range c.Crew {
@@ -154,7 +120,6 @@ func toTaskflowCategory(c *floworkdb.TaskCategory) taskflow.Category {
 	return tc
 }
 
-// taskflowRunHandler — POST trigger. Normal = async (timeline). solo = sync (A/B).
 func taskflowRunHandler(host *kernelhost.Host, store *floworkdb.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -168,7 +133,7 @@ func taskflowRunHandler(host *kernelhost.Host, store *floworkdb.Store) http.Hand
 			tfWriteJSON(w, http.StatusBadRequest, map[string]any{"error": "subject + (category atau group) wajib"})
 			return
 		}
-		// OPS-1: GROUP async — ask_group BERAT di Telegram → run crew di belakang + notify (anti-timeout).
+
 		if group != "" {
 			notify := strings.TrimSpace(r.URL.Query().Get("notify"))
 			runID, err := startGroupTaskRun(host, store, group, subject, notify)
@@ -181,7 +146,6 @@ func taskflowRunHandler(host *kernelhost.Host, store *floworkdb.Store) http.Hand
 			return
 		}
 
-		// ?solo=1 → BASELINE A/B (sync): 1 agent (analis pertama) ngerjain semua.
 		if r.URL.Query().Get("solo") == "1" {
 			cat, _ := store.GetCategory(category)
 			agentID := "saham-fundamental"
@@ -195,7 +159,7 @@ func taskflowRunHandler(host *kernelhost.Host, store *floworkdb.Store) http.Hand
 			return
 		}
 
-		notify := strings.TrimSpace(r.URL.Query().Get("notify")) // chat_id Telegram (opsional)
+		notify := strings.TrimSpace(r.URL.Query().Get("notify"))
 		runID, err := startTaskflowRun(host, store, category, subject, notify)
 		if err != nil {
 			tfWriteJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
@@ -208,25 +172,13 @@ func taskflowRunHandler(host *kernelhost.Host, store *floworkdb.Store) http.Hand
 	}
 }
 
-// startGroupTaskRun — OPS-1: jalanin GROUP ASYNC + notify, buat ask_group BERAT di Telegram
-// biar gak timeout ("loket: no response").
-//
-// PENTING: GROUP module orkestrasi SENDIRI seluruh crew-nya — termasuk mode DEBATE (multi-ronde
-// kritik/revisi) + synthesizer-nya sendiri — DI DALAM satu handle_message. Jadi kita INVOKE
-// module group langsung (host.InvokeAgentMessageTimeout), PERSIS spt ask_group sync (bus.request
-// type=task), TAPI di goroutine + budget gede (25 mnt). Rebuild Category manual SALAH: bakal
-// kehilangan debate + pake fan-out parallel doang. ADDITIVE — gak nyentuh startTaskflowRun.
-// groupIDRe — pola id GROUP kanonik (sama spt internal/groupsapi idRe). startGroupTaskRun
-// bikin PATH filesystem dari groupID (query param) → wajib divalidasi DULU biar gak ada
-// path-traversal ("../") walau endpoint loopback-only. Defense-in-depth.
 var groupIDRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,39}$`)
 
 func startGroupTaskRun(host *kernelhost.Host, store *floworkdb.Store, groupID, subject, notify string) (int64, error) {
 	if !groupIDRe.MatchString(groupID) {
 		return 0, fmt.Errorf("group id invalid (^[a-z0-9][a-z0-9-]{1,39}$): %q", groupID)
 	}
-	// Guard: pastiin ini beneran GROUP (kv group=1 di loket store-nya), bukan agent biasa.
-	// Path kanonik loket = sama spt kernel (lihat main.go LoketStorePath). Isolasi per-module dijaga.
+
 	staged := filepath.Join(host.AgentsDir, groupID+".fwagent")
 	loketPath := filepath.Join(filepath.Dir(agentdb.Resolve(groupID, staged)), "loket.db")
 	st, err := loket.OpenStore(loketPath)
@@ -260,10 +212,7 @@ func startGroupTaskRun(host *kernelhost.Host, store *floworkdb.Store, groupID, s
 				_ = store.FinishRun(runID, "error", fmt.Sprintf("panic: %v", r))
 			}
 		}()
-		// 25 mnt: budget buat SELURUH orkestrasi group (semua member × ronde debat + synth)
-		// yang jalan di dalam satu handle_message. Cap, bukan wait — group cepet balik cepet.
-		// Deadline DIMILIKI InvokeAgentMessageTimeout (jangan dobel WithTimeout di sini — biar
-		// klasifikasi infra-timeout vs mistake di recordInvokeSelfKnowledge tetap akurat).
+
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		reply, ierr := host.InvokeAgentMessageTimeout(ctx, groupID, subject, "telegram-async", 25*time.Minute)
@@ -289,9 +238,6 @@ func startGroupTaskRun(host *kernelhost.Host, store *floworkdb.Store, groupID, s
 	return runID, nil
 }
 
-// startTaskflowRun — bikin run + jalanin Category Task ASYNC (goroutine) +
-// notify Telegram pas kelar. Reusable: dipake HTTP handler + scheduler ticker.
-// Balik run_id cepet (run jalan di belakang). Error = validasi gagal.
 func startTaskflowRun(host *kernelhost.Host, store *floworkdb.Store, category, subject, notify string) (int64, error) {
 	cat, err := store.GetCategory(category)
 	if err != nil {
@@ -303,11 +249,7 @@ func startTaskflowRun(host *kernelhost.Host, store *floworkdb.Store, category, s
 	if len(cat.Crew) == 0 {
 		return 0, fmt.Errorf("crew kosong — tambah analis dulu")
 	}
-	// LIVE-MEMBER GUARD (owner 2026-06-20, anti "halu panggil crew/group mati"):
-	// kategori bisa ada di DB TAPI member-nya udah dihapus (agent dir ilang, mis.
-	// crew dihapus tapi task_categories ketinggalan). Tolak fire kalau GAK ADA
-	// satupun member yg LIVE → mr-flow ga "nyalain crew hantu" lalu hasil ga datang.
-	// State agent LIVE = sumber kebenaran → "hapus crew = otomatis ga bisa dipanggil".
+
 	live := make(map[string]bool)
 	for _, id := range host.AgentIDs() {
 		live[id] = true
@@ -329,16 +271,14 @@ func startTaskflowRun(host *kernelhost.Host, store *floworkdb.Store, category, s
 	tfCat := toTaskflowCategory(cat)
 	catName := cat.Name
 	go func() {
-		// recover: panic di task (worker/synth) JANGAN crash seluruh binary —
-		// tandain run error + log. (Section scanner: bare_goroutine_auditor.)
+
 		defer func() {
 			if r := recover(); r != nil {
 				log.Printf("[taskflow] run #%d PANIC: %v", runID, r)
 				_ = store.FinishRun(runID, "error", fmt.Sprintf("panic: %v", r))
 			}
 		}()
-		// 30 menit: crew bisa sampe 6 agent × cap 300s/agent (kernelhost). Budget
-		// total mesti muat worst-case, walau rata-rata agent ~120s. Cap, bukan wait.
+
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 		defer cancel()
 		rec := &dbRecorder{store: store, runID: runID}
@@ -368,9 +308,6 @@ func startTaskflowRun(host *kernelhost.Host, store *floworkdb.Store, category, s
 	return runID, nil
 }
 
-// ── Scheduler (looping recurring task) ───────────────────────────────────────
-
-// taskflowSchedulesHandler — GET list jadwal.
 func taskflowSchedulesHandler(store *floworkdb.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		list, err := store.ListSchedules()
@@ -382,7 +319,6 @@ func taskflowSchedulesHandler(store *floworkdb.Store) http.HandlerFunc {
 	}
 }
 
-// taskflowScheduleAddHandler — POST bikin jadwal (JSON body).
 func taskflowScheduleAddHandler(store *floworkdb.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -409,7 +345,6 @@ func taskflowScheduleAddHandler(store *floworkdb.Store) http.HandlerFunc {
 	}
 }
 
-// taskflowScheduleDeleteHandler — POST hapus jadwal.
 func taskflowScheduleDeleteHandler(store *floworkdb.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, _ := strconv.ParseInt(r.URL.Query().Get("id"), 10, 64)
@@ -426,7 +361,6 @@ func taskflowScheduleDeleteHandler(store *floworkdb.Store) http.HandlerFunc {
 	}
 }
 
-// RunDueSchedules — dipanggil ticker tiap menit: fire jadwal yang udah waktunya.
 func RunDueSchedules(host *kernelhost.Host, store *floworkdb.Store) int {
 	now := time.Now()
 	due, err := store.DueSchedules(now)
@@ -438,12 +372,11 @@ func RunDueSchedules(host *kernelhost.Host, store *floworkdb.Store) int {
 		if _, err := startTaskflowRun(host, store, sc.Category, sc.Subject, sc.NotifyChat); err == nil {
 			fired++
 		}
-		_ = store.MarkScheduleFired(sc, now) // tetep advance next_run walau gagal (anti spam)
+		_ = store.MarkScheduleFired(sc, now)
 	}
 	return fired
 }
 
-// taskflowCategoriesHandler — GET list kategori.
 func taskflowCategoriesHandler(store *floworkdb.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cats, err := store.ListCategories()
@@ -455,7 +388,6 @@ func taskflowCategoriesHandler(store *floworkdb.Store) http.HandlerFunc {
 	}
 }
 
-// taskflowCategoryHandler — GET (detail+crew) / POST (upsert+crew).
 func taskflowCategoryHandler(store *floworkdb.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -501,7 +433,6 @@ func taskflowCategoryHandler(store *floworkdb.Store) http.HandlerFunc {
 	}
 }
 
-// taskflowCategoryDeleteHandler — POST hapus kategori.
 func taskflowCategoryDeleteHandler(store *floworkdb.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -521,7 +452,6 @@ func taskflowCategoryDeleteHandler(store *floworkdb.Store) http.HandlerFunc {
 	}
 }
 
-// taskflowRunsHandler — GET run history 1 kategori.
 func taskflowRunsHandler(store *floworkdb.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		category := strings.TrimSpace(r.URL.Query().Get("category"))
@@ -539,7 +469,6 @@ func taskflowRunsHandler(store *floworkdb.Store) http.HandlerFunc {
 	}
 }
 
-// taskflowRunDetailHandler — GET 1 run + steps (timeline).
 func taskflowRunDetailHandler(store *floworkdb.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, _ := strconv.ParseInt(r.URL.Query().Get("id"), 10, 64)

@@ -1,34 +1,22 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-31
-// Reason: Plug-in kolom category protector_rules (lazy ALTER idempotent via
-//   pragma check). Ngga sentuh protector.go locked. E2E verified.
-//
-// protector_category.go — plug-in extension untuk protector_rules: kolom
-// `category` (label UI: secrets/core/doktrin/entry/docs/config/custom).
-//
-// File terpisah (nano-modular) supaya protector.go yang LOCKED ngga disentuh.
-// Lazy ALTER ADD COLUMN (idempotent) — pola ensure-schema lazy yang sama.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package agentdb
 
 import "strings"
 
-// ProtectorRuleCat = ProtectorRule + category label.
 type ProtectorRuleCat struct {
 	ProtectorRule
 	Category string `json:"category"`
 }
 
-// ensureProtectorCategory — lazy ALTER ADD COLUMN category (idempotent).
-// Dipanggil dari dalam method yang sudah pegang s.mu.
 func (s *Store) ensureProtectorCategory() error {
 	if err := s.ensureProtectorSchema(); err != nil {
 		return err
 	}
-	// Cek kolom sudah ada via pragma (anti error "duplicate column").
+
 	rows, err := s.db.Query(`PRAGMA table_info(protector_rules)`)
 	if err != nil {
 		return err
@@ -56,9 +44,6 @@ func (s *Store) ensureProtectorCategory() error {
 	return nil
 }
 
-// AddProtectorRuleCat — INSERT custom rule dengan category. rule_type tetap
-// real (mis. "file_path") supaya interceptor enforcement jalan; category cuma
-// label grouping UI. Reject source hardcoded (sama seperti AddProtectorRule).
 func (s *Store) AddProtectorRuleCat(ruleType, pattern, action, category string) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -83,7 +68,6 @@ func (s *Store) AddProtectorRuleCat(ruleType, pattern, action, category string) 
 	return res.LastInsertId()
 }
 
-// ListProtectorRulesCat — custom rows + category.
 func (s *Store) ListProtectorRulesCat() ([]ProtectorRuleCat, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -111,8 +95,6 @@ func (s *Store) ListProtectorRulesCat() ([]ProtectorRuleCat, error) {
 	return out, rows.Err()
 }
 
-// FindProtectorRuleIDByPattern — cari id custom rule by pattern (untuk
-// toggle/remove by path dari GUI). Return 0 kalau ngga ketemu.
 func (s *Store) FindProtectorRuleIDByPattern(pattern string) (int64, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

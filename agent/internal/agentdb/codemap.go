@@ -1,12 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 27 phase 1 codemap schema. Lazy CREATE. Phase 2 (edges
-//   table + index_runs + AST parsers) → tambah file baru.
-//
-// codemap.go — Section 27 phase 1: codemap_nodes minimal.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package agentdb
 
@@ -128,10 +123,6 @@ func (s *Store) ListCodemapNodes(nodeType, layer, search string, limit int) ([]C
 	return out, rows.Err()
 }
 
-// LOCKED (soft, owner-approved 2026-06-20 codemap-fix): blok stabil, jangan ubah tanpa izin.
-// CodemapNodeStats — agregat akurat (COUNT/GROUP BY), bukan sampel ber-LIMIT.
-// Dipakai codemap_stats biar total_nodes bener walau >1000 (ListCodemapNodes
-// hard-cap di 1000 buat anti over-prompt; count ga boleh ikut ke-cap).
 func (s *Store) CodemapNodeStats() (total int, byType, byLayer map[string]int, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

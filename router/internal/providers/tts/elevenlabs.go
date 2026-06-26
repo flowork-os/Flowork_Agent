@@ -1,11 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — ./internal/providers/tts package — audit pass surface review.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Vendor: elevenlabs — eleven_multilingual / eleven_turbo.
 package tts
 
 import (
@@ -26,7 +23,7 @@ func (e *elevenlabsProvider) Speak(ctx context.Context, req Request) ([]byte, st
 	if base == "" {
 		base = "https://api.elevenlabs.io/v1"
 	}
-	voice := defaultStr(req.Voice, "21m00Tcm4TlvDq8ikWAM") // "Rachel"
+	voice := defaultStr(req.Voice, "21m00Tcm4TlvDq8ikWAM")
 	body, _ := json.Marshal(map[string]any{
 		"text":     req.Input,
 		"model_id": defaultStr(req.Model, "eleven_multilingual_v2"),

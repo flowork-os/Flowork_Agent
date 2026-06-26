@@ -1,11 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — audit pass surface review.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Clipboard helper: best-effort multi-OS copy via the OS native tool.
 package utils
 
 import (
@@ -15,8 +12,6 @@ import (
 	"strings"
 )
 
-// Copy writes s to the system clipboard. Returns nil on success, otherwise a
-// human-readable error suitable for display.
 func Copy(s string) error {
 	switch runtime.GOOS {
 	case "darwin":
@@ -24,7 +19,7 @@ func Copy(s string) error {
 	case "windows":
 		return run("clip", s)
 	case "linux":
-		// Try wl-copy (Wayland) then xclip (X11) then xsel.
+
 		for _, tool := range [][]string{
 			{"wl-copy"}, {"xclip", "-selection", "clipboard"}, {"xsel", "--clipboard", "--input"},
 		} {

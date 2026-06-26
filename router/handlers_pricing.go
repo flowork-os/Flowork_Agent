@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — HTTP handler.
-
-// Pricing HTTP Handlers.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -17,7 +13,6 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-// pricingHandler — GET (list w/ ?provider= filter) / POST (upsert single).
 func pricingHandler(w http.ResponseWriter, r *http.Request) {
 	d, _ := store.Open()
 	switch r.Method {
@@ -61,7 +56,6 @@ func pricingHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// pricingLookupHandler — GET /api/pricing/lookup?provider=&model=
 func pricingLookupHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

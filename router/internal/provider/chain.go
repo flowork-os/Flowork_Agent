@@ -1,14 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/flow_router
-// Locked at: 2026-05-30
-// Reason: Section 24 phase 2 chain orchestrator. Primary → fallback1 →
-//   fallback2 → error. Reuse existing providerConnections table + new
-//   provider_chain_configs. Phase 3 (per-request weighted distribution,
-//   circuit breaker per-provider) → tambah file baru.
-//
-// chain.go — Section 24 phase 2: provider chain orchestrator.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package provider
 
@@ -24,29 +17,26 @@ import (
 	"time"
 )
 
-// ProviderConfig — minimal config buat dispatch.
 type ProviderConfig struct {
 	Name     string
 	BaseURL  string
 	APIKey   string
-	AuthType string // 'bearer' | 'apikey' | 'subscription'
+	AuthType string
 }
 
-// ChatRequest — OpenAI-compat shape.
 type ChatRequest struct {
 	Model    string                   `json:"model"`
 	Messages []map[string]interface{} `json:"messages"`
 	Stream   bool                     `json:"stream,omitempty"`
 }
 
-// ChatResponse — minimal shape buat extract cost + content.
 type ChatResponse struct {
-	Provider     string                 `json:"_provider"`
-	Model        string                 `json:"model"`
-	Choices      []map[string]interface{} `json:"choices"`
-	Usage        UsageInfo              `json:"usage"`
-	LatencyMS    int64                  `json:"_latency_ms"`
-	Raw          json.RawMessage        `json:"-"`
+	Provider  string                   `json:"_provider"`
+	Model     string                   `json:"model"`
+	Choices   []map[string]interface{} `json:"choices"`
+	Usage     UsageInfo                `json:"usage"`
+	LatencyMS int64                    `json:"_latency_ms"`
+	Raw       json.RawMessage          `json:"-"`
 }
 
 type UsageInfo struct {
@@ -55,10 +45,9 @@ type UsageInfo struct {
 	TotalTokens      int `json:"total_tokens"`
 }
 
-// ChainOrchestrator — coordinator yang try providers in order.
 type ChainOrchestrator struct {
-	db     *sql.DB
-	cli    *http.Client
+	db  *sql.DB
+	cli *http.Client
 }
 
 func NewChainOrchestrator(db *sql.DB) *ChainOrchestrator {
@@ -68,8 +57,6 @@ func NewChainOrchestrator(db *sql.DB) *ChainOrchestrator {
 	}
 }
 
-// Run — execute chat request via configured chain. Try primary, on 5xx/
-// 429/network → next provider. Return final response + provider used.
 func (c *ChainOrchestrator) Run(ctx context.Context, chainName string, req ChatRequest) (*ChatResponse, error) {
 	providers, err := c.resolveChain(chainName)
 	if err != nil {
@@ -98,7 +85,7 @@ func (c *ChainOrchestrator) resolveChain(chainName string) ([]ProviderConfig, er
 		`SELECT providers_json FROM provider_chain_configs WHERE chain_name = ?`,
 		chainName).Scan(&providersJSON)
 	if err == sql.ErrNoRows {
-		// Fallback: single 'default' provider.
+
 		providersJSON = `["default"]`
 	} else if err != nil {
 		return nil, err

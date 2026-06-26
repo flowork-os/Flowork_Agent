@@ -1,22 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 13 phase 2 tool_subscriptions. Schema lazy create — ngga
-//   tambah ke ensureSchema (locked). Idempotent via CREATE TABLE IF NOT
-//   EXISTS dipanggil oleh ListSubscriptions/Subscribe/etc. Phase 3
-//   (config JSON validation, subscription_at index, multi-source) →
-//   tambah file baru, JANGAN modify ini.
-//
-// tool_subscriptions.go — Section 13 phase 2: per-warga tool subscription.
-//
-// Semantik:
-//   Subscription = UX layer di atas capability gate. Bukan authorization —
-//   itu broker.IsApproved. Subscription = "tool ini aktif di listing UI
-//   + auto-suggest pool".
-//   Sumber: 'manual' (admin/user toggle), 'auto_suggest' (router learner),
-//   'group:<name>' (preset bundle).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package agentdb
 
@@ -26,16 +11,13 @@ import (
 	"time"
 )
 
-// ToolSubscription mirrors `tool_subscriptions` row.
 type ToolSubscription struct {
 	ToolName     string `json:"tool_name"`
 	SubscribedAt string `json:"subscribed_at"`
 	Source       string `json:"source"`
-	Config       string `json:"config"` // JSON string
+	Config       string `json:"config"`
 }
 
-// ensureToolSubscriptionsSchema — lazy create, idempotent. Caller (semua
-// method tool_subscriptions di sini) call first.
 func (s *Store) ensureToolSubscriptionsSchema() error {
 	_, err := s.db.Exec(`
 		CREATE TABLE IF NOT EXISTS tool_subscriptions (
@@ -53,7 +35,6 @@ func (s *Store) ensureToolSubscriptionsSchema() error {
 	return nil
 }
 
-// SubscribeTool — upsert subscription. config JSON default '{}'.
 func (s *Store) SubscribeTool(toolName, source, configJSON string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -82,7 +63,6 @@ func (s *Store) SubscribeTool(toolName, source, configJSON string) error {
 	return err
 }
 
-// UnsubscribeTool — delete row. Idempotent (no-row = no-op).
 func (s *Store) UnsubscribeTool(toolName string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -93,7 +73,6 @@ func (s *Store) UnsubscribeTool(toolName string) error {
 	return err
 }
 
-// IsSubscribed — return true kalau row ada.
 func (s *Store) IsSubscribed(toolName string) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -107,7 +86,6 @@ func (s *Store) IsSubscribed(toolName string) (bool, error) {
 	return n > 0, err
 }
 
-// ListSubscriptions — return all rows sorted by tool_name. Cap 500.
 func (s *Store) ListSubscriptions() ([]ToolSubscription, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -135,8 +113,6 @@ func (s *Store) ListSubscriptions() ([]ToolSubscription, error) {
 	return out, rows.Err()
 }
 
-// SubscribedSet — return map[tool_name]bool buat efficient lookup di
-// catalog endpoint (intersect with registry).
 func (s *Store) SubscribedSet() (map[string]bool, error) {
 	subs, err := s.ListSubscriptions()
 	if err != nil {

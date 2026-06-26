@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — HTTP handler.
-
-// Chat v1 Extended Endpoints.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -24,10 +20,6 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-// ── /v1/messages (Anthropic native) ────────────────────────────────────
-
-// anthropicMessagesRequest mirrors public Anthropic Messages API surface
-// (subset we accept verbatim, then translate internally).
 type anthropicMessagesRequest struct {
 	Model       string           `json:"model"`
 	Messages    []anthropicMsgIn `json:"messages"`
@@ -43,8 +35,6 @@ type anthropicMsgIn struct {
 	Content json.RawMessage `json:"content"`
 }
 
-// messagesV1Handler — POST /v1/messages. Accepts Anthropic shape, dispatches
-// through the universal router, returns Anthropic shape (or SSE if stream).
 func messagesV1Handler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -69,7 +59,6 @@ func messagesV1Handler(w http.ResponseWriter, r *http.Request) {
 		anth.MaxTokens = 4096
 	}
 
-	// Convert to OpenAI internal canonical
 	openaiReq := router.OpenAIRequest{
 		Model:       anth.Model,
 		MaxTokens:   anth.MaxTokens,
@@ -88,8 +77,7 @@ func messagesV1Handler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if anth.Stream {
-		// Stream as SSE in Anthropic event format (best-effort wrap of OpenAI
-		// deltas back to message_start / content_block_delta / message_stop).
+
 		streamAsAnthropicSSE(w, r, openaiReq)
 		return
 	}
@@ -107,7 +95,7 @@ func messagesV1Handler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	// Translate OpenAI → Anthropic
+
 	out := openaiToAnthropicResp(resp)
 	writeJSON(w, status, out)
 }
@@ -116,7 +104,7 @@ func flattenAnthropicSystem(raw json.RawMessage) string {
 	if len(raw) == 0 {
 		return ""
 	}
-	// Could be string OR array of {type:"text", text:"..."}
+
 	var s string
 	if err := json.Unmarshal(raw, &s); err == nil {
 		return s
@@ -189,8 +177,6 @@ func openaiToAnthropicResp(r *router.OpenAIResponse) map[string]any {
 	}
 }
 
-// streamAsAnthropicSSE — convert dispatched OpenAI delta stream back to
-// Anthropic event SSE shape. Best-effort wrap.
 func streamAsAnthropicSSE(w http.ResponseWriter, r *http.Request, req router.OpenAIRequest) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -202,12 +188,10 @@ func streamAsAnthropicSSE(w http.ResponseWriter, r *http.Request, req router.Ope
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
 
-	// We pipe-stream OpenAI deltas, parse, emit Anthropic events.
-	// For minimal cost, we do a one-shot dispatch and wrap.
 	pr, pw := io.Pipe()
 	go func() {
 		defer pw.Close()
-		// Dispatch into pw via streaming dispatcher
+
 		_, _, _ = router.DispatchChatCompletionStream(r.Context(), req, &pipeWriter{pw: pw})
 	}()
 
@@ -215,7 +199,7 @@ func streamAsAnthropicSSE(w http.ResponseWriter, r *http.Request, req router.Ope
 	flusher.Flush()
 
 	msgID := fmt.Sprintf("msg_%d", time.Now().UnixNano())
-	// message_start event
+
 	emitAnthropicEvent(w, flusher, "message_start", map[string]any{
 		"type": "message_start",
 		"message": map[string]any{
@@ -266,7 +250,7 @@ func streamAsAnthropicSSE(w http.ResponseWriter, r *http.Request, req router.Ope
 					"index": 0,
 					"delta": map[string]any{"type": "text_delta", "text": c.Delta.Content},
 				})
-				totalOut += len(c.Delta.Content) / 4 // rough token estimate
+				totalOut += len(c.Delta.Content) / 4
 			}
 		}
 	}
@@ -285,8 +269,6 @@ func emitAnthropicEvent(w http.ResponseWriter, flusher http.Flusher, eventName s
 	flusher.Flush()
 }
 
-// pipeWriter — adapter so we can pass an io.Writer as http.ResponseWriter
-// to streaming dispatcher. Implements Header()/Write()/WriteHeader()/Flush().
 type pipeWriter struct {
 	pw     *io.PipeWriter
 	header http.Header
@@ -304,7 +286,6 @@ func (p *pipeWriter) Write(b []byte) (int, error) { return p.pw.Write(b) }
 func (p *pipeWriter) WriteHeader(code int)        { p.status = code }
 func (p *pipeWriter) Flush()                      {}
 
-// newSSELineScanner — bufio.Scanner wrapped to surface plain-line API.
 type sseLineScanner struct {
 	sc *bufio.Scanner
 }
@@ -317,8 +298,6 @@ func newSSELineScanner(r io.Reader) *sseLineScanner {
 
 func (s *sseLineScanner) Scan() bool   { return s.sc.Scan() }
 func (s *sseLineScanner) Text() string { return s.sc.Text() }
-
-// ── /v1/responses (OpenAI Responses API) ───────────────────────────────
 
 type openAIResponsesRequest struct {
 	Model        string          `json:"model"`
@@ -343,7 +322,7 @@ func responsesV1Handler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "model required", http.StatusBadRequest)
 		return
 	}
-	// Convert input → messages
+
 	openaiReq := router.OpenAIRequest{
 		Model:       rq.Model,
 		Temperature: rq.Temperature,
@@ -359,7 +338,7 @@ func responsesV1Handler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if rq.Stream {
-		// Stream as Responses-shape events (best-effort delta wrapping)
+
 		streamAsResponsesSSE(w, r, openaiReq)
 		return
 	}
@@ -403,19 +382,19 @@ func parseResponsesInput(raw json.RawMessage) []router.OpenAIMessage {
 	if len(raw) == 0 {
 		return nil
 	}
-	// Try string first
+
 	var s string
 	if err := json.Unmarshal(raw, &s); err == nil {
 		return []router.OpenAIMessage{{Role: "user", Content: s}}
 	}
-	// Try array of mixed items
+
 	var arr []json.RawMessage
 	if err := json.Unmarshal(raw, &arr); err != nil {
 		return []router.OpenAIMessage{{Role: "user", Content: string(raw)}}
 	}
 	var out []router.OpenAIMessage
 	for _, item := range arr {
-		// Could be a string in array, or { role, content }
+
 		var s string
 		if err := json.Unmarshal(item, &s); err == nil {
 			out = append(out, router.OpenAIMessage{Role: "user", Content: s})
@@ -503,8 +482,6 @@ func emitResponsesEvent(w http.ResponseWriter, flusher http.Flusher, name string
 	flusher.Flush()
 }
 
-// ── /v1beta/models (Gemini-shape model list) ───────────────────────────
-
 func v1betaModelsHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -539,15 +516,12 @@ func v1betaModelsHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"models": models})
 }
 
-// v1betaGenerateContentHandler — POST /v1beta/models/{model}:generateContent
-// or :streamGenerateContent. Translate Gemini request → OpenAI canonical →
-// dispatch → translate response back to Gemini shape.
 func v1betaGenerateContentHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	// Path: /v1beta/models/<model>:<action>
+
 	path := strings.TrimPrefix(r.URL.Path, "/v1beta/models/")
 	parts := strings.SplitN(path, ":", 2)
 	if len(parts) != 2 {
@@ -708,11 +682,6 @@ func streamAsGeminiSSE(w http.ResponseWriter, r *http.Request, req router.OpenAI
 	}
 }
 
-// ── /v1/embeddings, /v1/images, /v1/audio, /v1/search, /v1/web, /v1/api ─
-
-// These route to media-providers when one of matching category is active.
-// Phase 1: minimal proxy. Phase 2: full transform + caching.
-
 func embeddingsV1Handler(w http.ResponseWriter, r *http.Request) {
 	dispatchMedia(w, r, store.MediaCategoryEmbedding, "/embeddings")
 }
@@ -723,11 +692,7 @@ func imagesV1Handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func audioV1Handler(w http.ResponseWriter, r *http.Request) {
-	// /v1/audio/speech → TTS dispatchMedia (passthrough — most TTS vendors
-	// are OpenAI-compat or accept a plain JSON proxy).
-	// /v1/audio/transcriptions and /translations → dedicated STT handler
-	// that translates multipart upload to vendor-specific protocol via the
-	// internal/providers/stt registry.
+
 	rest := strings.TrimPrefix(r.URL.Path, "/v1/audio")
 	if strings.HasPrefix(rest, "/transcriptions") || strings.HasPrefix(rest, "/translations") {
 		transcriptionsHandler(w, r)
@@ -741,9 +706,7 @@ func searchV1Handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func webV1Handler(w http.ResponseWriter, r *http.Request) {
-	// /v1/web/fetch → dedicated dispatcher backed by internal/providers/fetch
-	// (raw / jina / firecrawl). Other /v1/web/* paths fall back to the
-	// generic MediaCategoryWebFetch passthrough.
+
 	if strings.HasPrefix(r.URL.Path, "/v1/web/fetch") {
 		webFetchHandler(w, r)
 		return
@@ -751,9 +714,6 @@ func webV1Handler(w http.ResponseWriter, r *http.Request) {
 	dispatchMedia(w, r, store.MediaCategoryWebFetch, "/web")
 }
 
-// apiV1Handler — /v1/api/<x> alias namespace: routes to the same handler as
-// /v1/<x> (some clients prefix the OpenAI path with /api). Maps the common
-// dialects; unknown suffixes get a 404 with the supported list.
 func apiV1Handler(w http.ResponseWriter, r *http.Request) {
 	suffix := strings.Trim(strings.TrimPrefix(r.URL.Path, "/v1/api"), "/")
 	switch {
@@ -775,8 +735,6 @@ func apiV1Handler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// dispatchMedia — forward to first active media-provider in category.
-// Body, headers, and method passed through. Auth applied from provider config.
 func dispatchMedia(w http.ResponseWriter, r *http.Request, category, suffix string) {
 	d, _ := store.Open()
 	providers, err := store.ListMediaProviders(d, category)
@@ -809,7 +767,7 @@ func dispatchMedia(w http.ResponseWriter, r *http.Request, category, suffix stri
 		http.Error(w, "build req: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	// Copy benign headers from client (exclude hop-by-hop)
+
 	for k, vs := range r.Header {
 		if strings.EqualFold(k, "Host") || strings.EqualFold(k, "Authorization") || strings.EqualFold(k, "Content-Length") {
 			continue
@@ -827,7 +785,7 @@ func dispatchMedia(w http.ResponseWriter, r *http.Request, category, suffix stri
 		return
 	}
 	defer upstreamResp.Body.Close()
-	// Copy response back
+
 	for k, vs := range upstreamResp.Header {
 		for _, v := range vs {
 			w.Header().Add(k, v)

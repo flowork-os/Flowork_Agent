@@ -1,15 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// 2026-06-13 (owner-approved, release audit): sanitize the caller-supplied backup
-//   label (sanitizeBackupLabel) — it was concatenated into the backup dir path
-//   unchecked, so a label like "../../tmp/evil" escaped the backups root and wrote
-//   data.sqlite to an arbitrary directory (path traversal). Now keeps [A-Za-z0-9-_].
-// Reason: Audit pass — Store SQLite layer.
-
-// DB Backup Utility (versioned, keep N).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package store
 
@@ -26,11 +18,6 @@ import (
 
 const defaultKeepBackups = 5
 
-// sanitizeBackupLabel keeps only [A-Za-z0-9-_] so a caller-supplied label can
-// NEVER traverse out of the backups root: without this, a label like
-// "../../tmp/evil" turned into filepath.Join(root, label+"-"+ts), escaping the
-// backups directory and writing data.sqlite to an arbitrary path. Falls back to
-// "manual" when the label sanitizes to empty. Release-audit fix 2026-06-13.
 func sanitizeBackupLabel(label string) string {
 	var b strings.Builder
 	for _, r := range label {
@@ -49,12 +36,10 @@ func sanitizeBackupLabel(label string) string {
 	return out
 }
 
-// BackupsDir returns the backups root, creating it on demand.
 func BackupsDir() string {
 	return filepath.Join(dataDir(), "backups")
 }
 
-// BackupInfo describes a captured backup snapshot.
 type BackupInfo struct {
 	Label     string    `json:"label"`
 	Dir       string    `json:"dir"`
@@ -63,21 +48,13 @@ type BackupInfo struct {
 	SizeBytes int64     `json:"sizeBytes"`
 }
 
-// Backup creates a fresh snapshot directory named <label>-<unixSlug> containing
-// data.sqlite. After writing, prunes old backups so at most keepN remain. Pass
-// keepN<=0 to use the default (5). Safe to call while the app holds the DB
-// open — prefers `VACUUM INTO` (SQLite native atomic snapshot) and falls back
-// to plain file copy when VACUUM is unavailable.
 func Backup(label string, keepN int) (*BackupInfo, error) {
-	d, _ := Open() // best-effort; nil ok (fallback to file copy)
+	d, _ := Open()
 	return backupWithConn(d, label, keepN)
 }
 
-// backupWithConn is the same as Backup but takes an explicit connection.
-// Callers reached from inside Open() (e.g. applyMigrations) MUST use this
-// form to avoid re-entering sync.Once and deadlocking.
 func backupWithConn(d *sql.DB, label string, keepN int) (*BackupInfo, error) {
-	label = sanitizeBackupLabel(label) // anti path-traversal (see func doc)
+	label = sanitizeBackupLabel(label)
 	if keepN <= 0 {
 		keepN = defaultKeepBackups
 	}
@@ -93,7 +70,7 @@ func backupWithConn(d *sql.DB, label string, keepN int) (*BackupInfo, error) {
 	dest := filepath.Join(dir, "data.sqlite")
 
 	if err := snapshotIntoWithConn(d, dest); err != nil {
-		// Best effort: clean half-written dir then return the error.
+
 		_ = os.RemoveAll(dir)
 		return nil, err
 	}
@@ -105,7 +82,6 @@ func backupWithConn(d *sql.DB, label string, keepN int) (*BackupInfo, error) {
 	return info, nil
 }
 
-// ListBackups enumerates existing snapshot directories newest-first.
 func ListBackups() ([]BackupInfo, error) {
 	root := BackupsDir()
 	entries, err := os.ReadDir(root)
@@ -143,18 +119,13 @@ func ListBackups() ([]BackupInfo, error) {
 	return out, nil
 }
 
-// snapshotIntoWithConn produces a consistent copy of the live DB at dest.
-// Tries `VACUUM INTO '<dest>'` first (SQLite native, atomic, WAL-aware);
-// falls back to a plain file-copy of DBPath() when the connection is nil
-// (caller invoked before Open() finished, e.g. pre-migrate path).
 func snapshotIntoWithConn(d *sql.DB, dest string) error {
 	if d != nil {
-		// SQLite ≥3.27 supports VACUUM INTO. modernc.org/sqlite ships a recent
-		// build, so this is the preferred path.
+
 		if _, err := d.Exec(`VACUUM INTO ?`, dest); err == nil {
 			return nil
 		}
-		// fall through to copy
+
 	}
 	src := DBPath()
 	in, err := os.Open(src)
@@ -173,7 +144,6 @@ func snapshotIntoWithConn(d *sql.DB, dest string) error {
 	return nil
 }
 
-// pruneBackups deletes oldest snapshots so at most keepN remain.
 func pruneBackups(root string, keepN int) error {
 	entries, err := os.ReadDir(root)
 	if err != nil {

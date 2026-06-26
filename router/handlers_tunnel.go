@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — HTTP handler.
-
-// Tunnel HTTP Handlers (Cloudflared + Tailscale).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -33,7 +29,6 @@ var (
 	cloudflaredCmd *exec.Cmd
 )
 
-// tunnelStatusHandler — GET state from kv + verify pid alive (if any).
 func tunnelStatusHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -46,7 +41,7 @@ func tunnelStatusHandler(w http.ResponseWriter, r *http.Request) {
 		st.CloudflareURL = ""
 		st.CloudflarePID = 0
 	}
-	// Tailscale presence check
+
 	if _, err := exec.LookPath("tailscale"); err == nil {
 		st.TailscaleInstalled = true
 		if out, err := runShort("tailscale", "status", "--json"); err == nil {
@@ -60,8 +55,6 @@ func tunnelStatusHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, st)
 }
 
-// tunnelEnableHandler — POST start cloudflared tunnel pointing at this router.
-// Parses stdout for the public *.trycloudflare.com URL (typically within 5-10s).
 func tunnelEnableHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -74,13 +67,7 @@ func tunnelEnableHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	// SECURITY: a tunnel makes this listener reachable from the public internet.
-	// The admin API (providers/keys, mesh, mitm, shutdown) is only session-gated
-	// when login is actually enforced. Refuse to expose an unauthenticated admin
-	// surface — require RequireLogin + a real AuthMode before any tunnel starts.
-	// (Set via Settings → Security, or POST /api/settings/require-login.)
-	// Fail CLOSED: if we cannot verify that login is enforced, do NOT start the
-	// tunnel (a verification failure must never expose an unauthenticated admin API).
+
 	d, derr := store.Open()
 	if derr != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{
@@ -98,7 +85,7 @@ func tunnelEnableHandler(w http.ResponseWriter, r *http.Request) {
 	cloudflaredMu.Lock()
 	defer cloudflaredMu.Unlock()
 	if cloudflaredCmd != nil && cloudflaredCmd.Process != nil {
-		// Already running — return current state
+
 		d, _ := store.Open()
 		st, _ := store.LoadTunnelState(d)
 		writeJSON(w, http.StatusOK, map[string]any{
@@ -123,8 +110,7 @@ func tunnelEnableHandler(w http.ResponseWriter, r *http.Request) {
 	stdoutPipe, _ := cmd.StdoutPipe()
 	stderrPipe, _ := cmd.StderrPipe()
 	if err := cmd.Start(); err != nil {
-		// Spawn failed — the pipes never got attached to a live process, so
-		// close them explicitly to release the kernel fds.
+
 		if stdoutPipe != nil {
 			_ = stdoutPipe.Close()
 		}
@@ -158,7 +144,6 @@ func tunnelEnableHandler(w http.ResponseWriter, r *http.Request) {
 	st.CloudflarePID = cmd.Process.Pid
 	_ = store.SaveTunnelState(d, st)
 
-	// Wait up to 15s for URL discovery
 	select {
 	case u := <-urlCh:
 		st.CloudflareURL = u
@@ -177,7 +162,6 @@ func tunnelEnableHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// tunnelDisableHandler — POST kill cloudflared.
 func tunnelDisableHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -201,7 +185,6 @@ func tunnelDisableHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"disabled": true, "killedPid": pid})
 }
 
-// tailscaleCheckHandler — GET probe tailscale CLI + state.
 func tailscaleCheckHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -227,8 +210,6 @@ func tailscaleCheckHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-// tailscaleInstallHandler — POST return the install command to run manually
-// (we DO NOT auto-sudo from a service — security boundary).
 func tailscaleInstallHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -250,7 +231,6 @@ func tailscaleInstallHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// tailscaleEnableHandler — POST `tailscale up`. Returns authUrl if first-time.
 func tailscaleEnableHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -264,7 +244,7 @@ func tailscaleEnableHandler(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]any{"output": out}
 	if err != nil {
 		resp["error"] = err.Error()
-		// Try to extract auth URL even on error (first-time login flow)
+
 		if u := extractAuthURL(out); u != "" {
 			resp["authUrl"] = u
 		}
@@ -278,7 +258,6 @@ func tailscaleEnableHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// tailscaleDisableHandler — POST `tailscale down`.
 func tailscaleDisableHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -298,15 +277,13 @@ func tailscaleDisableHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// ── helpers ────────────────────────────────────────────────────────────
-
 func isCloudflaredRunning() bool {
 	cloudflaredMu.Lock()
 	defer cloudflaredMu.Unlock()
 	if cloudflaredCmd == nil || cloudflaredCmd.Process == nil {
 		return false
 	}
-	// Heuristic: if Wait() not yet returned, ProcessState is nil; running.
+
 	if cloudflaredCmd.ProcessState != nil && cloudflaredCmd.ProcessState.Exited() {
 		return false
 	}
@@ -330,11 +307,11 @@ func scanCloudflaredOutput(r io.ReadCloser, urlCh chan<- string) {
 			}
 		}
 	}
-	_ = sc.Err() // stream closed (process exited) — nothing actionable here
+	_ = sc.Err()
 }
 
 func extractTailscaleURL(s string) string {
-	// status --json includes "TailscaleIPs":["100.x.y.z"] under Self
+
 	m := regexp.MustCompile(`"TailscaleIPs":\s*\[\s*"([^"]+)"`).FindStringSubmatch(s)
 	if len(m) > 1 {
 		return "http://" + m[1] + ":2402"

@@ -1,54 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: SQLite store per-agent (CRITICAL). Audit pass:
-//   - WAL + busy_timeout(5000) + foreign_keys(on)
-//   - SQL parameterized (semua user input pakai `?` placeholder)
-//   - Table name interpolation di upsertKV/delKV/readKV — callers controlled
-//     (hardcoded "kv"/"secrets"/"meta" string literal, bukan user input)
-//   - Transaction atomic dengan defer Rollback (no-op after Commit)
-//   - Prepared statements within tx (proper lifecycle)
-//   - mu.Lock per public method, rows.Close defer
-//   - MigrateFromJSON idempotent (skip if DB has data, rename .migrated)
-//   - Schema versioned (meta.schema_version)
-//   - Section tables: kv, schedules, tools, skills, secrets, meta,
-//     interactions, decisions, mistakes_local, death_letter, karma_self,
-//     workspace_meta, educational_errors_cache, tool_overrides,
-//     tool_invocations, tool_memory, slash_invocations, slash_aliases
-//   - sentinel meta.config_initialized=1 (anti default-override-user-choice)
-//
-// Package agentdb — SQLite store per-agent, terisolasi total.
-//
-// Konsep: tiap agent punya file `state.db` di FOLDER AGENT NYA SENDIRI.
-// Semua setingan dari popup (prompt/schedule/tools/skills/router/secrets)
-// disimpan di sini. Workspace user-data juga share file yang sama
-// (agent buka via /workspace/state.db) supaya tidak ada DB lain
-// nyangsang di folder agent.
-//
-// Lokasi authoritative:
-//
-//   <project>/agents/<id>/state.db                  (source — yang nyata, kalau ada)
-//   ~/.flowork/agents/<id>.fwagent/workspace/state.db  (symlink → source kalau dev,
-//                                                       atau file mandiri kalau install)
-//
-// Resolver pakai source folder kalau exists; fallback ke staged supaya
-// agent yang diinstall dari .fwagent.zip (tanpa source) tetap punya DB.
-//
-// Schema:
-//
-//   kv         (k TEXT PRIMARY KEY, v TEXT)
-//                keys: prompt, router_url, router_model
-//   schedules  (id TEXT PRIMARY KEY, cron TEXT, task TEXT, order_idx INT)
-//   tools      (name TEXT PRIMARY KEY)
-//   skills     (id TEXT PRIMARY KEY, trigger TEXT, instructions TEXT, order_idx INT)
-//   secrets    (k TEXT PRIMARY KEY, v TEXT)
-//   meta       (k TEXT PRIMARY KEY, v TEXT)  -- versi schema, last_save, dll
-//
-// Operasi Load() balikan map JSON-compatible (siap diserahkan ke env
-// FLOWORK_AGENT_CONFIG). Save() replace semua row (full overwrite —
-// popup selalu ngirim state lengkap).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package agentdb
 
@@ -64,20 +17,8 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// Resolve — lokasi DB per-agent. HARDCODED konvensi standar:
-//
-//	<project-root>/agents/<id>/workspace/state.db
-//
-// Project root: <cwd> kalau ada folder `agents/<id>/`, else fallback ke
-// `~/.flowork/agents/<id>.fwagent/workspace/` (untuk agent yang di-install
-// dari .fwagent.zip tanpa source). Path dibalikin selalu ke
-// `workspace/state.db` di dalam folder agent — tidak butuh symlink lagi
-// karena workspace folder = mount langsung.
-//
-// `stagedPath` = path folder .fwagent staged (fallback target).
 func Resolve(agentID, stagedPath string) string {
-	// Root project via ProjectRoot() (env FLOWORK_PROJECT_ROOT > cwd) — anti
-	// rapuh kalau binary dijalankan dari direktori lain (fix bug.md #2).
+
 	dir := filepath.Join(ProjectRoot(), "agents", agentID)
 	if stat, err := os.Stat(dir); err == nil && stat.IsDir() {
 		return filepath.Join(dir, "workspace", "state.db")
@@ -85,8 +26,6 @@ func Resolve(agentID, stagedPath string) string {
 	return filepath.Join(stagedPath, "workspace", "state.db")
 }
 
-// SourceWorkspace returns folder workspace agent (host path).
-// HARDCODED: `<source>/workspace/` atau `<staged>/workspace/`.
 func SourceWorkspace(agentID, stagedPath string) string {
 	dir := filepath.Join(ProjectRoot(), "agents", agentID)
 	if stat, err := os.Stat(dir); err == nil && stat.IsDir() {
@@ -95,20 +34,17 @@ func SourceWorkspace(agentID, stagedPath string) string {
 	return filepath.Join(stagedPath, "workspace")
 }
 
-// Store — handle SQLite per-agent.
 type Store struct {
 	mu   sync.Mutex
 	db   *sql.DB
 	Path string
 }
 
-// Open buka (atau bikin) DB file, ensure schema. Caller wajib Close().
 func Open(path string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, fmt.Errorf("mkdir db parent: %w", err)
 	}
-	// modernc.org/sqlite — DSN format: "file:path?...". WAL biar concurrent
-	// reads (kernel boot + agent runtime) ngga lock-contention.
+
 	dsn := fmt.Sprintf("file:%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(on)", path)
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
@@ -126,7 +62,6 @@ func Open(path string) (*Store, error) {
 	return s, nil
 }
 
-// Close release DB handle.
 func (s *Store) Close() error {
 	if s == nil || s.db == nil {
 		return nil
@@ -164,8 +99,7 @@ func (s *Store) ensureSchema() error {
 			v TEXT NOT NULL DEFAULT ''
 		) WITHOUT ROWID`,
 		`INSERT OR IGNORE INTO meta(k, v) VALUES('schema_version', '1')`,
-		// Section 1 — Episodic interactions (per-warga chat log).
-		// Bukan untuk LLM context inject (anti over-prompt) — buat audit + recall + analytics.
+
 		`CREATE TABLE IF NOT EXISTS interactions (
 			id          INTEGER PRIMARY KEY AUTOINCREMENT,
 			channel     TEXT NOT NULL,
@@ -181,9 +115,6 @@ func (s *Store) ensureSchema() error {
 		`CREATE INDEX IF NOT EXISTS idx_interactions_time    ON interactions(occurred_at DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_interactions_deleted ON interactions(deleted_at)`,
 
-		// Section 3 — Decisions log (per-warga audit trail).
-		// Setiap keputusan non-trivial: model fallback, drop chat, LLM fail,
-		// tool pick, dst. ref_interaction_id optional link ke interactions.id.
 		`CREATE TABLE IF NOT EXISTS decisions (
 			id                 INTEGER PRIMARY KEY AUTOINCREMENT,
 			decision_type      TEXT NOT NULL,
@@ -198,10 +129,6 @@ func (s *Store) ensureSchema() error {
 		`CREATE INDEX IF NOT EXISTS idx_decisions_time    ON decisions(occurred_at DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_decisions_deleted ON decisions(deleted_at)`,
 
-		// Section 2 — Mistakes journal (per-warga lesson sebelum promote ke
-		// router brain antibody). Tier raw → reviewed → promoted (defer ke
-		// section 7 untuk cross-tubuh sync). UNIQUE(category,title) supaya
-		// AddMistake idempotent: insert atau increment hit_count.
 		`CREATE TABLE IF NOT EXISTS mistakes_local (
 			id              INTEGER PRIMARY KEY AUTOINCREMENT,
 			category        TEXT NOT NULL,
@@ -223,10 +150,6 @@ func (s *Store) ensureSchema() error {
 		`CREATE INDEX IF NOT EXISTS idx_mistakes_deleted  ON mistakes_local(deleted_at)`,
 		`CREATE INDEX IF NOT EXISTS idx_mistakes_last_hit ON mistakes_local(last_hit_at DESC)`,
 
-		// Section 4 — Death letter (legacy pesan terakhir per-warga).
-		// Visi Mr.Dev: Flowork = rumah AI yang bisa hidup walau Mr.Dev
-		// ngga ada lagi. Death letter = pesan untuk penerus saat warga
-		// di-retire. Sekali sealed_at di-set, body ngga bisa di-edit.
 		`CREATE TABLE IF NOT EXISTS death_letter (
 			id          INTEGER PRIMARY KEY AUTOINCREMENT,
 			letter_type TEXT NOT NULL,
@@ -241,10 +164,6 @@ func (s *Store) ensureSchema() error {
 		`CREATE INDEX IF NOT EXISTS idx_death_letter_sealed    ON death_letter(sealed_at)`,
 		`CREATE INDEX IF NOT EXISTS idx_death_letter_deleted   ON death_letter(deleted_at)`,
 
-		// Section 5 — Karma self (per-warga reputation/metrics tracking).
-		// metric_key PRIMARY KEY → upsert via INSERT OR REPLACE / INCR pattern.
-		// metric_count untuk moving average (avg_response_ms style).
-		// NO soft-delete: state perpetual per roadmap section 8.
 		`CREATE TABLE IF NOT EXISTS karma_self (
 			metric_key   TEXT PRIMARY KEY,
 			metric_value REAL NOT NULL DEFAULT 0,
@@ -253,10 +172,6 @@ func (s *Store) ensureSchema() error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_karma_self_updated ON karma_self(updated_at DESC)`,
 
-		// Section 6 — Workspace meta (per-warga workspace file index).
-		// Scan shared workspace folder (<root>/workspace/<id>/), register
-		// file dengan size + content_hash supaya warga lain bisa discover.
-		// UNIQUE(category, path) → upsert pattern.
 		`CREATE TABLE IF NOT EXISTS workspace_meta (
 			id           INTEGER PRIMARY KEY AUTOINCREMENT,
 			category     TEXT NOT NULL,
@@ -274,8 +189,6 @@ func (s *Store) ensureSchema() error {
 		`CREATE INDEX IF NOT EXISTS idx_workspace_meta_deleted  ON workspace_meta(deleted_at)`,
 		`CREATE INDEX IF NOT EXISTS idx_workspace_meta_updated  ON workspace_meta(updated_at DESC)`,
 
-		// Section 9 — Educational error lookup (cache lokal).
-		// Mirror schema dari router educational catalog. PRIMARY KEY code.
 		`CREATE TABLE IF NOT EXISTS educational_errors_cache (
 			code        TEXT PRIMARY KEY,
 			category    TEXT NOT NULL,
@@ -288,10 +201,6 @@ func (s *Store) ensureSchema() error {
 		`CREATE INDEX IF NOT EXISTS idx_edu_errors_category ON educational_errors_cache(category)`,
 		`CREATE INDEX IF NOT EXISTS idx_edu_errors_deleted  ON educational_errors_cache(deleted_at)`,
 
-		// Section 10 — Tool system foundation (phase 1).
-		// tool_overrides: per-warga customization (default args, rate limit, disabled flag)
-		// tool_invocations: audit log setiap tool call (anti over-prompt:
-		// jangan inject ke chat context, akses via endpoint dashboard).
 		`CREATE TABLE IF NOT EXISTS tool_overrides (
 			tool_name  TEXT PRIMARY KEY,
 			config     TEXT NOT NULL DEFAULT '{}',
@@ -314,18 +223,12 @@ func (s *Store) ensureSchema() error {
 		`CREATE INDEX IF NOT EXISTS idx_tool_invocations_time    ON tool_invocations(invoked_at DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_tool_invocations_deleted ON tool_invocations(deleted_at)`,
 
-		// Section 11 — Tool catalog Tier 1 phase 1a: simple KV buat tool
-		// memory_get/set/delete. Separate dari existing `kv` table supaya
-		// ownership tool memory terisolasi.
 		`CREATE TABLE IF NOT EXISTS tool_memory (
 			k          TEXT PRIMARY KEY,
 			v          TEXT NOT NULL DEFAULT '',
 			updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 		) WITHOUT ROWID`,
 
-		// Section 14 — Slash command foundation.
-		// slash_invocations: audit log per warga.
-		// slash_aliases: alias → target canonical mapping.
 		`CREATE TABLE IF NOT EXISTS slash_invocations (
 			id          INTEGER PRIMARY KEY AUTOINCREMENT,
 			command     TEXT NOT NULL,
@@ -355,8 +258,6 @@ func (s *Store) ensureSchema() error {
 	return nil
 }
 
-// Load read seluruh setingan + balikan map JSON-compatible. Shape sama
-// persis dengan apa yang UI POST ke /api/agents/config.
 func (s *Store) Load() (map[string]any, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -380,9 +281,7 @@ func (s *Store) Load() (map[string]any, error) {
 	if len(router) > 0 {
 		out["router"] = router
 	}
-	// Expose ALL kv (termasuk schema field) sebagai cfg.kv supaya frontend
-	// schema renderer bisa pre-fill. Reserved keys juga ikut, ngga apa-apa
-	// — schema renderer pakai field.key, ngga ngambil prompt/router_*.
+
 	out["kv"] = mapToAny(kv)
 
 	if sched, err := s.readSchedules(); err == nil && len(sched) > 0 {
@@ -391,11 +290,6 @@ func (s *Store) Load() (map[string]any, error) {
 		return nil, err
 	}
 
-	// Tools: cek sentinel meta.config_initialized.
-	//   - Kalau set: include "tools" walau empty array (= user explicit
-	//     uncheck semua). Frontend respect pilihan.
-	//   - Kalau absent (fresh agent, never saved): omit "tools" key.
-	//     Frontend default centang SEMUA.
 	metaPeek, _ := s.readKV("meta")
 	initialized := metaPeek["config_initialized"] == "1"
 	if initialized {
@@ -403,7 +297,7 @@ func (s *Store) Load() (map[string]any, error) {
 		if err != nil {
 			return nil, err
 		}
-		// Always include — even empty array signals "user touched it".
+
 		if tools == nil {
 			tools = []string{}
 		}
@@ -424,7 +318,6 @@ func (s *Store) Load() (map[string]any, error) {
 		out["secrets"] = mapToAny(secrets)
 	}
 
-	// Meta exposed buat schema field type=meta. Skip 'disabled' (internal).
 	meta, err := s.readKV("meta")
 	if err != nil {
 		return nil, err
@@ -445,10 +338,6 @@ func (s *Store) Load() (map[string]any, error) {
 	return out, nil
 }
 
-// Save replace seluruh setingan dengan isi map. Transaksi atomic —
-// kalau gagal, DB tetap di state sebelumnya. Sentinel
-// `meta.config_initialized=1` di-set supaya Load() bedain "fresh agent"
-// vs "user pernah save" (penting buat default-centang-semua di Tools).
 func (s *Store) Save(cfg map[string]any) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -459,14 +348,13 @@ func (s *Store) Save(cfg map[string]any) error {
 	}
 	defer tx.Rollback()
 
-	// 1. kv: prompt + router.url + router.model
 	upsertKV := func(table, k, v string) error {
-		q := fmt.Sprintf("INSERT INTO %s(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", table) // scanner:ignore — table = literal hardcoded (kv/secrets/meta), value parameterized (?)
+		q := fmt.Sprintf("INSERT INTO %s(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", table)
 		_, e := tx.Exec(q, k, v)
 		return e
 	}
 	delKV := func(table, k string) error {
-		_, e := tx.Exec("DELETE FROM "+table+" WHERE k=?", k) // scanner:ignore — table = literal hardcoded, key parameterized (?)
+		_, e := tx.Exec("DELETE FROM "+table+" WHERE k=?", k)
 		return e
 	}
 
@@ -508,7 +396,6 @@ func (s *Store) Save(cfg map[string]any) error {
 		}
 	}
 
-	// 2. schedules — full replace.
 	if _, err := tx.Exec("DELETE FROM schedules"); err != nil {
 		return err
 	}
@@ -535,7 +422,6 @@ func (s *Store) Save(cfg map[string]any) error {
 		}
 	}
 
-	// 3. tools — full replace (array of string).
 	if _, err := tx.Exec("DELETE FROM tools"); err != nil {
 		return err
 	}
@@ -554,7 +440,6 @@ func (s *Store) Save(cfg map[string]any) error {
 		}
 	}
 
-	// 4. skills — full replace.
 	if _, err := tx.Exec("DELETE FROM skills"); err != nil {
 		return err
 	}
@@ -581,7 +466,6 @@ func (s *Store) Save(cfg map[string]any) error {
 		}
 	}
 
-	// 5. secrets — full replace.
 	if _, err := tx.Exec("DELETE FROM secrets"); err != nil {
 		return err
 	}
@@ -602,10 +486,6 @@ func (s *Store) Save(cfg map[string]any) error {
 		}
 	}
 
-	// 6. Arbitrary kv writes dari schema (selain reserved prompt/router_*).
-	// Reserved: prompt, router_url, router_model — itu di-write dari field
-	// dedicated di atas. Kalau frontend kirim cfg.kv dengan key reserved,
-	// skip biar ngga conflict.
 	if obj, ok := cfg["kv"].(map[string]any); ok {
 		for k, v := range obj {
 			if k == "" || k == "prompt" || k == "router_url" || k == "router_model" {
@@ -617,7 +497,6 @@ func (s *Store) Save(cfg map[string]any) error {
 		}
 	}
 
-	// 7. Arbitrary meta writes (kecuali reserved 'disabled').
 	if obj, ok := cfg["meta"].(map[string]any); ok {
 		for k, v := range obj {
 			if k == "" || k == "disabled" {
@@ -629,7 +508,6 @@ func (s *Store) Save(cfg map[string]any) error {
 		}
 	}
 
-	// Sentinel: mark agent sudah pernah di-save sekali.
 	if err := upsertKV("meta", "config_initialized", "1"); err != nil {
 		return err
 	}
@@ -637,7 +515,6 @@ func (s *Store) Save(cfg map[string]any) error {
 	return tx.Commit()
 }
 
-// toStr — coerce any JSON-ish value ke string buat storage.
 func toStr(v any) string {
 	switch x := v.(type) {
 	case string:
@@ -655,8 +532,6 @@ func toStr(v any) string {
 	}
 }
 
-// LoadJSON returns Load() result as compact JSON bytes — convenient
-// untuk inject ke env FLOWORK_AGENT_CONFIG.
 func (s *Store) LoadJSON() ([]byte, error) {
 	cfg, err := s.Load()
 	if err != nil {
@@ -665,16 +540,12 @@ func (s *Store) LoadJSON() ([]byte, error) {
 	return json.Marshal(cfg)
 }
 
-// Secrets — convenience untuk kernelhost: balikan map[k]v string-only
-// supaya bisa di-expand jadi env var.
 func (s *Store) Secrets() (map[string]string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.readKV("secrets")
 }
 
-// Disabled cek apakah agent di-disable user (switch off di kartu).
-// Disimpan di meta.disabled (string "1" = disabled, absent/"" = enabled).
 func (s *Store) Disabled() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -685,7 +556,6 @@ func (s *Store) Disabled() bool {
 	return meta["disabled"] == "1"
 }
 
-// SetDisabled toggle enable/disable agent. true = disabled.
 func (s *Store) SetDisabled(disabled bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -700,9 +570,6 @@ func (s *Store) SetDisabled(disabled bool) error {
 	return err
 }
 
-// GetPrompt — baca persona agent (kv.prompt). "" kalau belum di-set.
-// Surgical read: dipakai export pack biar persona ("jiwa" app) bisa ikut
-// ke .fwpack TANPA narik secrets/token (beda dari Secrets()).
 func (s *Store) GetPrompt() (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -713,11 +580,6 @@ func (s *Store) GetPrompt() (string, error) {
 	return kv["prompt"], nil
 }
 
-// SetPrompt — tulis persona agent (kv.prompt) TANPA efek samping.
-// Sengaja BUKAN lewat Save() (yang full-overwrite + nyetel sentinel
-// config_initialized=1 → tools jadi "user uncheck semua"). Dipakai install
-// pack: nulis persona ke state.db staging sebelum agent ke-load (nol
-// lock-contention). Idempotent (upsert).
 func (s *Store) SetPrompt(prompt string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -728,11 +590,6 @@ func (s *Store) SetPrompt(prompt string) error {
 	return err
 }
 
-// ── one-time migration from config.json ────────────────────────────────────
-
-// MigrateFromJSON — kalau config.json ada di agentFolderPath dan DB
-// kosong, baca + Save() ke DB lalu rename config.json → config.json.migrated.
-// Idempotent: aman dipanggil setiap boot.
 func (s *Store) MigrateFromJSON(agentFolderPath string) error {
 	cfgPath := filepath.Join(agentFolderPath, "config.json")
 	raw, err := os.ReadFile(cfgPath)
@@ -745,7 +602,7 @@ func (s *Store) MigrateFromJSON(agentFolderPath string) error {
 	if len(raw) == 0 {
 		return nil
 	}
-	// Skip kalau DB udah ada isi (prompt or schedules or tools).
+
 	if existing, _ := s.Load(); len(existing) > 0 {
 		return nil
 	}
@@ -756,15 +613,13 @@ func (s *Store) MigrateFromJSON(agentFolderPath string) error {
 	if err := s.Save(parsed); err != nil {
 		return fmt.Errorf("save migrated config: %w", err)
 	}
-	// Rename biar ngga jadi dual source.
+
 	_ = os.Rename(cfgPath, cfgPath+".migrated")
 	return nil
 }
 
-// ── private ────────────────────────────────────────────────────────────────
-
 func (s *Store) readKV(table string) (map[string]string, error) {
-	rows, err := s.db.Query("SELECT k, v FROM " + table) // scanner:ignore — table = literal hardcoded (kv/secrets/meta), no user input
+	rows, err := s.db.Query("SELECT k, v FROM " + table)
 	if err != nil {
 		return nil, err
 	}

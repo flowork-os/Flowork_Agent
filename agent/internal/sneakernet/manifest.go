@@ -1,39 +1,29 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 19 phase 1 — sneakernet manifest format. JSON shape
-//   buat header tarball: agent_id, version, host_origin, contents stat.
-//   Phase 2 (signed_origin, mesh_peers_cache, CRDT merge token) → tambah
-//   field baru, JANGAN modify ini.
-//
-// manifest.go — Section 19 phase 1: sneakernet manifest.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package sneakernet
 
 import "time"
 
 const (
-	// FormatVersion — bump kalau breaking schema.
 	FormatVersion = 1
-	// ManifestPath — entry path di tarball.
+
 	ManifestPath = "_meta/manifest.json"
 )
 
-// Manifest — header pertama di .fwsync tarball.
 type Manifest struct {
 	FormatVersion int    `json:"format_version"`
 	AgentID       string `json:"agent_id"`
-	Version       string `json:"version"`        // agent manifest version
-	HostOrigin    string `json:"host_origin"`    // hostname asal export
-	CreatedAt     string `json:"created_at"`     // RFC3339 UTC
-	Encrypted     bool   `json:"encrypted"`      // true → AES-256-GCM
-	StateDBBytes  int64  `json:"state_db_bytes"` // size state.db (snapshot via VACUUM INTO)
-	FilesCount    int    `json:"files_count"`    // count file di tarball (selain manifest)
+	Version       string `json:"version"`
+	HostOrigin    string `json:"host_origin"`
+	CreatedAt     string `json:"created_at"`
+	Encrypted     bool   `json:"encrypted"`
+	StateDBBytes  int64  `json:"state_db_bytes"`
+	FilesCount    int    `json:"files_count"`
 }
 
-// NewManifest — preset format_version + created_at.
 func NewManifest(agentID, version, hostOrigin string, encrypted bool) Manifest {
 	return Manifest{
 		FormatVersion: FormatVersion,

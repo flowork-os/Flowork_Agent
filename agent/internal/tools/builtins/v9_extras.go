@@ -1,13 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Port batch 8 — 6 tool tambahan.
-//
-// v9_extras.go:
-//   karma_set, kv_get, kv_set, manifest_inspect, tool_lookup,
-//   tool_search.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package builtins
 
@@ -27,10 +21,6 @@ func init() {
 	tools.Register(&toolLookupTool{})
 	tools.Register(&toolSearchTool{})
 }
-
-// =============================================================================
-// 1. karma_set — increment atau average karma metric
-// =============================================================================
 
 type karmaSetTool struct{}
 
@@ -77,10 +67,6 @@ func (karmaSetTool) Run(ctx context.Context, args map[string]any) (tools.Result,
 	}, nil
 }
 
-// =============================================================================
-// 2. kv_get — read single kv key
-// =============================================================================
-
 type kvGetTool struct{}
 
 func (kvGetTool) Name() string       { return "kv_get" }
@@ -115,10 +101,6 @@ func (kvGetTool) Run(ctx context.Context, args map[string]any) (tools.Result, er
 	}, nil
 }
 
-// =============================================================================
-// 3. kv_set — write kv key
-// =============================================================================
-
 type kvSetTool struct{}
 
 func (kvSetTool) Name() string       { return "kv_set" }
@@ -147,7 +129,7 @@ func (kvSetTool) Run(ctx context.Context, args map[string]any) (tools.Result, er
 	if key == "prompt" || key == "router_url" || key == "router_model" {
 		return tools.Result{}, fmt.Errorf("reserved key %q (pakai cara dedicated)", key)
 	}
-	// Save via partial map cfg.kv.
+
 	cfg := map[string]any{"kv": map[string]any{key: value}}
 	if err := store.Save(cfg); err != nil {
 		return tools.Result{}, fmt.Errorf("save kv: %w", err)
@@ -156,10 +138,6 @@ func (kvSetTool) Run(ctx context.Context, args map[string]any) (tools.Result, er
 		Output: map[string]any{"ok": true, "key": key},
 	}, nil
 }
-
-// =============================================================================
-// 4. manifest_inspect — return current agent manifest snapshot
-// =============================================================================
 
 type manifestInspectTool struct{}
 
@@ -206,10 +184,6 @@ func (manifestInspectTool) Run(ctx context.Context, args map[string]any) (tools.
 	}, nil
 }
 
-// =============================================================================
-// 5. tool_lookup — describe single tool by name
-// =============================================================================
-
 type toolLookupTool struct{}
 
 func (toolLookupTool) Name() string       { return "tool_lookup" }
@@ -244,10 +218,6 @@ func (toolLookupTool) Run(ctx context.Context, args map[string]any) (tools.Resul
 		},
 	}, nil
 }
-
-// =============================================================================
-// 6. tool_search — search tool registry by substring (anti over-prompt cap 10)
-// =============================================================================
 
 type toolSearchTool struct{}
 

@@ -1,24 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 11 P1 skill tools — `skill` (run by name, fetch body
-//   dari Router) + `skill_search` (substring search Router catalog).
-//   Reuse routerclient (Section 7 phase 2 locked). Phase 2 `skill_write`
-//   (push baru ke Router) → tambah file baru, JANGAN modify ini.
-//
-// skill.go — Section 11 P1: skill + skill_search.
-//
-// SKILL EXECUTION MODEL:
-//   Phase 1 = retrieve. Tool return skill body markdown sebagai output —
-//   caller (LLM persona Mr.Flow) consume isi sebagai system-prompt-style
-//   instruction. Tool NGGA execute kode/script — itu phase 2 territory
-//   (kalau body punya `run: bash` frontmatter, tool harus dispatch).
-//
-// SECURITY:
-//   Capability `rpc:router:skill`. Router URL per-agent dari kv (via
-//   buildRouterClient pattern di routerclient.NewFromAgentURL).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package builtins
 
@@ -31,10 +14,6 @@ import (
 	"flowork-gui/internal/routerclient"
 	"flowork-gui/internal/tools"
 )
-
-// =============================================================================
-// skill — fetch Router skill body by name
-// =============================================================================
 
 type skillTool struct{}
 
@@ -76,10 +55,6 @@ func (skillTool) Run(ctx context.Context, args map[string]any) (tools.Result, er
 		"body":        doc.Body,
 	}}, nil
 }
-
-// =============================================================================
-// skill_search — list skill summary by substring
-// =============================================================================
 
 type skillSearchTool struct{}
 
@@ -136,11 +111,7 @@ func (skillSearchTool) Run(ctx context.Context, args map[string]any) (tools.Resu
 	}}, nil
 }
 
-// routerClientFromCtx — return Client bound ke default router. Phase 1
-// constraint: tool ngga punya ctx-access ke per-agent kv.router_url
-// (broker design). Pakai DefaultRouterURL + host whitelist gate. Phase 2
-// → expose per-agent URL via additional ctx key.
 func routerClientFromCtx() *routerclient.Client {
-	// NewFromAgentURL("") → fallback ke DefaultRouterURL.
+
 	return routerclient.NewFromAgentURL("")
 }

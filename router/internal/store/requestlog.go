@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Store SQLite layer.
-
-// Request Log Store (Console Log + Usage).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package store
 
@@ -15,13 +11,12 @@ import (
 	"time"
 )
 
-// LogEntry — single request log entry.
 type LogEntry struct {
 	ID               int64     `json:"id"`
 	Ts               time.Time `json:"ts"`
 	ProviderID       string    `json:"providerId,omitempty"`
 	ProviderName     string    `json:"providerName,omitempty"`
-	APIKeyID         string    `json:"apiKeyId,omitempty"` // inbound key attribution ("" = anonymous)
+	APIKeyID         string    `json:"apiKeyId,omitempty"`
 	Model            string    `json:"model"`
 	ClientIP         string    `json:"clientIp,omitempty"`
 	StatusCode       int       `json:"statusCode"`
@@ -33,7 +28,6 @@ type LogEntry struct {
 	LatencyMs        int64     `json:"latencyMs"`
 }
 
-// LogRequest — append-only insert. Best-effort, log error tapi ngga gagal caller.
 func LogRequest(d *sql.DB, e *LogEntry) error {
 	now := time.Now().UTC()
 	if e.Ts.IsZero() {
@@ -42,7 +36,6 @@ func LogRequest(d *sql.DB, e *LogEntry) error {
 	tsStr := e.Ts.Format(time.RFC3339)
 	dayStr := e.Ts.Format("2006-01-02")
 
-	// Insert ke usageHistory (lightweight)
 	_, err := d.Exec(`INSERT INTO usageHistory (ts, provider, model, apiKeyId, promptTokens, completionTokens, costUsd, latencyMs, status)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		tsStr, e.ProviderID, e.Model, e.APIKeyID,
@@ -51,7 +44,6 @@ func LogRequest(d *sql.DB, e *LogEntry) error {
 		return fmt.Errorf("usageHistory insert: %w", err)
 	}
 
-	// Upsert usageDaily aggregate
 	_, _ = d.Exec(`INSERT INTO usageDaily (day, provider, model, apiKeyId, requestCount, promptTokens, completionTokens, costUsd)
 		VALUES (?, ?, ?, ?, 1, ?, ?, ?)
 		ON CONFLICT(day, provider, model, apiKeyId) DO UPDATE SET
@@ -62,7 +54,6 @@ func LogRequest(d *sql.DB, e *LogEntry) error {
 		dayStr, e.ProviderID, e.Model, e.APIKeyID,
 		e.PromptTokens, e.CompletionTokens, e.CostUsd)
 
-	// Auto-prune kalau > 10000 rows
 	_, _ = d.Exec(`DELETE FROM usageHistory WHERE id IN (
 		SELECT id FROM usageHistory ORDER BY id ASC LIMIT (
 			SELECT MAX(0, COUNT(*) - 10000) FROM usageHistory
@@ -88,8 +79,6 @@ func statusText(code int, err string) string {
 	return "unknown"
 }
 
-// ListRecent — return last N entries (default 100, max 1000).
-// Optional filter: provider, model, status.
 func ListRecent(d *sql.DB, limit int, providerFilter, statusFilter string) ([]LogEntry, error) {
 	if limit <= 0 || limit > 1000 {
 		limit = 100
@@ -102,8 +91,7 @@ func ListRecent(d *sql.DB, limit int, providerFilter, statusFilter string) ([]Lo
 		args = append(args, providerFilter)
 	}
 	if statusFilter != "" {
-		// "error" means "anything that is not a clean ok" — so it also catches
-		// client_error / server_error / unknown, not just rows tagged "error".
+
 		if statusFilter == "error" {
 			q += ` AND status != 'ok'`
 		} else {
@@ -144,10 +132,6 @@ func ListRecent(d *sql.DB, limit int, providerFilter, statusFilter string) ([]Lo
 		out = append(out, e)
 	}
 
-	// Resolve provider IDs → human-friendly names. The log only stores the
-	// provider ID; without this the UI can show nothing but a cryptic UUID
-	// fragment (ProviderName was previously never populated). Deleted providers
-	// keep their ID (the UI falls back to a short prefix).
 	if len(out) > 0 {
 		names := map[string]string{}
 		if prows, perr := d.Query(`SELECT id, provider, name FROM providerConnections`); perr == nil {
@@ -173,7 +157,6 @@ func ListRecent(d *sql.DB, limit int, providerFilter, statusFilter string) ([]Lo
 	return out, nil
 }
 
-// AggregateUsage — daily/per-provider/per-model aggregate untuk Usage tab.
 type UsageRow struct {
 	Day              string  `json:"day"`
 	Provider         string  `json:"provider"`
@@ -214,7 +197,6 @@ func AggregateUsage(d *sql.DB, fromDay, toDay string) ([]UsageRow, error) {
 	return out, nil
 }
 
-// TodayTotals — quick summary buat dashboard.
 type TodayTotals struct {
 	Day              string  `json:"day"`
 	RequestCount     int64   `json:"requestCount"`

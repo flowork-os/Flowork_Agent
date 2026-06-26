@@ -1,22 +1,17 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Provider request/response translator.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Helper: image content block translation (OpenAI ⇄ Anthropic ⇄ Gemini).
 package helpers
 
 import "strings"
 
-// OpenAIImageToAnthropic converts an OpenAI `image_url` part →
-// Anthropic `image.source` block. Supports both raw URL and base64 data-URL.
 func OpenAIImageToAnthropic(part map[string]any) map[string]any {
 	urlObj, _ := part["image_url"].(map[string]any)
 	url, _ := urlObj["url"].(string)
 	if strings.HasPrefix(url, "data:") {
-		// data:<mime>;base64,<payload>
+
 		mime, payload := splitDataURL(url)
 		return map[string]any{
 			"type": "image",
@@ -36,8 +31,6 @@ func OpenAIImageToAnthropic(part map[string]any) map[string]any {
 	}
 }
 
-// AnthropicImageToOpenAI converts an Anthropic `image` block →
-// OpenAI `image_url` part. Re-emits a data: URL when base64.
 func AnthropicImageToOpenAI(block map[string]any) map[string]any {
 	src, _ := block["source"].(map[string]any)
 	srcType, _ := src["type"].(string)
@@ -63,8 +56,6 @@ func AnthropicImageToOpenAI(block map[string]any) map[string]any {
 	return nil
 }
 
-// OpenAIImageToGemini converts an OpenAI `image_url` part →
-// Gemini `inline_data` part (base64) or `file_data` (URL).
 func OpenAIImageToGemini(part map[string]any) map[string]any {
 	urlObj, _ := part["image_url"].(map[string]any)
 	url, _ := urlObj["url"].(string)
@@ -84,8 +75,6 @@ func OpenAIImageToGemini(part map[string]any) map[string]any {
 	}
 }
 
-// splitDataURL parses "data:<mime>;base64,<payload>" → (mime, payload).
-// Falls back to ("application/octet-stream", "") on malformed input.
 func splitDataURL(s string) (string, string) {
 	if !strings.HasPrefix(s, "data:") {
 		return "application/octet-stream", ""

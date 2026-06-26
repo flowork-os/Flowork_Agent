@@ -1,14 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Store SQLite layer.
-// 2026-06-13 (release audit — data refresh): SeedDefaultPricing rates verified against OFFICIAL
-//   vendor pages (Anthropic/OpenAI/Google/DeepSeek). Added Claude Fable 5 (top tier above Opus),
-//   Opus 4.8 ($5/$25), GPT-5.x, Gemini 3.x, DeepSeek chat/reasoner — removed stale gpt-4o/o1/gemini-2.5.
-
-// Pricing Rate Cards.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package store
 
@@ -17,7 +10,6 @@ import (
 	"time"
 )
 
-// Pricing — single rate card row.
 type Pricing struct {
 	Provider           string    `json:"provider"`
 	Model              string    `json:"model"`
@@ -71,10 +63,6 @@ func GetPricing(d *sql.DB, provider, model string) (*Pricing, error) {
 	return &p, nil
 }
 
-// LookupPricingByModel — find a rate card by model id across any provider
-// (exact match first, then suffix/prefix best-effort). Returns nil if none.
-// Used by the dispatcher's cost estimate so pricing is DATA-driven, never
-// hardcoded.
 func LookupPricingByModel(d *sql.DB, model string) (*Pricing, error) {
 	if model == "" {
 		return nil, nil
@@ -93,11 +81,11 @@ func LookupPricingByModel(d *sql.DB, model string) (*Pricing, error) {
 		return &p, nil
 	}
 	const cols = `provider, model, inputUsdPer1M, outputUsdPer1M, cacheReadUsdPer1M, cacheWriteUsdPer1M, currency, source, updatedAt`
-	// exact
+
 	if p, err := scan(d.QueryRow(`SELECT `+cols+` FROM pricing WHERE model = ? LIMIT 1`, model)); err != nil || p != nil {
 		return p, err
 	}
-	// strip provider prefix (e.g. "cc/claude-..." or "kr/...") then exact
+
 	if i := len(model) - 1; i > 0 {
 		if slash := indexByteRev(model, '/'); slash >= 0 && slash < len(model)-1 {
 			bare := model[slash+1:]
@@ -106,7 +94,7 @@ func LookupPricingByModel(d *sql.DB, model string) (*Pricing, error) {
 			}
 		}
 	}
-	// prefix match (first 10 chars) — handles versioned model ids
+
 	pref := model
 	if len(pref) > 10 {
 		pref = pref[:10]
@@ -147,11 +135,6 @@ func DeletePricing(d *sql.DB, provider, model string) error {
 	return err
 }
 
-// SeedDefaultPricing — populate baseline rate cards if pricing table empty.
-// Source: official vendor pricing pages, verified 2026-06-13 (docs.anthropic.com,
-// developers.openai.com, ai.google.dev, api-docs.deepseek.com). The dispatcher's cost estimate is
-// data-driven from this table, and the user can edit it via /api/pricing — so these are just a
-// current-as-of-release baseline, not authoritative forever.
 func SeedDefaultPricing(d *sql.DB) error {
 	var n int
 	_ = d.QueryRow(`SELECT COUNT(*) FROM pricing`).Scan(&n)
@@ -159,20 +142,20 @@ func SeedDefaultPricing(d *sql.DB) error {
 		return nil
 	}
 	seed := []Pricing{
-		// Anthropic — Fable 5 is the top tier ABOVE Opus; Opus dropped to $5/$25 at 4.8.
+
 		{Provider: "anthropic", Model: "claude-fable-5", InputUsdPer1M: 10, OutputUsdPer1M: 50, CacheReadUsdPer1M: 1, CacheWriteUsdPer1M: 12.5, Source: "vendor-public-2026-06"},
 		{Provider: "anthropic", Model: "claude-opus-4-8", InputUsdPer1M: 5, OutputUsdPer1M: 25, CacheReadUsdPer1M: 0.5, CacheWriteUsdPer1M: 6.25, Source: "vendor-public-2026-06"},
 		{Provider: "anthropic", Model: "claude-sonnet-4-6", InputUsdPer1M: 3, OutputUsdPer1M: 15, CacheReadUsdPer1M: 0.3, CacheWriteUsdPer1M: 3.75, Source: "vendor-public-2026-06"},
 		{Provider: "anthropic", Model: "claude-haiku-4-5", InputUsdPer1M: 1, OutputUsdPer1M: 5, CacheReadUsdPer1M: 0.1, CacheWriteUsdPer1M: 1.25, Source: "vendor-public-2026-06"},
-		// OpenAI — GPT-5.x generation.
+
 		{Provider: "openai", Model: "gpt-5.5", InputUsdPer1M: 5, OutputUsdPer1M: 30, CacheReadUsdPer1M: 0.5, Source: "vendor-public-2026-06"},
 		{Provider: "openai", Model: "gpt-5.4", InputUsdPer1M: 2.5, OutputUsdPer1M: 15, CacheReadUsdPer1M: 0.25, Source: "vendor-public-2026-06"},
 		{Provider: "openai", Model: "gpt-5.4-mini", InputUsdPer1M: 0.75, OutputUsdPer1M: 4.5, CacheReadUsdPer1M: 0.075, Source: "vendor-public-2026-06"},
 		{Provider: "openai", Model: "gpt-5.4-nano", InputUsdPer1M: 0.2, OutputUsdPer1M: 1.25, CacheReadUsdPer1M: 0.02, Source: "vendor-public-2026-06"},
-		// DeepSeek — chat/reasoner (deprecate 2026-07-24 → v4-flash; kept for compatibility).
+
 		{Provider: "deepseek", Model: "deepseek-chat", InputUsdPer1M: 0.27, OutputUsdPer1M: 1.1, CacheReadUsdPer1M: 0.07, Source: "vendor-public-2026-06"},
 		{Provider: "deepseek", Model: "deepseek-reasoner", InputUsdPer1M: 0.55, OutputUsdPer1M: 2.19, CacheReadUsdPer1M: 0.14, Source: "vendor-public-2026-06"},
-		// Google Gemini — now on 3.x (2.5 superseded).
+
 		{Provider: "google", Model: "gemini-3.1-pro-preview", InputUsdPer1M: 2, OutputUsdPer1M: 12, Source: "vendor-public-2026-06"},
 		{Provider: "google", Model: "gemini-3.5-flash", InputUsdPer1M: 1.5, OutputUsdPer1M: 9, Source: "vendor-public-2026-06"},
 		{Provider: "google", Model: "gemini-3-flash-preview", InputUsdPer1M: 0.5, OutputUsdPer1M: 3, Source: "vendor-public-2026-06"},

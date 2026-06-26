@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Router dispatcher.
-
-// Streaming Dispatch (SSE).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package router
 
@@ -26,10 +22,6 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-// DispatchChatCompletionStream — streaming variant. Writes SSE directly to w.
-// Returns (firstByteLatencyMs, totalLatencyMs, usage, status, error). Once
-// the stream has begun, errors only logged; no retry possible (response
-// already committed).
 func DispatchChatCompletionStream(ctx context.Context, req OpenAIRequest, w http.ResponseWriter) (status int, usage OpenAIUsage, err error) {
 	d, err := store.Open()
 	if err != nil {
@@ -37,8 +29,7 @@ func DispatchChatCompletionStream(ctx context.Context, req OpenAIRequest, w http
 	}
 
 	settings, _ := store.LoadSettings(d)
-	// No model pinned → highest-priority ON provider (priority order), same as the
-	// non-stream dispatcher. DefaultModel only if no active provider has one.
+
 	if req.Model == "" {
 		if top := globalFallbackModels(d, nil); len(top) > 0 {
 			req.Model = top[0]
@@ -53,24 +44,17 @@ func DispatchChatCompletionStream(ctx context.Context, req OpenAIRequest, w http
 		}
 	}
 
-	// Brain enrichment (see dispatcher.go): inject knowledge + skills when the
-	// request targets the brain model. No-op unless enabled.
 	maybeEnrichBrain(ctx, &req, settings)
-	// Antibody injection (mistakeenrich.go): karma-ranked mistakes → anti-halu. Fails open.
+
 	maybeInjectAntibodies(ctx, &req, settings)
-	// Instinct injection (instinctenrich.go): insting WHEN→THEN relevan di-PAKSA masuk
-	// → agent SADAR kapan pakai tool/fitur. Fails open. (stream path: mirror non-stream.)
+
 	maybeInjectInstinct(ctx, &req, settings)
 
-	// #9 intent-gated tools (mirror non-stream): prune tool-schema relevan → potong token.
-	// Escape-hatch selalu lolos. No-op kalau FLOW_ROUTER_DYNAMIC_TOOLS!=1. dynamic_tools.go.
 	req = maybeFilterTools(ctx, req, settings)
 
-	// Model manager: resolve alias / custom (→ effective model + provider pin).
 	resolvedModel, pinnedProvider := resolveModel(d, req.Model)
 	req.Model = resolvedModel
 
-	// Combo resolution
 	if pinnedProvider == "" {
 		if combo, _ := store.GetComboByName(d, req.Model); combo != nil && len(combo.Models) > 0 {
 			picked := pickComboModel(combo)
@@ -86,15 +70,7 @@ func DispatchChatCompletionStream(ctx context.Context, req OpenAIRequest, w http
 	if pinnedProvider != "" {
 		matches = pinProvider(d, matches, pinnedProvider)
 	}
-	// STABLE — DO NOT MODIFY without owner approval (locked 2026-06-15). Mirror of
-	// the failover-by-priority in dispatcher.go — see the locked block there for the
-	// full 2-brain / diversity / sovereign-failover rationale + the llama-server
-	// context lesson. Keep both paths in sync.
-	//
-	// Owner doctrine: if the requested model's provider is OFF (no active match),
-	// slide to the next ON provider by priority instead of failing with a 404.
-	// This is pre-stream (nothing written yet), so we just need to land on a
-	// servable model before the first byte. Mirrors the non-stream dispatcher.
+
 	if len(matches) == 0 && (settings == nil || settings.FallbackStrategy != "none") {
 		for _, fb := range globalFallbackModels(d, []string{req.Model}) {
 			fbModel, fbPin := resolveModel(d, fb)
@@ -108,8 +84,7 @@ func DispatchChatCompletionStream(ctx context.Context, req OpenAIRequest, w http
 				}
 			}
 			log.Printf("flow_router priority fallback (stream): %q unavailable → trying %q (next ON provider)", req.Model, fbModel)
-			// Land doctrine on the local fallback brain model (the stream path
-			// otherwise never injects the constitution).
+
 			if !isCrewLightModel(fbModel) {
 				maybeInjectConstitution(ctx, &req, settings)
 				maybeEnrichBrain(ctx, &req, settings)
@@ -125,7 +100,6 @@ func DispatchChatCompletionStream(ctx context.Context, req OpenAIRequest, w http
 		return http.StatusForbidden, usage, fmt.Errorf("model %q is disabled", req.Model)
 	}
 
-	// Inbound API-key scope: drop providers the key is not allowed to use.
 	keyID := apiKeyID(ctx)
 	if key := APIKeyFromContext(ctx); key != nil {
 		matches = filterByAllowedProviders(matches, key)
@@ -134,7 +108,6 @@ func DispatchChatCompletionStream(ctx context.Context, req OpenAIRequest, w http
 		}
 	}
 
-	// Per-intent multiplexing: private prompt → local-tagged provider only.
 	if settings != nil && settings.IntentRouting.Enabled && promptIsPrivate(req, settings.IntentRouting.PrivatePatterns) {
 		tag := settings.IntentRouting.PrivateTag
 		if tag == "" {
@@ -147,8 +120,6 @@ func DispatchChatCompletionStream(ctx context.Context, req OpenAIRequest, w http
 		matches = local
 	}
 
-	// Cost-tier routing: classify request → filter by tier:* tag. Same gate
-	// as the non-streaming dispatcher so behavior is consistent.
 	if settings != nil && settings.CostRouting.Enabled {
 		if !(settings.CostRouting.HonorExplicitModel && hasActiveProviderForModel(matches, req.Model)) {
 			tier := ClassifyCost(req, settings.CostRouting)
@@ -158,7 +129,6 @@ func DispatchChatCompletionStream(ctx context.Context, req OpenAIRequest, w http
 		}
 	}
 
-	// Fallback strategy: reorder candidates (priority_ordered = unchanged).
 	if settings != nil {
 		matches = applyFallbackStrategy(matches, settings.FallbackStrategy, req.Model)
 	}
@@ -173,7 +143,6 @@ func DispatchChatCompletionStream(ctx context.Context, req OpenAIRequest, w http
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
 
-	// Try providers in priority order
 	var lastErr error
 	for _, p := range matches {
 		req.Stream = true
@@ -182,8 +151,6 @@ func DispatchChatCompletionStream(ctx context.Context, req OpenAIRequest, w http
 		latencyMs := time.Since(t0).Milliseconds()
 		usage = u
 
-		// Log usage best-effort (panic-recovered so a logging bug can't crash
-		// the streaming dispatcher).
 		safego.GoLabel("logUsageStream", func() {
 			logUsageStream(keyID, p.ID, req.Model, &u, st, err, latencyMs)
 		})
@@ -191,19 +158,18 @@ func DispatchChatCompletionStream(ctx context.Context, req OpenAIRequest, w http
 		if err == nil {
 			return st, u, nil
 		}
-		// If we already wrote any SSE, can't retry — break.
+
 		if st == streamingPartialWrite {
 			log.Printf("flow_router stream FAILED mid-stream provider=%s: %v", p.Name, err)
-			return http.StatusOK, u, nil // already wrote OK header + partial
+			return http.StatusOK, u, nil
 		}
 		lastErr = err
 		log.Printf("flow_router stream fallback model=%s provider=%s: %v", req.Model, p.Name, err)
 	}
-	// Nothing succeeded
+
 	return http.StatusBadGateway, usage, fmt.Errorf("all providers failed; last: %w", lastErr)
 }
 
-// sentinel status meaning "headers/body already started, no retry possible"
 const streamingPartialWrite = -1
 
 func streamFromProvider(ctx context.Context, p *store.ProviderConnection, req OpenAIRequest, w http.ResponseWriter, flusher http.Flusher) (OpenAIUsage, int, error) {
@@ -212,11 +178,9 @@ func streamFromProvider(ctx context.Context, p *store.ProviderConnection, req Op
 	if baseURL == "" {
 		return OpenAIUsage{}, 0, fmt.Errorf("provider %s missing baseUrl", p.ID)
 	}
-	// Power saver (idle-sleep): wake the local engine if it was unloaded, and hold it
-	// loaded until this stream returns. No-op for cloud. See router/llm_idle_sleep.go.
+
 	defer wakeLocalIfNeeded(baseURL)()
-	// Vendor executor registry: when a pluggable executor is registered for
-	// this format, delegate. Otherwise fall through to the built-in handlers.
+
 	if ex := executors.Get(format); ex != nil {
 		u, st, err := ex.Stream(ctx, p, executorRequest(req), w, flusher)
 		return OpenAIUsage{
@@ -240,8 +204,6 @@ func streamFromProvider(ctx context.Context, p *store.ProviderConnection, req Op
 	}
 }
 
-// executorRequest converts the internal OpenAIRequest into the slim Request
-// used by the executor framework, so /internal/executors/ stays cycle-free.
 func executorRequest(r OpenAIRequest) executors.Request {
 	msgs := make([]executors.Message, len(r.Messages))
 	for i, m := range r.Messages {
@@ -257,8 +219,6 @@ func executorRequest(r OpenAIRequest) executors.Request {
 	}
 }
 
-// streamOpenAICompat — issue stream:true to upstream, pipe SSE 1:1.
-// Track usage from final non-data line / usage chunk if upstream provides it.
 func streamOpenAICompat(ctx context.Context, p *store.ProviderConnection, baseURL string, req OpenAIRequest, w http.ResponseWriter, flusher http.Flusher) (OpenAIUsage, int, error) {
 	req.Stream = true
 	body, _ := json.Marshal(req)
@@ -282,7 +242,6 @@ func streamOpenAICompat(ctx context.Context, p *store.ProviderConnection, baseUR
 		return OpenAIUsage{}, resp.StatusCode, fmt.Errorf("upstream %d: %s", resp.StatusCode, truncate(string(respBody), 200))
 	}
 
-	// Flush 200 OK header to client immediately
 	w.WriteHeader(http.StatusOK)
 	flusher.Flush()
 
@@ -292,7 +251,7 @@ func streamOpenAICompat(ctx context.Context, p *store.ProviderConnection, baseUR
 	var firstLineWritten bool
 	for scanner.Scan() {
 		line := scanner.Bytes()
-		// Pass through as-is, including blank line separators
+
 		_, werr := w.Write(line)
 		if werr != nil {
 			return usage, streamingPartialWrite, werr
@@ -300,7 +259,6 @@ func streamOpenAICompat(ctx context.Context, p *store.ProviderConnection, baseUR
 		_, _ = w.Write([]byte("\n"))
 		firstLineWritten = true
 
-		// Inspect data: lines for usage stats
 		if bytes.HasPrefix(line, []byte("data: ")) {
 			payload := bytes.TrimSpace(bytes.TrimPrefix(line, []byte("data: ")))
 			if !bytes.Equal(payload, []byte("[DONE]")) && len(payload) > 0 {
@@ -328,16 +286,6 @@ func streamOpenAICompat(ctx context.Context, p *store.ProviderConnection, baseUR
 	return usage, http.StatusOK, nil
 }
 
-// Anthropic streaming events we care about:
-//
-//	message_start         → emit role:"assistant" start chunk
-//	content_block_delta   → emit OpenAI delta.content
-//	message_delta         → carries stop_reason + usage.output_tokens
-//	message_stop          → emit final chunk with finish_reason + [DONE]
-//	ping                  → ignore (keepalive)
-//	error                 → propagate as SSE error event
-//
-// Ref: https://docs.anthropic.com/en/api/messages-streaming
 func streamAnthropic(ctx context.Context, p *store.ProviderConnection, baseURL string, req OpenAIRequest, w http.ResponseWriter, flusher http.Flusher) (OpenAIUsage, int, error) {
 	anthrReq := AnthropicRequest{
 		Model:       normalizeClaudeModel(req.Model),
@@ -391,7 +339,6 @@ func streamAnthropic(ctx context.Context, p *store.ProviderConnection, baseURL s
 	chunkID := fmt.Sprintf("chatcmpl-%d", time.Now().UnixNano())
 	created := time.Now().Unix()
 
-	// Emit initial role:"assistant" delta chunk
 	writeOpenAIDelta(w, flusher, chunkID, created, req.Model, map[string]any{"role": "assistant"}, "")
 
 	scanner := bufio.NewScanner(resp.Body)
@@ -465,12 +412,12 @@ func streamAnthropic(ctx context.Context, p *store.ProviderConnection, baseURL s
 			}
 			writeOpenAIDelta(w, flusher, chunkID, created, req.Model, map[string]any{}, fr)
 			usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
-			// Final [DONE] marker
+
 			_, _ = w.Write([]byte("data: [DONE]\n\n"))
 			flusher.Flush()
 			return usage, http.StatusOK, nil
 		case "error":
-			// Anthropic streaming error event — propagate
+
 			_, _ = fmt.Fprintf(w, "data: {\"error\":{\"type\":\"upstream\",\"message\":%q}}\n\n", payload)
 			flusher.Flush()
 			return usage, streamingPartialWrite, fmt.Errorf("anthropic stream error: %s", payload)
@@ -482,13 +429,12 @@ func streamAnthropic(ctx context.Context, p *store.ProviderConnection, baseURL s
 		}
 		return usage, http.StatusBadGateway, err
 	}
-	// Stream ended without explicit message_stop — best effort terminator.
+
 	_, _ = w.Write([]byte("data: [DONE]\n\n"))
 	flusher.Flush()
 	return usage, http.StatusOK, nil
 }
 
-// writeOpenAIDelta — emit one OpenAI-format SSE chunk.
 func writeOpenAIDelta(w http.ResponseWriter, flusher http.Flusher, id string, created int64, model string, delta map[string]any, finishReason string) {
 	chunk := map[string]any{
 		"id":      id,
@@ -515,7 +461,6 @@ func writeOpenAIDelta(w http.ResponseWriter, flusher http.Flusher, id string, cr
 	flusher.Flush()
 }
 
-// logUsageStream — best-effort usage log for streaming dispatch.
 func logUsageStream(apiKeyID, providerID, model string, usage *OpenAIUsage, status int, errIn error, latencyMs int64) {
 	d, err := store.Open()
 	if err != nil {

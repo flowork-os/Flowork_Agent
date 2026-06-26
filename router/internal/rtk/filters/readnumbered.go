@@ -1,11 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — audit pass surface review.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Filter: read-numbered — "  N|content" file dumps (cat -n / sed n etc).
 package filters
 
 import (
@@ -32,7 +29,7 @@ func (r *readNumbered) Detect(head string) bool {
 			hits++
 		}
 	}
-	// At least half the lines look line-numbered.
+
 	return float64(hits)/float64(len(lines)) > 0.5
 }
 

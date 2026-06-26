@@ -1,27 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev). Locked: 2026-06-02.
-// Reason: FASE 7 MCP server. E2E verified (initialize/tools/list/tools/call →
-//
-//	task_list+task_run+task_result drive Flowork beneran). Extend tool → tambah
-//	di toolDefs + callTool.
-//	2026-06-06: +tool `chat` (Connections — MCP jadi connector first-class: chat ke
-//	agent via /api/kernel/rpc, JALUR SAMA Telegram/CLI). Owner-authorized extend.
-//
-// flowork-mcp — FASE 7: MCP (Model Context Protocol) server buat AI EKSTERNAL
-// (Claude Desktop/Code, Cursor, dll) drive Flowork. 1-pintu: tool MCP →
-// endpoint lokal → JALUR SAMA kayak chat/Telegram (doktrin funnel).
-//
-// Transport: stdio, JSON-RPC 2.0 newline-delimited (MCP stdio standard).
-// Tools yang di-expose: chat (connector ke agent), task_list, task_run, task_result.
-// Connector self-config: agent tujuan dari env FLOWORK_MCP_AGENT atau
-// ~/.flowork/connectors/mcp/config.json (key "agent"/"TARGET_AGENT"), default mr-flow-next.
-//
-// Wiring (mcp.json AI eksternal):
-//
-//	{ "mcpServers": { "flowork": { "command": "/path/to/flowork-mcp" } } }
-//
-// Env: FLOWORK_SELF_URL (default http://127.0.0.1:1987) — server Flowork.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
+
 package main
 
 import (
@@ -53,11 +34,9 @@ func selfURL() string {
 
 var httpClient = &http.Client{Timeout: 20 * time.Second}
 
-// ── JSON-RPC types ───────────────────────────────────────────────────────────
-
 type rpcReq struct {
 	JSONRPC string          `json:"jsonrpc"`
-	ID      json.RawMessage `json:"id,omitempty"` // absent = notification
+	ID      json.RawMessage `json:"id,omitempty"`
 	Method  string          `json:"method"`
 	Params  json.RawMessage `json:"params,omitempty"`
 }
@@ -87,11 +66,11 @@ func main() {
 		}
 		var req rpcReq
 		if err := json.Unmarshal([]byte(line), &req); err != nil {
-			continue // ga bisa parse → skip (ga ada id buat balas)
+			continue
 		}
 		resp, isNotif := handle(req)
 		if isNotif {
-			continue // notification → ga ada balasan
+			continue
 		}
 		b, _ := json.Marshal(resp)
 		out.Write(b)
@@ -110,7 +89,7 @@ func handle(req rpcReq) (rpcResp, bool) {
 			"serverInfo":      map[string]any{"name": serverName, "version": serverVersion},
 		}
 	case "notifications/initialized", "initialized":
-		return resp, true // notification
+		return resp, true
 	case "ping":
 		resp.Result = map[string]any{}
 	case "tools/list":
@@ -119,14 +98,12 @@ func handle(req rpcReq) (rpcResp, bool) {
 		resp.Result = callTool(req.Params)
 	default:
 		if len(req.ID) == 0 {
-			return resp, true // unknown notification
+			return resp, true
 		}
 		resp.Error = &rpcErr{Code: -32601, Message: "method not found: " + req.Method}
 	}
 	return resp, false
 }
-
-// ── Tool definitions (MCP shape) ─────────────────────────────────────────────
 
 func toolDefs() []map[string]any {
 	return []map[string]any{
@@ -173,8 +150,6 @@ func toolDefs() []map[string]any {
 	}
 }
 
-// ── tools/call dispatch ──────────────────────────────────────────────────────
-
 func callTool(params json.RawMessage) map[string]any {
 	var p struct {
 		Name      string         `json:"name"`
@@ -210,9 +185,6 @@ func callTool(params json.RawMessage) map[string]any {
 	return map[string]any{"content": []map[string]any{{"type": "text", "text": text}}}
 }
 
-// callChat bridges an MCP chat tool-call to a Flowork agent via the loopback kernel
-// RPC (handle_message) — the SAME message path Telegram and the CLI connector drive,
-// so the reply is identical. Empty agent → the connector's configured default.
 func callChat(message, agent string) (string, error) {
 	if strings.TrimSpace(message) == "" {
 		return "", fmt.Errorf("message required")
@@ -240,12 +212,9 @@ func callChat(message, agent string) (string, error) {
 	if parsed.Reply != "" {
 		return parsed.Reply, nil
 	}
-	return raw, nil // unknown shape — return raw so nothing is hidden
+	return raw, nil
 }
 
-// mcpAgent resolves which agent this MCP connector chats with. Self-managed config:
-// env FLOWORK_MCP_AGENT, else ~/.flowork/connectors/mcp/config.json (key "agent" or
-// "TARGET_AGENT"), else mr-flow-next. Paths via filepath → multi-OS.
 func mcpAgent() string {
 	if v := strings.TrimSpace(os.Getenv("FLOWORK_MCP_AGENT")); v != "" {
 		return v
@@ -264,11 +233,9 @@ func mcpAgent() string {
 			}
 		}
 	}
-	return defaultMCPAgent() // default mr-flow (ENV FLOWORK_ORCHESTRATOR override); mr-flow-next belum ke-deploy — lock/mrflow.md §6b
+	return defaultMCPAgent()
 }
 
-// defaultMCPAgent — fallback agent target. SATU switch dgn host: ENV FLOWORK_ORCHESTRATOR,
-// default mr-flow (orchestrator LIVE).
 func defaultMCPAgent() string {
 	if v := strings.TrimSpace(os.Getenv("FLOWORK_ORCHESTRATOR")); v != "" {
 		return v
@@ -276,7 +243,6 @@ func defaultMCPAgent() string {
 	return "mr-flow"
 }
 
-// httpText — call endpoint Flowork lokal, balikin body sebagai text.
 func httpText(method, path string, body []byte) (string, error) {
 	var r io.Reader
 	if body != nil {

@@ -1,40 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval (reversible, owner-editable).
-// Owner: Aola Sahidin (Mr.Dev)
-// Locked: 2026-06-06
-// Reason: Connections registry core (ROADMAP_CONNECTIONS.md). The connector lifecycle
-//
-//   - the kind:channel install gerbang. Adding a connector = dropping a folder, never
-//     editing this file. The security gate (refuse GrantOwner caps), id-validation and
-//     zip-slip guard here are load-bearing — don't weaken them.
-//     2026-06-06 (owner-directed): config now reads/writes the connector's OWN agentdb
-//     store secrets (Load→merge→Save) — the home for a connector's CHAT credential that
-//     buildAgentEnv injects. Manifest-declared fields (loket.ConfigField) so the GUI
-//     hardcodes no connector's keys. NOTE: owner NOTIFICATIONS are a separate concern —
-//     they live in Settings → Notifications (floworkdb), not in any connector.
-//     2026-06-12 (owner-directed): SECRET-typed fields are now CENTRALIZED in
-//     Settings → API Keys (global floworkdb) — the single secret store. SetConfig
-//     routes them there (and drops any per-agent copy); GetConfig overlays them;
-//     central.go derives the keys from each connector's schema and feeds the frozen
-//     kernelhost.EnvForwardKeys hook so the token reaches the connector via env.
-//     Non-secret fields (TARGET_AGENT, channels) still live in the connector's store.
-//
-// Package connections is the isolated registry for "Connections" — Flowork's
-// universal connector system (telegram/discord/email/cli/schedule/mcp). A
-// connector is a kind:channel wasm module living in its OWN .fwagent folder; it
-// bridges an external surface to the loket bus and owns nothing else.
-//
-// WHY this package is its own thing (read ROADMAP_CONNECTIONS.md for the full
-// rationale): the headline guarantee is "1 connector errors → fix ONLY its
-// folder." That is why:
-//   - every connector is a self-contained folder (wasm + manifest + its own state);
-//   - enabled-state is a MARKER FILE inside the connector folder, never a shared
-//     table — a central row could couple connectors and break isolation;
-//   - uninstall is just removing the folder: no central cleanup, nothing dangling;
-//   - this management logic lives in its OWN package, so a bug here can't reach
-//     agentmgr/main (same pattern as internal/scanapi for scanner packs).
-//
-// Multi-OS: pure-Go, paths via filepath only — no hardcoded separators.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
+
 package connections
 
 import (
@@ -60,36 +28,24 @@ var (
 	errNotFound  = errors.New("connector not found")
 )
 
-// secretKeyRe flags config keys whose VALUE is a credential, so the management API
-// can mask them. The value still lives in the connector's own folder (the owner
-// chose self-managed tokens); masking only keeps it out of list/GET responses.
 var secretKeyRe = regexp.MustCompile(`(?i)(token|secret|password|api[_-]?key|\bkey\b)`)
 
-// connIDRe is the allowed connector id shape. Lowercase + digits + dash/underscore,
-// no dots or slashes — so an id can never become a path-traversal segment when it is
-// turned into a folder name. Matches the engine's pluginIDRe.
 var connIDRe = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{1,63}$`)
 
-// disabledMarker is the file that, when present in a connector's folder, marks it
-// disabled. Absence = enabled. State-in-folder = isolation (see package doc).
 const disabledMarker = ".connector-disabled"
 
-// fwagentSuffix is the folder suffix every module (and thus every connector) uses.
 const fwagentSuffix = ".fwagent"
 
-// Connector is the management view of one installed connector.
 type Connector struct {
 	ID      string              `json:"id"`
 	Name    string              `json:"name"`
 	Kind    string              `json:"kind"`
 	Version string              `json:"version"`
 	Enabled bool                `json:"enabled"`
-	Config  []loket.ConfigField `json:"config,omitempty"` // declared settable fields (schema)
-	Values  map[string]string   `json:"values,omitempty"` // current values (secrets masked)
+	Config  []loket.ConfigField `json:"config,omitempty"`
+	Values  map[string]string   `json:"values,omitempty"`
 }
 
-// folder returns the connector's own folder, validating the id first so a crafted
-// id can never escape AgentsDir.
 func folder(id string) (string, bool) {
 	if !connIDRe.MatchString(id) {
 		return "", false
@@ -97,8 +53,6 @@ func folder(id string) (string, bool) {
 	return filepath.Join(loader.AgentsDir(), id+fwagentSuffix), true
 }
 
-// readManifest reads a module folder's loket.json (fallback manifest.json) and
-// returns the parsed manifest, or nil if it isn't a valid manifest.
 func readManifest(dir string) *loket.Manifest {
 	for _, name := range []string{"loket.json", "manifest.json"} {
 		raw, err := os.ReadFile(filepath.Join(dir, name))
@@ -112,26 +66,22 @@ func readManifest(dir string) *loket.Manifest {
 	return nil
 }
 
-// IsEnabled reports whether a connector is enabled (no disabled-marker present).
-// Unknown/invalid id → false.
 func IsEnabled(id string) bool {
 	if isNative(id) {
-		return true // a host-side binary is always available
+		return true
 	}
 	dir, ok := folder(id)
 	if !ok {
 		return false
 	}
 	if _, err := os.Stat(filepath.Join(dir, disabledMarker)); err == nil {
-		return false // marker present → disabled
+		return false
 	}
 	return true
 }
 
-// List enumerates every connector: the built-in host-side ones (CLI, MCP) plus
-// every installed kind:channel wasm module under AgentsDir — one roof.
 func List() []Connector {
-	out := nativeList() // built-in CLI + MCP first
+	out := nativeList()
 	entries, err := os.ReadDir(loader.AgentsDir())
 	if err != nil {
 		return out
@@ -147,9 +97,9 @@ func List() []Connector {
 		dir := filepath.Join(loader.AgentsDir(), e.Name())
 		m := readManifest(dir)
 		if m == nil || m.Kind != loket.KindChannel {
-			continue // only channel-kind modules are connectors
+			continue
 		}
-		values, _ := GetConfigMasked(id) // current settings (secrets masked)
+		values, _ := GetConfigMasked(id)
 		out = append(out, Connector{
 			ID:      id,
 			Name:    m.Name,
@@ -163,8 +113,6 @@ func List() []Connector {
 	return out
 }
 
-// SetEnabled toggles a connector on/off by adding/removing its disabled-marker.
-// The connector daemon consults IsEnabled to decide whether to go live.
 func SetEnabled(id string, enabled bool) error {
 	if isNative(id) {
 		return errors.New("built-in connector is always on")
@@ -186,8 +134,6 @@ func SetEnabled(id string, enabled bool) error {
 	return os.WriteFile(marker, []byte("disabled by owner\n"), 0o644)
 }
 
-// Uninstall removes a connector entirely — just its folder. Nothing central to
-// clean up, because nothing about the connector lived outside its folder.
 func Uninstall(id string) error {
 	if isNative(id) {
 		return errors.New("built-in connector can't be uninstalled")
@@ -202,11 +148,6 @@ func Uninstall(id string) error {
 	return os.RemoveAll(dir)
 }
 
-// connectorStore opens a connector's OWN agentdb store — the single home for ITS
-// config + credentials (its chat token, target agent, …). buildAgentEnv injects
-// these secrets to the live connector at boot, so writing here reaches the connector
-// without any copy in the agent. NOTE: this is the connector's CHAT credential and is
-// SEPARATE from owner notifications, which live in Settings → Notifications (floworkdb).
 func connectorStore(id string) (*agentdb.Store, error) {
 	dir, ok := folder(id)
 	if !ok {
@@ -218,8 +159,6 @@ func connectorStore(id string) (*agentdb.Store, error) {
 	return agentdb.Open(agentdb.Resolve(id, dir))
 }
 
-// schemaOf returns the config fields a connector declares in its manifest. The GUI
-// renders these; the kernel hardcodes no connector's keys (plug-and-play).
 func schemaOf(id string) []loket.ConfigField {
 	if isNative(id) {
 		return nativeSchema(id)
@@ -234,8 +173,6 @@ func schemaOf(id string) []loket.ConfigField {
 	return nil
 }
 
-// GetConfig returns a connector's stored values (its own store secrets), keyed as
-// the connector reads them. Real values — internal use only.
 func GetConfig(id string) (map[string]string, error) {
 	if isNative(id) {
 		return nativeGetConfig(id), nil
@@ -249,8 +186,7 @@ func GetConfig(id string) (map[string]string, error) {
 	if err != nil || secrets == nil {
 		secrets = map[string]string{}
 	}
-	// Overlay centralized secrets from Settings → API Keys (global) for the
-	// connector's secret-typed fields — the single source of truth for tokens.
+
 	if fdb, ferr := floworkdb.Shared(); ferr == nil {
 		for _, f := range schemaOf(id) {
 			if isSecretField(f) {
@@ -263,8 +199,6 @@ func GetConfig(id string) (map[string]string, error) {
 	return secrets, nil
 }
 
-// GetConfigMasked returns only the declared schema fields, secret-typed values
-// masked — for the management API, so a token never rides a response to the browser.
 func GetConfigMasked(id string) (map[string]string, error) {
 	cur, err := GetConfig(id)
 	if err != nil {
@@ -281,15 +215,11 @@ func GetConfigMasked(id string) (map[string]string, error) {
 	return out, nil
 }
 
-// SetConfig merges patch into the connector's OWN store secrets — the single source.
-// Load→merge→Save preserves the other secrets (store.Save full-replaces the secrets
-// table, so a blind partial write would wipe them). Empty value deletes a key.
 func SetConfig(id string, patch map[string]string) error {
 	if isNative(id) {
-		return nativeSetConfig(id, patch) // built-in: config in its own ~/.flowork/connectors/<id>/
+		return nativeSetConfig(id, patch)
 	}
-	// Secret-typed fields are centralized in Settings → API Keys (global floworkdb);
-	// non-secret fields stay in the connector's own store.
+
 	secretKey := map[string]bool{}
 	for _, f := range schemaOf(id) {
 		if isSecretField(f) {
@@ -314,8 +244,7 @@ func SetConfig(id string, patch map[string]string) error {
 		if !configKeyRe.MatchString(k) {
 			return errors.New("invalid config key " + k)
 		}
-		// Route a secret to the global Settings store and NEVER keep a per-agent
-		// copy (a stale copy would shadow a later Settings edit via env ordering).
+
 		if secretKey[k] && ferr == nil {
 			if v == "" {
 				_ = fdb.DeleteSecret(k)
@@ -335,11 +264,8 @@ func SetConfig(id string, patch map[string]string) error {
 	return st.Save(cfg)
 }
 
-// configKeyRe bounds config keys to safe identifiers (so a key can't be a path or
-// shell-meta when later injected as an env var name).
 var configKeyRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]{0,63}$`)
 
-// maskSecret shows only the last 4 chars of a credential.
 func maskSecret(v string) string {
 	if len(v) <= 4 {
 		return "••••"
@@ -347,8 +273,6 @@ func maskSecret(v string) string {
 	return "••••••" + v[len(v)-4:]
 }
 
-// ownerCaps returns the subset of consumed caps that are high-risk (GrantOwner) in
-// the frozen loket vocabulary — the caps an install gerbang must gate.
 func ownerCaps(consumes []string) []string {
 	var bad []string
 	for _, c := range consumes {
@@ -359,11 +283,8 @@ func ownerCaps(consumes []string) []string {
 	return bad
 }
 
-// maxPackFiles bounds how many files a single connector pack may contain — a cheap
-// guard against a zip with a runaway number of entries.
 const maxPackFiles = 200
 
-// channelPackManifest is the plugin.json shape for a kind:channel pack.
 type channelPackManifest struct {
 	ID      string `json:"id"`
 	Kind    string `json:"kind"`
@@ -373,11 +294,6 @@ type channelPackManifest struct {
 	} `json:"channel"`
 }
 
-// InstallChannelPack extracts a kind:channel .fwpack into its own connector folder
-// (staging + atomic rename → fsnotify hot-load). The wasm payload lives at
-// agents/<id>/* exactly like an agent pack. Returns (body, status); status 0 = ok.
-//
-// Mirrors scanapi.InstallScannerPack so the gerbang stays uniform across kinds.
 func InstallChannelPack(raw []byte) (map[string]any, int) {
 	zr, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
 	if err != nil {
@@ -425,7 +341,7 @@ func InstallChannelPack(raw []byte) (map[string]any, int) {
 		rel := strings.TrimPrefix(name, prefix)
 		dest := filepath.Join(staging, filepath.FromSlash(rel))
 		if c, e := filepath.Rel(staging, dest); e != nil || strings.HasPrefix(c, "..") {
-			continue // anti zip-slip
+			continue
 		}
 		if e := os.MkdirAll(filepath.Dir(dest), 0o755); e != nil {
 			return map[string]any{"error": "mkdir: " + e.Error()}, http.StatusInternalServerError
@@ -453,8 +369,7 @@ func InstallChannelPack(raw []byte) (map[string]any, int) {
 	if got == 0 || !wasmSeen {
 		return map[string]any{"error": "no agent.wasm under agents/" + id + "/ in pack"}, http.StatusBadRequest
 	}
-	// The extracted manifest MUST itself declare kind:channel — a pack can't smuggle
-	// in an agent of another kind under the connector gerbang.
+
 	sm := readManifest(staging)
 	if sm == nil || sm.Kind != loket.KindChannel {
 		return map[string]any{"error": "extracted manifest is not kind:channel"}, http.StatusBadRequest
@@ -462,11 +377,7 @@ func InstallChannelPack(raw []byte) (map[string]any, int) {
 	if sm.ID != id {
 		return map[string]any{"error": "manifest id mismatch with pack id"}, http.StatusBadRequest
 	}
-	// SECURITY: the loket grants a module exactly the caps its manifest consumes, so
-	// the INSTALL gerbang is where high-risk caps must be stopped. A connector is a
-	// dumb pipe — it needs only the bus (host_net_fetch is a wasm host import, NOT a
-	// loket cap). Refuse any GrantOwner cap (fs/exec/http.fetch); a third-party
-	// connector has no business asking for them and would otherwise be auto-granted.
+
 	if dangerous := ownerCaps(sm.Consumes); len(dangerous) > 0 {
 		return map[string]any{
 			"error":          "connector requests high-risk capabilities — refused",

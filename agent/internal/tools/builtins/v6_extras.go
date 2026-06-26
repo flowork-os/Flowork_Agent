@@ -1,13 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Port batch 5 — 6 tool tambahan.
-//
-// v6_extras.go:
-//   wallet_balance, finance_summary, finance_log, kv_list,
-//   tool_invocations_list, protector_rules_list.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package builtins
 
@@ -27,10 +21,6 @@ func init() {
 	tools.Register(&toolInvocationsListTool{})
 	tools.Register(&protectorRulesListTool{})
 }
-
-// =============================================================================
-// 2. finance_summary — finance ledger summary per period
-// =============================================================================
 
 type financeSummaryTool struct{}
 
@@ -56,7 +46,7 @@ func (financeSummaryTool) Run(ctx context.Context, args map[string]any) (tools.R
 	if period == "" {
 		period = "30d"
 	}
-	// Period → from/to ISO. Simplification: from = empty (all-time) untuk 30d default.
+
 	summary, err := store.SummaryLedger("", "")
 	if err != nil {
 		return tools.Result{}, fmt.Errorf("summary ledger: %w", err)
@@ -65,10 +55,6 @@ func (financeSummaryTool) Run(ctx context.Context, args map[string]any) (tools.R
 		Output: map[string]any{"period": period, "summary": summary},
 	}, nil
 }
-
-// =============================================================================
-// 3. finance_log — append finance ledger entry
-// =============================================================================
 
 type financeLogTool struct{}
 
@@ -107,17 +93,17 @@ func (financeLogTool) Run(ctx context.Context, args map[string]any) (tools.Resul
 	if currency == "" {
 		return tools.Result{}, fmt.Errorf("currency required")
 	}
-	// AddLedger pakai struct FinanceLedger. Map ke fields.
+
 	cost := amt
 	if entryType == "expense" {
-		// Expense as positive cost (consumer pattern).
+
 	} else {
-		// Income as negative cost (reverse).
+
 		cost = -amt
 	}
 	entry := agentdb.FinanceLedger{
 		Category:     category,
-		Provider:     currency, // reuse Provider field untuk currency slot
+		Provider:     currency,
 		Model:        entryType,
 		CostUSD:      cost,
 		MetadataJSON: note,
@@ -130,10 +116,6 @@ func (financeLogTool) Run(ctx context.Context, args map[string]any) (tools.Resul
 		Output: map[string]any{"ok": true, "id": id},
 	}, nil
 }
-
-// =============================================================================
-// 4. kv_list — dump kv keys (anti-secret: skip prefix _)
-// =============================================================================
 
 type kvListTool struct{}
 
@@ -169,10 +151,6 @@ func (kvListTool) Run(ctx context.Context, args map[string]any) (tools.Result, e
 		Output: map[string]any{"count": len(keys), "keys": keys},
 	}, nil
 }
-
-// =============================================================================
-// 5. tool_invocations_list — tool call audit log per agent
-// =============================================================================
 
 type toolInvocationsListTool struct{}
 
@@ -210,10 +188,6 @@ func (toolInvocationsListTool) Run(ctx context.Context, args map[string]any) (to
 		Output: map[string]any{"count": len(items), "items": items},
 	}, nil
 }
-
-// =============================================================================
-// 6. protector_rules_list — list protector rules aktif
-// =============================================================================
 
 type protectorRulesListTool struct{}
 

@@ -1,26 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 12 (HTTP boundary) phase 1 DONE. Endpoints stable:
-//   POST /api/brain/constitution/propose body ProposeOpts. GET
-//   /api/brain/constitution/proposals?include_content=&limit= summary
-//   or full. POST /api/brain/constitution/vote?id=&approve=0|1 header
-//   X-Voter-ID. MaxBytesReader 32KB, DisallowUnknownFields. Future
-//   /api/brain/constitution/history endpoint → tambah file baru,
-//   JANGAN modify ini.
-//
-// handlers_brain_proposals.go — Section 12 phase 1: propose+vote endpoints.
-//
-// Endpoints:
-//   POST /api/brain/constitution/propose — submit pending rule
-//   GET  /api/brain/constitution/proposals?include_content=1&limit=
-//   POST /api/brain/constitution/vote?id=<n>&approve=1 (or approve=0 for reject)
-//
-// Roadmap:
-//   - internal/constitution/proposals.go (Propose/ListPending/Vote)
-//   - flowork_Router/roadmap.md Section 12 phase 1
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -35,7 +16,6 @@ import (
 
 const maxProposalBodyBytes = 32 * 1024
 
-// brainProposeHandler — POST /api/brain/constitution/propose
 func brainProposeHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed (use POST)", http.StatusMethodNotAllowed)
@@ -65,7 +45,6 @@ func brainProposeHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// brainProposalsListHandler — GET /api/brain/constitution/proposals
 func brainProposalsListHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed (use GET)", http.StatusMethodNotAllowed)
@@ -87,16 +66,12 @@ func brainProposalsListHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"items":         items,
-		"count":         len(items),
+		"items":           items,
+		"count":           len(items),
 		"include_content": includeContent,
 	})
 }
 
-// brainVoteHandler — POST /api/brain/constitution/vote?id=<n>&approve=1
-//   approve=1 → "approve" action
-//   approve=0 → "reject" action
-// Header X-Voter-ID untuk audit (free-form, default 'anonymous')
 func brainVoteHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed (use POST)", http.StatusMethodNotAllowed)

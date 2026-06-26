@@ -1,14 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Port batch 9 — 10 auditor.
-//
-// auditors_v10.go:
-//   timezone_load, init_order, panic_log, panic_runtime,
-//   shell_pipe, command_injection_pipe, embed_directory,
-//   wasm_unsafe_export, network_print, struct_pack_align.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package scanner
 
@@ -18,16 +11,16 @@ import (
 )
 
 func init() {
-	Auditors["timezone_load_auditor"]       = AuditTimezoneLoad
-	Auditors["init_order_auditor"]          = AuditInitOrder
-	Auditors["panic_log_auditor"]           = AuditPanicLog
-	Auditors["panic_runtime_auditor"]       = AuditPanicRuntime
-	Auditors["shell_pipe_auditor"]          = AuditShellPipe
+	Auditors["timezone_load_auditor"] = AuditTimezoneLoad
+	Auditors["init_order_auditor"] = AuditInitOrder
+	Auditors["panic_log_auditor"] = AuditPanicLog
+	Auditors["panic_runtime_auditor"] = AuditPanicRuntime
+	Auditors["shell_pipe_auditor"] = AuditShellPipe
 	Auditors["command_injection_pipe_auditor"] = AuditCommandInjectionPipe
-	Auditors["embed_directory_auditor"]     = AuditEmbedDirectory
-	Auditors["wasm_unsafe_export_auditor"]  = AuditWASMUnsafeExport
-	Auditors["network_print_auditor"]       = AuditNetworkPrint
-	Auditors["struct_pack_align_auditor"]   = AuditStructPackAlign
+	Auditors["embed_directory_auditor"] = AuditEmbedDirectory
+	Auditors["wasm_unsafe_export_auditor"] = AuditWASMUnsafeExport
+	Auditors["network_print_auditor"] = AuditNetworkPrint
+	Auditors["struct_pack_align_auditor"] = AuditStructPackAlign
 }
 
 var loadLocationRE = regexp.MustCompile(`time\.LoadLocation\s*\(\s*"`)
@@ -57,7 +50,7 @@ func AuditInitOrder(filePath, content string) []Finding {
 	if !strings.HasSuffix(filePath, ".go") {
 		return nil
 	}
-	// Heuristic: multiple init() di file sama bisa cause ordering confusion.
+
 	count := strings.Count(content, "func init()")
 	if count > 2 {
 		return []Finding{{
@@ -82,9 +75,9 @@ func AuditPanicLog(filePath, content string) []Finding {
 	out := []Finding{}
 	for i, line := range strings.Split(content, "\n") {
 		if panicLogRE.MatchString(line) {
-			// log.Fatal at main() OK; flag kalau dalam func library.
+
 			if strings.Contains(content, "func main") && i < 50 {
-				continue // probably main()
+				continue
 			}
 			out = append(out, Finding{
 				Auditor:     "panic_log_auditor",
@@ -221,7 +214,7 @@ func AuditNetworkPrint(filePath, content string) []Finding {
 	if !strings.HasSuffix(filePath, ".go") {
 		return nil
 	}
-	// Skip — Go convention OK; cuma untuk cross-check.
+
 	return nil
 }
 
@@ -229,6 +222,6 @@ func AuditStructPackAlign(filePath, content string) []Finding {
 	if !strings.HasSuffix(filePath, ".go") {
 		return nil
 	}
-	// Field-alignment heuristic. Placeholder — needs AST.
+
 	return nil
 }

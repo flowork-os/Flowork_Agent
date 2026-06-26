@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Store SQLite layer.
-
-// API Keys (flow_router client auth).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package store
 
@@ -20,13 +16,12 @@ import (
 	"github.com/google/uuid"
 )
 
-// APIKey — stored metadata + hash.
 type APIKey struct {
 	ID               string    `json:"id"`
 	Name             string    `json:"name"`
-	KeyHash          string    `json:"-"`                      // never expose hash
-	KeyPrefix        string    `json:"keyPrefix"`              // e.g. "flr_abc1..."
-	PlaintextKey     string    `json:"plaintextKey,omitempty"` // ONLY on create, never re-read
+	KeyHash          string    `json:"-"`
+	KeyPrefix        string    `json:"keyPrefix"`
+	PlaintextKey     string    `json:"plaintextKey,omitempty"`
 	AllowedProviders string    `json:"allowedProviders"`
 	DailyCapUsd      float64   `json:"dailyCapUsd"`
 	MonthlyCapUsd    float64   `json:"monthlyCapUsd"`
@@ -35,9 +30,8 @@ type APIKey struct {
 	LastUsedAt       string    `json:"lastUsedAt,omitempty"`
 }
 
-// GenerateAPIKey — create new key, return plaintext (only shown once).
 func GenerateAPIKey(d *sql.DB, name, allowedProviders string, dailyCap, monthlyCap float64) (*APIKey, error) {
-	// Generate 32-byte random key
+
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
 		return nil, fmt.Errorf("rand: %w", err)
@@ -51,7 +45,7 @@ func GenerateAPIKey(d *sql.DB, name, allowedProviders string, dailyCap, monthlyC
 		Name:             name,
 		KeyHash:          hashStr,
 		KeyPrefix:        plaintext[:14] + "...",
-		PlaintextKey:     plaintext, // returned to caller — DON'T persist
+		PlaintextKey:     plaintext,
 		AllowedProviders: allowedProviders,
 		DailyCapUsd:      dailyCap,
 		MonthlyCapUsd:    monthlyCap,
@@ -99,9 +93,6 @@ func DeleteAPIKey(d *sql.DB, id string) error {
 	return err
 }
 
-// SpendSince — total USD a key has spent on/after sinceDay (YYYY-MM-DD),
-// summed from the usageDaily aggregate. Used to enforce per-key daily/monthly
-// caps. Returns 0 for keys with no usage (or free/local models, cost 0).
 func SpendSince(d *sql.DB, apiKeyID, sinceDay string) (float64, error) {
 	var total float64
 	err := d.QueryRow(`SELECT COALESCE(SUM(costUsd), 0) FROM usageDaily
@@ -112,8 +103,6 @@ func SpendSince(d *sql.DB, apiKeyID, sinceDay string) (float64, error) {
 	return total, nil
 }
 
-// TotalSpendSince — total USD across ALL keys + anonymous on/after sinceDay.
-// Backs the global budget cap (settings.Budget).
 func TotalSpendSince(d *sql.DB, sinceDay string) (float64, error) {
 	var total float64
 	err := d.QueryRow(`SELECT COALESCE(SUM(costUsd), 0) FROM usageDaily
@@ -124,8 +113,6 @@ func TotalSpendSince(d *sql.DB, sinceDay string) (float64, error) {
 	return total, nil
 }
 
-// VerifyAPIKey — given plaintext, return matching APIKey or nil.
-// Used di middleware kalau requireAuth enabled.
 func VerifyAPIKey(d *sql.DB, plaintext string) (*APIKey, error) {
 	hash := sha256.Sum256([]byte(plaintext))
 	hashStr := hex.EncodeToString(hash[:])
@@ -144,7 +131,6 @@ func VerifyAPIKey(d *sql.DB, plaintext string) (*APIKey, error) {
 	k.IsActive = active == 1
 	k.CreatedAt, _ = time.Parse(time.RFC3339, createdStr)
 
-	// Update lastUsedAt async
 	go func() {
 		_, _ = d.Exec(`UPDATE apiKeys SET lastUsedAt = ? WHERE id = ?`,
 			time.Now().UTC().Format(time.RFC3339), k.ID)

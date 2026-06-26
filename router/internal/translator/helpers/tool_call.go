@@ -1,11 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Provider request/response translator.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Helper: tool-call shape translation between OpenAI ⇄ Anthropic ⇄ Gemini.
 package helpers
 
 import (
@@ -14,15 +11,12 @@ import (
 	"encoding/json"
 )
 
-// NewToolCallID generates a unique tool-call id matching OpenAI's "call_xxx".
 func NewToolCallID() string {
 	b := make([]byte, 12)
 	_, _ = rand.Read(b)
 	return "call_" + hex.EncodeToString(b)
 }
 
-// AnthropicToolUseToOpenAI translates Anthropic `tool_use` block →
-// OpenAI tool_calls element {id, type:"function", function:{name, arguments}}.
 func AnthropicToolUseToOpenAI(block map[string]any) map[string]any {
 	id, _ := block["id"].(string)
 	if id == "" {
@@ -41,8 +35,6 @@ func AnthropicToolUseToOpenAI(block map[string]any) map[string]any {
 	}
 }
 
-// OpenAIToolCallToAnthropic converts OpenAI tool_calls[] entry → Anthropic
-// `tool_use` content block.
 func OpenAIToolCallToAnthropic(tc map[string]any) map[string]any {
 	id, _ := tc["id"].(string)
 	if id == "" {
@@ -63,8 +55,6 @@ func OpenAIToolCallToAnthropic(tc map[string]any) map[string]any {
 	}
 }
 
-// GeminiFunctionCallToOpenAI converts Gemini `functionCall` part → OpenAI
-// tool_calls element.
 func GeminiFunctionCallToOpenAI(fc map[string]any) map[string]any {
 	name, _ := fc["name"].(string)
 	args, _ := fc["args"]
@@ -79,8 +69,6 @@ func GeminiFunctionCallToOpenAI(fc map[string]any) map[string]any {
 	}
 }
 
-// OpenAIToolCallToGemini converts OpenAI tool_calls[] entry → Gemini
-// `functionCall` part.
 func OpenAIToolCallToGemini(tc map[string]any) map[string]any {
 	fn, _ := tc["function"].(map[string]any)
 	name, _ := fn["name"].(string)
@@ -97,8 +85,6 @@ func OpenAIToolCallToGemini(tc map[string]any) map[string]any {
 	}
 }
 
-// toolIDValid reports whether id passes the strict `^[a-zA-Z0-9_-]+$` pattern
-// the Anthropic API expects for tool_use ids.
 func toolIDValid(id string) bool {
 	if id == "" {
 		return false
@@ -113,8 +99,6 @@ func toolIDValid(id string) bool {
 	return true
 }
 
-// sanitizeToolID strips characters that violate `^[a-zA-Z0-9_-]+$`. Returns
-// "" when the cleaned string would be empty (caller should regenerate).
 func sanitizeToolID(id string) string {
 	out := make([]byte, 0, len(id))
 	for i := 0; i < len(id); i++ {
@@ -127,8 +111,6 @@ func sanitizeToolID(id string) string {
 	return string(out)
 }
 
-// deterministicToolCallID produces a stable id from (messageIdx, callIdx, name)
-// so retries with the same payload don't reshuffle ids. Format: "call_<msg>_<idx>_<name>".
 func deterministicToolCallID(msgIdx, callIdx int, name string) string {
 	cleanName := sanitizeToolID(name)
 	if cleanName == "" {
@@ -165,10 +147,6 @@ func appendInt(b []byte, n int) []byte {
 	return append(b, tmp[i:]...)
 }
 
-// EnsureToolCallIDs walks request messages and forces every tool_call/tool_use
-// id to satisfy `^[a-zA-Z0-9_-]+$`. Operates on the raw map shape produced by
-// json.Unmarshal — pass the body after it has been decoded. Mutates in place.
-// Also coerces `arguments` to a JSON string when a vendor sent it as an object.
 func EnsureToolCallIDs(body map[string]any) {
 	msgs, ok := body["messages"].([]any)
 	if !ok {
@@ -181,7 +159,6 @@ func EnsureToolCallIDs(body map[string]any) {
 		}
 		role, _ := msg["role"].(string)
 
-		// OpenAI-shape: assistant.tool_calls = [{ id, type, function:{name, arguments} }, …]
 		if role == "assistant" {
 			if tcs, ok := msg["tool_calls"].([]any); ok {
 				for j, tc := range tcs {
@@ -216,7 +193,6 @@ func EnsureToolCallIDs(body map[string]any) {
 			}
 		}
 
-		// OpenAI-shape: role=tool carries tool_call_id pointer
 		if role == "tool" {
 			if id, ok := msg["tool_call_id"].(string); ok && !toolIDValid(id) {
 				if clean := sanitizeToolID(id); clean != "" {
@@ -227,7 +203,6 @@ func EnsureToolCallIDs(body map[string]any) {
 			}
 		}
 
-		// Claude-shape: content[] may contain tool_use / tool_result blocks
 		if blocks, ok := msg["content"].([]any); ok {
 			for k, b := range blocks {
 				block, ok := b.(map[string]any)
@@ -261,8 +236,6 @@ func EnsureToolCallIDs(body map[string]any) {
 	}
 }
 
-// GetToolCallIDs returns every tool_call/tool_use id surfaced by msg. Used by
-// FixMissingToolResponses to detect missing tool_result follow-ups.
 func GetToolCallIDs(msg map[string]any) []string {
 	var out []string
 	if tcs, ok := msg["tool_calls"].([]any); ok {
@@ -290,9 +263,6 @@ func GetToolCallIDs(msg map[string]any) []string {
 	return out
 }
 
-// hasToolResults reports whether msg satisfies every id in expected (either by
-// being a role=tool message with one of those ids, or by carrying tool_result
-// blocks). Used to decide if FixMissingToolResponses must inject a stub.
 func hasToolResults(msg map[string]any, expected []string) bool {
 	if len(expected) == 0 {
 		return true
@@ -325,9 +295,6 @@ func hasToolResults(msg map[string]any, expected []string) bool {
 	return true
 }
 
-// FixMissingToolResponses injects empty role=tool messages right after any
-// assistant message whose tool_calls aren't matched in the next message.
-// Prevents Anthropic 400 (unmatched tool_use ids) on malformed sequences.
 func FixMissingToolResponses(body map[string]any) {
 	msgs, ok := body["messages"].([]any)
 	if !ok {
@@ -344,7 +311,7 @@ func FixMissingToolResponses(body map[string]any) {
 		if len(ids) == 0 {
 			continue
 		}
-		// Peek at next message for matching tool_result coverage.
+
 		if i+1 < len(msgs) {
 			if next, ok := msgs[i+1].(map[string]any); ok && hasToolResults(next, ids) {
 				continue

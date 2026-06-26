@@ -1,19 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-29
-// Reason: Section 4 (HTTP boundary) phase 1 DONE + audit passed.
-//   Endpoint stable: POST /api/brain/injection/check body {content}.
-//   MaxBytesReader 128KB, DisallowUnknownFields. Future quarantine
-//   workflow endpoint → tambah file baru, JANGAN modify ini.
-//
-// handlers_brain_injection.go — Section 4 roadmap: Prompt injection
-// detector admin endpoint.
-//
-// Roadmap:
-//   - internal/promptguard/promptguard.go (signature library)
-//   - flowork_Router/roadmap.md Section 4
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -26,8 +14,6 @@ import (
 
 const maxInjectionBodyBytes = 128 * 1024
 
-// brainInjectionCheckHandler — POST /api/brain/injection/check
-// Body: {"content": "..."}. Return promptguard.Result (severity, score, hits).
 func brainInjectionCheckHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed (use POST)", http.StatusMethodNotAllowed)

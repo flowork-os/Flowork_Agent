@@ -1,16 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 16 phase 2 (Hot-reload + multi-warga). API stable:
-//   StartWatcher (fsnotify), LoadFromDirs (multi-warga), TrackedNames.
-//   Loader keeps internal track of which commands are custom-sourced
-//   biar bisa Unregister sebelum reload. Phase 3 (run:llm frontmatter
-//   → tambah file baru llm_runner.go, JANGAN modify ini).
-//
-// watcher.go — Section 16 phase 2: fsnotify hot-reload + multi-warga
-// commands dir support.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package custom
 
@@ -27,22 +18,17 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
-// trackedMu guards tracked map yang record nama command yang loader
-// register. Pakai untuk Unregister-then-Reload tanpa nyentuh built-in
-// commands.
 var (
 	trackedMu sync.Mutex
-	tracked   = map[string]bool{} // canonical name → true
+	tracked   = map[string]bool{}
 )
 
-// trackName — mark name as custom-source-controlled.
 func trackName(name string) {
 	trackedMu.Lock()
 	defer trackedMu.Unlock()
 	tracked[strings.ToLower(name)] = true
 }
 
-// untrackName — strip + return true kalau previously tracked.
 func untrackName(name string) bool {
 	trackedMu.Lock()
 	defer trackedMu.Unlock()
@@ -54,7 +40,6 @@ func untrackName(name string) bool {
 	return true
 }
 
-// TrackedNames — snapshot. Untuk diagnostic.
 func TrackedNames() []string {
 	trackedMu.Lock()
 	defer trackedMu.Unlock()
@@ -65,7 +50,6 @@ func TrackedNames() []string {
 	return out
 }
 
-// ClearAll — unregister all tracked custom commands. Idempotent.
 func ClearAll() {
 	trackedMu.Lock()
 	names := make([]string, 0, len(tracked))
@@ -79,9 +63,6 @@ func ClearAll() {
 	}
 }
 
-// snapshotRegistry — return set of currently registered canonical names.
-// Pakai untuk diff tracking di LoadFromDirs (locked loader.go ngga panggil
-// trackName — kita inject post-load).
 func snapshotRegistry() map[string]bool {
 	out := map[string]bool{}
 	for _, s := range slashcmd.ListSummaries() {
@@ -90,21 +71,8 @@ func snapshotRegistry() map[string]bool {
 	return out
 }
 
-// LoadFromDirs — multi-warga loader. Iterate dirs slice, panggil
-// LoadFromDir per dir, akumulasi total loaded + skipped count.
-//
-// Pattern caller (main.go):
-//
-//	dirs := []string{}
-//	for _, agentID := range allAgentIDs {
-//	    if shared, err := host.SharedDirForAgent(agentID); err == nil {
-//	        dirs = append(dirs, filepath.Join(shared, "commands"))
-//	    }
-//	}
-//	custom.LoadFromDirs(dirs)
 func LoadFromDirs(dirs []string) (totalLoaded, totalSkipped int, lastErr error) {
-	// Snapshot sebelum load — sehingga setelah load, diff = newly registered
-	// command yang harus di-track (anti unregister built-in).
+
 	before := snapshotRegistry()
 	for _, dir := range dirs {
 		loaded, skipped, err := LoadFromDir(dir)
@@ -123,8 +91,6 @@ func LoadFromDirs(dirs []string) (totalLoaded, totalSkipped int, lastErr error) 
 	return
 }
 
-// Reload — clear tracked custom commands + re-scan all `dirs`. Used by
-// watcher when files change. Logs result.
 func Reload(dirs []string) (loaded, skipped int) {
 	ClearAll()
 	loaded, skipped, err := LoadFromDirs(dirs)
@@ -135,13 +101,6 @@ func Reload(dirs []string) (loaded, skipped int) {
 	return loaded, skipped
 }
 
-// StartWatcher — fsnotify watcher across all dirs. Debounce 500ms supaya
-// burst write (editor save = multiple events) coalesce ke single Reload.
-//
-// ctx cancellation → stop watcher + close fsnotify.Watcher.
-//
-// Skip dirs yang ngga exist (best-effort — anti error kalau warga ngga
-// punya commands/ folder).
 func StartWatcher(ctx context.Context, dirs []string) error {
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -174,7 +133,7 @@ func StartWatcher(ctx context.Context, dirs []string) error {
 				if !ok {
 					return
 				}
-				// Only care about .md changes (create/write/remove/rename).
+
 				if filepath.Ext(strings.ToLower(ev.Name)) != ".md" {
 					continue
 				}

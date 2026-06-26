@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Provider executor HTTP call.
-
-// Cursor ConnectRPC executor (proto wire).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package executors
 
@@ -41,14 +37,9 @@ func (c *cursorProtoExecutor) headers(p *store.ProviderConnection) map[string]st
 	storedChecksum, _ := p.Data["cursorChecksum"].(string)
 	storedSession, _ := p.Data["sessionId"].(string)
 
-	// Cursor ConnectRPC requires the full Jyh-derived header bundle —
-	// authorization + checksum + session + client-key + several version
-	// fields. Auto-generate when the operator gave us a token but no
-	// manually-scraped checksum.
 	if tok != "" && storedChecksum == "" {
 		h := BuildCursorHeaders(tok, machineID, false)
-		// The proto executor needs Connect-Protocol + the proto content type
-		// — BuildCursorHeaders already sets application/connect+proto.
+
 		h["Connect-Protocol"] = "1"
 		if storedSession != "" {
 			h["x-cursor-session-id"] = storedSession
@@ -56,7 +47,6 @@ func (c *cursorProtoExecutor) headers(p *store.ProviderConnection) map[string]st
 		return h
 	}
 
-	// Manual-checksum back-compat path.
 	h := map[string]string{
 		"Content-Type":     "application/connect+proto",
 		"Connect-Protocol": "1",
@@ -75,14 +65,10 @@ func (c *cursorProtoExecutor) headers(p *store.ProviderConnection) map[string]st
 	return h
 }
 
-// buildProtoBody folds the OpenAI-style Request.Messages into the Cursor
-// ConversationMessage list and wraps the encoded protobuf in a ConnectRPC
-// frame.
 func (c *cursorProtoExecutor) buildProtoBody(req Request) []byte {
 	msgs := make([]CursorMessage, 0, len(req.Messages))
 	for _, m := range req.Messages {
-		// System messages get folded into the first user message — Cursor's
-		// schema doesn't have a separate role for them on this endpoint.
+
 		role := m.Role
 		if role == "system" {
 			role = "user"
@@ -98,10 +84,7 @@ func (c *cursorProtoExecutor) buildProtoBody(req Request) []byte {
 }
 
 func (c *cursorProtoExecutor) Stream(ctx context.Context, p *store.ProviderConnection, req Request, w http.ResponseWriter, flusher http.Flusher) (Usage, int, error) {
-	// For streaming, we POST once and then emit OpenAI-shaped SSE deltas as
-	// each ConnectRPC frame surfaces from the upstream. The actual response
-	// stream from Cursor is a concatenation of frames — we read until EOF,
-	// parse frames as they complete, emit deltas.
+
 	body := c.buildProtoBody(req)
 	httpReq, err := BuildRequest(ctx, http.MethodPost, c.endpoint(p), body, c.headers(p))
 	if err != nil {
@@ -114,14 +97,11 @@ func (c *cursorProtoExecutor) Stream(ctx context.Context, p *store.ProviderConne
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		// Read body for diagnostic — Cursor returns text/plain on early errors.
+
 		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		return Usage{}, resp.StatusCode, fmt.Errorf("cursor proto %d: %s", resp.StatusCode, string(errBody))
 	}
 
-	// Stream-decode frames as they arrive. We buffer until at least 5 bytes
-	// (frame header) are available, then read the advertised body length,
-	// extract text, and emit an OpenAI delta SSE chunk.
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.WriteHeader(http.StatusOK)
@@ -139,7 +119,7 @@ func (c *cursorProtoExecutor) Stream(ctx context.Context, p *store.ProviderConne
 				if frame == nil {
 					break
 				}
-				// Drop the consumed bytes from the buffer.
+
 				rest := buf.Bytes()[frame.Consumed:]
 				buf.Reset()
 				buf.Write(rest)
@@ -154,7 +134,7 @@ func (c *cursorProtoExecutor) Stream(ctx context.Context, p *store.ProviderConne
 			break
 		}
 	}
-	// Final stop sentinel.
+
 	emitOpenAIDone(w, flusher, emittedID, req.Model)
 	return Usage{}, http.StatusOK, nil
 }
@@ -177,7 +157,6 @@ func (c *cursorProtoExecutor) NonStream(ctx context.Context, p *store.ProviderCo
 	}
 	rawBody, _ := io.ReadAll(io.LimitReader(resp.Body, 16*1024*1024))
 
-	// Walk all frames, concatenate extracted text.
 	var text bytes.Buffer
 	offset := 0
 	for offset < len(rawBody) {
@@ -204,9 +183,6 @@ func (c *cursorProtoExecutor) NonStream(ctx context.Context, p *store.ProviderCo
 	return out, Usage{}, http.StatusOK, nil
 }
 
-// emitOpenAIDelta writes a single OpenAI-style SSE delta chunk with the given
-// text. Used by Stream() to translate each protobuf frame into the wire
-// format clients expect.
 func emitOpenAIDelta(w http.ResponseWriter, flusher http.Flusher, id, model, text string) {
 	chunk := map[string]any{
 		"id":      id,
@@ -225,7 +201,6 @@ func emitOpenAIDelta(w http.ResponseWriter, flusher http.Flusher, id, model, tex
 	flusher.Flush()
 }
 
-// emitOpenAIDone writes the final stop chunk + [DONE] sentinel.
 func emitOpenAIDone(w http.ResponseWriter, flusher http.Flusher, id, model string) {
 	stop := map[string]any{
 		"id":      id,

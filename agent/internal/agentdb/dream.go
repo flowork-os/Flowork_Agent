@@ -1,22 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-06-03
-// Reason: Roadmap 2 B3 dream. Verified: recurring mistakes(hit>=2)->eureka drawer
-//   (dedup), brain_search recall, idempotent, dream log. Host cron 12h shared-worker.
-//   Extend -> file baru, JANGAN modify ini.
-//
-// dream.go — Roadmap 2 Fase B3: Dream (konsolidasi idle → eureka).
-//
-// Adaptasi dari worker/internal/dreamstate/dream.go: ekstrak POLA BERULANG
-// (signal over noise: ≥2 occurrence) → sintesis EUREKA rule-based (NO LLM,
-// hemat + deterministik). Di arsitektur kita, "≥2 occurrence" = mistakes_local
-// dengan hit_count≥2 (pola yang keulang). Tiap pola → drawer brain mem_type=
-// 'eureka' (recallable via brain_search) + log dreams/<date>.md (portable).
-//
-// Anti-boros (roadmap 1.5): dijalanin SATU host-cron buat semua agent (compute
-// 1×), tulis ke state.db lokal masing-masing. Dedup via brain content_hash.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package agentdb
 
@@ -28,16 +13,13 @@ import (
 	"time"
 )
 
-// DreamResult — ringkasan 1 siklus dream.
 type DreamResult struct {
 	MistakesScanned int    `json:"mistakes_scanned"`
-	EurekasFormed   int    `json:"eurekas_formed"` // drawer eureka BARU (dedup-aware)
-	EurekasTotal    int    `json:"eurekas_total"`  // total pola jadi eureka (incl. yg udah ada)
+	EurekasFormed   int    `json:"eurekas_formed"`
+	EurekasTotal    int    `json:"eurekas_total"`
 	LogPath         string `json:"log_path"`
 }
 
-// recurringMistakes — mistake live dengan hit_count >= minHit (pola berulang).
-// Locked read; caller (RunDream) ga pegang lock pas manggil ini.
 func (s *Store) recurringMistakes(minHit int64, limit int) ([]Mistake, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -64,9 +46,6 @@ func (s *Store) recurringMistakes(minHit int64, limit int) ([]Mistake, error) {
 	return out, rows.Err()
 }
 
-// RunDream — 1 siklus konsolidasi. Baca pola berulang → eureka drawer + dream log.
-// Idempotent (dedup brain). Aman dipanggil berulang (cron). NO lock di sini —
-// sub-call (recurringMistakes/AddBrainDrawer) yang lock masing-masing.
 func (s *Store) RunDream(now time.Time) (DreamResult, error) {
 	var res DreamResult
 	mistakes, err := s.recurringMistakes(2, 50)
@@ -75,7 +54,7 @@ func (s *Store) RunDream(now time.Time) (DreamResult, error) {
 	}
 	res.MistakesScanned = len(mistakes)
 	if len(mistakes) == 0 {
-		return res, nil // ga ngimpi kalau ga ada pola
+		return res, nil
 	}
 
 	var lines []string
@@ -103,8 +82,6 @@ func (s *Store) RunDream(now time.Time) (DreamResult, error) {
 	return res, nil
 }
 
-// writeDreamLog tulis ringkasan eureka ke <workspace>/dreams/<date>.md (portable,
-// ikut folder agent). Best-effort — gagal nulis file ga bikin dream gagal.
 func (s *Store) writeDreamLog(now time.Time, lines []string) string {
 	if len(lines) == 0 {
 		return ""

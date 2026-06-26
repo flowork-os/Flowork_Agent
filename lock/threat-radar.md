@@ -24,10 +24,11 @@ scanner_scan.go = tool buat agent manggil scan sendiri.
 
 ## SEAM — nambah deteksi TANPA buka frozen (plug-and-play)
 `scanner/auditors.go` cuma DEKLARASI `var Auditors = map[string]AuditFunc{}`. Auditor baru =
-**file sibling BARU** `scanner/auditors_<x>.go` (NON-frozen) yang isi `func init(){ Auditors["x"]=AuditX }`.
-init() nambah ke map saat boot → runner otomatis dispatch. Zona extension = semua `auditors_*.go`
-(arch/cwd/secrets/invariant/v2..v11) sengaja NON-frozen biar deteksi bisa di-tuning/ditambah bebas.
-Pipa (runner/dispatch/storage/gate) beku → nambah auditor GAK BISA ngerusak fitur yang jalan.
+**file sibling BARU** `scanner/auditors_<x>.go` yang isi `func init(){ Auditors["x"]=AuditX }`.
+init() nambah ke map saat boot → runner otomatis dispatch. **Auditor yang SUDAH ADA
+(arch/cwd/secrets/invariant/v2..v11) = FROZEN** (owner 2026-06-26: "scanner freeze bukan lock") →
+deteksi lama gak bisa dirusak. Nambah deteksi = FILE BARU (map di-append via init, walau file lama
+frozen). Pipa + semua auditor lama beku → evolusi nambah doang, GAK BISA robohin yang jalan.
 
 ## SWITCH
 - `FLOWORK_SCANNER_AUTOSCAN` (bool, default ON, kategori "Security / Scanner") — auto-scan saat file

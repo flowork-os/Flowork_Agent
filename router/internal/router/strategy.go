@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Router dispatch/orchestrator.
-
-// Provider Fallback Strategy (settings-driven).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package router
 
@@ -18,10 +14,9 @@ import (
 
 var (
 	rrMu             sync.Mutex
-	roundRobinCursor = map[string]int{} // guarded by rrMu
+	roundRobinCursor = map[string]int{}
 )
 
-// nextRoundRobin returns the current index for key and advances it (mod n).
 func nextRoundRobin(key string, n int) int {
 	if n <= 0 {
 		return 0
@@ -33,8 +28,6 @@ func nextRoundRobin(key string, n int) int {
 	return i
 }
 
-// applyFallbackStrategy reorders provider candidates per strategy. Unknown /
-// empty / "priority_ordered" → unchanged (so the default never alters dispatch).
 func applyFallbackStrategy(matches []store.ProviderConnection, strategy, model string) []store.ProviderConnection {
 	if len(matches) <= 1 {
 		return matches
@@ -50,7 +43,7 @@ func applyFallbackStrategy(matches []store.ProviderConnection, strategy, model s
 		out := append([]store.ProviderConnection(nil), matches...)
 		rand.Shuffle(len(out), func(a, b int) { out[a], out[b] = out[b], out[a] })
 		return out
-	default: // priority_ordered (and any legacy value) — keep DB order
+	default:
 		return matches
 	}
 }

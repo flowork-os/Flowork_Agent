@@ -1,11 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Provider request/response translator.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Helper: Gemini shape ↔ canonical.
 package helpers
 
 import (
@@ -13,18 +10,16 @@ import (
 	"strings"
 )
 
-// MapGeminiRole maps OpenAI role → Gemini role.
 func MapGeminiRole(role string) string {
 	switch role {
 	case "assistant":
 		return "model"
 	case "system":
-		return "user" // gemini has no system role; prepend as user
+		return "user"
 	}
 	return role
 }
 
-// MapGeminiFinishReason maps Gemini finishReason → OpenAI finish_reason.
 func MapGeminiFinishReason(reason string) string {
 	switch reason {
 	case "STOP", "":
@@ -37,13 +32,8 @@ func MapGeminiFinishReason(reason string) string {
 	return "stop"
 }
 
-// reFunctionName mirrors Gemini's allowed function name pattern:
-// [a-zA-Z_][a-zA-Z0-9_.:-]{0,63}.
 var reFunctionName = regexp.MustCompile(`[^a-zA-Z0-9_.:\-]`)
 
-// CleanFunctionName sanitizes a tool function name for Gemini/Antigravity.
-// Replaces disallowed chars with "_", ensures leading char is alpha or "_",
-// caps length at 64.
 func CleanFunctionName(name string) string {
 	if name == "" {
 		return "_unknown"
@@ -65,16 +55,13 @@ func isAlphaOrUnderscore(b byte) bool {
 	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || b == '_'
 }
 
-// CleanJSONSchemaForAntigravity strips fields the Antigravity / Cloud Code
-// Assist endpoint rejects from a JSON-Schema function parameter spec:
-// $schema, additionalProperties, definitions, $defs, etc. Operates in-place.
 func CleanJSONSchemaForAntigravity(node any) {
 	switch m := node.(type) {
 	case map[string]any:
 		for _, k := range []string{"$schema", "additionalProperties", "definitions", "$defs", "title", "examples"} {
 			delete(m, k)
 		}
-		// `type` ↔ Gemini-supported set; drop "null" entries from "type": ["string","null"]
+
 		if t, ok := m["type"].([]any); ok {
 			pruned := make([]any, 0, len(t))
 			for _, x := range t {

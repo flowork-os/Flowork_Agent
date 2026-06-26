@@ -1,29 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-29
-// Reason: Section 1 (Ingestion pipeline) DONE + adversarial-audit passed.
-//   API stable: Req struct, Submit(), SubmitBatch(), Summarize(). End-to-end
-//   verified (single, dedupe, batch dengan stats agregat akurat). Future
-//   extension (embedding gen Section 5, federation source Section 17, async
-//   worker pool) → TAMBAH function/file baru di package ini, JANGAN ubah
-//   Submit() signature atau Req struct field yang ada.
-//
-// Package ingest — pipeline orchestrator untuk grow brain. Input → sanitize
-// → score → dedupe (via brain.AddDrawerFull content_hash) → write drawer +
-// FTS. Caller pakai via Submit() (single) atau SubmitBatch() (banyak).
-//
-// Source: flowork_Router/roadmap.md Section 1.
-//
-// Standar yang dipakai:
-//   - source_type taxonomy: 'manual' | 'chat' | 'doc' | 'federation' | 'compounding'
-//   - mem_type taxonomy:    'project' | 'compounding' | 'antibody' | 'fact' | 'skill'
-//   - importance scale:     0.0–10.0 (default 3.0 untuk anonymous submit)
-//
-// Anti over-engineer: package ini cuma orchestrator. Embedding + FTS sync
-// di brain.AddDrawerFull. Score heuristic kecil — re-score job di section 2
-// kerjain refine.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
+
 package ingest
 
 import (
@@ -33,15 +12,6 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/brain"
 )
 
-// Req — payload satu drawer baru. Field optional kecuali Content.
-//
-//	Content     wajib, > 0 char setelah sanitize
-//	Wing/Room   organisasi knowledge palace (default wing="compounding")
-//	SourceType  taxonomy asal: 'manual' (API), 'chat' (compounding), 'doc' (import), 'federation'
-//	SourceFile  identifier asal (path file, chat ID, dst.)
-//	MemType     taxonomy purpose: 'project', 'compounding', 'antibody', 'fact'
-//	Importance  0-10. Kalau 0 → di-score otomatis.
-//	ChunkIndex  > 0 untuk chunk N dari doc panjang (dipakai SubmitBatch dari docs)
 type Req struct {
 	Content    string  `json:"content"`
 	Wing       string  `json:"wing,omitempty"`
@@ -53,20 +23,13 @@ type Req struct {
 	ChunkIndex int     `json:"chunk_index,omitempty"`
 }
 
-// Result — outcome satu submit. DrawerID di-return walaupun deduped (caller
-// bisa link ke drawer existing untuk audit).
 type Result struct {
 	DrawerID string `json:"drawer_id"`
-	Added    bool   `json:"added"`           // false → content_hash sudah ada (dedupe hit)
-	Note     string `json:"note,omitempty"`  // alasan skip atau warning
-	Error    string `json:"error,omitempty"` // populated kalau gagal — caller cek len(Error) > 0
+	Added    bool   `json:"added"`
+	Note     string `json:"note,omitempty"`
+	Error    string `json:"error,omitempty"`
 }
 
-// Submit — orchestrate satu drawer ingestion: sanitize → score (kalau perlu)
-// → write via brain.AddDrawerFull.
-//
-// Return Result dengan DrawerID + Added flag. Error embedded di Result.Error
-// supaya batch loop ngga short-circuit di satu failure.
 func Submit(ctx context.Context, req Req) Result {
 	content := Sanitize(req.Content)
 	if content == "" {
@@ -96,11 +59,6 @@ func Submit(ctx context.Context, req Req) Result {
 	return Result{DrawerID: id, Added: added}
 }
 
-// SubmitBatch — N items, return slice Result paralel. Tidak short-circuit
-// pada error satu item. Caller agregat count via Result.Added bool.
-//
-// MAX items: hard cap di handler (default 1000) supaya satu request ngga
-// monopoli writer.
 func SubmitBatch(ctx context.Context, items []Req) []Result {
 	out := make([]Result, 0, len(items))
 	for _, it := range items {
@@ -109,7 +67,6 @@ func SubmitBatch(ctx context.Context, items []Req) []Result {
 	return out
 }
 
-// BatchStats — agregat result batch untuk reporting di response.
 type BatchStats struct {
 	Total   int `json:"total"`
 	Added   int `json:"added"`
@@ -118,7 +75,6 @@ type BatchStats struct {
 	Failed  int `json:"failed"`
 }
 
-// Summarize — hitung BatchStats dari slice Result.
 func Summarize(results []Result) BatchStats {
 	var s BatchStats
 	s.Total = len(results)
@@ -137,7 +93,4 @@ func Summarize(results []Result) BatchStats {
 	return s
 }
 
-// minContentChars — quality gate: drawer < N char di-skip (terlalu pendek
-// untuk knowledge). 20 char align sama compounding stub di
-// handlers_brain_views.go::brainIngestRunHandler.
 const minContentChars = 20

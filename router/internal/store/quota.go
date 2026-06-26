@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Store SQLite layer.
-
-// Quota Tracker.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package store
 
@@ -16,11 +12,10 @@ import (
 	"time"
 )
 
-// QuotaStatus — per-provider quota snapshot.
 type QuotaStatus struct {
 	ProviderID       string `json:"providerId"`
 	ProviderName     string `json:"providerName"`
-	Provider         string `json:"provider"` // type (anthropic, openai, etc)
+	Provider         string `json:"provider"`
 	AuthType         string `json:"authType"`
 	SubscriptionTier string `json:"subscriptionTier,omitempty"`
 
@@ -37,16 +32,10 @@ type QuotaStatus struct {
 	MonthRequests int64   `json:"monthRequests"`
 	MonthCostUsd  float64 `json:"monthCostUsd"`
 
-	// Quota is DERIVED from local usage (same approach as upstream): there is no
-	// live provider-side quota poll because the supported providers don't expose
-	// one (Anthropic subscription / API keys have no usage-quota endpoint). ResetAt
-	// comes from a provider's optional `quotaResetHours` config; HealthOk = active.
 	ResetAt  string `json:"resetAt,omitempty"`
 	HealthOk bool   `json:"healthOk"`
 }
 
-// ListQuotaStatus — return quota summary per active provider.
-// Derive dari usageDaily table (Phase 1.5). Live quota poll = Phase 2.
 func ListQuotaStatus(d *sql.DB) ([]QuotaStatus, error) {
 	providers, err := ListProviders(d)
 	if err != nil {
@@ -70,7 +59,6 @@ func ListQuotaStatus(d *sql.DB) ([]QuotaStatus, error) {
 			q.SubscriptionTier = tier
 		}
 
-		// Today
 		row := d.QueryRow(`SELECT
 			COALESCE(SUM(requestCount), 0),
 			COALESCE(SUM(promptTokens), 0),
@@ -79,7 +67,6 @@ func ListQuotaStatus(d *sql.DB) ([]QuotaStatus, error) {
 			FROM usageDaily WHERE day = ? AND provider = ?`, todayStr, p.ID)
 		_ = row.Scan(&q.TodayRequests, &q.TodayPromptTok, &q.TodayComplTok, &q.TodayCostUsd)
 
-		// Week (last 7 days)
 		row = d.QueryRow(`SELECT
 			COALESCE(SUM(requestCount), 0),
 			COALESCE(SUM(promptTokens), 0),
@@ -88,16 +75,12 @@ func ListQuotaStatus(d *sql.DB) ([]QuotaStatus, error) {
 			FROM usageDaily WHERE day >= ? AND provider = ?`, weekAgo, p.ID)
 		_ = row.Scan(&q.WeekRequests, &q.WeekPromptTok, &q.WeekComplTok, &q.WeekCostUsd)
 
-		// Month (last 30 days)
 		row = d.QueryRow(`SELECT
 			COALESCE(SUM(requestCount), 0),
 			COALESCE(SUM(costUsd), 0)
 			FROM usageDaily WHERE day >= ? AND provider = ?`, monthAgo, p.ID)
 		_ = row.Scan(&q.MonthRequests, &q.MonthCostUsd)
 
-		// Reset window is DATA-DRIVEN: a provider may declare a rolling quota
-		// window length (hours) in its config as `quotaResetHours`. No provider
-		// names or magic numbers hardcoded. Unset → no reset (e.g. API keys).
 		if h := quotaResetHours(p.Data["quotaResetHours"]); h > 0 {
 			win := time.Duration(h * float64(time.Hour))
 			q.ResetAt = now.Add(win).Truncate(win).Format(time.RFC3339)
@@ -108,7 +91,6 @@ func ListQuotaStatus(d *sql.DB) ([]QuotaStatus, error) {
 	return out, nil
 }
 
-// quotaResetHours coerces the config value (JSON number or string) to hours.
 func quotaResetHours(v any) float64 {
 	switch n := v.(type) {
 	case float64:

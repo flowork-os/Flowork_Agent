@@ -1,15 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/flow_router
-// Locked at: 2026-05-30
-// Reason: Section 27 phase 2 policy budget cron evaluator. Tick 5min.
-//   Aggregate provider_call_log SUM(cost_usd) per scope vs budget,
-//   insert policy_violations + dispatch warn/block. Phase 3 (request-
-//   time middleware block, Telegram dispatch, reset period auto-rollover)
-//   → tambah file baru.
-//
-// evaluator.go — Section 27 phase 2: cron budget eval.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package policy
 
@@ -66,8 +58,6 @@ func (e *Engine) loop(ctx context.Context) {
 	}
 }
 
-// tick — iterate enabled policy_budgets, compute current period spend,
-// fire violation kalau exceeded. Return (evaluated, fired).
 func (e *Engine) tick(ctx context.Context) (int, int) {
 	rows, err := e.db.Query(
 		`SELECT id, scope, scope_key, metric_key, budget_value, reset_period, warning_pct
@@ -99,7 +89,7 @@ func (e *Engine) tick(ctx context.Context) (int, int) {
 	for _, b := range budgets {
 		evaluated++
 		periodStart := periodStartFor(b.ResetPeriod)
-		// Compute spend.
+
 		var spend float64
 		q := `SELECT COALESCE(SUM(cost_usd), 0) FROM provider_call_log WHERE occurred_at >= ?`
 		args := []any{periodStart.Format(time.RFC3339)}
@@ -119,14 +109,13 @@ func (e *Engine) tick(ctx context.Context) (int, int) {
 			continue
 		}
 
-		// Cooldown: skip kalau violation udah ada untuk period ini.
 		var existing int
 		_ = e.db.QueryRow(
 			`SELECT COUNT(*) FROM policy_violations
 			 WHERE budget_id = ? AND fired_at >= ?`,
 			b.ID, periodStart.Format(time.RFC3339)).Scan(&existing)
 		if existing > 0 && action == "warn" {
-			continue // sudah warn satu kali
+			continue
 		}
 
 		_, _ = e.db.Exec(
@@ -147,7 +136,7 @@ func periodStartFor(p string) time.Time {
 	now := time.Now().UTC()
 	switch p {
 	case "weekly":
-		// Monday 00:00 UTC.
+
 		weekday := int(now.Weekday())
 		if weekday == 0 {
 			weekday = 7
@@ -162,8 +151,6 @@ func periodStartFor(p string) time.Time {
 	}
 }
 
-// IsAllowed — request-time gate. Caller (chat handler) panggil sebelum
-// LLM call. Return false + reason kalau scope/metric ada budget exceeded.
 func (e *Engine) IsAllowed(ctx context.Context, caller string) (bool, string) {
 	rows, err := e.db.Query(
 		`SELECT id, budget_value, reset_period, warning_pct

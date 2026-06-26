@@ -1,14 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 19 phase 1 endpoints — export download + import upload.
-//   Passphrase via HTTP header X-Sneakernet-Passphrase (anti-log query
-//   string). Phase 2 (multi-file batch, resumable upload) → tambah file
-//   baru, JANGAN modify ini.
-//
-// sneakernet.go — Section 19 phase 1: HTTP endpoints.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package agentmgr
 
@@ -24,9 +17,6 @@ import (
 	"flowork-gui/internal/sneakernet"
 )
 
-// SneakernetExportHandler — POST /api/agents/sneakernet/export?id=<agent>
-// Header X-Sneakernet-Passphrase: <passphrase> (optional — kalau ada,
-// AES-256-GCM encrypt). Response: octet-stream `.fwsync` body.
 func SneakernetExportHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
@@ -39,7 +29,7 @@ func SneakernetExportHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	passphrase := r.Header.Get("X-Sneakernet-Passphrase")
 	folder := agentFolder(agentID)
-	// Read agent version from manifest (best-effort).
+
 	version := ""
 	hostname, _ := os.Hostname()
 
@@ -55,19 +45,12 @@ func SneakernetExportHandler(w http.ResponseWriter, r *http.Request) {
 		Passphrase: passphrase,
 	})
 	if err != nil {
-		// Header sudah ke-set Content-Type binary; trailing error harus
-		// inline (HTTP/1 ngga support late JSON kalau body udah dimulai).
+
 		fmt.Fprintf(w, "\n[sneakernet export error: %v]\n", err)
 		return
 	}
 }
 
-// SneakernetImportHandler — POST /api/agents/sneakernet/import?target_id=<agent>
-// Body: multipart/form-data field `file` berisi .fwsync.
-// Header X-Sneakernet-Passphrase: <passphrase> (kalau encrypted).
-//
-// Target folder = agentFolder(target_id) — caller (Mr.Dev) konfirmasi target
-// kosong / boleh overwrite.
 func SneakernetImportHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
@@ -80,7 +63,7 @@ func SneakernetImportHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	passphrase := r.Header.Get("X-Sneakernet-Passphrase")
 
-	if err := r.ParseMultipartForm(200 << 20); err != nil { // 200MB cap
+	if err := r.ParseMultipartForm(200 << 20); err != nil {
 		httpx.WriteJSON(w, map[string]any{"error": "parse multipart: " + err.Error()})
 		return
 	}
@@ -92,7 +75,7 @@ func SneakernetImportHandler(w http.ResponseWriter, r *http.Request) {
 	defer file.Close()
 
 	targetRoot := agentFolder(targetID)
-	// Section 19 phase 2: idempotency pre-fingerprint dari manifest existing.
+
 	existingHash := sneakernet.FingerprintExisting(targetRoot)
 	res, err := sneakernet.Import(file, sneakernet.ImportOptions{
 		TargetRoot: targetRoot,
@@ -102,8 +85,7 @@ func SneakernetImportHandler(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
 		return
 	}
-	// Section 19 phase 2: Import doesn't persist manifest to disk —
-	// write it for verify probe + future idempotency checks.
+
 	persistManifest(targetRoot, res.Manifest)
 	verified, vErr := sneakernet.VerifyImported(targetRoot)
 	newHash := sneakernet.FingerprintManifest(verified)
@@ -117,8 +99,8 @@ func SneakernetImportHandler(w http.ResponseWriter, r *http.Request) {
 		"manifest":      res.Manifest,
 		"files_count":   res.FilesCount,
 		"bytes_written": res.BytesWriten,
-		"idempotent":    idempotent, // true kalau import sama file 2x
-		"boot_ready":    bootReady,  // true kalau manifest valid + format_version OK
+		"idempotent":    idempotent,
+		"boot_ready":    bootReady,
 		"verify_error":  errString(vErr),
 	})
 }
@@ -130,9 +112,6 @@ func errString(err error) string {
 	return err.Error()
 }
 
-// persistManifest — Section 19 phase 2: write Manifest ke `_meta/manifest.json`
-// supaya VerifyImported + FingerprintExisting bisa read post-import.
-// Locked import.go ngga write to disk — handler wajib.
 func persistManifest(targetRoot string, m sneakernet.Manifest) {
 	dir := filepath.Join(targetRoot, "_meta")
 	_ = os.MkdirAll(dir, 0o755)

@@ -1,14 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Port batch 5 — 10 auditor.
-//
-// auditors_v6.go:
-//   global_log_init, env_dependency, magic_number, struct_tag_typo,
-//   integer_overflow, file_no_close, http_no_body_close,
-//   string_concat_loop, slice_append_loop, sync_once_misuse.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package scanner
 
@@ -18,21 +11,17 @@ import (
 )
 
 func init() {
-	Auditors["global_log_init_auditor"]   = AuditGlobalLogInit
-	Auditors["env_dependency_auditor"]    = AuditEnvDependency
-	Auditors["magic_number_auditor"]      = AuditMagicNumber
-	Auditors["struct_tag_typo_auditor"]   = AuditStructTagTypo
-	Auditors["integer_overflow_auditor"]  = AuditIntegerOverflow
-	Auditors["file_no_close_auditor"]     = AuditFileNoClose
+	Auditors["global_log_init_auditor"] = AuditGlobalLogInit
+	Auditors["env_dependency_auditor"] = AuditEnvDependency
+	Auditors["magic_number_auditor"] = AuditMagicNumber
+	Auditors["struct_tag_typo_auditor"] = AuditStructTagTypo
+	Auditors["integer_overflow_auditor"] = AuditIntegerOverflow
+	Auditors["file_no_close_auditor"] = AuditFileNoClose
 	Auditors["http_no_body_close_auditor"] = AuditHTTPNoBodyClose
 	Auditors["string_concat_loop_auditor"] = AuditStringConcatLoop
-	Auditors["slice_append_loop_auditor"]  = AuditSliceAppendLoop
-	Auditors["sync_once_misuse_auditor"]   = AuditSyncOnceMisuse
+	Auditors["slice_append_loop_auditor"] = AuditSliceAppendLoop
+	Auditors["sync_once_misuse_auditor"] = AuditSyncOnceMisuse
 }
-
-// =============================================================================
-// 1. global_log_init_auditor — log.Println in package var = side effect on import
-// =============================================================================
 
 var globalLogInitRE = regexp.MustCompile(`^var\s+\w+\s*=\s*log\.`)
 
@@ -57,10 +46,6 @@ func AuditGlobalLogInit(filePath, content string) []Finding {
 	return out
 }
 
-// =============================================================================
-// 2. env_dependency_auditor — os.Getenv tanpa fallback / required check
-// =============================================================================
-
 var envGetenvRE = regexp.MustCompile(`os\.Getenv\s*\(\s*"[A-Z_]+"\s*\)`)
 
 func AuditEnvDependency(filePath, content string) []Finding {
@@ -73,7 +58,7 @@ func AuditEnvDependency(filePath, content string) []Finding {
 		if !envGetenvRE.MatchString(line) {
 			continue
 		}
-		// Heuristic: check 3 line setelahnya untuk `if X == "" {` (fallback handling)
+
 		window := lines[i:minInt(i+5, len(lines))]
 		hasFallback := false
 		for _, w := range window {
@@ -100,10 +85,6 @@ func AuditEnvDependency(filePath, content string) []Finding {
 	}
 	return out
 }
-
-// =============================================================================
-// 3. magic_number_auditor — int literal > 100 di non-test code
-// =============================================================================
 
 var magicNumberRE = regexp.MustCompile(`\b(86400|3600|604800|31536000|65535|4096|8192|16384|32768)\b`)
 
@@ -132,10 +113,6 @@ func AuditMagicNumber(filePath, content string) []Finding {
 	return out
 }
 
-// =============================================================================
-// 4. struct_tag_typo_auditor — json tag typo (jsom, jsno, dst)
-// =============================================================================
-
 var structTagTypoRE = regexp.MustCompile("`(jsom|jsno|josn|jason|joson):\"")
 
 func AuditStructTagTypo(filePath, content string) []Finding {
@@ -159,10 +136,6 @@ func AuditStructTagTypo(filePath, content string) []Finding {
 	return out
 }
 
-// =============================================================================
-// 5. integer_overflow_auditor — int() cast dari unbounded source
-// =============================================================================
-
 var intCastRE = regexp.MustCompile(`int\s*\(\s*\w+\s*\.\s*(Size|Len|Length|Count)\(\)\s*\)`)
 
 func AuditIntegerOverflow(filePath, content string) []Finding {
@@ -185,10 +158,6 @@ func AuditIntegerOverflow(filePath, content string) []Finding {
 	}
 	return out
 }
-
-// =============================================================================
-// 6. file_no_close_auditor — os.Open tanpa defer Close
-// =============================================================================
 
 var osOpenRE = regexp.MustCompile(`\b(os\.Open|os\.Create|os\.OpenFile)\s*\(`)
 
@@ -225,10 +194,6 @@ func AuditFileNoClose(filePath, content string) []Finding {
 	return out
 }
 
-// =============================================================================
-// 7. http_no_body_close_auditor — http.Do tanpa defer resp.Body.Close
-// =============================================================================
-
 var httpDoRE = regexp.MustCompile(`(\.Do\(|http\.(Get|Post|Head|PostForm)\()`)
 
 func AuditHTTPNoBodyClose(filePath, content string) []Finding {
@@ -241,7 +206,7 @@ func AuditHTTPNoBodyClose(filePath, content string) []Finding {
 		if !httpDoRE.MatchString(line) {
 			continue
 		}
-		// Skip kalau di line yg sama / sebelumnya ada assign to var.
+
 		window := lines[i:minInt(i+6, len(lines))]
 		hasClose := false
 		for _, w := range window {
@@ -264,10 +229,6 @@ func AuditHTTPNoBodyClose(filePath, content string) []Finding {
 	}
 	return out
 }
-
-// =============================================================================
-// 8. string_concat_loop_auditor — `s += x` dalam for loop
-// =============================================================================
 
 func AuditStringConcatLoop(filePath, content string) []Finding {
 	if !strings.HasSuffix(filePath, ".go") || strings.HasSuffix(filePath, "_test.go") {
@@ -304,10 +265,6 @@ func AuditStringConcatLoop(filePath, content string) []Finding {
 	return out
 }
 
-// =============================================================================
-// 9. slice_append_loop_auditor — append dalam loop tanpa pre-allocate
-// =============================================================================
-
 func AuditSliceAppendLoop(filePath, content string) []Finding {
 	if !strings.HasSuffix(filePath, ".go") || strings.HasSuffix(filePath, "_test.go") {
 		return nil
@@ -316,9 +273,9 @@ func AuditSliceAppendLoop(filePath, content string) []Finding {
 	lines := strings.Split(content, "\n")
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		// Pattern: `var X []T` followed by append in loop (no make(slice, 0, N))
+
 		if strings.HasPrefix(trimmed, "var ") && strings.Contains(trimmed, "[]") && !strings.Contains(trimmed, "=") {
-			// Look forward 20 line untuk make() atau append() di loop.
+
 			window := lines[i:minInt(i+25, len(lines))]
 			hasMake := false
 			hasAppendInLoop := false
@@ -356,10 +313,6 @@ func AuditSliceAppendLoop(filePath, content string) []Finding {
 	return out
 }
 
-// =============================================================================
-// 10. sync_once_misuse_auditor — sync.Once.Do dengan func yg dipanggil multi times
-// =============================================================================
-
 var syncOnceLocalRE = regexp.MustCompile(`^\s*\w+\s*:?=\s*&?sync\.Once\{?\}?\s*$`)
 
 func AuditSyncOnceMisuse(filePath, content string) []Finding {
@@ -369,9 +322,9 @@ func AuditSyncOnceMisuse(filePath, content string) []Finding {
 	out := []Finding{}
 	lines := strings.Split(content, "\n")
 	for i, line := range lines {
-		// Pattern: sync.Once declared inside function (local) — fired every call.
+
 		if syncOnceLocalRE.MatchString(line) {
-			// Look back for func declaration.
+
 			isLocal := false
 			for j := i - 1; j >= maxInt(0, i-30); j-- {
 				t := strings.TrimSpace(lines[j])

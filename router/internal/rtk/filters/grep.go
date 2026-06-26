@@ -1,11 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — audit pass surface review.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Filter: grep — "file:line:content" output; trim middle results.
 package filters
 
 import (
@@ -22,7 +19,7 @@ var reGrepLine = mustCompile(`^[^:\s]+:\d+:`)
 
 func (g *grepFilter) Name() string { return "grep" }
 func (g *grepFilter) Detect(head string) bool {
-	// First 5 non-empty lines: any one matches file:line:content
+
 	lines := strings.Split(head, "\n")
 	checked := 0
 	for _, ln := range lines {

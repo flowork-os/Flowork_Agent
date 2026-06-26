@@ -1,14 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Router dispatcher.
-
-// Aggregate an OpenAI-shape SSE stream into a single chat.completion JSON.
-// Used when a provider is streaming-only but the client requested a non-
-// streaming response — the router collects every `data: …` chunk, merges
-// content + tool_calls + reasoning + usage, and returns one final body.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package router
 
@@ -20,26 +13,12 @@ import (
 	"time"
 )
 
-// sseToolCallAcc accumulates the (possibly streaming) tool_call deltas keyed
-// by the index field that OpenAI uses to pair chunk-by-chunk arguments back
-// to one logical call.
 type sseToolCallAcc struct {
 	ID   string
 	Name string
 	Args string
 }
 
-// ParseSSEToOpenAIResponse walks a raw SSE buffer (the whole stream body)
-// and returns the aggregated OpenAI chat.completion object — or nil when the
-// buffer carried no valid `data:` chunks. fallbackModel is used when the
-// first chunk didn't include a model id.
-//
-// Recognised chunk shape per line:
-//
-//	data: {"id":"…","choices":[{"delta":{"content":"…"},"finish_reason":"…"}], "usage":{…}}
-//
-// Content is concatenated; tool_calls accumulate by index; reasoning_content
-// is preserved on a separate field for transports that surface it.
 func ParseSSEToOpenAIResponse(rawSSE []byte, fallbackModel string) map[string]any {
 	if len(rawSSE) == 0 {
 		return nil
@@ -56,7 +35,7 @@ func ParseSSEToOpenAIResponse(rawSSE []byte, fallbackModel string) map[string]an
 		}
 		var ch map[string]any
 		if err := json.Unmarshal([]byte(payload), &ch); err != nil {
-			continue // skip malformed lines
+			continue
 		}
 		chunks = append(chunks, ch)
 	}
@@ -124,7 +103,7 @@ func ParseSSEToOpenAIResponse(rawSSE []byte, fallbackModel string) map[string]an
 	if content.Len() > 0 {
 		message["content"] = content.String()
 	} else if len(toolCalls) > 0 {
-		message["content"] = nil // OpenAI shape: null content when tool_calls only
+		message["content"] = nil
 	} else {
 		message["content"] = ""
 	}

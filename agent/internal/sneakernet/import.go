@@ -1,15 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 19 phase 1 import. Verify magic + decrypt + extract +
-//   validate manifest + write ke target directory. Idempotent — overwrite
-//   existing folder (caller harus konfirmasi). Anti-zip-slip via
-//   path sanity check. Phase 2 (CRDT merge state.db, atomic-rename) →
-//   tambah file baru, JANGAN modify ini.
-//
-// import.go — Section 19 phase 1: unpack .fwsync ke target folder.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package sneakernet
 
@@ -29,26 +21,20 @@ import (
 	"golang.org/x/crypto/scrypt"
 )
 
-// ImportOptions — knob.
 type ImportOptions struct {
-	TargetRoot string // dir tujuan (akan dibuat kalau belum ada)
-	Passphrase string // empty kalau plain mode (magic = FWSYNC0)
+	TargetRoot string
+	Passphrase string
 }
 
-// ImportResult — diagnostic untuk handler.
 type ImportResult struct {
 	Manifest    Manifest `json:"manifest"`
 	FilesCount  int      `json:"files_count"`
 	BytesWriten int64    `json:"bytes_written"`
 }
 
-// Import — reverse of Export. Read magic, decrypt, untar, write files.
-// TargetRoot must NOT contain pre-existing data caller anggap valuable —
-// import overwrites by filename.
 func Import(r io.Reader, opts ImportOptions) (ImportResult, error) {
 	var res ImportResult
 
-	// Read magic 8 byte.
 	magic := make([]byte, 8)
 	if _, err := io.ReadFull(r, magic); err != nil {
 		return res, fmt.Errorf("read magic: %w", err)
@@ -57,8 +43,8 @@ func Import(r io.Reader, opts ImportOptions) (ImportResult, error) {
 	var payload []byte
 	switch string(magic) {
 	case "FWSYNC0\x00":
-		// Plain — read remainder.
-		buf, err := io.ReadAll(io.LimitReader(r, 200*1024*1024)) // cap 200MB
+
+		buf, err := io.ReadAll(io.LimitReader(r, 200*1024*1024))
 		if err != nil {
 			return res, err
 		}
@@ -98,7 +84,6 @@ func Import(r io.Reader, opts ImportOptions) (ImportResult, error) {
 		return res, fmt.Errorf("bad magic %q (expected FWSYNC0/1)", string(magic))
 	}
 
-	// Decompress tar.
 	gz, err := gzip.NewReader(bytes.NewReader(payload))
 	if err != nil {
 		return res, fmt.Errorf("gzip: %w", err)
@@ -118,7 +103,7 @@ func Import(r io.Reader, opts ImportOptions) (ImportResult, error) {
 		if err != nil {
 			return res, err
 		}
-		// Anti zip-slip / .. traversal.
+
 		clean := filepath.Clean(hdr.Name)
 		if strings.Contains(clean, "..") || filepath.IsAbs(clean) {
 			continue
@@ -136,7 +121,7 @@ func Import(r io.Reader, opts ImportOptions) (ImportResult, error) {
 		}
 		rel := strings.TrimPrefix(hdr.Name, "agent/")
 		dest := filepath.Join(opts.TargetRoot, rel)
-		// Ensure dir.
+
 		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 			return res, err
 		}
@@ -149,7 +134,7 @@ func Import(r io.Reader, opts ImportOptions) (ImportResult, error) {
 		if err != nil {
 			return res, fmt.Errorf("write %s: %w", dest, err)
 		}
-		// Chmod from header (best-effort).
+
 		_ = os.Chmod(dest, os.FileMode(hdr.Mode))
 		res.FilesCount++
 		res.BytesWriten += n

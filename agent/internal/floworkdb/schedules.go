@@ -1,14 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev). Locked: 2026-06-02.
-// Reason: Scheduler looping (recurring Category Task). E2E verified: jadwal
-//   'every 1m' auto-fire (run kebikin + next_run advance recurring). daily HH:MM
-//   + every N min. notify Telegram pas kelar (jalur Fase 6). Extend (cron penuh)
-//   → tambah kind baru di computeNextRun.
-//
-// schedules.go — Scheduler LOOPING: jalanin Category Task berulang otomatis
-// (mis. tiap jam 9 pagi → analisa saham A → keputusan kirim ke Telegram).
-// Owner-level (flowork.db). Kind: 'daily' (jam HH:MM lokal) atau 'every' (tiap N menit).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package floworkdb
 
@@ -22,10 +15,10 @@ type TaskSchedule struct {
 	ID         int64  `json:"id"`
 	Category   string `json:"category"`
 	Subject    string `json:"subject"`
-	Kind       string `json:"kind"`        // 'daily' | 'every'
-	AtTime     string `json:"at_time"`     // 'HH:MM' (daily)
-	EveryMin   int    `json:"every_min"`   // menit (every)
-	NotifyChat string `json:"notify_chat"` // chat_id Telegram (opsional)
+	Kind       string `json:"kind"`
+	AtTime     string `json:"at_time"`
+	EveryMin   int    `json:"every_min"`
+	NotifyChat string `json:"notify_chat"`
 	Enabled    bool   `json:"enabled"`
 	LastRun    string `json:"last_run"`
 	NextRun    string `json:"next_run"`
@@ -52,7 +45,6 @@ func (s *Store) EnsureScheduleSchema() error {
 	return err
 }
 
-// computeNextRun — hitung next_run dari sekarang sesuai kind.
 func computeNextRun(sc TaskSchedule, now time.Time) time.Time {
 	switch sc.Kind {
 	case "every":
@@ -61,7 +53,7 @@ func computeNextRun(sc TaskSchedule, now time.Time) time.Time {
 			m = 60
 		}
 		return now.Add(time.Duration(m) * time.Minute)
-	default: // daily HH:MM (lokal)
+	default:
 		hh, mm := 9, 0
 		fmt.Sscanf(sc.AtTime, "%d:%d", &hh, &mm)
 		next := time.Date(now.Year(), now.Month(), now.Day(), hh, mm, 0, 0, now.Location())
@@ -141,8 +133,6 @@ func (s *Store) ListSchedules() ([]TaskSchedule, error) {
 	return scanSchedules(rows)
 }
 
-// DueSchedules — jadwal enabled yang next_run <= now (waktunya fire). Caller
-// (ticker) jalanin tiap-tiap + panggil MarkScheduleFired.
 func (s *Store) DueSchedules(now time.Time) ([]TaskSchedule, error) {
 	if err := s.EnsureScheduleSchema(); err != nil {
 		return nil, err
@@ -159,7 +149,6 @@ func (s *Store) DueSchedules(now time.Time) ([]TaskSchedule, error) {
 	return scanSchedules(rows)
 }
 
-// MarkScheduleFired — set last_run=now + hitung next_run berikutnya.
 func (s *Store) MarkScheduleFired(sc TaskSchedule, now time.Time) error {
 	next := computeNextRun(sc, now).Format(schedTimeFmt)
 	s.mu.Lock()

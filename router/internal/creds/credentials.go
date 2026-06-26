@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — audit pass surface review.
-
-// Claude Subscription Credential Reader.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package creds
 
@@ -18,9 +14,6 @@ import (
 	"time"
 )
 
-// CredentialsFile shape — minimal projection. Kita cuma butuh accessToken
-// + refreshToken + expiresAt. organizationUuid optional (mungkin diperlukan
-// di future untuk Anthropic header).
 type CredentialsFile struct {
 	ClaudeAiOauth struct {
 		AccessToken      string   `json:"accessToken"`
@@ -37,11 +30,9 @@ var (
 	cachedMu       sync.Mutex
 	cachedCreds    *CredentialsFile
 	cachedLoadedAt time.Time
-	cacheValidity  = 30 * time.Second // re-read disk every 30s max
+	cacheValidity  = 30 * time.Second
 )
 
-// credentialsPath returns the canonical path. Override via FLOW_CREDS_PATH env
-// untuk testing.
 func credentialsPath() string {
 	if p := os.Getenv("FLOW_CREDS_PATH"); p != "" {
 		return p
@@ -50,9 +41,6 @@ func credentialsPath() string {
 	return filepath.Join(home, ".claude", ".credentials.json")
 }
 
-// Load reads credentials from disk dengan in-process cache 30s.
-// Returns error kalau file ngga ada atau parse gagal.
-// Anti-leak: ngga log token value, cuma masked prefix.
 func Load() (*CredentialsFile, error) {
 	cachedMu.Lock()
 	defer cachedMu.Unlock()
@@ -81,18 +69,14 @@ func Load() (*CredentialsFile, error) {
 	return cachedCreds, nil
 }
 
-// IsExpired check apakah token udah expired berdasarkan expiresAt (unix ms).
-// Buffer 60s biar refresh duluan sebelum benar-benar expired.
 func (c *CredentialsFile) IsExpired() bool {
 	if c.ClaudeAiOauth.ExpiresAt == 0 {
-		return false // unknown, assume valid
+		return false
 	}
 	expiry := time.UnixMilli(c.ClaudeAiOauth.ExpiresAt)
 	return time.Now().Add(60 * time.Second).After(expiry)
 }
 
-// MaskedAccessToken returns token dengan most chars masked — buat log.
-// Format: "sk-ant-oat...XXXX...[masked, total Y chars]"
 func (c *CredentialsFile) MaskedAccessToken() string {
 	t := c.ClaudeAiOauth.AccessToken
 	if len(t) < 20 {
@@ -101,8 +85,6 @@ func (c *CredentialsFile) MaskedAccessToken() string {
 	return t[:10] + "...[masked total " + fmt.Sprintf("%d", len(t)) + " chars]"
 }
 
-// InvalidateCache forces next Load() to re-read disk.
-// Useful setelah refresh token (future).
 func InvalidateCache() {
 	cachedMu.Lock()
 	defer cachedMu.Unlock()

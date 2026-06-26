@@ -1,14 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 11 P1 file ops (edit + glob + grep). Pattern mirror
-//   file.go (locked) phase 1b: category whitelist + filepath.Base
-//   anti-traversal + 4MB cap + symlink skip. Phase 2 (multiedit, diff
-//   preview, partial-byte read) → tambah file baru, JANGAN modify.
-//
-// file_advanced.go — Section 11 P1: edit + glob + grep di shared workspace.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package builtins
 
@@ -24,10 +17,6 @@ import (
 
 	"flowork-gui/internal/tools"
 )
-
-// =============================================================================
-// edit — exact-match string replacement in workspace file
-// =============================================================================
 
 type editTool struct{}
 
@@ -55,7 +44,7 @@ func (editTool) Run(ctx context.Context, args map[string]any) (tools.Result, err
 	if oldS == "" {
 		return tools.Result{}, fmt.Errorf("old_string required (non-empty)")
 	}
-	// file_path (relative, workspace-confined) preferred; {category,name} fallback.
+
 	abs, _, err := resolveFileArgs(ctx, args)
 	if err != nil {
 		return tools.Result{}, err
@@ -94,10 +83,6 @@ func (editTool) Run(ctx context.Context, args map[string]any) (tools.Result, err
 	}}, nil
 }
 
-// =============================================================================
-// glob — pattern match files under shared workspace
-// =============================================================================
-
 type globTool struct{}
 
 func (globTool) Name() string       { return "glob" }
@@ -121,7 +106,7 @@ func (globTool) Run(ctx context.Context, args map[string]any) (tools.Result, err
 	if shared == "" {
 		return tools.Result{}, fmt.Errorf("shared workspace not in context")
 	}
-	// Reject absolute glob + escape attempts.
+
 	if filepath.IsAbs(pattern) || strings.Contains(pattern, "..") {
 		return tools.Result{}, fmt.Errorf("pattern must be relative + no '..'")
 	}
@@ -132,10 +117,10 @@ func (globTool) Run(ctx context.Context, args map[string]any) (tools.Result, err
 
 	for category := range fileCategoryWhitelist {
 		dir := filepath.Join(shared, category)
-		// Try direct match dengan pattern di dalem category.
+
 		matches, _ := filepath.Glob(filepath.Join(dir, pattern))
 		for _, m := range matches {
-			// Symlink skip.
+
 			fi, err := os.Lstat(m)
 			if err != nil || fi.Mode()&os.ModeSymlink != 0 || fi.IsDir() {
 				continue
@@ -151,7 +136,7 @@ func (globTool) Run(ctx context.Context, args map[string]any) (tools.Result, err
 			break
 		}
 	}
-	// Also try at root level (pattern bisa "tools/*.go" etc).
+
 	if !truncated {
 		extra, _ := filepath.Glob(filepath.Join(shared, pattern))
 		for _, m := range extra {
@@ -160,7 +145,7 @@ func (globTool) Run(ctx context.Context, args map[string]any) (tools.Result, err
 				continue
 			}
 			rel, _ := filepath.Rel(shared, m)
-			// Dedupe.
+
 			seen := false
 			for _, r := range results {
 				if r == rel {
@@ -185,10 +170,6 @@ func (globTool) Run(ctx context.Context, args map[string]any) (tools.Result, err
 		"truncated": truncated,
 	}}, nil
 }
-
-// =============================================================================
-// grep — line-grep across shared workspace
-// =============================================================================
 
 type grepTool struct{}
 
@@ -230,8 +211,8 @@ func (grepTool) Run(ctx context.Context, args map[string]any) (tools.Result, err
 
 	const (
 		hitCap   = 200
-		scanCap  = 4 * 1024 * 1024 // 4MB total scan budget
-		lineSize = 4 * 1024        // per-line cap
+		scanCap  = 4 * 1024 * 1024
+		lineSize = 4 * 1024
 	)
 	type hit struct {
 		File   string `json:"file"`
@@ -258,7 +239,7 @@ func (grepTool) Run(ctx context.Context, args map[string]any) (tools.Result, err
 		dir := filepath.Join(shared, c)
 		entries, err := os.ReadDir(dir)
 		if err != nil {
-			continue // skip missing category
+			continue
 		}
 		for _, e := range entries {
 			if e.IsDir() {
@@ -308,9 +289,7 @@ func (grepTool) Run(ctx context.Context, args map[string]any) (tools.Result, err
 					goto DONE
 				}
 			}
-			// scannererr: kalau Scan berhenti karena ERROR baca (mis. baris kepanjangan >
-			// lineSize = bufio.ErrTooLong), bukan EOF → hasil grep file ini GA komplit.
-			// Tandai truncated biar hasil parsial ga disangka lengkap.
+
 			if serr := scanner.Err(); serr != nil {
 				truncated = true
 			}
@@ -318,7 +297,7 @@ func (grepTool) Run(ctx context.Context, args map[string]any) (tools.Result, err
 		}
 	}
 DONE:
-	// Convert hits to []any (avoid Go's strict typing in map).
+
 	out := make([]map[string]any, 0, len(hits))
 	for _, h := range hits {
 		out = append(out, map[string]any{

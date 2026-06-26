@@ -1,17 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 13 phase 1 (Tool discovery). API stable: /tool_search
-//   <query> matches name/capability/description substring. Phase 2
-//   (fuzzy match, scoring, semantic) → tambah file baru, JANGAN modify.
-//
-// tool_search.go — Section 13 phase 1: tool discovery via slash command.
-//
-// Pattern: agent (atau Mr.Dev via Telegram) ngga inget exact tool name —
-// `/tool_search net` cari semua tool dengan substring "net" di name,
-// capability, atau description. Output sorted by registry order.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package builtins
 
@@ -24,7 +14,6 @@ import (
 	"flowork-gui/internal/tools"
 )
 
-// toolSearchCmd — /tool_search slash command (Section 13 phase 1).
 type toolSearchCmd struct{}
 
 func (toolSearchCmd) Name() string      { return "tool_search" }
@@ -68,8 +57,6 @@ func (toolSearchCmd) Run(_ context.Context, argsRaw string) (slashcmd.Result, er
 	return slashcmd.Result{Text: b.String(), Format: "markdown"}, nil
 }
 
-// InitToolSearch — register Section 13 /tool_search. Caller (builtins.Init)
-// panggil setelah Tier 1.
 func InitToolSearch() {
 	slashcmd.Register(&toolSearchCmd{})
 }

@@ -1,17 +1,10 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Provider executor HTTP call.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Default system prompt injected into Codex requests when the client
-// didn't supply one. Mirrors the upstream Codex CLI harness rules.
 package executors
 
-// CodexDefaultInstructions is the system message Codex injects when
-// body.instructions is empty or missing. Verbatim copy of the prompt
-// the upstream CLI ships with so behaviour stays identical.
 var CodexDefaultInstructions = `You are Codex, based on GPT-5. You are running as a coding agent in the Codex CLI on a user's computer.
 
 ## General

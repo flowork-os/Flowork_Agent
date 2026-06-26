@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Store SQLite layer.
-
-// Combos (Model Alias + Dispatch Strategy).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package store
 
@@ -25,16 +21,14 @@ const (
 	ComboStrategyCostOptimal = "cost_optimal"
 )
 
-// Combo — single combo record.
 type Combo struct {
 	ID        string    `json:"id"`
 	Name      string    `json:"name"`
-	Models    []string  `json:"models"`   // ordered list, semantics depend on Strategy
-	Strategy  string    `json:"strategy"` // priority|round_robin|random|cost_optimal
+	Models    []string  `json:"models"`
+	Strategy  string    `json:"strategy"`
 	CreatedAt time.Time `json:"createdAt"`
 }
 
-// ListCombos returns all combos.
 func ListCombos(d *sql.DB) ([]Combo, error) {
 	rows, err := d.Query(`SELECT id, name, models, strategy, createdAt FROM combos ORDER BY name ASC`)
 	if err != nil {
@@ -55,7 +49,6 @@ func ListCombos(d *sql.DB) ([]Combo, error) {
 	return out, nil
 }
 
-// GetComboByName — lookup combo by name (used di dispatcher untuk resolve alias).
 func GetComboByName(d *sql.DB, name string) (*Combo, error) {
 	row := d.QueryRow(`SELECT id, name, models, strategy, createdAt FROM combos WHERE name = ?`, name)
 	var c Combo
@@ -71,7 +64,6 @@ func GetComboByName(d *sql.DB, name string) (*Combo, error) {
 	return &c, nil
 }
 
-// UpsertCombo — insert or update.
 func UpsertCombo(d *sql.DB, c *Combo) error {
 	if c.ID == "" {
 		c.ID = uuid.NewString()
@@ -87,7 +79,6 @@ func UpsertCombo(d *sql.DB, c *Combo) error {
 	return err
 }
 
-// DeleteCombo by ID.
 func DeleteCombo(d *sql.DB, id string) error {
 	_, err := d.Exec(`DELETE FROM combos WHERE id = ?`, id)
 	return err

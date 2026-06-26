@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Router dispatch/orchestrator.
-
-// Per-Intent Multiplexing (private → local).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package router
 
@@ -15,8 +11,6 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-// promptIsPrivate reports whether any pattern (case-insensitive substring)
-// occurs in the request's user/system text.
 func promptIsPrivate(req OpenAIRequest, patterns []string) bool {
 	if len(patterns) == 0 {
 		return false
@@ -37,7 +31,6 @@ func promptIsPrivate(req OpenAIRequest, patterns []string) bool {
 	return false
 }
 
-// filterByTag keeps providers whose Data["tags"] contains tag (case-insensitive).
 func filterByTag(matches []store.ProviderConnection, tag string) []store.ProviderConnection {
 	tag = strings.ToLower(strings.TrimSpace(tag))
 	var out []store.ProviderConnection

@@ -1,19 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-29
-// Reason: Section 6 (HTTP boundary) phase 1 DONE. Endpoints stable:
-//   POST /api/brain/tool-patterns/learn body {trigger, tool_name,
-//   success} return {ok, amplitude}. GET /api/brain/tool-patterns
-//   ?trigger=&limit= return ranked list (max 10). MaxBytesReader 16KB,
-//   DisallowUnknownFields. Future endpoints → tambah file baru.
-//
-// handlers_brain_tools.go — Section 6 roadmap: Tool learner endpoints.
-//
-// Roadmap:
-//   - internal/brain/tool_patterns.go (LearnPattern + SuggestTools)
-//   - flowork_Router/roadmap.md Section 6
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -28,9 +16,6 @@ import (
 
 const maxToolLearnBodyBytes = 16 * 1024
 
-// brainToolLearnHandler — POST /api/brain/tool-patterns/learn
-// Body: {trigger, tool_name, success bool}. Upsert pattern, return new
-// amplitude.
 func brainToolLearnHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed (use POST)", http.StatusMethodNotAllowed)
@@ -63,8 +48,6 @@ func brainToolLearnHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// brainToolSuggestHandler — GET /api/brain/tool-patterns?trigger=<text>&limit=
-// Return ranked ToolPattern list (max 10).
 func brainToolSuggestHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed (use GET)", http.StatusMethodNotAllowed)

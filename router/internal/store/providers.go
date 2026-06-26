@@ -1,24 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// 2026-06-11 (owner-approved): SeedDefaults() now also pre-lists a catalog of
-//   popular API-key providers (OpenAI/Anthropic-key/Gemini/DeepSeek/Groq/
-//   OpenRouter/Mistral/xAI/Together) as INACTIVE entries with a placeholder key,
-//   so Settings → Providers is ready-to-fill on first launch. No real secret
-//   ships; inactive providers are skipped by the dispatcher. Additive — only
-//   runs when the DB has zero providers (fresh install).
-// Reason: Audit pass — Provider adapter.
-// 2026-06-13 (release audit — data refresh): catalog model lists updated to current vendor models
-//   (Claude Fable 5 + Opus 4.8, GPT-5.x, Gemini 3.x) verified against official pages; `*` wildcards
-//   keep new releases routable regardless.
-// 2026-06-13 (release audit → fix → test → re-lock): UpsertProvider now PRESERVES the stored apiKey
-//   when an update sends a blank or masked key (the read API masks it), instead of wiping/overwriting
-//   it with dots — persisted on a private copy so the API response stays masked. Unit-tested
-//   (TestUpsertProviderPreservesKeyOnBlankOrMasked) + verified live.
-
-// Provider Connection CRUD.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package store
 
@@ -32,18 +15,15 @@ import (
 	"github.com/google/uuid"
 )
 
-// AuthType constants — universal router auth modes.
 const (
-	AuthTypeAPIKey       = "api_key"      // regular bearer / key header
-	AuthTypeSubscription = "subscription" // OAuth subscription (Claude/Codex/Cursor)
-	AuthTypeNone         = "none"         // local llama, no auth
+	AuthTypeAPIKey       = "api_key"
+	AuthTypeSubscription = "subscription"
+	AuthTypeNone         = "none"
 )
 
-// ProviderConnection — single provider record. `Data` is JSON-serialized
-// per-provider config (baseUrl, models, headers, etc).
 type ProviderConnection struct {
 	ID        string         `json:"id"`
-	Provider  string         `json:"provider"` // "anthropic", "openai", "local-llama", etc
+	Provider  string         `json:"provider"`
 	AuthType  string         `json:"authType"`
 	Name      string         `json:"name"`
 	Email     string         `json:"email,omitempty"`
@@ -54,17 +34,15 @@ type ProviderConnection struct {
 	UpdatedAt time.Time      `json:"updatedAt"`
 }
 
-// ProviderConfigKey untuk `Data` map. Document semua kunci yang dipake.
 const (
 	CfgBaseURL     = "baseUrl"
-	CfgAPIKey      = "apiKey"      // encrypted at rest via secret.go (AES-GCM); decrypted on read
-	CfgModels      = "models"      // []string of supported models
-	CfgFormat      = "format"      // "openai", "anthropic", "gemini"
-	CfgHeaders     = "headers"     // map[string]string extra headers
-	CfgTokenSource = "tokenSource" // for subscription: "claude_credentials", "codex_auth", "cursor_session"
+	CfgAPIKey      = "apiKey"
+	CfgModels      = "models"
+	CfgFormat      = "format"
+	CfgHeaders     = "headers"
+	CfgTokenSource = "tokenSource"
 )
 
-// ListProviders returns all providers, ordered by priority ASC.
 func ListProviders(d *sql.DB) ([]ProviderConnection, error) {
 	rows, err := d.Query(`SELECT id, provider, authType, name, email, priority, isActive, data, createdAt, updatedAt
 		FROM providerConnections ORDER BY priority ASC, name ASC`)
@@ -96,7 +74,6 @@ func ListProviders(d *sql.DB) ([]ProviderConnection, error) {
 	return out, nil
 }
 
-// GetProvider by ID. Returns nil if not found.
 func GetProvider(d *sql.DB, id string) (*ProviderConnection, error) {
 	row := d.QueryRow(`SELECT id, provider, authType, name, email, priority, isActive, data, createdAt, updatedAt
 		FROM providerConnections WHERE id = ?`, id)
@@ -122,7 +99,6 @@ func GetProvider(d *sql.DB, id string) (*ProviderConnection, error) {
 	return &p, nil
 }
 
-// decryptProviderKey decrypts the apiKey field in place (runtime sees plaintext).
 func decryptProviderKey(data map[string]any) {
 	if data == nil {
 		return
@@ -132,8 +108,6 @@ func decryptProviderKey(data map[string]any) {
 	}
 }
 
-// encryptProviderData returns a shallow copy of data with the apiKey encrypted
-// for persistence — the caller's map (returned to the API) stays plaintext.
 func encryptProviderData(data map[string]any) map[string]any {
 	if data == nil {
 		return nil
@@ -150,9 +124,6 @@ func encryptProviderData(data map[string]any) map[string]any {
 	return cp
 }
 
-// FindActiveByModel — given model name, find best matching active provider.
-// Returns providers sorted by priority. Pattern match via Models config field
-// (supports literal "claude-haiku-4-5" + wildcard "*").
 func FindActiveByModel(d *sql.DB, model string) ([]ProviderConnection, error) {
 	all, err := ListProviders(d)
 	if err != nil {
@@ -176,7 +147,7 @@ func FindActiveByModel(d *sql.DB, model string) ([]ProviderConnection, error) {
 				match = append(match, p)
 				break
 			}
-			// Prefix wildcard: "claude-*" matches "claude-haiku-4-5"
+
 			if strings.HasSuffix(ms, "*") {
 				prefix := strings.TrimSuffix(msLower, "*")
 				if strings.HasPrefix(modelLower, prefix) {
@@ -189,7 +160,6 @@ func FindActiveByModel(d *sql.DB, model string) ([]ProviderConnection, error) {
 	return match, nil
 }
 
-// UpsertProvider inserts or updates. Generates UUID if ID empty.
 func UpsertProvider(d *sql.DB, p *ProviderConnection) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 	if p.ID == "" {
@@ -197,10 +167,7 @@ func UpsertProvider(d *sql.DB, p *ProviderConnection) error {
 		p.CreatedAt = time.Now().UTC()
 	}
 	p.UpdatedAt = time.Now().UTC()
-	// The read API masks data.apiKey and the GUI omits a blank key on save, so a BLANK or MASKED
-	// incoming key means "keep the saved one". Persist the existing (real) key instead of wiping it or
-	// storing dots — but do this on a private copy so the record handed back to the API stays masked
-	// (no plaintext leaks on the PUT/POST response). Only on UPDATE; a new provider has no prior key.
+
 	persistData := p.Data
 	if p.ID != "" && p.Data != nil {
 		if k, ok := p.Data[CfgAPIKey].(string); !ok || k == "" || strings.ContainsRune(k, '•') {
@@ -236,16 +203,11 @@ func UpsertProvider(d *sql.DB, p *ProviderConnection) error {
 	return err
 }
 
-// DeleteProvider removes by ID.
 func DeleteProvider(d *sql.DB, id string) error {
 	_, err := d.Exec(`DELETE FROM providerConnections WHERE id = ?`, id)
 	return err
 }
 
-// AugmentTierTags adds tier:* tags to existing providers that predate the
-// cost-routing feature. Idempotent: a provider that already carries any
-// tier:* tag is skipped. Infers tier from the provider type — never
-// overrides explicit user tags. Safe to call on every boot.
 func AugmentTierTags(d *sql.DB) error {
 	providers, err := ListProviders(d)
 	if err != nil {
@@ -274,7 +236,7 @@ func AugmentTierTags(d *sql.DB) error {
 		case "google", "gemini":
 			inferred = []string{"tier:standard"}
 		default:
-			continue // unknown provider — leave alone for the user to tag manually
+			continue
 		}
 		for _, t := range inferred {
 			tags = append(tags, t)
@@ -290,20 +252,15 @@ func AugmentTierTags(d *sql.DB) error {
 	return nil
 }
 
-// SeedDefaults — auto-create Claude subscription + local-llama on first boot
-// if no providers exist. Self-detect based on environment.
 func SeedDefaults(d *sql.DB) error {
 	existing, err := ListProviders(d)
 	if err != nil {
 		return err
 	}
 	if len(existing) > 0 {
-		return nil // already seeded
+		return nil
 	}
 
-	// Claude subscription (read ~/.claude/.credentials.json). Tagged as both
-	// standard and strong because the family spans haiku→opus; dispatcher
-	// picks the right model based on req.Model + provider tier filtering.
 	claude := &ProviderConnection{
 		Provider: "anthropic",
 		AuthType: AuthTypeSubscription,
@@ -326,17 +283,12 @@ func SeedDefaults(d *sql.DB) error {
 		return fmt.Errorf("seed claude: %w", err)
 	}
 
-	// Local llama-server (any local GGUF model on :8080). Cheap tier — runs
-	// on user hardware, no per-token cost. Also "local" for privacy intent.
-	// 2026-06-15 (audit #6/#10): CLOUD-FIRST default — kebanyakan user pake API,
-	// LLM lokal BERAT + opt-in. Priority 100 (coba TERAKHIR) + IsActive=false
-	// (nyala lewat tombol GUI router, bukan auto). Owner instance gak kepengaruh (DB udah ada).
 	local := &ProviderConnection{
 		Provider: "local-llama",
 		AuthType: AuthTypeNone,
 		Name:     "Local llama-server",
-		Priority: 100, // last-resort: cloud (Claude prio 10) dicoba dulu
-		IsActive: false, // opt-in: user aktifin via GUI router pas mau pake lokal
+		Priority: 100,
+		IsActive: false,
 		Data: map[string]any{
 			CfgBaseURL: "http://127.0.0.1:8080/v1",
 			CfgFormat:  "openai",
@@ -344,7 +296,7 @@ func SeedDefaults(d *sql.DB) error {
 				"brain-flowork", "brain-flowork.gguf",
 				"qwen3-8b", "qwen*",
 				"local-*", "mrflow",
-				"*", // catch-all fallback
+				"*",
 			},
 			"tags": []any{"tier:cheap", "local"},
 		},
@@ -353,10 +305,6 @@ func SeedDefaults(d *sql.DB) error {
 		return fmt.Errorf("seed local: %w", err)
 	}
 
-	// Provider catalog — pre-list popular API-key vendors so Settings → Providers
-	// is ready to fill on first launch. All INACTIVE with a placeholder key: the
-	// user pastes their own key and flips Active. No real secret ships, and the
-	// dispatcher skips inactive providers entirely.
 	const keyPlaceholder = "PASTE_YOUR_KEY_HERE"
 	catalog := []*ProviderConnection{
 		{Provider: "openai", AuthType: AuthTypeAPIKey, Name: "OpenAI", Priority: 20, IsActive: false,

@@ -1,24 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 17 phase 3 — pre/post hook framework. Locked Dispatch
-//   ngga di-modify — caller pakai DispatchWithHooks instead. Phase 4
-//   (priority ordering, async hooks, hook timeout) → tambah file baru.
-//
-// hooks.go — Section 17 phase 3: slash hook framework.
-//
-// PRE-HOOK semantik: Before invocation. Return non-nil err → block invoke
-// + record decisions log dengan type="slash_blocked". Common use:
-// rate-limit, capability check, malicious pattern detect.
-//
-// POST-HOOK semantik: After invocation. Receive result + err. Common use:
-// decisions log append (this file built-in), karma update, audit trail.
-//
-// Built-in DecisionsLogHook auto-registers via Init() — caller (main)
-// panggil InitDecisionsHook supaya tiap slash dispatch ke-record di
-// decisions table (audit per Section 3 requirement).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package slashcmd
 
@@ -30,7 +13,6 @@ import (
 	"time"
 )
 
-// SlashHook — interface buat hook chain.
 type SlashHook interface {
 	Name() string
 	Before(ctx context.Context, text string) error
@@ -42,7 +24,6 @@ var (
 	hooks   []SlashHook
 )
 
-// RegisterHook — append hook ke global chain. Idempotent name check.
 func RegisterHook(h SlashHook) {
 	if h == nil {
 		return
@@ -57,7 +38,6 @@ func RegisterHook(h SlashHook) {
 	hooks = append(hooks, h)
 }
 
-// ListHooks snapshot.
 func ListHooks() []string {
 	hooksMu.RLock()
 	defer hooksMu.RUnlock()
@@ -68,35 +48,22 @@ func ListHooks() []string {
 	return out
 }
 
-// DispatchWithHooks — wrap Dispatch dengan hook chain. Caller (kernelhost
-// SlashDispatcherFunc) panggil ini instead of Dispatch langsung untuk
-// dapet full pipeline.
-//
-// Flow:
-//
-//   1. Before-hook chain (in registration order). Pertama yg err → block.
-//      Record decisions log "slash_blocked" + return err.
-//   2. Run Dispatch (existing locked).
-//   3. After-hook chain (all called regardless of runErr).
 func DispatchWithHooks(ctx context.Context, text string) (Result, string, error) {
 	hooksMu.RLock()
 	chain := make([]SlashHook, len(hooks))
 	copy(chain, hooks)
 	hooksMu.RUnlock()
 
-	// Pre-hook chain.
 	for _, h := range chain {
 		if err := h.Before(ctx, text); err != nil {
-			// Block: record + return.
+
 			recordBlockedDecision(ctx, text, h.Name(), err)
 			return Result{}, "", fmt.Errorf("blocked by %s: %w", h.Name(), err)
 		}
 	}
 
-	// Dispatch.
 	res, cmdName, runErr := Dispatch(ctx, text)
 
-	// Post-hook chain (all called).
 	for _, h := range chain {
 		h.After(ctx, cmdName, res, runErr)
 	}
@@ -124,16 +91,12 @@ func recordBlockedDecision(ctx context.Context, text, hookName string, err error
 	)
 }
 
-// =============================================================================
-// Built-in: DecisionsLogHook — append decisions row after every dispatch
-// =============================================================================
-
 type decisionsLogHook struct{}
 
 func (decisionsLogHook) Name() string { return "decisions-log" }
 
 func (decisionsLogHook) Before(_ context.Context, _ string) error {
-	return nil // no pre-action, audit happens After
+	return nil
 }
 
 func (decisionsLogHook) After(ctx context.Context, cmdName string, res Result, runErr error) {
@@ -175,13 +138,9 @@ func (decisionsLogHook) After(ctx context.Context, cmdName string, res Result, r
 	)
 }
 
-// =============================================================================
-// Built-in: RateLimitHook — block kalau >30 slash dispatch / 60s per agent
-// =============================================================================
-
 type rateLimitHook struct {
 	mu     sync.Mutex
-	window map[string][]time.Time // agent_id → recent timestamps
+	window map[string][]time.Time
 	cap    int
 	period time.Duration
 }
@@ -200,7 +159,7 @@ func (h *rateLimitHook) Before(ctx context.Context, _ string) error {
 	}
 	now := time.Now()
 	cutoff := now.Add(-h.period)
-	// Filter window.
+
 	cur := h.window[agentID]
 	next := cur[:0]
 	for _, t := range cur {
@@ -219,12 +178,8 @@ func (h *rateLimitHook) Before(ctx context.Context, _ string) error {
 
 func (h *rateLimitHook) After(_ context.Context, _ string, _ Result, _ error) {}
 
-// =============================================================================
-// InitHooks — register built-in hooks. Caller (main) panggil exactly once.
-// =============================================================================
-
 func InitHooks() {
 	RegisterHook(&rateLimitHook{cap: 30, period: 60 * time.Second})
 	RegisterHook(decisionsLogHook{})
-	_ = strings.ToLower // anti-unused-import sentinel
+	_ = strings.ToLower
 }

@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Store SQLite layer.
-
-// Auth Sessions.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package store
 
@@ -31,7 +27,6 @@ type AuthSession struct {
 
 const defaultSessionTTL = 7 * 24 * time.Hour
 
-// CreateSession — generate new session token, persist row, return.
 func CreateSession(d *sql.DB, userID, ip, ua string) (*AuthSession, error) {
 	tokenBytes := make([]byte, 32)
 	if _, err := rand.Read(tokenBytes); err != nil {
@@ -56,7 +51,6 @@ func CreateSession(d *sql.DB, userID, ip, ua string) (*AuthSession, error) {
 	return s, nil
 }
 
-// GetSessionByToken — lookup, return nil if expired/missing.
 func GetSessionByToken(d *sql.DB, token string) (*AuthSession, error) {
 	row := d.QueryRow(`SELECT id, token, COALESCE(userId, ''), createdAt, expiresAt, COALESCE(lastSeenAt, ''), COALESCE(ip, ''), COALESCE(userAgent, '') FROM authSessions WHERE token = ?`, token)
 	var s AuthSession
@@ -80,19 +74,16 @@ func GetSessionByToken(d *sql.DB, token string) (*AuthSession, error) {
 	return &s, nil
 }
 
-// TouchSession — bump lastSeenAt.
 func TouchSession(d *sql.DB, id string) error {
 	_, err := d.Exec(`UPDATE authSessions SET lastSeenAt = ? WHERE id = ?`, time.Now().UTC().Format(time.RFC3339), id)
 	return err
 }
 
-// DeleteSession — logout / revoke.
 func DeleteSession(d *sql.DB, token string) error {
 	_, err := d.Exec(`DELETE FROM authSessions WHERE token = ?`, token)
 	return err
 }
 
-// PurgeExpiredSessions — housekeeping, call on startup + periodic.
 func PurgeExpiredSessions(d *sql.DB) error {
 	_, err := d.Exec(`DELETE FROM authSessions WHERE expiresAt < ?`, time.Now().UTC().Format(time.RFC3339))
 	return err

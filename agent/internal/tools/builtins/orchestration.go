@@ -1,15 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 11 phase 1g orchestration tools — plan_read, plan_write,
-//   todo, goal_done. Backing store: tool_memory dengan reserved key
-//   `_plan` + `_todo` + `_goal`. Anti-collision: caller tool_memory normal
-//   ngga boleh pakai key prefix `_`. Phase 2 (task sync sub-call, task_bg
-//   async, task_parallel) → tambah file baru, JANGAN modify ini.
-//
-// orchestration.go — Section 11 phase 1g: plan/todo/goal_done.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package builtins
 
@@ -24,17 +16,11 @@ import (
 	"flowork-gui/internal/tools"
 )
 
-// Reserved keys di tool_memory. Caller tool_memory normal JANGAN pakai
-// key prefix `_` — phase 2 enforce via validator di memSetTool kalau perlu.
 const (
 	keyPlan = "_plan"
 	keyTodo = "_todo"
 	keyGoal = "_goal"
 )
-
-// =============================================================================
-// plan_read — return current plan as markdown
-// =============================================================================
 
 type planReadTool struct{}
 
@@ -67,7 +53,7 @@ func (planReadTool) Run(ctx context.Context, _ map[string]any) (tools.Result, er
 			plan = entry.Plan
 			updatedAt = entry.UpdatedAt
 		} else {
-			plan = v // fallback legacy raw text
+			plan = v
 		}
 	}
 	return tools.Result{Output: map[string]any{
@@ -75,10 +61,6 @@ func (planReadTool) Run(ctx context.Context, _ map[string]any) (tools.Result, er
 		"updated_at": updatedAt,
 	}}, nil
 }
-
-// =============================================================================
-// plan_write — overwrite plan markdown
-// =============================================================================
 
 type planWriteTool struct{}
 
@@ -119,10 +101,6 @@ func (planWriteTool) Run(ctx context.Context, args map[string]any) (tools.Result
 	}}, nil
 }
 
-// =============================================================================
-// todo — manage todo items (op: list | add | done | remove | clear)
-// =============================================================================
-
 type todoTool struct{}
 
 func (todoTool) Name() string       { return "todo" }
@@ -157,7 +135,7 @@ func loadTodos(store *agentdb.Store) ([]todoItem, error) {
 	}
 	var items []todoItem
 	if jerr := json.Unmarshal([]byte(v), &items); jerr != nil {
-		return []todoItem{}, nil // corrupt → return empty (don't break agent)
+		return []todoItem{}, nil
 	}
 	return items, nil
 }
@@ -193,7 +171,7 @@ func (todoTool) Run(ctx context.Context, args map[string]any) (tools.Result, err
 
 	switch op {
 	case "list", "":
-		// just return current.
+
 	case "add":
 		content, _ := args["content"].(string)
 		content = strings.TrimSpace(content)
@@ -266,10 +244,6 @@ func (todoTool) Run(ctx context.Context, args map[string]any) (tools.Result, err
 	}}, nil
 }
 
-// =============================================================================
-// goal_done — mark current goal complete (single-goal model phase 1g)
-// =============================================================================
-
 type goalDoneTool struct{}
 
 func (goalDoneTool) Name() string       { return "goal_done" }
@@ -305,7 +279,7 @@ func (goalDoneTool) Run(ctx context.Context, args map[string]any) (tools.Result,
 		"summary": summary,
 		"done_at": time.Now().UTC().Format(time.RFC3339),
 	})
-	// Keep last 20.
+
 	if len(log) > 20 {
 		log = log[len(log)-20:]
 	}

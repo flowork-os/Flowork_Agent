@@ -1,11 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Provider executor HTTP call.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Executor: iflow — iflow.cn chat API with HMAC-SHA256 signature.
 package executors
 
 import (
@@ -37,7 +34,6 @@ func (i *iflowExecutor) endpoint(p *store.ProviderConnection) string {
 	return trimRightSlash(base) + "/chat/completions"
 }
 
-// iflowSignature mirrors upstream iflow.js HMAC-SHA256(userAgent + sessionID + timestamp, apiKey).
 func iflowSignature(userAgent, sessionID string, timestampMs int64, apiKey string) string {
 	msg := userAgent + sessionID + strconv.FormatInt(timestampMs, 10)
 	mac := hmac.New(sha256.New, []byte(apiKey))

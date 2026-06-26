@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Store SQLite layer.
-
-// Media Providers (5 categories).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package store
 
@@ -26,12 +22,11 @@ const (
 	MediaCategoryWebFetch    = "web-fetch-search"
 )
 
-// MediaProvider — single media-category provider config.
 type MediaProvider struct {
 	ID        string    `json:"id"`
-	Category  string    `json:"category"` // embedding|text-to-image|tts|stt|web-fetch-search
+	Category  string    `json:"category"`
 	Name      string    `json:"name"`
-	Provider  string    `json:"provider"` // openai|stability|elevenlabs|deepgram|tavily|brave|...
+	Provider  string    `json:"provider"`
 	BaseURL   string    `json:"baseUrl"`
 	APIKey    string    `json:"apiKey,omitempty"`
 	Models    []string  `json:"models"`
@@ -61,7 +56,7 @@ func ListMediaProviders(d *sql.DB, category string) ([]MediaProvider, error) {
 		if err := json.Unmarshal([]byte(v), &m); err != nil {
 			continue
 		}
-		m.APIKey = DecryptSecret(m.APIKey) // at-rest → plaintext for runtime
+		m.APIKey = DecryptSecret(m.APIKey)
 		out = append(out, m)
 	}
 	return out, nil
@@ -75,7 +70,7 @@ func UpsertMediaProvider(d *sql.DB, m *MediaProvider) error {
 	if m.Category == "" {
 		return fmt.Errorf("media: category required")
 	}
-	// Encrypt the key for persistence without mutating the caller's struct.
+
 	persist := *m
 	persist.APIKey = EncryptSecret(persist.APIKey)
 	v, _ := json.Marshal(&persist)

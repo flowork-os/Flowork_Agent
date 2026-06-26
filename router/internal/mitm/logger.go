@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — MITM proxy module.
-
-// MITM request/response dumper.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package mitm
 
@@ -22,17 +18,12 @@ var dumpCounter uint64
 
 func dumpDir() string { return filepath.Join(MITMDir(), "dumps") }
 
-// ClearDumpDir wipes all previously written dump files. Called at MITM start to
-// keep disk usage bounded.
 func ClearDumpDir() {
 	dir := dumpDir()
 	_ = os.RemoveAll(dir)
 	_ = os.MkdirAll(dir, 0o700)
 }
 
-// DumpRequest writes <ts>-<n>-<host>-req.txt with method, URL, headers, body.
-// Returns the dump filename (without dir) and a writer for the matching
-// response file via CreateResponseDumper.
 func DumpRequest(host, method, urlStr string, headers map[string]string, body []byte) string {
 	for _, blk := range LogBlacklistURLParts {
 		if strings.Contains(urlStr, blk) {
@@ -55,8 +46,6 @@ func DumpRequest(host, method, urlStr string, headers map[string]string, body []
 	return name
 }
 
-// CreateResponseDumper returns a writer for the response payload, paired with
-// the request dump returned by DumpRequest.
 func CreateResponseDumper(requestDumpName string) func(status int, headers map[string]string, body []byte) {
 	if requestDumpName == "" {
 		return func(int, map[string]string, []byte) {}

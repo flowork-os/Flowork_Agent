@@ -1,14 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Port batch 3 — 10 auditor lagi. Auto-register via init().
-//
-// auditors_v4.go — 10 auditor:
-//   regex_complexity, sha_collision, time_zone, mutex_unlock_missing,
-//   panic_in_init, large_struct, http_no_timeout, env_secret_log,
-//   sql_concat, json_unmarshal_unchecked.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package scanner
 
@@ -18,21 +11,17 @@ import (
 )
 
 func init() {
-	Auditors["regex_complexity_auditor"]      = AuditRegexComplexity
-	Auditors["sha_collision_auditor"]         = AuditSHACollision
-	Auditors["time_zone_auditor"]             = AuditTimeZone
-	Auditors["mutex_unlock_missing_auditor"]  = AuditMutexUnlockMissing
-	Auditors["panic_in_init_auditor"]         = AuditPanicInInit
-	Auditors["large_struct_auditor"]          = AuditLargeStruct
-	Auditors["http_no_timeout_auditor"]       = AuditHTTPNoTimeout
-	Auditors["env_secret_log_auditor"]        = AuditEnvSecretLog
-	Auditors["sql_concat_auditor"]            = AuditSQLConcat
-	Auditors["json_unmarshal_check_auditor"]  = AuditJSONUnmarshalCheck
+	Auditors["regex_complexity_auditor"] = AuditRegexComplexity
+	Auditors["sha_collision_auditor"] = AuditSHACollision
+	Auditors["time_zone_auditor"] = AuditTimeZone
+	Auditors["mutex_unlock_missing_auditor"] = AuditMutexUnlockMissing
+	Auditors["panic_in_init_auditor"] = AuditPanicInInit
+	Auditors["large_struct_auditor"] = AuditLargeStruct
+	Auditors["http_no_timeout_auditor"] = AuditHTTPNoTimeout
+	Auditors["env_secret_log_auditor"] = AuditEnvSecretLog
+	Auditors["sql_concat_auditor"] = AuditSQLConcat
+	Auditors["json_unmarshal_check_auditor"] = AuditJSONUnmarshalCheck
 }
-
-// =============================================================================
-// 1. regex_complexity_auditor — ReDoS risk (nested quantifier)
-// =============================================================================
 
 var nestedQuantRE = regexp.MustCompile(`regexp\.(MustCompile|Compile)\s*\(\s*\x60[^\x60]*\([^)]*[+*?][^)]*\)[+*?]`)
 
@@ -57,10 +46,6 @@ func AuditRegexComplexity(filePath, content string) []Finding {
 	return out
 }
 
-// =============================================================================
-// 2. sha_collision_auditor — sha1/md5 sebagai content integrity hash
-// =============================================================================
-
 var contentHashRE = regexp.MustCompile(`(sha1\.New|md5\.New|hmac\.New\(sha1\.New|hmac\.New\(md5\.New)`)
 
 func AuditSHACollision(filePath, content string) []Finding {
@@ -84,10 +69,6 @@ func AuditSHACollision(filePath, content string) []Finding {
 	return out
 }
 
-// =============================================================================
-// 3. time_zone_auditor — time.Now() tanpa eksplisit zone
-// =============================================================================
-
 var timeNowLocalRE = regexp.MustCompile(`time\.Now\(\)\.Format`)
 
 func AuditTimeZone(filePath, content string) []Finding {
@@ -96,7 +77,7 @@ func AuditTimeZone(filePath, content string) []Finding {
 	}
 	out := []Finding{}
 	for i, line := range strings.Split(content, "\n") {
-		// time.Now().Format(...) without explicit .UTC() or .In(tz)
+
 		if timeNowLocalRE.MatchString(line) && !strings.Contains(line, ".UTC()") && !strings.Contains(line, ".In(") {
 			out = append(out, Finding{
 				Auditor:     "time_zone_auditor",
@@ -112,10 +93,6 @@ func AuditTimeZone(filePath, content string) []Finding {
 	return out
 }
 
-// =============================================================================
-// 4. mutex_unlock_missing_auditor — Lock() tanpa defer Unlock()
-// =============================================================================
-
 var lockCallRE = regexp.MustCompile(`^\s*(\w+\.)?(mu|m|lock)\.Lock\(\)\s*$`)
 
 func AuditMutexUnlockMissing(filePath, content string) []Finding {
@@ -128,7 +105,7 @@ func AuditMutexUnlockMissing(filePath, content string) []Finding {
 		if !lockCallRE.MatchString(line) {
 			continue
 		}
-		// Cek 3 line setelahnya untuk `defer ... Unlock` atau `defer ... RUnlock`.
+
 		window := lines[i:minInt(i+5, len(lines))]
 		hasDefer := false
 		for _, w := range window {
@@ -151,10 +128,6 @@ func AuditMutexUnlockMissing(filePath, content string) []Finding {
 	}
 	return out
 }
-
-// =============================================================================
-// 5. panic_in_init_auditor — init() yang call panic
-// =============================================================================
 
 func AuditPanicInInit(filePath, content string) []Finding {
 	if !strings.HasSuffix(filePath, ".go") {
@@ -192,10 +165,6 @@ func AuditPanicInInit(filePath, content string) []Finding {
 	return out
 }
 
-// =============================================================================
-// 6. large_struct_auditor — struct dengan banyak field (>20)
-// =============================================================================
-
 var structStartRE = regexp.MustCompile(`type\s+(\w+)\s+struct\s*\{`)
 
 func AuditLargeStruct(filePath, content string) []Finding {
@@ -209,7 +178,7 @@ func AuditLargeStruct(filePath, content string) []Finding {
 		if m == nil {
 			continue
 		}
-		// Hitung field sampai closing }.
+
 		depth := 1
 		fields := 0
 		startLine := i
@@ -234,10 +203,6 @@ func AuditLargeStruct(filePath, content string) []Finding {
 	}
 	return out
 }
-
-// =============================================================================
-// 7. http_no_timeout_auditor — http.Client{} default tanpa timeout
-// =============================================================================
 
 var httpClientRE = regexp.MustCompile(`http\.Client\s*\{\s*\}`)
 var httpDefaultRE = regexp.MustCompile(`http\.(Get|Post|Head|PostForm)\s*\(`)
@@ -273,10 +238,6 @@ func AuditHTTPNoTimeout(filePath, content string) []Finding {
 	return out
 }
 
-// =============================================================================
-// 8. env_secret_log_auditor — log os.Getenv("XXX_TOKEN/KEY/SECRET")
-// =============================================================================
-
 var envSecretLogRE = regexp.MustCompile(`(log\.|fmt\.Print|fmt\.Fprint).*os\.Getenv\s*\(\s*"[A-Z_]*(TOKEN|KEY|SECRET|PASSWORD|API)`)
 
 func AuditEnvSecretLog(filePath, content string) []Finding {
@@ -299,10 +260,6 @@ func AuditEnvSecretLog(filePath, content string) []Finding {
 	}
 	return out
 }
-
-// =============================================================================
-// 9. sql_concat_auditor — fmt.Sprintf di SQL query (selain placeholder ?)
-// =============================================================================
 
 var sqlConcatRE = regexp.MustCompile(`(db\.Query|db\.Exec|tx\.Query|tx\.Exec)\s*\(\s*fmt\.Sprintf`)
 
@@ -327,10 +284,6 @@ func AuditSQLConcat(filePath, content string) []Finding {
 	return out
 }
 
-// =============================================================================
-// 10. json_unmarshal_check_auditor — json.Unmarshal tanpa err check
-// =============================================================================
-
 var unmarshalIgnoreRE = regexp.MustCompile(`^\s*_?\s*=?\s*json\.(Unmarshal|NewDecoder\([^)]+\)\.Decode)\(`)
 
 func AuditJSONUnmarshalCheck(filePath, content string) []Finding {
@@ -339,7 +292,7 @@ func AuditJSONUnmarshalCheck(filePath, content string) []Finding {
 	}
 	out := []Finding{}
 	for i, line := range strings.Split(content, "\n") {
-		// Match `_ = json.Unmarshal(...)` pattern (intentional ignore)
+
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, "_ = json.Unmarshal") || strings.HasPrefix(trimmed, "_ = json.NewDecoder") {
 			out = append(out, Finding{

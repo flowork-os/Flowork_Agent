@@ -1,13 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-31
-// Reason: Plug-in auditor arsitektur — dari laporan bug eksternal (bug.md),
-//   diverifikasi real, belum ada auditornya. (1) staged_path_gate: existence
-//   gate cuma cek staged folder, source-agent ke-tolak. (2) db_open_per_call:
-//   open state.db berulang di fungsi per-pesan (perf/lock). Function-scope
-//   tracking → low FP. Daftar via init(), ga sentuh auditors.go locked.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package scanner
 
@@ -16,32 +10,18 @@ import (
 	"strings"
 )
 
-// Anti-pattern existence-gate staged-only. Dua bentuk:
-//   (a) inline:    os.Stat(agentFolder(id))
-//   (b) dua baris: dir := agentFolder(id) ; ... ; os.Stat(dir)
-// agentFolder() nunjuk ke staged (~/.flowork/agents/<id>.fwagent) doang →
-// source-agent di repo (agents/<id>/) ke-tolak "not found".
 var stagedGateInlineRe = regexp.MustCompile(`os\.Stat\(\s*agentFolder\(`)
 var folderVarRe = regexp.MustCompile(`([A-Za-z0-9_]+)\s*:?=\s*agentFolder\(`)
 var statVarRe = regexp.MustCompile(`os\.Stat\(\s*([A-Za-z0-9_]+)\s*\)`)
 
-// funcDeclRe — nangkep nama fungsi buat scope tracking (line-based).
 var funcDeclRe = regexp.MustCompile(`^func\s+(?:\([^)]*\)\s*)?([A-Za-z0-9_]+)\s*\(`)
 
-// perCallFuncRe — nama fungsi yang KEMUNGKINAN dipanggil sering (per pesan/
-// per event/per tick) — di situ open/close DB berulang = perf+lock risk.
 var perCallFuncRe = regexp.MustCompile(`(?i)^(log|on|tick|fire|notify|poll|handle|dispatch|emit)`)
 
-// dbOpenRe — buka koneksi DB.
 var dbOpenRe = regexp.MustCompile(`\b(agentdb\.Open|sql\.Open|floworkdb\.Open)\(`)
 
-// sourceCheckRe — tanda fungsi udah source-aware (cek source repo). Kalau ada
-// ini di fungsi yang sama, staged gate-nya BUKAN bug (itu fallback yang benar).
 var sourceCheckRe = regexp.MustCompile(`agentSourceDir\(|resolveAgentDir\(|ProjectRoot\(|os\.Getwd\(`)
 
-// AuditStagedPathGate — flag existence gate staged-only (inline + 2-baris),
-// TAPI cuma kalau fungsi-nya ngga punya source-check (function-scoped). Skip
-// baris definisi regex (anti self-match auditor).
 func AuditStagedPathGate(filePath, content string) []Finding {
 	var out []Finding
 	type hit struct {
@@ -71,10 +51,10 @@ func AuditStagedPathGate(filePath, content string) []Finding {
 	}
 	for i, line := range strings.Split(content, "\n") {
 		if funcDeclRe.MatchString(line) {
-			flush() // ganti fungsi → evaluasi fungsi sebelumnya
+			flush()
 		}
 		t := strings.TrimSpace(line)
-		// Skip komentar (contoh pola di doc) + baris definisi regex (anti self-match).
+
 		if strings.HasPrefix(t, "//") || strings.HasPrefix(t, "*") ||
 			strings.Contains(line, "MustCompile") || strings.Contains(line, "regexp.") {
 			continue
@@ -97,7 +77,6 @@ func AuditStagedPathGate(filePath, content string) []Finding {
 	return out
 }
 
-// AuditDBOpenPerCall — flag DB Open di dalam fungsi yang namanya per-call.
 func AuditDBOpenPerCall(filePath, content string) []Finding {
 	var out []Finding
 	curFunc := ""

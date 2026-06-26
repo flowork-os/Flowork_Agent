@@ -1,16 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-06-03
-// Reason: Roadmap 2 B4 skill grow-from-patterns. Verified: successful tool freq
-//   -> candidates (failed/rare excluded). Pair w/ Fase 8 curator. Extend -> file baru.
-//
-// skill_suggest.go — Roadmap 2 Fase B4: tool skill_suggest.
-//
-// Lihat pola tool sukses berulang lo → usulan bikin skill. On-demand. Pasangan
-// sama curator (Fase 8) yang grade/consolidate/archive skill existing. Bareng:
-// skill TUMBUH dari pola sukses + ke-CURATE biar ga basi.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package builtins
 

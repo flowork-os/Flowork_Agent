@@ -1,11 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Provider request/response shape translator.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Request translator: OpenAI Responses API → OpenAI Chat Completions.
 package request
 
 import (
@@ -19,8 +16,6 @@ func init() {
 	translator.Register(translator.Pair{From: "openai-responses", To: "openai"}, translator.DirRequest, OpenAIResponsesToChat)
 }
 
-// OpenAIResponsesToChat moves `input` (string or array) into `messages` and
-// promotes `instructions` to a system message.
 func OpenAIResponsesToChat(body map[string]any) map[string]any {
 	out := map[string]any{}
 	for k, v := range body {

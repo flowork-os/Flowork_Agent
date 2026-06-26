@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — HTTP handler.
-
-// Media Provider Sub-routes (BATCH 11).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -23,9 +19,6 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-// mediaTTSHandler — POST /api/media-providers/tts
-// Body: { text, voice?, model?, providerId? }
-// Dispatches to first active TTS provider, returns audio bytes.
 func mediaTTSHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -67,12 +60,7 @@ func mediaTTSHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	// Adapter path (additive, 2026-06-07 G5): if the picked provider has no
-	// upstream BaseURL to proxy to, fall back to the in-process TTS adapter from
-	// the registry (e.g. the free edgeTts shim, which targets its own local
-	// server). This mirrors how transcriptionsHandler already calls STT adapters,
-	// and ONLY triggers for the empty-BaseURL case that previously errored — so
-	// the existing passthrough behaviour below is completely untouched.
+
 	if strings.TrimSpace(picked.BaseURL) == "" {
 		impl := tts.Get(picked.Provider)
 		if impl == nil {
@@ -110,7 +98,6 @@ func mediaTTSHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Build OpenAI-compat /audio/speech request
 	upstreamBody := map[string]any{
 		"model": body.Model,
 		"input": body.Text,

@@ -1,13 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — CLI command/menu.
-
-// Google Gemini CLI usage via Cloud Code subscription endpoint.
-// POST cloudcode-pa.googleapis.com/v1internal:loadCodeAssist returns the
-// account's tier + current quota allocations.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package quotalive
 
@@ -87,8 +81,6 @@ func (g *geminiCLIFetcher) Fetch(ctx context.Context, p Params) (Snapshot, error
 		Plan:      plan,
 		FetchedAt: time.Now().UTC(),
 		Raw:       respBody,
-		// Gemini CLI doesn't expose a request/token quota — the tier name
-		// is the only surface. Windows stay empty.
 	}, nil
 }
 

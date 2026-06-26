@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Store SQLite layer.
-
-// flow_router SQLite Storage Layer.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package store
 
@@ -21,8 +17,6 @@ import (
 
 const schemaVersion = 1
 
-// schemaSQL — DDL initial. Idiomatic SQLite schema covering universal
-// router parity tables (providers, keys, usage, combos, etc).
 const schemaSQL = `
 CREATE TABLE IF NOT EXISTS _meta (
 	key TEXT PRIMARY KEY,
@@ -246,7 +240,6 @@ var (
 	dbErr  error
 )
 
-// dataDir returns canonical data dir. Override via FLOW_ROUTER_DATA env.
 func dataDir() string {
 	if d := os.Getenv("FLOW_ROUTER_DATA"); d != "" {
 		return d
@@ -255,12 +248,10 @@ func dataDir() string {
 	return filepath.Join(home, ".flow_router")
 }
 
-// DBPath returns SQLite file path.
 func DBPath() string {
 	return filepath.Join(dataDir(), "db", "data.sqlite")
 }
 
-// Open singleton SQLite DB. WAL mode + foreign_keys on.
 func Open() (*sql.DB, error) {
 	dbOnce.Do(func() {
 		p := DBPath()
@@ -281,11 +272,10 @@ func Open() (*sql.DB, error) {
 			dbErr = fmt.Errorf("schema apply: %w", err)
 			return
 		}
-		// Stamp schema version
+
 		_, _ = conn.Exec(`INSERT OR REPLACE INTO _meta (key, value) VALUES ('schemaVersion', ?), ('appVersion', '0.1.0')`, fmt.Sprintf("%d", schemaVersion))
 		db = conn
-		// Apply registered migrations (idempotent, sequential).
-		// Failure here MUST NOT leak a half-migrated DB to callers.
+
 		if err := applyMigrations(conn); err != nil {
 			dbErr = fmt.Errorf("migrate: %w", err)
 			_ = conn.Close()
@@ -299,7 +289,6 @@ func Open() (*sql.DB, error) {
 	return db, nil
 }
 
-// Close gracefully shuts SQLite. Called on app shutdown.
 func Close() error {
 	if db != nil {
 		return db.Close()

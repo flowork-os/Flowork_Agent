@@ -1,20 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Provider request/response translator.
-
-// reasoning_content injector + DeepSeek v4-Pro alias rewriting.
-//
-// Some thinking-mode providers (DeepSeek family, Kimi) reject assistant
-// messages that are missing a non-empty reasoning_content field. Clients
-// in OpenAI format don't carry it, so we inject a single-space placeholder
-// before the request leaves this process.
-//
-// DeepSeek's v4-Pro model ships with "-max" / "-none" aliases that tune
-// thinking-mode + reasoning_effort. We rewrite them to the base model id
-// + the matching extra_body knobs upstream expects.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package helpers
 
@@ -22,11 +9,6 @@ import "strings"
 
 const reasoningPlaceholder = " "
 
-// reasoningScope identifies which assistant messages need the placeholder:
-//
-//	scopeAll       — every assistant turn
-//	scopeToolCalls — only assistant turns that carry tool_calls
-//	scopeNone      — never (no-op)
 type reasoningScope int
 
 const (
@@ -35,17 +17,14 @@ const (
 	scopeToolCalls
 )
 
-// pickReasoningScope returns the scope for (provider, model). Provider
-// rules win over model rules; unknown combinations get scopeNone.
 func pickReasoningScope(provider, model string) reasoningScope {
 	provider = strings.ToLower(strings.TrimSpace(provider))
 	model = strings.ToLower(strings.TrimSpace(model))
 
-	// Provider-level rules.
 	if provider == "deepseek" {
 		return scopeAll
 	}
-	// Model-prefix rules (case-insensitive). Order matters when prefixes overlap.
+
 	switch {
 	case strings.HasPrefix(model, "deepseek-"):
 		return scopeAll
@@ -55,10 +34,6 @@ func pickReasoningScope(provider, model string) reasoningScope {
 	return scopeNone
 }
 
-// InjectReasoningContent walks body.messages and inserts a non-empty
-// reasoning_content placeholder on assistant messages that match the
-// provider/model rule. Operates on the raw decoded shape so any caller
-// holding map[string]any can use it; mutates the messages slice in place.
 func InjectReasoningContent(provider, model string, body map[string]any) {
 	scope := pickReasoningScope(provider, model)
 	if scope == scopeNone {
@@ -78,7 +53,7 @@ func InjectReasoningContent(provider, model string, body map[string]any) {
 			continue
 		}
 		if rc, _ := msg["reasoning_content"].(string); rc != "" {
-			continue // caller already supplied one
+			continue
 		}
 		if scope == scopeToolCalls {
 			tcs, _ := msg["tool_calls"].([]any)
@@ -90,11 +65,9 @@ func InjectReasoningContent(provider, model string, body map[string]any) {
 	}
 }
 
-// deepseekV4ProAliases maps the synthetic "-max" / "-none" model ids to the
-// base id + thinking knobs upstream accepts. Returns (newModel, alias, ok).
 type deepseekAlias struct {
-	ThinkingType    string // "enabled" or "disabled"
-	ReasoningEffort string // "max" or "" (strip)
+	ThinkingType    string
+	ReasoningEffort string
 }
 
 var deepseekV4ProAliases = map[string]deepseekAlias{
@@ -102,10 +75,6 @@ var deepseekV4ProAliases = map[string]deepseekAlias{
 	"deepseek-v4-pro-none": {ThinkingType: "disabled", ReasoningEffort: ""},
 }
 
-// ApplyDeepSeekV4ProAlias rewrites body.model + body.extra_body.thinking +
-// body.reasoning_effort when (provider, model) matches a known v4-Pro alias.
-// Returns the (possibly unchanged) body — same object, mutated in place when
-// rewriting fires.
 func ApplyDeepSeekV4ProAlias(provider string, body map[string]any) {
 	if strings.ToLower(provider) != "deepseek" {
 		return

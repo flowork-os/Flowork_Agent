@@ -1,21 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev). Locked: 2026-06-02.
-// Reason: FASE 8 Curator skill lifecycle. E2E verified: consolidate dup (keep
-//   usage tertinggi), stale→archive (idle 90d/umur 30d usage 0), grade. Soft-
-//   archive (recoverable). Extend (auto-create) → tambah method baru.
-//
-// skills_curate.go — FASE 8: Curator skill lifecycle (per-agent, isolated).
-//
-// Skill numpuk (apalagi nanti ada auto-create) → perlu di-curate biar prompt ga
-// keracunan skill basi/duplikat. Curator:
-//   - GRADE      : skor per-skill (usage_count + recency).
-//   - CONSOLIDATE: skill instruksi IDENTIK → simpen 1 (usage tertinggi), arsip sisanya.
-//   - STALE→ARSIP: skill ga kepake lama (idle > N hari) atau lama-ga-pernah-kepake
-//                  (umur > M hari, usage 0) → archived=1 (soft, bisa balik).
-//
-// Soft-archive (archived=1) BUKAN delete — recoverable. Skill archived ga
-// di-inject ke prompt (anti over-prompt) tapi masih ke-simpen.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package agentdb
 
@@ -25,8 +11,6 @@ import (
 	"time"
 )
 
-// ensureSkillCols — tambah kolom lifecycle ke `skills` (idempotent). ALTER ADD
-// COLUMN error kalau udah ada → di-ignore. Backfill created_at row lama.
 func (s *Store) ensureSkillCols() {
 	for _, q := range []string{
 		`ALTER TABLE skills ADD COLUMN created_at  TEXT    NOT NULL DEFAULT ''`,
@@ -34,12 +18,11 @@ func (s *Store) ensureSkillCols() {
 		`ALTER TABLE skills ADD COLUMN usage_count INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE skills ADD COLUMN archived    INTEGER NOT NULL DEFAULT 0`,
 	} {
-		_, _ = s.db.Exec(q) // ignore "duplicate column"
+		_, _ = s.db.Exec(q)
 	}
 	_, _ = s.db.Exec(`UPDATE skills SET created_at=datetime('now') WHERE created_at=''`)
 }
 
-// SkillRow — skill + metadata lifecycle + grade.
 type SkillRow struct {
 	ID           string `json:"id"`
 	Trigger      string `json:"trigger"`
@@ -51,15 +34,13 @@ type SkillRow struct {
 	Grade        int    `json:"grade"`
 }
 
-// SkillCurateReport — hasil 1 sapuan curator.
 type SkillCurateReport struct {
 	Active       int      `json:"active"`
-	Consolidated []string `json:"consolidated"` // id di-arsip krn duplikat
-	Stale        []string `json:"stale"`        // id di-arsip krn basi/idle
-	TopGraded    []string `json:"top_graded"`   // id skill skor tertinggi (≤5)
+	Consolidated []string `json:"consolidated"`
+	Stale        []string `json:"stale"`
+	TopGraded    []string `json:"top_graded"`
 }
 
-// AddSkill — insert skill (atau update kalau id sama). created_at = now.
 func (s *Store) AddSkill(id, trigger, instructions string, orderIdx int) error {
 	s.ensureSkillCols()
 	_, err := s.db.Exec(
@@ -71,15 +52,12 @@ func (s *Store) AddSkill(id, trigger, instructions string, orderIdx int) error {
 	return err
 }
 
-// BumpSkillUsage — catat skill kepake (usage_count++, last_used=now). Dipanggil
-// pas skill di-surface ke agent (inject/search). Best-effort.
 func (s *Store) BumpSkillUsage(id string) {
 	s.ensureSkillCols()
 	_, _ = s.db.Exec(
 		`UPDATE skills SET usage_count=usage_count+1, last_used=datetime('now') WHERE id=?`, id)
 }
 
-// gradeSkill — skor: usage dominan + bonus recency. Dipakai sort + report.
 func gradeSkill(usage int, lastUsed string, now time.Time) int {
 	g := usage * 10
 	if lastUsed != "" {
@@ -96,7 +74,6 @@ func gradeSkill(usage int, lastUsed string, now time.Time) int {
 	return g
 }
 
-// ListSkillsGraded — semua skill (+ grade). includeArchived=false → aktif doang.
 func (s *Store) ListSkillsGraded(includeArchived bool) ([]SkillRow, error) {
 	s.ensureSkillCols()
 	q := `SELECT id,trigger,instructions,created_at,last_used,usage_count,archived FROM skills`
@@ -125,9 +102,6 @@ func (s *Store) ListSkillsGraded(includeArchived bool) ([]SkillRow, error) {
 	return out, rows.Err()
 }
 
-// CurateSkills — 1 sapuan: consolidate dup + arsip stale + grade. now di-pass
-// caller (testable). idleDays = idle > ini → arsip; ageDays = umur > ini & usage 0
-// → arsip.
 func (s *Store) CurateSkills(now time.Time, idleDays, ageDays int) (SkillCurateReport, error) {
 	s.ensureSkillCols()
 	rep := SkillCurateReport{}
@@ -146,8 +120,6 @@ func (s *Store) CurateSkills(now time.Time, idleDays, ageDays int) (SkillCurateR
 	}
 	archived := map[string]bool{}
 
-	// 1) CONSOLIDATE: group by instruksi ternormalisasi. Simpen usage tertinggi
-	//    (tie → created_at paling tua), arsip sisanya.
 	byInstr := map[string][]SkillRow{}
 	for _, sk := range active {
 		key := strings.ToLower(strings.Join(strings.Fields(sk.Instructions), " "))
@@ -162,9 +134,9 @@ func (s *Store) CurateSkills(now time.Time, idleDays, ageDays int) (SkillCurateR
 		}
 		sort.Slice(group, func(i, j int) bool {
 			if group[i].UsageCount != group[j].UsageCount {
-				return group[i].UsageCount > group[j].UsageCount // usage tinggi di depan
+				return group[i].UsageCount > group[j].UsageCount
 			}
-			return group[i].CreatedAt < group[j].CreatedAt // lebih tua di depan
+			return group[i].CreatedAt < group[j].CreatedAt
 		})
 		for _, dup := range group[1:] {
 			archive(dup.ID, "dup")
@@ -172,7 +144,6 @@ func (s *Store) CurateSkills(now time.Time, idleDays, ageDays int) (SkillCurateR
 		}
 	}
 
-	// 2) STALE→ARSIP: idle lama, atau umur tua tapi ga pernah kepake.
 	for _, sk := range active {
 		if archived[sk.ID] {
 			continue
@@ -194,7 +165,6 @@ func (s *Store) CurateSkills(now time.Time, idleDays, ageDays int) (SkillCurateR
 		}
 	}
 
-	// 3) GRADE: ranking skill yang masih aktif.
 	remain, _ := s.ListSkillsGraded(false)
 	sort.Slice(remain, func(i, j int) bool { return remain[i].Grade > remain[j].Grade })
 	rep.Active = len(remain)

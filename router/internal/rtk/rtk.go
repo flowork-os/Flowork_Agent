@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — RTK (Router Tool Kit) filter.
-
-// RTK Token Saver (Advanced: tool-output auto-detect).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package rtk
 
@@ -15,8 +11,6 @@ import (
 	"sync"
 )
 
-// Filter is a single tool-output compactor. Detect returns true when the input
-// matches this filter's signature; Apply returns the compressed text.
 type Filter interface {
 	Name() string
 	Detect(head string) bool
@@ -28,20 +22,14 @@ var (
 	filters   []Filter
 )
 
-// Register adds a filter to the registry. Called from init() in each filter
-// file so the registry is populated before first use.
 func Register(f Filter) {
 	filtersMu.Lock()
 	defer filtersMu.Unlock()
 	filters = append(filters, f)
 }
 
-// detectWindow caps how much of the input we scan to choose a filter. Mirrors
-// upstream's autodetect (Rust port). 8 KB is plenty for any heuristic signal.
 const detectWindow = 8 * 1024
 
-// Compress detects the right filter and applies it. Falls back to a head+tail
-// trim when no filter matches. Returns (compressed, savedBytes).
 func Compress(text string, cap int) (string, int) {
 	if cap <= 0 || len(text) <= cap {
 		return text, 0
@@ -50,10 +38,7 @@ func Compress(text string, cap int) (string, int) {
 	if len(head) > detectWindow {
 		head = head[:detectWindow]
 	}
-	// autoDetect handles its own registry snapshot + priority chain. The old
-	// "first-Register-wins" pickFilter is kept below for backwards compat
-	// callers but is no longer the default path — autodetect is strictly
-	// better (explicit ordering + smart heuristics for grep/find/porcelain).
+
 	pick := autoDetect(head)
 	var out string
 	if pick != nil {
@@ -67,9 +52,6 @@ func Compress(text string, cap int) (string, int) {
 	return text, 0
 }
 
-// pickFilter — legacy first-Register-wins detection. Kept for tests that
-// want to assert which filter would match without going through autoDetect's
-// priority chain. New callers should use autoDetect instead.
 func pickFilter(head string) Filter {
 	filtersMu.RLock()
 	defer filtersMu.RUnlock()
@@ -81,7 +63,6 @@ func pickFilter(head string) Filter {
 	return nil
 }
 
-// fallbackHeadTail keeps the head (cap*0.8) + tail (cap*0.15) with a marker.
 func fallbackHeadTail(s string, cap int) string {
 	if len(s) <= cap {
 		return s
@@ -97,5 +78,4 @@ func fallbackHeadTail(s string, cap int) string {
 		s[len(s)-tailN:]
 }
 
-// Compiled regexp helper — every filter compiles its own patterns at init.
 func mustCompile(p string) *regexp.Regexp { return regexp.MustCompile(p) }

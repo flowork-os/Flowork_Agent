@@ -1,14 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Port batch 12 — 8 tool tambahan.
-//
-// v13_extras.go:
-//   scheduler_schedule_add, scheduler_schedule_remove, mistake_promote_mark,
-//   protector_rule_toggle, edu_error_count, mistakes_count, interaction_count,
-//   wallet_address_add.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package builtins
 
@@ -29,10 +22,6 @@ func init() {
 	tools.Register(&mistakesCountTool{})
 	tools.Register(&interactionCountTool{})
 }
-
-// =============================================================================
-// 1. scheduler_schedule_add
-// =============================================================================
 
 type schedulerScheduleAddTool struct{}
 
@@ -64,13 +53,13 @@ func (schedulerScheduleAddTool) Run(ctx context.Context, args map[string]any) (t
 	if id == "" || cron == "" || task == "" {
 		return tools.Result{}, fmt.Errorf("id + cron + task required")
 	}
-	// Use Save with full schedule array (replace pattern).
+
 	cfg, err := store.Load()
 	if err != nil {
 		return tools.Result{}, fmt.Errorf("load: %w", err)
 	}
 	scheduleAny, _ := cfg["schedule"].([]any)
-	// Filter out existing id, append new.
+
 	filtered := make([]any, 0, len(scheduleAny))
 	for _, s := range scheduleAny {
 		m, ok := s.(map[string]any)
@@ -91,10 +80,6 @@ func (schedulerScheduleAddTool) Run(ctx context.Context, args map[string]any) (t
 		Output: map[string]any{"ok": true, "id": id, "total_schedules": len(filtered)},
 	}, nil
 }
-
-// =============================================================================
-// 2. scheduler_schedule_remove
-// =============================================================================
 
 type schedulerScheduleRemoveTool struct{}
 
@@ -147,10 +132,6 @@ func (schedulerScheduleRemoveTool) Run(ctx context.Context, args map[string]any)
 	}, nil
 }
 
-// =============================================================================
-// 3. mistake_promote_mark — mark mistake sebagai promoted (Section 7)
-// =============================================================================
-
 type mistakePromoteMarkTool struct{}
 
 func (mistakePromoteMarkTool) Name() string       { return "mistake_promote_mark" }
@@ -176,7 +157,7 @@ func (mistakePromoteMarkTool) Run(ctx context.Context, args map[string]any) (too
 	if idf <= 0 || promotedTo == "" {
 		return tools.Result{}, fmt.Errorf("mistake_id + promoted_to_id required")
 	}
-	// promoted_to_id schema expects int64 (router antibody numeric id).
+
 	var promotedToID int64
 	for _, c := range promotedTo {
 		if c >= '0' && c <= '9' {
@@ -190,10 +171,6 @@ func (mistakePromoteMarkTool) Run(ctx context.Context, args map[string]any) (too
 		Output: map[string]any{"ok": true, "mistake_id": int64(idf)},
 	}, nil
 }
-
-// =============================================================================
-// 4. protector_rule_toggle
-// =============================================================================
 
 type protectorRuleToggleTool struct{}
 
@@ -228,10 +205,6 @@ func (protectorRuleToggleTool) Run(ctx context.Context, args map[string]any) (to
 	}, nil
 }
 
-// =============================================================================
-// 5. edu_error_count
-// =============================================================================
-
 type eduErrorCountTool struct{}
 
 func (eduErrorCountTool) Name() string       { return "edu_error_count" }
@@ -257,10 +230,6 @@ func (eduErrorCountTool) Run(ctx context.Context, args map[string]any) (tools.Re
 		Output: map[string]any{"total": total},
 	}, nil
 }
-
-// =============================================================================
-// 6. mistakes_count
-// =============================================================================
 
 type mistakesCountTool struct{}
 
@@ -292,10 +261,6 @@ func (mistakesCountTool) Run(ctx context.Context, args map[string]any) (tools.Re
 	}, nil
 }
 
-// =============================================================================
-// 7. interaction_count
-// =============================================================================
-
 type interactionCountTool struct{}
 
 func (interactionCountTool) Name() string       { return "interaction_count" }
@@ -321,5 +286,3 @@ func (interactionCountTool) Run(ctx context.Context, args map[string]any) (tools
 		Output: map[string]any{"total": total},
 	}, nil
 }
-
-// (wallet_address_add removed — wallet feature dropped)

@@ -1,14 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 26 phase 2 — watchdog cron evaluator. Rule set: kalau
-//   N event_type X dalam window W → fire alert. 1-jam cooldown anti-spam.
-//   Phase 3 (DB-backed dynamic rules, escalation chain, multi-channel
-//   dispatch) → tambah file baru.
-//
-// evaluator.go — Section 26 phase 2: audit_log watchdog tick.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package watchdog
 
@@ -22,20 +15,15 @@ import (
 	"flowork-gui/internal/agentdb"
 )
 
-// Rule — single watchdog rule.
 type Rule struct {
-	ID          string
-	EventType   string        // mirror agentdb.Event*
-	Threshold   int           // ≥ N hit
-	Window      time.Duration // dalam Window
-	Cooldown    time.Duration // anti-spam re-fire
-	Severity    string        // critical | warning | error
+	ID        string
+	EventType string
+	Threshold int
+	Window    time.Duration
+	Cooldown  time.Duration
+	Severity  string
 }
 
-// DefaultRules — hardcoded per Section 26 acceptance:
-//   ≥10 protector_block / 60s → CRITICAL
-//   ≥5 scanner critical finding / 1h → HIGH
-//   self-modification attempt detect → CRITICAL
 func DefaultRules() []Rule {
 	return []Rule{
 		{
@@ -105,7 +93,7 @@ func (e *Engine) FireNow(ctx context.Context) (int, int) {
 }
 
 func (e *Engine) loop(ctx context.Context) {
-	timer := time.NewTimer(15 * time.Second) // warm-up
+	timer := time.NewTimer(15 * time.Second)
 	defer timer.Stop()
 	for {
 		select {
@@ -142,7 +130,7 @@ func (e *Engine) tickAgent(ctx context.Context, agentID string) (int, int) {
 	fired := 0
 	for _, rule := range e.rules {
 		evaluated++
-		// Cooldown check via recent watchdog_alerts.
+
 		recentAlerts, _ := store.ListWatchdogAlerts(50)
 		recentSkip := false
 		for _, a := range recentAlerts {
@@ -158,7 +146,7 @@ func (e *Engine) tickAgent(ctx context.Context, agentID string) (int, int) {
 		if recentSkip {
 			continue
 		}
-		// Count event window.
+
 		cutoff := time.Now().UTC().Add(-rule.Window).Format(time.RFC3339)
 		n, cerr := store.CountAuditInWindow(rule.EventType, cutoff)
 		if cerr != nil {
@@ -167,7 +155,7 @@ func (e *Engine) tickAgent(ctx context.Context, agentID string) (int, int) {
 		if n < rule.Threshold {
 			continue
 		}
-		// Fire.
+
 		ctxJSON, _ := json.Marshal(map[string]any{
 			"rule_id":    rule.ID,
 			"event_type": rule.EventType,

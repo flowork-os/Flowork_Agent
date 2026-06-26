@@ -1,11 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Provider request/response translator.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Request translator: OpenAI canonical → Anthropic Claude shape.
 package request
 
 import (
@@ -17,9 +14,6 @@ func init() {
 	translator.Register(translator.Pair{From: "openai", To: "claude"}, translator.DirRequest, OpenAIToClaude)
 }
 
-// OpenAIToClaude splits OpenAI messages into Anthropic { system, messages }.
-// Multiple system messages are concatenated; tool messages collapse to
-// user-role tool_result blocks.
 func OpenAIToClaude(body map[string]any) map[string]any {
 	out := map[string]any{}
 	for k, v := range body {
@@ -52,7 +46,7 @@ func OpenAIToClaude(body map[string]any) map[string]any {
 			case "user", "assistant":
 				anthrMsgs = append(anthrMsgs, map[string]any{"role": role, "content": content})
 			case "tool":
-				// Wrap tool result as user message with tool_result block.
+
 				anthrMsgs = append(anthrMsgs, map[string]any{
 					"role": "user",
 					"content": []map[string]any{{

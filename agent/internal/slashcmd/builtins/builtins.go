@@ -1,20 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 14 phase 1 (3 demo commands). API stable: Init()
-//   registers help/echo/ping. Phase 2 (Tier 1 commands /search /stats
-//   /list /agents dst.) → tambah file baru, register di Init().
-//
-// Package builtins — Section 14 phase 1: 3 demo slash commands.
-//
-// Commands:
-//   /help               — list all registered commands + descriptions
-//   /echo <text>        — echo back input
-//   /ping               — health check (returns "pong")
-//
-// Real tier 1 commands (/search /stats /list /agents dst.) di Section 15.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package builtins
 
@@ -26,20 +13,15 @@ import (
 	"flowork-gui/internal/slashcmd"
 )
 
-// Init — explicit bootstrap. Caller (main.go) panggil exactly once.
 func Init() {
 	slashcmd.Register(&helpCmd{})
 	slashcmd.Register(&echoCmd{})
 	slashcmd.Register(&pingCmd{})
-	// Section 15 phase 1: 5 Tier 1 productive commands.
+
 	InitTier1()
-	// Section 13 phase 1: /tool_search discovery command.
+
 	InitToolSearch()
 }
-
-// =============================================================================
-// /help
-// =============================================================================
 
 type helpCmd struct{}
 
@@ -62,10 +44,6 @@ func (helpCmd) Run(_ context.Context, _ string) (slashcmd.Result, error) {
 	}, nil
 }
 
-// =============================================================================
-// /echo
-// =============================================================================
-
 type echoCmd struct{}
 
 func (echoCmd) Name() string        { return "echo" }
@@ -77,10 +55,6 @@ func (echoCmd) Run(_ context.Context, argsRaw string) (slashcmd.Result, error) {
 	}
 	return slashcmd.Result{Text: argsRaw}, nil
 }
-
-// =============================================================================
-// /ping
-// =============================================================================
 
 type pingCmd struct{}
 

@@ -1,25 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE (RESERVED for future) — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Plugin UI mount package — currently NOT imported by main.go.
-//   Reserved for Phase 11+ multi-plugin GUI shell. Audit pass:
-//   - Path traversal guard di ServeAsset (filepath.Rel + ".." check)
-//   - Cache-Control no-store
-//   - I18n locale fallback to "en"
-//   - Minor: Index handler line 113 pakai dummy Request — kalau di-wire,
-//     ganti ke ServeIndex yang pakai real r.
-//
-// Package uimount — kumpulkan kontribusi UI dari plugin discovery,
-// expose handler HTTP untuk:
-//
-//   - GET /                         primary gui shell (gui-shell-id/ui/index.html)
-//   - GET /ui/<plugin-id>/<file>    static asset dari plugin folder ui/
-//   - GET /api/contributions        merged tab list dari semua plugin
-//   - GET /api/i18n?locale=en       merged dictionary dari semua plugin
-//
-// Kernel HTTP server mux ini di-mount oleh main.go.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package uimount
 
@@ -34,28 +16,22 @@ import (
 	"flowork-gui/internal/kernel/loader"
 )
 
-// Registry — snapshot kontribusi UI yang sudah di-resolve dari manifest
-// + folder fisik. Read-only setelah Build.
 type Registry struct {
 	Tabs        []TabContribution
-	I18nByKey   map[string]map[string]string // key -> locale -> text
-	PrimaryRoot string                        // absolute path ke gui-shell ui/index.html
-	pluginRoots map[string]string             // plugin_id -> absolute path ke folder plugin
+	I18nByKey   map[string]map[string]string
+	PrimaryRoot string
+	pluginRoots map[string]string
 }
 
-// TabContribution — satu entry tab yang kernel exposed ke gui-shell.
 type TabContribution struct {
-	PluginID   string `json:"plugin_id"`
-	Label      string `json:"label"`
-	Icon       string `json:"icon,omitempty"`
-	Path       string `json:"path,omitempty"`   // URL relatif yang gui-shell load di iframe
-	LabelKey   string `json:"label_key,omitempty"`
-	ParentHub  string `json:"parent_hub,omitempty"`
+	PluginID  string `json:"plugin_id"`
+	Label     string `json:"label"`
+	Icon      string `json:"icon,omitempty"`
+	Path      string `json:"path,omitempty"`
+	LabelKey  string `json:"label_key,omitempty"`
+	ParentHub string `json:"parent_hub,omitempty"`
 }
 
-// Build merge kontribusi UI dari setiap discovery yang state-nya bukan
-// failed. PrimaryRoot dipilih dari plugin kind=gui pertama yang punya
-// ui_contributes.tab.path; kalau gak ada, return error.
 func Build(discoveries []loader.Discovery) (*Registry, error) {
 	reg := &Registry{
 		I18nByKey:   map[string]map[string]string{},
@@ -68,7 +44,6 @@ func Build(discoveries []loader.Discovery) (*Registry, error) {
 		}
 		reg.pluginRoots[d.Manifest.ID] = d.Path
 
-		// Merge i18n keys ke dict global.
 		for k, v := range d.Manifest.I18nKeys {
 			if reg.I18nByKey[k] == nil {
 				reg.I18nByKey[k] = map[string]string{}
@@ -78,7 +53,6 @@ func Build(discoveries []loader.Discovery) (*Registry, error) {
 			}
 		}
 
-		// Resolve ui contribution kalau ada.
 		if d.Manifest.UIContributes != nil && d.Manifest.UIContributes.Tab != nil {
 			t := d.Manifest.UIContributes.Tab
 			contribPath := ""
@@ -97,7 +71,6 @@ func Build(discoveries []loader.Discovery) (*Registry, error) {
 				ParentHub: t.ParentHub,
 			})
 
-			// Primary shell = first kind=gui plugin yang sumbang index.html.
 			if d.Manifest.Kind == loader.KindGUI && reg.PrimaryRoot == "" {
 				abs := filepath.Join(d.Path, filepath.FromSlash(t.Path))
 				if _, err := os.Stat(abs); err == nil {
@@ -113,7 +86,6 @@ func Build(discoveries []loader.Discovery) (*Registry, error) {
 	return reg, nil
 }
 
-// HandlerSet returns http handlers untuk mount oleh kernel main.go.
 func (r *Registry) HandlerSet() Handlers {
 	return Handlers{reg: r}
 }
@@ -122,12 +94,10 @@ type Handlers struct {
 	reg *Registry
 }
 
-// Index serves primary gui shell index.html.
 func (h Handlers) Index(w http.ResponseWriter, _ *http.Request) {
 	http.ServeFile(w, &http.Request{Method: "GET"}, h.reg.PrimaryRoot)
 }
 
-// IndexHandler — alternative yang use http.ServeFile dengan benar.
 func (h Handlers) ServeIndex(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" && r.URL.Path != "/index.html" {
 		http.NotFound(w, r)
@@ -136,9 +106,8 @@ func (h Handlers) ServeIndex(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, h.reg.PrimaryRoot)
 }
 
-// ServeAsset handle path /ui/<plugin-id>/<sub-path>.
 func (h Handlers) ServeAsset(w http.ResponseWriter, r *http.Request) {
-	// Path = "/ui/<plugin-id>/<rest>"
+
 	const prefix = "/ui/"
 	if !strings.HasPrefix(r.URL.Path, prefix) {
 		http.NotFound(w, r)
@@ -157,9 +126,9 @@ func (h Handlers) ServeAsset(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	// Filesystem layout di plugin folder: ui/<files>. Jadi prepend ui/.
+
 	fileAbs := filepath.Join(root, "ui", filepath.FromSlash(subPath))
-	// Guard: tidak boleh escape root via ../
+
 	rel, err := filepath.Rel(filepath.Join(root, "ui"), fileAbs)
 	if err != nil || strings.HasPrefix(rel, "..") {
 		http.NotFound(w, r)
@@ -173,8 +142,6 @@ func (h Handlers) ServeAsset(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, fileAbs)
 }
 
-// Contributions serves /api/contributions — JSON yang gui-shell pakai
-// untuk render sidebar.
 func (h Handlers) Contributions(w http.ResponseWriter, _ *http.Request) {
 	out := struct {
 		Tabs  []TabContribution `json:"tabs"`
@@ -183,8 +150,6 @@ func (h Handlers) Contributions(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, out)
 }
 
-// I18n serves /api/i18n?locale=en — dict (key -> text) sudah resolved
-// untuk satu locale. Fallback en kalau locale gak ada.
 func (h Handlers) I18n(w http.ResponseWriter, r *http.Request) {
 	locale := r.URL.Query().Get("locale")
 	if locale == "" {

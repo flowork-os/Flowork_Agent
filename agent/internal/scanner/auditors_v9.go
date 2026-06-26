@@ -1,14 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Port batch 8 — 10 auditor.
-//
-// auditors_v9.go:
-//   double_lock, race_struct_field, http_chunked_max, regex_no_anchor,
-//   slice_index_unchecked, var_naming, dead_code_func, env_default_missing,
-//   unused_struct_field, log_format_mismatch.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package scanner
 
@@ -18,16 +11,16 @@ import (
 )
 
 func init() {
-	Auditors["double_lock_auditor"]            = AuditDoubleLock
-	Auditors["race_struct_field_auditor"]      = AuditRaceStructField
-	Auditors["http_chunked_max_auditor"]       = AuditHTTPChunkedMax
-	Auditors["regex_no_anchor_auditor"]        = AuditRegexNoAnchor
-	Auditors["slice_index_unchecked_auditor"]  = AuditSliceIndexUnchecked
-	Auditors["var_naming_auditor"]             = AuditVarNaming
-	Auditors["dead_code_func_auditor"]         = AuditDeadCodeFunc
-	Auditors["env_default_missing_auditor"]    = AuditEnvDefaultMissing
-	Auditors["unused_struct_field_auditor"]    = AuditUnusedStructField
-	Auditors["log_format_mismatch_auditor"]    = AuditLogFormatMismatch
+	Auditors["double_lock_auditor"] = AuditDoubleLock
+	Auditors["race_struct_field_auditor"] = AuditRaceStructField
+	Auditors["http_chunked_max_auditor"] = AuditHTTPChunkedMax
+	Auditors["regex_no_anchor_auditor"] = AuditRegexNoAnchor
+	Auditors["slice_index_unchecked_auditor"] = AuditSliceIndexUnchecked
+	Auditors["var_naming_auditor"] = AuditVarNaming
+	Auditors["dead_code_func_auditor"] = AuditDeadCodeFunc
+	Auditors["env_default_missing_auditor"] = AuditEnvDefaultMissing
+	Auditors["unused_struct_field_auditor"] = AuditUnusedStructField
+	Auditors["log_format_mismatch_auditor"] = AuditLogFormatMismatch
 }
 
 var doubleLockRE = regexp.MustCompile(`(\w+)\.Lock\(\)`)
@@ -44,7 +37,7 @@ func AuditDoubleLock(filePath, content string) []Finding {
 			continue
 		}
 		varName := m[1]
-		// Check next 10 line for another Lock() pada var sama tanpa Unlock di antara.
+
 		hasUnlock := false
 		for j := i + 1; j < minInt(i+10, len(lines)); j++ {
 			if strings.Contains(lines[j], varName+".Unlock") {
@@ -102,7 +95,7 @@ func AuditRegexNoAnchor(filePath, content string) []Finding {
 	}
 	out := []Finding{}
 	for i, line := range strings.Split(content, "\n") {
-		// Heuristic untuk pattern validation use case (kalau pattern punya `validate` di var name).
+
 		trimmed := strings.TrimSpace(line)
 		if strings.Contains(trimmed, "regexp.MustCompile") && strings.Contains(trimmed, "validate") {
 			if !strings.Contains(line, "^") || !strings.Contains(line, "$") {
@@ -130,7 +123,7 @@ func AuditSliceIndexUnchecked(filePath, content string) []Finding {
 	out := []Finding{}
 	for i, line := range strings.Split(content, "\n") {
 		if sliceIndexRE.MatchString(line) {
-			// Hanya flag literal index >= 5 (suggest unsafe).
+
 			if strings.Contains(line, "[0]") || strings.Contains(line, "[1]") {
 				continue
 			}
@@ -178,7 +171,7 @@ func AuditDeadCodeFunc(filePath, content string) []Finding {
 		return nil
 	}
 	out := []Finding{}
-	// Heuristic: unexported func with NO callers in same file.
+
 	funcRE := regexp.MustCompile(`^func\s+([a-z]\w*)\s*\(`)
 	for i, line := range strings.Split(content, "\n") {
 		m := funcRE.FindStringSubmatch(line)
@@ -186,11 +179,11 @@ func AuditDeadCodeFunc(filePath, content string) []Finding {
 			continue
 		}
 		name := m[1]
-		// Skip main/init.
+
 		if name == "main" || name == "init" {
 			continue
 		}
-		// Count usage (excluding decl line). Usage = `name(` minus declaration.
+
 		usage := strings.Count(content, name+"(") - 1
 		if usage == 0 {
 			out = append(out, Finding{
@@ -220,17 +213,17 @@ func AuditEnvDefaultMissing(filePath, content string) []Finding {
 		if m == nil {
 			continue
 		}
-		// Cek context — apakah ada `if v == "" { v = "default" }` heuristic.
+
 		envName := m[1]
 		hasDefault := false
-		// Look 5 line setelahnya.
+
 		for j := i + 1; j < minInt(i+6, len(lines)); j++ {
-			if strings.Contains(lines[j], `= ""`) || strings.Contains(lines[j], `"` ) && strings.Contains(lines[j], envName) {
+			if strings.Contains(lines[j], `= ""`) || strings.Contains(lines[j], `"`) && strings.Contains(lines[j], envName) {
 				hasDefault = true
 			}
 		}
 		if !hasDefault {
-			// Suppress noise — only flag if it's REQUIRED env (heuristic: NAME ends with REQUIRED/TOKEN).
+
 			if strings.HasSuffix(envName, "_TOKEN") || strings.HasSuffix(envName, "_KEY") {
 				out = append(out, Finding{
 					Auditor:     "env_default_missing_auditor",
@@ -267,10 +260,10 @@ func AuditLogFormatMismatch(filePath, content string) []Finding {
 		fmtStr := m[1]
 		verbs := formatVerbRE.FindAllString(fmtStr, -1)
 		expected := len(verbs)
-		// Count args = count commas after first arg (rough).
+
 		afterFmt := line[strings.Index(line, m[0])+len(m[0]):]
 		args := strings.Count(afterFmt, ",")
-		// Both: this is approx; just flag suspicious mismatch >=2 diff.
+
 		if expected > 0 && args > 0 && expected != args {
 			out = append(out, Finding{
 				Auditor:     "log_format_mismatch_auditor",

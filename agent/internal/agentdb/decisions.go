@@ -1,25 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-29
-// Reason: Section 3 (Decisions log) DONE + adversarial-audit passed.
-//   API stable: LogDecision (return ID), ListDecisions (type filter), Prune,
-//   Count. RFC3339 timestamp explicit, 4KB rationale cap, 'pending' outcome
-//   default. Section 8 (Retention) extend via new function di file lain —
-//   JANGAN ubah ini tanpa approval.
-//
-// decisions.go — Section 3 roadmap: Decisions log per-warga.
-//
-// PURPOSE:
-//   Audit trail keputusan non-trivial warga (mis. pilih model, drop chat
-//   unauthorized, LLM fail → fallback, tool pick). Bukan untuk LLM context
-//   inject — anti over-prompt. Tujuan: debugging, accountability, training
-//   future warga via pattern analysis.
-//
-// ⚠️ OVER-PROMPT WARNING (per standar_ai_agent.md section 11):
-//   JANGAN auto-inject decisions ke system prompt. Akses HANYA via tool
-//   call (`decisions_recall` future tool) atau API endpoint untuk dashboard.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package agentdb
 
@@ -30,25 +12,16 @@ import (
 	"time"
 )
 
-// Decision — satu row di tabel `decisions`.
 type Decision struct {
 	ID               int64          `json:"id"`
-	DecisionType     string         `json:"decision_type"`        // 'model_choice' | 'skip_task' | 'escalate' | 'tool_pick' | dst
+	DecisionType     string         `json:"decision_type"`
 	Rationale        string         `json:"rationale"`
-	Inputs           map[string]any `json:"inputs"`               // JSON: konteks input
-	Outcome          string         `json:"outcome"`              // 'success' | 'fail' | 'pending'
-	RefInteractionID int64          `json:"ref_interaction_id"`   // 0 = tidak link
-	OccurredAt       string         `json:"occurred_at"`          // ISO timestamp
+	Inputs           map[string]any `json:"inputs"`
+	Outcome          string         `json:"outcome"`
+	RefInteractionID int64          `json:"ref_interaction_id"`
+	OccurredAt       string         `json:"occurred_at"`
 }
 
-// LogDecision insert satu row keputusan. Idempotent terhadap timestamp —
-// caller tidak set ID, SQLite autoincrement. Inputs di-marshal ke JSON.
-//
-// Rationale truncated kalau > 4KB (decisions rationale lebih pendek dari
-// content interaction; 4KB sudah generous).
-//
-// Anti-spoof: caller wajib lewat host capability (kernel inject pluginID
-// dari ctx). DB layer cuma trust caller.
 func (s *Store) LogDecision(decisionType, rationale, outcome string, inputs map[string]any, refInteractionID int64) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -57,7 +30,6 @@ func (s *Store) LogDecision(decisionType, rationale, outcome string, inputs map[
 		return 0, fmt.Errorf("decision_type + rationale required")
 	}
 
-	// Hard cap rationale supaya tidak bloat.
 	const maxRationaleBytes = 4 * 1024
 	if len(rationale) > maxRationaleBytes {
 		rationale = rationale[:maxRationaleBytes] + "…[truncated]"
@@ -74,20 +46,12 @@ func (s *Store) LogDecision(decisionType, rationale, outcome string, inputs map[
 		inputsJSON = "{}"
 	}
 
-	// Outcome empty di-treat sebagai 'pending' supaya consistent. Caller bisa
-	// override saat decision selesai eksekusi (via separate update — defer
-	// sampai ada use case follow-up).
 	if outcome == "" {
 		outcome = "pending"
 	}
 
-	// Timestamp explicit RFC3339 UTC supaya konsisten dengan PruneDecisions
-	// cutoff (sama isu sebagai LogInteraction — lihat audit notes Section 1).
 	ts := time.Now().UTC().Format(time.RFC3339)
 
-	// NULL kalau ref tidak set (0). FK constraint defer — kalau tabel
-	// interactions ke-prune dan decision masih reference id lama, tetap row
-	// decision valid (FK ngga ON DELETE CASCADE; soft-delete).
 	var refArg any
 	if refInteractionID > 0 {
 		refArg = refInteractionID
@@ -104,8 +68,6 @@ func (s *Store) LogDecision(decisionType, rationale, outcome string, inputs map[
 	return res.LastInsertId()
 }
 
-// ListDecisions — paginated list. Filter optional: decision_type.
-// Limit default 50, max 500 (bounded supaya tidak ke-DOS).
 func (s *Store) ListDecisions(decisionType string, limit int) ([]Decision, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -147,9 +109,6 @@ func (s *Store) ListDecisions(decisionType string, limit int) ([]Decision, error
 	return out, rows.Err()
 }
 
-// PruneDecisions — soft-delete row yang occurred_at lebih lama dari
-// olderThan (e.g. 90 days). Return count deleted. Hard-delete kemudian
-// jalan via retention cron (section 8 roadmap).
 func (s *Store) PruneDecisions(olderThan time.Duration) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -166,7 +125,6 @@ func (s *Store) PruneDecisions(olderThan time.Duration) (int64, error) {
 	return res.RowsAffected()
 }
 
-// CountDecisions — total non-deleted row. Buat metric / dashboard.
 func (s *Store) CountDecisions() (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

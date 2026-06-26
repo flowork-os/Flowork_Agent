@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — audit pass surface review.
-
-// Session Manager (per-connection ID for prompt cache).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package streamutil
 
@@ -49,8 +45,6 @@ func startSessionCleanup() {
 	}()
 }
 
-// DeriveSessionID returns a stable session ID for connectionID, generating
-// one on first call. Re-use within the process keeps prompt-cache hot.
 func DeriveSessionID(connectionID string) string {
 	if connectionID == "" {
 		return ""
@@ -69,15 +63,12 @@ func DeriveSessionID(connectionID string) string {
 	return id
 }
 
-// ResetSessionID forces a new ID on the next DeriveSessionID call (used when
-// upstream returns a session-invalid error).
 func ResetSessionID(connectionID string) {
 	sessionMu.Lock()
 	defer sessionMu.Unlock()
 	delete(sessionStore, connectionID)
 }
 
-// ActiveSessionCount returns how many connections currently have a cached ID.
 func ActiveSessionCount() int {
 	sessionMu.Lock()
 	defer sessionMu.Unlock()

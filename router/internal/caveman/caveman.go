@@ -1,17 +1,12 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — audit pass surface review.
-
-// Caveman style modifier.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package caveman
 
 import "strings"
 
-// Level is the intensity of the caveman style.
 type Level string
 
 const (
@@ -50,15 +45,10 @@ var prompts = map[Level]string{
 	}, " "),
 }
 
-// Prompt returns the canonical caveman instruction for the given level.
-// Returns "" for LevelOff or any unknown value — callers should treat empty
-// as "no modification" and skip injection entirely.
 func Prompt(l Level) string {
 	return prompts[l]
 }
 
-// Normalize parses a string from settings/JSON into a Level value. Unknown
-// strings collapse to LevelOff so misconfiguration never activates a level.
 func Normalize(s string) Level {
 	switch strings.ToLower(strings.TrimSpace(s)) {
 	case "lite":
@@ -72,10 +62,6 @@ func Normalize(s string) Level {
 	}
 }
 
-// InjectIntoSystem appends the caveman prompt to an existing system message
-// or returns the prompt itself when no system message exists yet. Caller is
-// responsible for placing the result back in the right field of the
-// downstream payload (messages[].content / instructions / systemInstruction).
 func InjectIntoSystem(existing, prompt string) string {
 	if prompt == "" {
 		return existing

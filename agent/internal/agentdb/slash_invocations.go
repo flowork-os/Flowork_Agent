@@ -1,13 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 14 phase 1 (slash audit log). API stable:
-//   LogSlashInvocation (8KB cap fields), ListSlashInvocations (command/
-//   caller filter, cap 500). Retention via Section 8 cron sweep.
-//
-// slash_invocations.go — Section 14 phase 1: slash command audit log per-warga.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package agentdb
 
@@ -16,7 +10,6 @@ import (
 	"time"
 )
 
-// SlashInvocation — single row.
 type SlashInvocation struct {
 	ID         int64  `json:"id"`
 	Command    string `json:"command"`
@@ -28,7 +21,6 @@ type SlashInvocation struct {
 	InvokedAt  string `json:"invoked_at"`
 }
 
-// LogSlashInvocation — insert single row. Cap fields 8KB anti-bloat.
 func (s *Store) LogSlashInvocation(command, args, caller, resultText, errorText string, durationMs int64) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -60,8 +52,6 @@ func (s *Store) LogSlashInvocation(command, args, caller, resultText, errorText 
 	return res.LastInsertId()
 }
 
-// ListSlashInvocations — paginated. Filter optional command + caller.
-// Default 50, max 500.
 func (s *Store) ListSlashInvocations(command, caller string, limit int) ([]SlashInvocation, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

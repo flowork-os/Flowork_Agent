@@ -1,17 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// 2026-06-11 (owner-approved security audit, unfreeze→refreeze): loopback-secret
-//   check now uses subtle.ConstantTimeCompare (matches loket/service.go and
-//   triggers/engine.go) instead of ==.
-// Reason: Section 18 phase 1 admin endpoints. API stable:
-//   GET  /api/agents/scheduler/runs?id=<agent>&schedule=&limit=
-//   POST /api/agents/scheduler/trigger?id=<agent>&schedule_id=
-// Phase 2 (UI integration, real-time stream) → tambah file baru.
-//
-// scheduler.go — Section 18 admin: list runs + manual trigger.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package agentmgr
 
@@ -25,12 +15,8 @@ import (
 	"flowork-gui/internal/httpx"
 )
 
-// SchedulerFireFunc — callback dari main.go untuk panggil engine.FireNow.
-// Lazy-bind di main wiring supaya scheduler engine instance dependency
-// ngga circular.
 var SchedulerFireFunc func(agentID, scheduleID string) (int64, error)
 
-// SchedulerRunsHandler — GET /api/agents/scheduler/runs?id=&schedule=&limit=
 func SchedulerRunsHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
@@ -69,7 +55,6 @@ func SchedulerRunsHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// SchedulerTriggerHandler — POST /api/agents/scheduler/trigger?id=&schedule_id=
 func SchedulerTriggerHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
@@ -77,9 +62,7 @@ func SchedulerTriggerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	agentID := strings.TrimSpace(r.URL.Query().Get("id"))
 	scheduleID := strings.TrimSpace(r.URL.Query().Get("schedule_id"))
-	// Caller-bound execution: when reached over the loopback self-API (secret
-	// present), the VERIFIED caller id is authoritative — an agent cannot trigger
-	// ANOTHER agent's schedule by passing ?id=<other>. Same guard ToolRunHandler uses.
+
 	if secret := strings.TrimSpace(os.Getenv("FLOWORK_LOOPBACK_SECRET")); secret != "" &&
 		subtle.ConstantTimeCompare([]byte(r.Header.Get("X-Flowork-Secret")), []byte(secret)) == 1 {
 		if caller := strings.TrimSpace(r.Header.Get("X-Flowork-Caller")); caller != "" {

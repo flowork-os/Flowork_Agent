@@ -1,18 +1,12 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — ./internal/router package — audit pass surface review.
-
-// Caveman injection adapter.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package router
 
 import "github.com/flowork-os/flowork_Router/internal/caveman"
 
-// injectCavemanIntoRequest mutates req.Messages so the dispatched payload
-// carries the caveman style instruction. No-op when level is off/unknown.
 func injectCavemanIntoRequest(req *OpenAIRequest, level string) {
 	prompt := caveman.Prompt(caveman.Normalize(level))
 	if prompt == "" {
@@ -24,6 +18,6 @@ func injectCavemanIntoRequest(req *OpenAIRequest, level string) {
 			return
 		}
 	}
-	// No existing system message — prepend one carrying just the modifier.
+
 	req.Messages = append([]OpenAIMessage{{Role: "system", Content: prompt}}, req.Messages...)
 }

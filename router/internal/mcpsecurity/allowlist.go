@@ -1,14 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — audit pass surface review.
-
-// MCP spawn allowlist. The router lets the operator register Model Context
-// Protocol servers whose command + args are stored in the DB. Without this
-// gate, a malicious or hijacked settings row could spawn ARBITRARY
-// executables — so every spawn site routes through IsAllowed first.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package mcpsecurity
 
@@ -18,9 +11,6 @@ import (
 	"sync"
 )
 
-// defaultAllowed is the set of program basenames flow_router allows MCP
-// servers to launch out of the box. Operators can extend this at runtime
-// via Allow() / Set().
 var defaultAllowed = []string{
 	"npx",
 	"node",
@@ -47,29 +37,18 @@ func makeAllowedSet(list []string) map[string]struct{} {
 	return out
 }
 
-// IsAllowed reports whether command (path or bare name) resolves to a
-// program on the allowlist. Matches by basename without extension so
-// `npx`, `/usr/local/bin/npx`, and `C:\node\npx.cmd` all map to "npx".
-// Suspicious paths (containing `..` segments) are always rejected — the
-// allowlist is a defence against compromised settings rows, so anything
-// trying to climb the filesystem is treated as hostile regardless of the
-// final basename.
 func IsAllowed(command string) bool {
 	if command == "" {
 		return false
 	}
-	// Reject path-traversal attempts outright. Checking the cleaned
-	// version would normalise "../node" to "node" which defeats the gate.
+
 	if strings.Contains(command, "..") {
 		return false
 	}
 
-	// filepath.Base on Linux/macOS uses "/" — Windows paths arriving via
-	// JSON config don't get split. Normalise backslashes first.
 	normalised := strings.ReplaceAll(command, "\\", "/")
 	base := filepath.Base(normalised)
 
-	// Trim Windows executable extensions before comparison.
 	lower := strings.ToLower(base)
 	for _, ext := range []string{".exe", ".cmd", ".bat", ".ps1"} {
 		if strings.HasSuffix(lower, ext) {
@@ -84,8 +63,6 @@ func IsAllowed(command string) bool {
 	return ok
 }
 
-// Allow adds a program basename to the runtime allowlist. Idempotent.
-// Empty / whitespace-only entries are ignored.
 func Allow(name string) {
 	name = strings.ToLower(strings.TrimSpace(name))
 	if name == "" {
@@ -96,24 +73,18 @@ func Allow(name string) {
 	allowed[name] = struct{}{}
 }
 
-// Set replaces the entire allowlist with the supplied entries. Defaults can
-// be restored by passing the result of Defaults().
 func Set(list []string) {
 	mu.Lock()
 	defer mu.Unlock()
 	allowed = makeAllowedSet(list)
 }
 
-// Defaults returns a copy of the initial allowlist — safe to mutate by
-// callers without affecting the package state.
 func Defaults() []string {
 	out := make([]string, len(defaultAllowed))
 	copy(out, defaultAllowed)
 	return out
 }
 
-// List returns the current allowlist as a sorted-by-key snapshot. Read-only
-// view; callers must not modify the returned slice.
 func List() []string {
 	mu.RLock()
 	defer mu.RUnlock()

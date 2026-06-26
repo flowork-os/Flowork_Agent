@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — HTTP handler.
-
-// Model Metadata HTTP Handlers.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -20,7 +16,6 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-// modelsAliasHandler — GET list / POST upsert.
 func modelsAliasHandler(w http.ResponseWriter, r *http.Request) {
 	d, _ := store.Open()
 	switch r.Method {
@@ -51,7 +46,6 @@ func modelsAliasHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// modelsAliasCRUDHandler — /api/models/alias/:alias DELETE.
 func modelsAliasCRUDHandler(w http.ResponseWriter, r *http.Request) {
 	d, _ := store.Open()
 	alias := r.URL.Path[len("/api/models/alias/"):]
@@ -70,7 +64,6 @@ func modelsAliasCRUDHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// modelsAvailabilityHandler — GET list / POST manual record.
 func modelsAvailabilityHandler(w http.ResponseWriter, r *http.Request) {
 	d, _ := store.Open()
 	switch r.Method {
@@ -97,7 +90,6 @@ func modelsAvailabilityHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// modelsCustomHandler — GET list / POST upsert custom model entry.
 func modelsCustomHandler(w http.ResponseWriter, r *http.Request) {
 	d, _ := store.Open()
 	switch r.Method {
@@ -128,7 +120,6 @@ func modelsCustomHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// modelsCustomCRUDHandler — /api/models/custom/:id DELETE.
 func modelsCustomCRUDHandler(w http.ResponseWriter, r *http.Request) {
 	d, _ := store.Open()
 	id := r.URL.Path[len("/api/models/custom/"):]
@@ -147,7 +138,6 @@ func modelsCustomCRUDHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// modelsDisabledHandler — GET list / POST disable / DELETE re-enable.
 func modelsDisabledHandler(w http.ResponseWriter, r *http.Request) {
 	d, _ := store.Open()
 	switch r.Method {
@@ -194,8 +184,6 @@ func modelsDisabledHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// modelsTestHandler — POST { provider?, model, prompt? } → ping the
-// configured provider w/ minimal prompt + record latency to modelAvailability.
 func modelsTestHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -260,14 +248,13 @@ func modelsTestHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// modelsRouterHandler — dispatch /api/models/* sub-routes.
 func modelsRouterHandler(w http.ResponseWriter, r *http.Request) {
 	rest := strings.TrimPrefix(r.URL.Path, "/api/models/")
 	if rest == "" {
 		modelsListHandler(w, r)
 		return
 	}
-	// alias sub: alias or alias/:name
+
 	if rest == "alias" {
 		modelsAliasHandler(w, r)
 		return
@@ -299,8 +286,6 @@ func modelsRouterHandler(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "unknown sub-route", http.StatusNotFound)
 }
 
-// modelsListHandler — alias name to existing modelsHandler in main.go.
-// (delegate; defined here to keep mux registration tidy.)
 func modelsListHandler(w http.ResponseWriter, r *http.Request) {
 	modelsHandler(w, r)
 }

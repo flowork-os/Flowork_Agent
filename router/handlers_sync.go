@@ -1,14 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// 2026-06-11 (owner-approved security audit, unfreeze→refreeze): sync/pull now
-//   calls blockMetadataURL() on the user-supplied `from` host — SSRF guard for
-//   the cloud-metadata range. LAN/private peers still allowed (cross-device sync).
-// Reason: Audit pass — HTTP handler.
-
-// Cross-Device Sync Endpoints.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -47,7 +40,6 @@ func syncImportHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"imported": store.ImportConfig(d, &b)})
 }
 
-// syncPullHandler — fetch {from}/api/sync/export and import it.
 func syncPullHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

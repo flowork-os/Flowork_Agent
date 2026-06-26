@@ -1,15 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Router dispatcher.
-
-// Convert an OpenAI chat-completion SSE stream into Codex /v1/responses
-// SSE event shape: response.created → output_item.added → content_part.added
-// → output_text.delta* → content_part.done → output_item.done → completed.
-//
-// Also handles streaming function/tool calls and reasoning summary deltas.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package router
 
@@ -22,19 +14,15 @@ import (
 	"time"
 )
 
-// ResponsesSSEWriter turns a stream of OpenAI chat-completion `data: {…}`
-// chunks into a sequence of /v1/responses SSE events. Callers feed raw chunk
-// JSON payloads via Feed(); Close() emits the final completed event.
 type ResponsesSSEWriter struct {
 	w          io.Writer
-	flushFn    func() // optional flush hook
+	flushFn    func()
 	mu         sync.Mutex
 	responseID string
 	model      string
 	created    int64
 	seq        int
 
-	// Per-item state.
 	msgItemID     string
 	msgItemAdded  bool
 	textPartAdded bool
@@ -45,8 +33,6 @@ type ResponsesSSEWriter struct {
 	reasonPartAdded bool
 	reasonBuf       strings.Builder
 
-	// Tool calls keyed by index — Codex emits one function_call item per
-	// tool with arguments.delta chunks.
 	toolItems map[int]*responsesToolItem
 
 	completedSent bool
@@ -61,9 +47,6 @@ type responsesToolItem struct {
 	ArgsBuf   strings.Builder
 }
 
-// NewResponsesSSEWriter wires a writer + flush callback (typically the
-// http.ResponseWriter + http.Flusher.Flush). model is used to label the
-// response object.
 func NewResponsesSSEWriter(w io.Writer, flush func(), model string) *ResponsesSSEWriter {
 	respID := fmt.Sprintf("resp_%d", time.Now().UnixNano())
 	r := &ResponsesSSEWriter{
@@ -87,8 +70,6 @@ func NewResponsesSSEWriter(w io.Writer, flush func(), model string) *ResponsesSS
 	return r
 }
 
-// Feed consumes one OpenAI chat-completion chunk (already JSON-decoded into
-// the upstream shape) and emits the matching Responses-shape events.
 func (r *ResponsesSSEWriter) Feed(chunk map[string]any) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -103,17 +84,14 @@ func (r *ResponsesSSEWriter) Feed(chunk map[string]any) {
 	choice, _ := choices[0].(map[string]any)
 	delta, _ := choice["delta"].(map[string]any)
 
-	// Reasoning summary deltas (thinking models).
 	if rc, _ := delta["reasoning_content"].(string); rc != "" {
 		r.emitReasoningDelta(rc)
 	}
 
-	// Plain text content deltas.
 	if c, _ := delta["content"].(string); c != "" {
 		r.emitTextDelta(c)
 	}
 
-	// Streaming tool_calls.
 	if tcs, ok := delta["tool_calls"].([]any); ok {
 		for _, t := range tcs {
 			tc, _ := t.(map[string]any)
@@ -129,8 +107,6 @@ func (r *ResponsesSSEWriter) Feed(chunk map[string]any) {
 	}
 }
 
-// Close finalises the response — emits *_done events for any open items
-// followed by response.completed. Safe to call multiple times.
 func (r *ResponsesSSEWriter) Close() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -139,7 +115,6 @@ func (r *ResponsesSSEWriter) Close() {
 	}
 	r.completedSent = true
 
-	// Close any open text item.
 	if r.textPartAdded {
 		r.emit("response.output_text.done", map[string]any{
 			"type":          "response.output_text.done",
@@ -173,7 +148,6 @@ func (r *ResponsesSSEWriter) Close() {
 		})
 	}
 
-	// Close any open reasoning item.
 	if r.reasonItemAdded {
 		r.emit("response.reasoning_summary_text.done", map[string]any{
 			"type":          "response.reasoning_summary_text.done",
@@ -184,7 +158,6 @@ func (r *ResponsesSSEWriter) Close() {
 		})
 	}
 
-	// Close open tool items.
 	for idx, tool := range r.toolItems {
 		if !tool.ItemAdded {
 			continue
@@ -197,7 +170,6 @@ func (r *ResponsesSSEWriter) Close() {
 		})
 	}
 
-	// Final completed event.
 	final := map[string]any{
 		"type": "response.completed",
 		"response": map[string]any{
@@ -214,8 +186,6 @@ func (r *ResponsesSSEWriter) Close() {
 	r.emit("response.completed", final)
 }
 
-// emitTextDelta lazily opens the message item / text part the first time we
-// see a content delta, then emits the delta event.
 func (r *ResponsesSSEWriter) emitTextDelta(text string) {
 	if !r.msgItemAdded {
 		r.msgItemID = "msg_" + r.responseID
@@ -251,7 +221,6 @@ func (r *ResponsesSSEWriter) emitTextDelta(text string) {
 	})
 }
 
-// emitReasoningDelta opens / appends to the reasoning item.
 func (r *ResponsesSSEWriter) emitReasoningDelta(text string) {
 	if !r.reasonItemAdded {
 		r.reasonItemID = "rs_" + r.responseID
@@ -286,8 +255,6 @@ func (r *ResponsesSSEWriter) emitReasoningDelta(text string) {
 	})
 }
 
-// emitToolDelta accumulates streaming tool_call entries and emits arguments
-// deltas. Each call's `index` keys into a per-tool state slot.
 func (r *ResponsesSSEWriter) emitToolDelta(tc map[string]any) {
 	idxF, _ := tc["index"].(float64)
 	idx := int(idxF)
@@ -304,7 +271,6 @@ func (r *ResponsesSSEWriter) emitToolDelta(tc map[string]any) {
 		tool.Name += name
 	}
 
-	// Open the item header lazily on first chunk per index.
 	if !tool.ItemAdded {
 		if tool.ID == "" {
 			tool.ID = fmt.Sprintf("fc_%s_%d", r.responseID, idx)
@@ -333,7 +299,6 @@ func (r *ResponsesSSEWriter) emitToolDelta(tc map[string]any) {
 	}
 }
 
-// emit writes one SSE event with an auto-incrementing sequence_number.
 func (r *ResponsesSSEWriter) emit(event string, data map[string]any) {
 	r.seq++
 	data["sequence_number"] = r.seq

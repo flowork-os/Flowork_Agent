@@ -1,13 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Provider adapter (LLM/TTS/embedding).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Vendor: openai-compat — for any OpenAI-compatible embedding endpoint
-// (Together, DeepInfra, Cohere-OpenAI-shim, local OpenAI-compat servers).
-// Uses the same wire shape as openai; vendor's baseURL is what differs.
 package embedding
 
 import (
@@ -25,7 +20,7 @@ func (o *openaiCompatProvider) Name() string { return "openaiCompat" }
 
 func (o *openaiCompatProvider) Embed(ctx context.Context, req Request) (*Result, error) {
 	if req.BaseURL == "" {
-		// Without a custom base this collapses into the regular openai vendor.
+
 		req.BaseURL = "https://api.openai.com/v1"
 	}
 	payload := map[string]any{

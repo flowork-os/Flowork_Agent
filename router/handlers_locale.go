@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — HTTP handler.
-
-// Locale + Init + Shutdown + Version HTTP Handlers.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -19,9 +15,6 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-// localeCatalogHandler — GET ?tag=<lang> returns the embedded translation
-// map for that locale (falls back to "en" when tag unknown). Used by the
-// dashboard's locale switcher to actually swap visible text at runtime.
 func localeCatalogHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -38,7 +31,6 @@ func localeCatalogHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// localeHandler — GET load / PUT save.
 func localeHandler(w http.ResponseWriter, r *http.Request) {
 	d, _ := store.Open()
 	switch r.Method {
@@ -65,8 +57,6 @@ func localeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// initHandler — GET return bootstrap snapshot for the dashboard SPA.
-// Pulls settings + locale + providers count + version + flags.
 func initHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -94,10 +84,6 @@ func initHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// shutdownHandler — POST gracefully stop the router. Restricted to loopback:
-// this endpoint is session-exempt, so without a peer check it would be an
-// unauthenticated remote DoS the moment the listener is reachable off-loopback
-// (e.g. via the built-in tunnel). The TCP peer (r.RemoteAddr) is not spoofable.
 func shutdownHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -116,7 +102,6 @@ func shutdownHandler(w http.ResponseWriter, r *http.Request) {
 	}()
 }
 
-// versionHandler — GET current build version + uptime.
 func versionHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -133,8 +118,6 @@ func versionHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// versionUpdateHandler — POST trigger self-update. Phase 1 stub: returns
-// "no-op" since flow_router updates by re-running build.sh manually.
 func versionUpdateHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -147,7 +130,6 @@ func versionUpdateHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// versionShutdownHandler — POST /api/version/shutdown alias for shutdown.
 func versionShutdownHandler(w http.ResponseWriter, r *http.Request) {
 	shutdownHandler(w, r)
 }

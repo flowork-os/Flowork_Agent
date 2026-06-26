@@ -1,38 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-29
-// Reason: Section 2 (Importance scorer re-score) phase 1 DONE +
-//   adversarial-audit passed (C1 preserve manual-curation via threshold
-//   1.5 + ForceOverride bypass + atomic tx wrap). API stable:
-//   RescoreOpts, RescoreReport (5 stat fields), RescoreBatch.
-//   Verified: default preserve mode keeps manual=10, force_override=true
-//   overwrites to heuristic 5.5. Future cron + retrieval-frequency
-//   tracking → tambah file baru / kolom drawer schema, JANGAN modify.
-//
-// rescore.go — Section 2 roadmap: Importance scorer re-score worker.
-//
-// PURPOSE:
-//   Re-compute `drawers.importance` untuk live (non-deleted, non-quarantined)
-//   drawer. Pakai scorer function caller (typically `ingest.Score`) supaya
-//   ngga circular import brain ↔ ingest. Batch update — return per-drawer
-//   delta untuk audit.
-//
-// Phase 1 scope:
-//   - Filter optional: wing (only re-score drawer di wing tertentu)
-//   - Limit: bounded batch size supaya 1 request ngga monopoli writer
-//   - Update via UPDATE drawers SET importance = ? WHERE id = ? (atomic
-//     transaction wrapping seluruh batch)
-//
-// Defer:
-//   - Cron weekly trigger
-//   - Retrieval-frequency factor (butuh kolom retrieval_count atau hits
-//     table — schema extend nanti)
-//
-// ⚠️ Anti over-prompt: importance dipakai retrieval rank — bagus. Tapi
-// JANGAN auto-inject "this drawer has importance X" ke system prompt
-// (lihat standar section 11).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package brain
 
@@ -41,55 +10,33 @@ import (
 	"fmt"
 )
 
-// RescoreOpts — parameter batch re-score.
 type RescoreOpts struct {
-	// Wing kosong = scan semua wing. Filter wing tertentu = limit scope.
 	Wing string
-	// Limit max drawer di-process per call. Default 1000, max 10000.
+
 	Limit int
-	// ForceOverride: kalau true, rescore overwrite SEMUA drawer termasuk
-	// yang importance-nya dekat heuristic baru. Default false: preserve
-	// drawer dengan importance yang jauh dari heuristic (asumsi: caller
-	// manual-set explicit value via /api/brain/ingest/submit dengan
-	// Importance > 0 — itu curation, jangan auto-overwrite).
-	// Threshold preserve: abs(current - heuristic) > preserveThreshold.
+
 	ForceOverride bool
 }
 
-// preserveThreshold — drawer dengan abs(current importance - heuristic)
-// di atas threshold ini di-anggap manual curation. Rescore default skip.
-// 1.5 cover variasi heuristic kecil (signal word tambah/kurang, length
-// boost edge) tapi flag caller explicit set (mis. 7.0 vs heuristic 5.0).
 const preserveThreshold = 1.5
 
-// RescoreReport — agregat hasil batch re-score. PerDrawer optional log
-// untuk admin audit (di-cap supaya response ngga balloon).
 type RescoreReport struct {
 	Scanned     int            `json:"scanned"`
 	Updated     int            `json:"updated"`
 	Unchanged   int            `json:"unchanged"`
-	Preserved   int            `json:"preserved"` // manual-curation, skipped unless ForceOverride
+	Preserved   int            `json:"preserved"`
 	Errors      []string       `json:"errors,omitempty"`
-	SampleDelta []RescoreDelta `json:"sample_delta,omitempty"` // first 20 untuk preview
+	SampleDelta []RescoreDelta `json:"sample_delta,omitempty"`
 }
 
-// RescoreDelta — single drawer importance change.
 type RescoreDelta struct {
 	DrawerID string  `json:"drawer_id"`
 	Before   float64 `json:"before"`
 	After    float64 `json:"after"`
 }
 
-// scorerFn — caller inject scorer function (typically ingest.Score) supaya
-// brain pkg ngga circular import ke ingest.
 type scorerFn func(content, sourceType string) float64
 
-// RescoreBatch — iterate live drawers (deleted_at IS NULL, quarantined=0)
-// dengan filter optional wing + limit, recompute importance via scorer fn,
-// UPDATE kalau berbeda. Transaction-wrapped untuk atomicity.
-//
-// Caller bertanggung jawab inject scorer (typically `ingest.Score`) supaya
-// ngga circular import. Sentinel: kalau scorer nil → return error.
 func RescoreBatch(ctx context.Context, opts RescoreOpts, scorer scorerFn) (RescoreReport, error) {
 	if scorer == nil {
 		return RescoreReport{}, fmt.Errorf("scorer function required")
@@ -108,9 +55,6 @@ func RescoreBatch(ctx context.Context, opts RescoreOpts, scorer scorerFn) (Resco
 		return RescoreReport{}, err
 	}
 
-	// SELECT live drawer dengan filter wing optional. Ambil id + content +
-	// source_type + current importance — semua field yang dibutuhkan
-	// scorer + comparison.
 	query := `SELECT id, content, source_type, importance
 	          FROM drawers
 	          WHERE deleted_at IS NULL AND quarantined = 0`
@@ -127,8 +71,6 @@ func RescoreBatch(ctx context.Context, opts RescoreOpts, scorer scorerFn) (Resco
 		return RescoreReport{}, fmt.Errorf("query drawers: %w", qerr)
 	}
 
-	// Collect to memory dulu — release rows reader sebelum begin tx (SQLite
-	// ngga suka rowsCursor terbuka saat write).
 	type drawerRow struct {
 		id         string
 		content    string
@@ -151,11 +93,6 @@ func RescoreBatch(ctx context.Context, opts RescoreOpts, scorer scorerFn) (Resco
 
 	rep := RescoreReport{Scanned: len(drawers)}
 
-	// Pre-compute deltas + decide which need update. 3 outcome per drawer:
-	//   - diff < 0.01 → Unchanged (float noise, skip)
-	//   - diff > preserveThreshold && !ForceOverride → Preserved (manual
-	//     curation likely — skip unless forced)
-	//   - else → pending update
 	type pendingUpdate struct {
 		id       string
 		newScore float64
@@ -170,8 +107,7 @@ func RescoreBatch(ctx context.Context, opts RescoreOpts, scorer scorerFn) (Resco
 			continue
 		}
 		if !opts.ForceOverride && delta > preserveThreshold {
-			// Likely caller manual-set via Importance > 0 di ingest.Req.
-			// Audit Section 2 finding — preserve curation.
+
 			rep.Preserved++
 			continue
 		}
@@ -186,8 +122,6 @@ func RescoreBatch(ctx context.Context, opts RescoreOpts, scorer scorerFn) (Resco
 		return rep, nil
 	}
 
-	// Atomic batch update — kalau crash di tengah, rollback semua. Mencegah
-	// state inkonsisten (sebagian drawer di-rescore, sebagian belum).
 	tx, terr := db.BeginTx(ctx, nil)
 	if terr != nil {
 		return rep, fmt.Errorf("begin tx: %w", terr)
@@ -226,7 +160,6 @@ func RescoreBatch(ctx context.Context, opts RescoreOpts, scorer scorerFn) (Resco
 	return rep, nil
 }
 
-// absDelta — abs(a-b) tanpa import math (anti dep).
 func absDelta(a, b float64) float64 {
 	if a > b {
 		return a - b

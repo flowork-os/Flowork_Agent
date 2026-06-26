@@ -1,19 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 13 phase 2 handlers — catalog/my/subscribe/unsubscribe/
-//   suggest. Suggest = Router proxy + local fallback. Phase 3 (UI integration,
-//   group preset, popular-share metric) → tambah file baru, JANGAN modify.
-//
-// tool_subscriptions.go — Section 13 phase 2 HTTP endpoints.
-//
-// GET  /api/agents/tools/catalog?id=&search=
-// GET  /api/agents/tools/my?id=
-// POST /api/agents/tools/subscribe?id=&tool=&source=
-// POST /api/agents/tools/unsubscribe?id=&tool=
-// POST /api/agents/tools/suggest?id= body {query, limit?}
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package agentmgr
 
@@ -32,10 +20,6 @@ import (
 	"flowork-gui/internal/tools"
 )
 
-// ToolCatalogHandler — GET /api/agents/tools/catalog?id=&search=.
-//
-// Return semua tool yang registered di registry, tag `subscribed=true|false`
-// per agent. search optional substring filter (name/capability/description).
 func ToolCatalogHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
@@ -86,8 +70,6 @@ func ToolCatalogHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ToolMyHandler — GET /api/agents/tools/my?id=. Return list yang warga aktif
-// (intersect registry × subscriptions). Fields lengkap (name+cap+desc).
 func ToolMyHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
@@ -109,7 +91,7 @@ func ToolMyHandler(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
 		return
 	}
-	// Intersect dengan registry — yang udah ngga ada, mark inactive.
+
 	summaries := tools.ListSummaries()
 	regBy := make(map[string]tools.ToolSummary, len(summaries))
 	for _, s := range summaries {
@@ -137,7 +119,6 @@ func ToolMyHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ToolSubscribeHandler — POST /api/agents/tools/subscribe?id=&tool=&source=
 func ToolSubscribeHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
@@ -163,7 +144,6 @@ func ToolSubscribeHandler(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, map[string]any{"ok": true, "tool": toolName, "source": source})
 }
 
-// ToolUnsubscribeHandler — POST /api/agents/tools/unsubscribe?id=&tool=
 func ToolUnsubscribeHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
@@ -188,15 +168,6 @@ func ToolUnsubscribeHandler(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, map[string]any{"ok": true, "tool": toolName})
 }
 
-// ToolSuggestHandler — POST /api/agents/tools/suggest?id= body {query, limit?}
-//
-// Strategy:
-//   1. Try Router /api/brain/tools/suggest (kalau exist) — proxy via
-//      routerclient. Future Section 6 Router tool_learner endpoint.
-//   2. Fallback: local heuristic — scan registry, score by substring match
-//      di name (×3) / capability (×2) / description (×1). Return top-K.
-//
-// Phase 2 only local heuristic (Router endpoint belum ada).
 func ToolSuggestHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
@@ -228,17 +199,13 @@ func ToolSuggestHandler(w http.ResponseWriter, r *http.Request) {
 		limit = 20
 	}
 
-	// Phase 2: Router tool_learner ngga ada — langsung local heuristic.
 	suggestions := localSuggest(q, limit)
 
-	// Phase 2 hint: kalau Router endpoint exist, panggil via routerclient
-	// dengan timeout pendek (2s) — merge result. Saat ini stub return false.
 	routerHit := false
 	if ok := tryRouterSuggest(r.Context(), agentID, q, limit, &suggestions); ok {
 		routerHit = true
 	}
 
-	// Per-agent MCP opt-out: hide tools from MCP connectors this agent unchecked.
 	if hidden := hiddenMCPToolNames(agentID); len(hidden) > 0 {
 		kept := suggestions[:0]
 		for _, s := range suggestions {
@@ -258,7 +225,6 @@ func ToolSuggestHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// localSuggest — substring scoring di registry. Return top-K.
 type suggestEntry struct {
 	Name        string  `json:"name"`
 	Capability  string  `json:"capability"`
@@ -306,32 +272,18 @@ func localSuggest(q string, k int) []suggestEntry {
 	return scored
 }
 
-// tryRouterSuggest — placeholder buat phase 3. Saat ini Router tool_learner
-// endpoint belum ada — return false. Kalau Router future expose
-// /api/brain/tools/suggest, helper ini panggil + merge ke suggestions slice.
 func tryRouterSuggest(ctx context.Context, agentID, query string, limit int, out *[]suggestEntry) bool {
 	_ = ctx
 	_ = agentID
 	_ = query
 	_ = limit
 	_ = out
-	// Phase 2 stub. Phase 3 implementation:
-	//   client, err := buildRouterClient(agentID)  // routerclient.NewFromAgentURL
-	//   if err != nil { return false }
-	//   resp, err := client.SuggestTools(ctx, query, limit)  // new method
-	//   if err != nil || len(resp.Items) == 0 { return false }
-	//   merge resp ke *out (dedupe by name + boost score)
-	//   return true
+
 	return false
 }
 
-// openAgentStore — shared helper. Opens *Store for agent id with default
-// timeout. Caller MUST defer .Close().
 func openAgentStore(agentID string) (*agentdb.Store, error) {
-	// Choke-point isolation: an agent id must be well-formed before it is turned
-	// into a filesystem path. Without this, a handler taking ?id= verbatim lets a
-	// "../"-style id resolve a SQLite DB outside the agents folder (path traversal).
-	// reID is the same shape every agent endpoint already enforces.
+
 	if !reID.MatchString(agentID) {
 		return nil, errors.New("invalid agent id")
 	}
@@ -340,9 +292,8 @@ func openAgentStore(agentID string) (*agentdb.Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Sanity: set short busy_timeout via DB if needed; existing Open already
-	// uses busy_timeout=5s pragma. Just return.
-	_ = time.Second // keep import even if helper trivial
+
+	_ = time.Second
 	_ = strconv.Itoa
 	return store, nil
 }

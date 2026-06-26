@@ -1,16 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// 2026-06-13 (owner-approved, release audit): exempt the EXACT path /api/mesh/packet from the
-//   session gate — peer packet intake authenticates via ed25519 signature (mesh.Packet.Verify) +
-//   per-source rate limit, like /v1 uses API keys. Without this, enabling RequireLogin silently
-//   401'd all inter-node gossip (gossip pushes to http://peer:port/api/mesh/packet). Admin paths
-//   /api/mesh/packet/send and /api/mesh/packets stay session-protected (exact match, not prefix).
-// Reason: Audit pass — HTTP handler.
-
-// OIDC Code Flow + Session Enforce Middleware (B2).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -30,8 +21,6 @@ import (
 
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
-
-// ── OIDC discovery cache ────────────────────────────────────────────────
 
 type oidcDiscovery struct {
 	Issuer                string `json:"issuer"`
@@ -78,21 +67,20 @@ func oidcConfigFromSettings(s *store.Settings) (issuer, clientID, clientSecret, 
 		scopes = "openid profile email"
 	}
 	if redirectURI == "" {
-		// FIX #4: Construct redirect URI from request instead of hardcoding
+
 		scheme := os.Getenv("FLOW_ROUTER_SCHEME")
 		if scheme == "" {
 			scheme = "https"
 		}
 		host := os.Getenv("FLOW_ROUTER_HOST")
 		if host == "" {
-			host = "127.0.0.1:2402" // Fallback
+			host = "127.0.0.1:2402"
 		}
 		redirectURI = scheme + "://" + host + "/api/auth/oidc/callback"
 	}
 	return
 }
 
-// authOIDCInitHandler — GET/POST /api/auth/oidc/init → returns authorize URL.
 func authOIDCInitHandler(w http.ResponseWriter, r *http.Request) {
 	d, _ := store.Open()
 	settings, _ := store.LoadSettings(d)
@@ -112,14 +100,14 @@ func authOIDCInitHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadGateway, map[string]any{"error": "discovery: " + err.Error()})
 		return
 	}
-	// FIX #3: Increase nonce entropy from 128 to 256 bits
+
 	stateB := make([]byte, 32)
 	_, _ = rand.Read(stateB)
 	state := hex.EncodeToString(stateB)
 	nonceB := make([]byte, 32)
 	_, _ = rand.Read(nonceB)
 	nonce := hex.EncodeToString(nonceB)
-	// Stash pending state in oauthTokens kv
+
 	_ = store.UpsertOAuthToken(d, &store.OAuthTokenRecord{
 		Provider:  "oidc:pending",
 		TokenType: "oidc-pending",
@@ -141,9 +129,6 @@ func authOIDCInitHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"authUrl": authURL, "state": state})
 }
 
-// authOIDCCallbackHandler — GET /api/auth/oidc/callback?code=&state=
-// Exchanges code → tokens, fetches userinfo, creates a flow_router session,
-// sets cookie, then redirects to dashboard root.
 func authOIDCCallbackHandler(w http.ResponseWriter, r *http.Request) {
 	code := r.URL.Query().Get("code")
 	state := r.URL.Query().Get("state")
@@ -162,14 +147,12 @@ func authOIDCCallbackHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	extra, _ := pending.Extra.(map[string]any)
 	storedState, _ := extra["state"].(string)
-	// FIX #1: Use crypto/subtle.ConstantTimeCompare instead of phantom function
+
 	if extra == nil || subtle.ConstantTimeCompare([]byte(storedState), []byte(state)) != 1 {
 		http.Error(w, "state mismatch", http.StatusBadRequest)
 		return
 	}
-	// Enforce the 10-minute TTL stamped at init. Without this a stale
-	// state/PKCE/nonce lives until the next init of the same provider — a
-	// replay/CSRF window far beyond the documented 10 min.
+
 	if expStr, _ := extra["expiresAt"].(string); expStr != "" {
 		if exp, perr := time.Parse(time.RFC3339, expStr); perr == nil && time.Now().After(exp) {
 			_ = store.DeleteOAuthToken(d, "oidc:pending")
@@ -180,7 +163,6 @@ func authOIDCCallbackHandler(w http.ResponseWriter, r *http.Request) {
 	tokenEndpoint, _ := extra["tokenEndpoint"].(string)
 	userinfoEndpoint, _ := extra["userinfoEndpoint"].(string)
 
-	// Exchange code → tokens
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
 	form.Set("code", code)
@@ -207,20 +189,12 @@ func authOIDCCallbackHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify the id_token (RS256 signature via JWKS + iss/aud/exp/nonce). When
-	// the IdP advertised a jwks_uri and returned an id_token, a failure here is
-	// fatal — we never trust an unverified assertion. The verified `sub`/`email`
-	// claim becomes the session subject (preferred over the userinfo call).
 	jwksURI, _ := extra["jwksUri"].(string)
 	expectIssuer, _ := extra["issuer"].(string)
 	nonce, _ := extra["nonce"].(string)
 	var verifiedSubject string
 	if tok.IDToken != "" {
-		// An id_token was issued → it MUST be cryptographically verified
-		// (signature + iss + aud + exp + nonce). If the issuer advertised no
-		// jwks_uri we cannot verify it, so fail the login rather than silently
-		// downgrading to the unverified userinfo path (which also skipped the
-		// nonce/replay check) — that downgrade was an auth-integrity hole.
+
 		if jwksURI == "" {
 			http.Error(w, "id_token present but issuer advertised no jwks_uri — cannot verify", http.StatusUnauthorized)
 			return
@@ -237,7 +211,6 @@ func authOIDCCallbackHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Fetch userinfo for the subject
 	userID := "oidc-user"
 	if verifiedSubject != "" {
 		userID = verifiedSubject
@@ -270,11 +243,6 @@ func authOIDCCallbackHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 
-// ── Session enforce middleware ──────────────────────────────────────────
-
-// authEnforceMiddleware wraps the mux. When settings.RequireLogin is true
-// and authMode != none, a valid session is required for protected paths.
-// Exemptions keep API + health + login reachable.
 func authEnforceMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !pathRequiresSession(r.URL.Path) {
@@ -283,12 +251,12 @@ func authEnforceMiddleware(next http.Handler) http.Handler {
 		}
 		d, err := store.Open()
 		if err != nil {
-			next.ServeHTTP(w, r) // fail-open on store error (never lock out)
+			next.ServeHTTP(w, r)
 			return
 		}
 		settings, _ := store.LoadSettings(d)
 		if settings == nil || !settings.RequireLogin || settings.AuthMode == "none" {
-			next.ServeHTTP(w, r) // enforcement disabled
+			next.ServeHTTP(w, r)
 			return
 		}
 		token := extractAuthToken(r)
@@ -299,7 +267,7 @@ func authEnforceMiddleware(next http.Handler) http.Handler {
 				return
 			}
 		}
-		// Unauthenticated on a protected path.
+
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			writeJSON(w, http.StatusUnauthorized, map[string]any{
 				"error":        "authentication required",
@@ -308,20 +276,19 @@ func authEnforceMiddleware(next http.Handler) http.Handler {
 			})
 			return
 		}
-		// Dashboard HTML → redirect to login page (served by index with ?login)
+
 		http.Redirect(w, r, "/?login=1", http.StatusFound)
 	})
 }
 
-// pathRequiresSession — protected unless explicitly exempt.
 func pathRequiresSession(p string) bool {
 	exempt := []string{
-		"/api/auth/", // login/logout/status/oidc themselves
-		"/v1/",       // API-key authenticated, not session
-		"/v1beta/",   // Gemini-shape API endpoints, API-key authenticated
+		"/api/auth/",
+		"/v1/",
+		"/v1beta/",
 		"/healthz",
 		"/api/health",
-		"/api/shutdown", // local control
+		"/api/shutdown",
 		"/favicon",
 		"/static/",
 	}
@@ -330,17 +297,11 @@ func pathRequiresSession(p string) bool {
 			return false
 		}
 	}
-	// Inbound mesh packet intake is authenticated by the ed25519 packet signature
-	// (mesh.Packet.Verify) + per-source rate limit, NOT a GUI session — exactly the
-	// way /v1 authenticates with API keys. Peers (gossip pushes to
-	// http://peer:port/api/mesh/packet) must reach it even when RequireLogin is ON,
-	// otherwise enabling login silently breaks all inter-node mesh delivery (401).
-	// EXACT match only — /api/mesh/packet/send (admin sign) and /api/mesh/packets
-	// (list) stay session-protected. Release-audit fix 2026-06-13 (owner-approved).
+
 	if p == "/api/mesh/packet" {
 		return false
 	}
-	// Root "/" is the dashboard shell — allow (login UI lives there).
+
 	if p == "/" {
 		return false
 	}

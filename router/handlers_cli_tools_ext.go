@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — HTTP handler.
-
-// CLI Tools HTTP Handlers (13 tools + status + mcp).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -19,7 +15,6 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-// cliToolsRouterHandler — single dispatch for /api/cli-tools and subpaths.
 func cliToolsRouterHandler(w http.ResponseWriter, r *http.Request) {
 	rest := strings.TrimPrefix(r.URL.Path, "/api/cli-tools")
 	rest = strings.TrimPrefix(rest, "/")
@@ -48,7 +43,7 @@ func cliToolsListHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	statuses := clitools.DetectAll()
-	// Persist to kv-backed cli_tool_state for cache + observability
+
 	d, _ := store.Open()
 	for _, s := range statuses {
 		_ = store.UpsertCLIToolState(d, &store.CLIToolState{
@@ -94,14 +89,13 @@ func cliToolSettingsHandler(w http.ResponseWriter, r *http.Request, toolID strin
 			return
 		}
 		env := body
-		// Shape 1: { env: {...} } (explicit per-tool keys).
+
 		if v, ok := body["env"]; ok {
 			if mm, ok := v.(map[string]any); ok {
 				env = mm
 			}
 		} else if _, hasBase := body["baseUrl"]; hasBase {
-			// Shape 2: uniform { baseUrl, apiKey, model } from one-click Configure
-			// → map to the tool's exact key names.
+
 			str := func(k string) string { s, _ := body[k].(string); return s }
 			env = clitools.BuildConnectEnv(toolID, str("baseUrl"), str("apiKey"), str("model"))
 		}
@@ -130,8 +124,6 @@ func cliToolSettingsHandler(w http.ResponseWriter, r *http.Request, toolID strin
 	}
 }
 
-// antigravityAliasHandler — GET/POST model alias used in Antigravity MITM mode.
-// Stored in kv (antigravity:alias). GET returns current, POST sets it.
 func antigravityAliasHandler(w http.ResponseWriter, r *http.Request) {
 	d, _ := store.Open()
 	const key = "antigravity:alias"
@@ -157,9 +149,6 @@ func antigravityAliasHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// coworkMCPRegistryHandler — returns curated MCP registry as static catalog.
-// Phase 1: deliver a baseline catalog of well-known MCP servers; Phase 2:
-// pull from a remote upstream.
 func coworkMCPRegistryHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -179,8 +168,6 @@ func coworkMCPRegistryHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// coworkMCPToolsHandler — list tools exposed by all enabled MCP servers,
-// aggregating each one's live tools/list via the real MCP handshake.
 func coworkMCPToolsHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

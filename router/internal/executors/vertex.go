@@ -1,13 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Provider executor HTTP call.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Executor: vertex — Google Vertex AI (us-central1-aiplatform.googleapis.com).
-// Supports both vertex (own project) and vertex-partner (partner project) via
-// the variant arg, mirroring upstream's `new VertexExecutor("vertex"|"vertex-partner")`.
 package executors
 
 import (
@@ -25,7 +20,7 @@ func init() {
 }
 
 type vertexExecutor struct {
-	variant string // "vertex" or "vertex-partner"
+	variant string
 }
 
 func (v *vertexExecutor) Name() string { return v.variant }
@@ -47,10 +42,7 @@ func (v *vertexExecutor) endpoint(p *store.ProviderConnection, stream bool) stri
 	if stream {
 		action = "streamGenerateContent?alt=sse"
 	}
-	// Defensive: comma-ok assertion instead of a bare .(string) — a missing or
-	// non-string publisherModel would otherwise panic here and crash the request
-	// goroutine. Empty model yields a harmless upstream 404, and Stream/NonStream
-	// already guard the value before calling endpoint().
+
 	publisherModel, _ := p.Data["publisherModel"].(string)
 	return trimRightSlash(base) +
 		"/v1/projects/" + project +

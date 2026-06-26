@@ -1,12 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 27 phase 1 endpoints. POST /index single .go file
-//   only (phase 2 walk dir + JS + edges). GET /nodes filter.
-//
-// codemap.go — Section 27 phase 1 endpoints.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package agentmgr
 
@@ -23,8 +18,6 @@ import (
 	"flowork-gui/internal/httpx"
 )
 
-// CodemapIndexHandler — POST /api/agents/codemap/index?id=<agent>
-// Body {file_path, layer}. file_path relative ke shared workspace.
 func CodemapIndexHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
@@ -74,7 +67,7 @@ func CodemapIndexHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer store.Close()
-	// Clear existing rows for this file.
+
 	relPath := relPathTo(sharedRoot, target)
 	_ = store.DeleteCodemapNodesByFile(relPath)
 	now := time.Now().UTC().Format(time.RFC3339)
@@ -99,7 +92,6 @@ func CodemapIndexHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// CodemapNodesHandler — GET /api/agents/codemap/nodes?id=&node_type=&layer=&search=&limit=
 func CodemapNodesHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})

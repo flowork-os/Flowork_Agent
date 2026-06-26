@@ -1,14 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — HTTP handler.
-// Update 2026-06-16 (owner-approved #6): brainSearchDrawersHandler pakai brain.SemanticRetrieve
-// (vector by-MAKNA / Quantum Recall — arsitek baru, BUKAN hybrid). FTS cuma fallback sementara
-// selama index belum jadi. Owner: "fokus arsitek baru saja, jangan hybrid". Re-locked.
-
-// Brain views + flowork-compat + ingest endpoints.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -23,10 +16,6 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-// brainIngestRunHandler — POST /api/brain/ingest/run
-// Compounding: turn pending interaction contributions into Memory-Palace drawers
-// (quality-gated, content-hash deduped), then mark them ingested. This is how the
-// shared brain learns from every body's use — flow_router's own auto-learn loop.
 func brainIngestRunHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -40,7 +29,7 @@ func brainIngestRunHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	limit := atoiDefault(r.URL.Query().Get("limit"), 500)
-	contribs, err := store.ListBrainContributions(d, true, limit) // pending only
+	contribs, err := store.ListBrainContributions(d, true, limit)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -52,7 +41,7 @@ func brainIngestRunHandler(w http.ResponseWriter, r *http.Request) {
 			maxID = c.ID
 		}
 		answer := strings.TrimSpace(c.Answer)
-		if len(answer) < 20 { // quality gate: too short to be useful knowledge
+		if len(answer) < 20 {
 			skipped++
 			continue
 		}
@@ -76,14 +65,6 @@ func brainIngestRunHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// brainAddDrawerHandler — /api/brain/drawer
-//
-//	POST   — add a drawer {content,wing,room,memType}; dedup by content-hash.
-//	PUT    — update existing {id,content,wing,room,memType}; FTS mirror synced.
-//	DELETE — tombstone {?id=...}; FTS index purged so retrieval stops seeing it.
-//
-// Append-only doctrine: deletes are soft (deleted_at), never DROP, mirroring
-// the constitution side. Edits keep memory_fts in sync (no DB trigger exists).
 func brainAddDrawerHandler(w http.ResponseWriter, r *http.Request) {
 	d, _ := store.Open()
 	s, _ := store.LoadSettings(d)
@@ -143,10 +124,6 @@ func brainAddDrawerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// brainInitHandler — POST /api/brain/init
-// Bootstraps an empty Memory Palace DB at the configured brain path so a fresh
-// install (cloned repo, no DB shipped) becomes immediately usable. Idempotent —
-// safe to call against an existing DB (no-op). Returns {"created": bool, "path"}.
 func brainInitHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -165,11 +142,6 @@ func brainInitHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// brainSearchDrawersHandler — GET /api/brain/search-drawers?query=X&k=N
-// flowork-kernel-compatible RAG endpoint: the kernel's brainbridge.SearchDrawers
-// fetches top-K drawers over HTTP; pointing FLOWORK_BRAIN_REMOTE at flow_router
-// makes a thin flowork body think via the shared brain (no local DB needed).
-// Returns the exact {query,hits:[{wing,room,content,score,drawer_id}],count} shape.
 func brainSearchDrawersHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -190,10 +162,7 @@ func brainSearchDrawersHandler(w http.ResponseWriter, r *http.Request) {
 	hits := []map[string]any{}
 	if brain.Available() {
 		if db, err := brain.Open(); err == nil {
-			// RELEVANSI ABSOLUT (#3 fix 2026-06-26): SemanticRetrieve menormalisasi skor ke
-			// hit teratas → #1 selalu 1.0 walau query sampah, ga ada lantai → hasil "ngak valid".
-			// SemanticRetrieveScored balikin cosine ABSOLUT + buang di bawah minCosine.
-			// Switch FLOWORK_SEARCH_MINSCORE (default searchMinCosine; "0" = matikan lantai).
+
 			min := searchMinCosine()
 			snips, _ := brain.SemanticRetrieveScored(r.Context(), db, query, brain.RetrieveOpts{Limit: k}, min)
 			for _, sn := range snips {
@@ -207,9 +176,6 @@ func brainSearchDrawersHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"query": query, "hits": hits, "count": len(hits), "min_score": searchMinCosine()})
 }
 
-// searchMinCosine — lantai relevansi absolut utk /api/brain/search-drawers.
-// ENV FLOWORK_SEARCH_MINSCORE override (set "0" buat matikan lantai). Default = kalibrasi
-// bge-m3 (loosely-related biasanya < ini). NON-frozen → gampang di-tune.
 func searchMinCosine() float64 {
 	const def = 0.45
 	if s := strings.TrimSpace(os.Getenv("FLOWORK_SEARCH_MINSCORE")); s != "" {
@@ -220,8 +186,6 @@ func searchMinCosine() float64 {
 	return def
 }
 
-// brainByTypeHandler — GET /api/brain/by-type?type=project[&limit=N]
-// Typed Memory: Memory-Palace drawers filtered by mem_type.
 func brainByTypeHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -247,12 +211,6 @@ func brainByTypeHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"available": true, "type": memType, "drawers": drawers})
 }
 
-// brainPersonasHandler — /api/brain/personas
-//
-//	GET    — list canonical subagent prompt templates (the Prompt Library).
-//	POST   — add a persona {name,content,source}; name is the primary key.
-//	PUT    — update a persona's content by name {name,content}.
-//	DELETE — remove a persona {?name=...} (hard delete; not append-only).
 func brainPersonasHandler(w http.ResponseWriter, r *http.Request) {
 	d, _ := store.Open()
 	s, _ := store.LoadSettings(d)

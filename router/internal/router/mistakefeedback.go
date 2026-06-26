@@ -1,22 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without explicit owner (Mr.Dev) approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-06-03
-//
-// ⚠️⚠️ PERINGATAN UNTUK AI MANAPUN (TERMASUK CLAUDE PASCA-COMPACT) ⚠️⚠️
-//   JANGAN ubah/lemahin tanpa Mr.Dev minta EKSPLISIT. Ini loop self-learning
-//   anti-halu (pasangan mistakeenrich.go). Dijaga wiring_invariant_auditor.
-//
-// mistakefeedback.go — FEEDBACK LOOP: tutup lingkaran self-learning.
-//
-// IDE: antibody (mistakeenrich.go) NYUNTIK koreksi ke prompt. File ini BACA
-// hasil model: kalau model masih ngeluarin task_run dgn category NON-kanonik
-// (= halu lolos), upsert mistake → KARMA antibody NAIK (hit_count +) → next
-// time antibody di-rank lebih tinggi + makin sering keinject. Immune response:
-// makin sering ketemu "patogen" (halu), antibody makin kuat. No GPU, otomatis.
-//
-// Best-effort + async: ga nambah latency, ga pernah bikin request gagal.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package router
 
@@ -30,23 +15,17 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-// canonicalTaskCategories — daftar kategori task VALID (HARUS sinkron dgn
-// Flowork_Agent task_categories + antibodi seed). Di luar ini = halu.
 var canonicalTaskCategories = map[string]struct{}{
 	"saham": {}, "crypto": {}, "music": {}, "promo": {},
 }
 
-// Antibodi yang di-reinforce. HARUS match seed (UNIQUE category+title) supaya
-// SubmitMistake nambah karma ke row yang SAMA, bukan bikin baru.
 const (
 	antibodyFbCategory = "logic"
 	antibodyFbTitle    = "task_run wajib kategori kanonik"
 	antibodyFbContent  = "Saat user minta analisa, 'category' di task_run WAJIB dari daftar valid: saham, crypto, music, promo. JANGAN ngarang 'analysis'/'stock'/'security_stock'. 'subject' = entitas murni tanpa suffix '.JK'."
-	antibodyFbHit      = 3 // = minHitCount; tiap halu kedeteksi nambah +3 karma
+	antibodyFbHit      = 3
 )
 
-// maybeReinforceAntibody — dipanggil SETELAH completion (async) di dispatcher.
-// Deteksi halu kategori di response → naikin karma antibody. Best-effort.
 func maybeReinforceAntibody(ctx context.Context, resp *OpenAIResponse, settings *store.Settings) {
 	if settings == nil || !settings.Brain.Enabled || resp == nil {
 		return
@@ -56,7 +35,7 @@ func maybeReinforceAntibody(ctx context.Context, resp *OpenAIResponse, settings 
 	}
 	bad := detectNonCanonicalTaskRun(resp)
 	if bad == "" {
-		return // bersih (atau bukan task_run) — ga ada yang di-reinforce
+		return
 	}
 	if _, _, err := brain.SubmitMistake(ctx, antibodyFbCategory, antibodyFbTitle,
 		antibodyFbContent, "router-feedback", antibodyFbHit); err != nil {
@@ -66,8 +45,6 @@ func maybeReinforceAntibody(ctx context.Context, resp *OpenAIResponse, settings 
 	log.Printf("flow_router antibody-feedback: halu kategori %q kedeteksi → karma antibody +%d", bad, antibodyFbHit)
 }
 
-// detectNonCanonicalTaskRun — PURE (unit-testable): balik category JELEK pertama
-// dari tool_call task_run di response, atau "" kalau bersih / bukan task_run.
 func detectNonCanonicalTaskRun(resp *OpenAIResponse) string {
 	if resp == nil {
 		return ""
@@ -95,7 +72,7 @@ func detectNonCanonicalTaskRun(resp *OpenAIResponse) string {
 				continue
 			}
 			if _, ok := canonicalTaskCategories[cat]; !ok {
-				return cat // halu: kategori di luar daftar kanonik
+				return cat
 			}
 		}
 	}

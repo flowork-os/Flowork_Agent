@@ -1,11 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — CLI command/menu.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Display helpers: simple ANSI-coloured banners + table rendering.
 package utils
 
 import (
@@ -24,27 +21,20 @@ const (
 	colorCyan   = "\x1b[36m"
 )
 
-// Header prints a bold cyan title with a divider line.
 func Header(title string) {
 	fmt.Println()
 	fmt.Println(colorCyan + colorBold + title + colorReset)
 	fmt.Println(colorDim + strings.Repeat("─", len(title)) + colorReset)
 }
 
-// Success prints a green success line.
 func Success(msg string) { fmt.Println(colorGreen + "✓ " + msg + colorReset) }
 
-// Warn prints a yellow warning line.
 func Warn(msg string) { fmt.Println(colorYellow + "⚠ " + msg + colorReset) }
 
-// Error prints a red error line.
 func Error(msg string) { fmt.Println(colorRed + "✗ " + msg + colorReset) }
 
-// Info prints a blue informational line.
 func Info(msg string) { fmt.Println(colorBlue + msg + colorReset) }
 
-// Table renders a simple ASCII table. cols is the header row; rows is N rows
-// matching cols length. Columns auto-size to widest entry per column.
 func Table(cols []string, rows [][]string) {
 	widths := make([]int, len(cols))
 	for i, c := range cols {

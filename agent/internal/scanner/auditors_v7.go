@@ -1,14 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Port batch 6 — 10 auditor.
-//
-// auditors_v7.go:
-//   error_string_format, todo_comment, debug_fmt_print, switch_no_default,
-//   shadowed_err, ineffective_assign, conditional_inversion, redundant_nil_check,
-//   unused_var, missing_doc_comment.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package scanner
 
@@ -18,21 +11,17 @@ import (
 )
 
 func init() {
-	Auditors["error_string_format_auditor"]    = AuditErrorStringFormat
-	Auditors["todo_comment_auditor"]           = AuditTodoComment
-	Auditors["debug_fmt_print_auditor"]        = AuditDebugFmtPrint
-	Auditors["switch_no_default_auditor"]      = AuditSwitchNoDefault
-	Auditors["shadowed_err_auditor"]           = AuditShadowedErr
-	Auditors["ineffective_assign_auditor"]     = AuditIneffectiveAssign
-	Auditors["conditional_inversion_auditor"]  = AuditConditionalInversion
-	Auditors["redundant_nil_check_auditor"]    = AuditRedundantNilCheck
-	Auditors["unused_var_auditor"]             = AuditUnusedVar
-	Auditors["missing_doc_comment_auditor"]    = AuditMissingDocComment
+	Auditors["error_string_format_auditor"] = AuditErrorStringFormat
+	Auditors["todo_comment_auditor"] = AuditTodoComment
+	Auditors["debug_fmt_print_auditor"] = AuditDebugFmtPrint
+	Auditors["switch_no_default_auditor"] = AuditSwitchNoDefault
+	Auditors["shadowed_err_auditor"] = AuditShadowedErr
+	Auditors["ineffective_assign_auditor"] = AuditIneffectiveAssign
+	Auditors["conditional_inversion_auditor"] = AuditConditionalInversion
+	Auditors["redundant_nil_check_auditor"] = AuditRedundantNilCheck
+	Auditors["unused_var_auditor"] = AuditUnusedVar
+	Auditors["missing_doc_comment_auditor"] = AuditMissingDocComment
 }
-
-// =============================================================================
-// 1. error_string_format_auditor — errors.New start dengan capital / period
-// =============================================================================
 
 var errCapitalRE = regexp.MustCompile(`errors\.New\s*\(\s*"[A-Z]`)
 var errPeriodRE = regexp.MustCompile(`errors\.New\s*\(\s*"[^"]*\.\s*"\s*\)`)
@@ -70,10 +59,6 @@ func AuditErrorStringFormat(filePath, content string) []Finding {
 	return out
 }
 
-// =============================================================================
-// 2. todo_comment_auditor — TODO/FIXME/XXX/HACK
-// =============================================================================
-
 var todoRE = regexp.MustCompile(`(?i)//\s*(TODO|FIXME|XXX|HACK|BUG)\b`)
 
 func AuditTodoComment(filePath, content string) []Finding {
@@ -101,10 +86,6 @@ func AuditTodoComment(filePath, content string) []Finding {
 	return out
 }
 
-// =============================================================================
-// 3. debug_fmt_print_auditor — fmt.Println/Printf di production code
-// =============================================================================
-
 var debugPrintRE = regexp.MustCompile(`^\s*fmt\.(Println|Printf|Print)\s*\(`)
 
 func AuditDebugFmtPrint(filePath, content string) []Finding {
@@ -114,7 +95,7 @@ func AuditDebugFmtPrint(filePath, content string) []Finding {
 	out := []Finding{}
 	for i, line := range strings.Split(content, "\n") {
 		if debugPrintRE.MatchString(line) {
-			// Skip fmt.Fprintf/Fprintln (writes ke specific writer, intentional).
+
 			if strings.Contains(line, "Fprint") {
 				continue
 			}
@@ -132,10 +113,6 @@ func AuditDebugFmtPrint(filePath, content string) []Finding {
 	return out
 }
 
-// =============================================================================
-// 4. switch_no_default_auditor — switch tanpa default case
-// =============================================================================
-
 func AuditSwitchNoDefault(filePath, content string) []Finding {
 	if !strings.HasSuffix(filePath, ".go") || strings.HasSuffix(filePath, "_test.go") {
 		return nil
@@ -147,7 +124,7 @@ func AuditSwitchNoDefault(filePath, content string) []Finding {
 		if !strings.HasPrefix(trimmed, "switch ") || !strings.HasSuffix(trimmed, "{") {
 			continue
 		}
-		// Scan sampai closing `}` balance.
+
 		depth := 1
 		hasDefault := false
 		for j := i + 1; j < len(lines) && depth > 0; j++ {
@@ -171,10 +148,6 @@ func AuditSwitchNoDefault(filePath, content string) []Finding {
 	return out
 }
 
-// =============================================================================
-// 5. shadowed_err_auditor — `err :=` dalam scope baru shadow outer err
-// =============================================================================
-
 var shadowedErrRE = regexp.MustCompile(`^\s*if\s+(\w+,\s*)?err\s*:=`)
 
 func AuditShadowedErr(filePath, content string) []Finding {
@@ -183,12 +156,12 @@ func AuditShadowedErr(filePath, content string) []Finding {
 	}
 	out := []Finding{}
 	lines := strings.Split(content, "\n")
-	// Heuristic: kalau ada `err :=` di outer scope, lalu `if err :=` di inner.
+
 	for i, line := range lines {
 		if !shadowedErrRE.MatchString(line) {
 			continue
 		}
-		// Look back up to 15 line for outer err declaration.
+
 		for j := i - 1; j >= maxInt(0, i-15); j-- {
 			prev := strings.TrimSpace(lines[j])
 			if strings.HasPrefix(prev, "err := ") || strings.HasPrefix(prev, "err = ") {
@@ -208,10 +181,6 @@ func AuditShadowedErr(filePath, content string) []Finding {
 	return out
 }
 
-// =============================================================================
-// 6. ineffective_assign_auditor — assign langsung di-overwrite next line
-// =============================================================================
-
 var ineffectiveRE = regexp.MustCompile(`^\s*(\w+)\s*:?=\s*`)
 
 func AuditIneffectiveAssign(filePath, content string) []Finding {
@@ -226,7 +195,7 @@ func AuditIneffectiveAssign(filePath, content string) []Finding {
 			continue
 		}
 		v := m[1]
-		// Skip common cases.
+
 		if v == "err" || v == "_" || v == "ok" || v == "" {
 			continue
 		}
@@ -246,10 +215,6 @@ func AuditIneffectiveAssign(filePath, content string) []Finding {
 	return out
 }
 
-// =============================================================================
-// 7. conditional_inversion_auditor — `if !ok { return } ... else { ... }` early-return idiom
-// =============================================================================
-
 var negCondRE = regexp.MustCompile(`^\s*if\s+!\w+\s*\{$`)
 
 func AuditConditionalInversion(filePath, content string) []Finding {
@@ -262,25 +227,17 @@ func AuditConditionalInversion(filePath, content string) []Finding {
 		if !negCondRE.MatchString(line) {
 			continue
 		}
-		// Skip — pattern actually valid often. Just info-level reminder.
+
 		_ = i
 		_ = lines
 	}
 	return out
 }
 
-// =============================================================================
-// 8. redundant_nil_check_auditor — `if err != nil { return err }` after assign
-// =============================================================================
-
 func AuditRedundantNilCheck(filePath, content string) []Finding {
-	// Minimal placeholder — gofmt/golangci-lint cover this better.
+
 	return nil
 }
-
-// =============================================================================
-// 9. unused_var_auditor — declared but unused (basic heuristic)
-// =============================================================================
 
 var declarationRE = regexp.MustCompile(`^\s*var\s+(\w+)\s+`)
 
@@ -296,11 +253,11 @@ func AuditUnusedVar(filePath, content string) []Finding {
 			continue
 		}
 		name := m[1]
-		// Skip exported (capital).
+
 		if name == "" || (name[0] >= 'A' && name[0] <= 'Z') {
 			continue
 		}
-		// Look at full content for usage (excluding declaration line).
+
 		usageCount := strings.Count(content, name) - 1
 		if usageCount == 0 {
 			out = append(out, Finding{
@@ -316,10 +273,6 @@ func AuditUnusedVar(filePath, content string) []Finding {
 	}
 	return out
 }
-
-// =============================================================================
-// 10. missing_doc_comment_auditor — exported func/type tanpa doc comment
-// =============================================================================
 
 var exportedFuncRE = regexp.MustCompile(`^func\s+(\(\w+\s+\*?\w+\)\s+)?([A-Z]\w*)`)
 var exportedTypeRE = regexp.MustCompile(`^type\s+([A-Z]\w*)\s+(struct|interface)`)
@@ -340,7 +293,7 @@ func AuditMissingDocComment(filePath, content string) []Finding {
 		if name == "" {
 			continue
 		}
-		// Check sebelum line apakah ada `// Name ...` doc.
+
 		if i == 0 {
 			continue
 		}

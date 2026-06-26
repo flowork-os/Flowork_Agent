@@ -1,13 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 29 phase 2 — real zombie auto-detect via codemap_nodes
-//   + grep heuristic. Phase 3 (callgraph edges Section 27 phase 2,
-//   git_blame age, semantic dead code analysis) → tambah file baru.
-//
-// detector.go — Section 29 phase 2: auto-scan zombie candidates.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package zombie
 
@@ -23,25 +17,19 @@ import (
 	"flowork-gui/internal/agentdb"
 )
 
-// ScanOptions — knob.
 type ScanOptions struct {
-	SharedRoot string // base directory untuk grep callers
-	// Min file age dalam days. Default 30 — anything modified < 30 days
-	// di-skip (likely WIP).
+	SharedRoot string
+
 	MinAgeDays int
 }
 
-// ScanResult — diagnostic.
 type ScanResult struct {
-	SymbolsScanned int                   `json:"symbols_scanned"`
-	FilesGrepped   int                   `json:"files_grepped"`
-	Inserted       int                   `json:"inserted"`
+	SymbolsScanned int                     `json:"symbols_scanned"`
+	FilesGrepped   int                     `json:"files_grepped"`
+	Inserted       int                     `json:"inserted"`
 	Findings       []agentdb.ZombieFinding `json:"findings"`
 }
 
-// Scan — iterate codemap_nodes. Per symbol, grep all .go/.py/.js files in
-// SharedRoot for symbol name. Kalau 0 reference (selain di file asalnya) →
-// INSERT zombie_finding.
 func Scan(ctx context.Context, store *agentdb.Store, opts ScanOptions) (ScanResult, error) {
 	var res ScanResult
 	if opts.MinAgeDays <= 0 {
@@ -57,7 +45,6 @@ func Scan(ctx context.Context, store *agentdb.Store, opts ScanOptions) (ScanResu
 	}
 	res.SymbolsScanned = len(nodes)
 
-	// Pre-gather all source files + content (one pass).
 	type fileEntry struct {
 		path    string
 		content string
@@ -94,16 +81,11 @@ func Scan(ctx context.Context, store *agentdb.Store, opts ScanOptions) (ScanResu
 	cutoff := time.Now().AddDate(0, 0, -opts.MinAgeDays)
 
 	for _, n := range nodes {
-		// Skip too-new files (likely WIP).
-		// (file_path in node is relative — we don't know absolute mod time
-		// without re-stat. For phase 2, skip age check kalau ngga ada
-		// file di shared.)
-		// Count callers — text match (n.Name surrounded by non-identifier
-		// chars).
+
 		callerFiles := 0
 		for _, f := range files {
 			if strings.HasSuffix(f.path, n.FilePath) && hasIdentifier(f.content, n.Name, true) {
-				continue // own file — skip
+				continue
 			}
 			if hasIdentifier(f.content, n.Name, false) {
 				callerFiles++
@@ -112,7 +94,7 @@ func Scan(ctx context.Context, store *agentdb.Store, opts ScanOptions) (ScanResu
 		if callerFiles > 0 {
 			continue
 		}
-		// Apply MinAgeDays — skip kalau file too new (likely WIP).
+
 		tooNew := false
 		for _, f := range files {
 			if strings.HasSuffix(f.path, n.FilePath) {
@@ -144,11 +126,6 @@ func Scan(ctx context.Context, store *agentdb.Store, opts ScanOptions) (ScanResu
 	return res, nil
 }
 
-// hasIdentifier — return true kalau s contains name surrounded by
-// non-identifier chars (word boundary heuristic — Go-style identifier).
-//
-// ignoreDefn=true → skip kalau preceded by "func", "type", "var", "const"
-// (the symbol's own definition).
 func hasIdentifier(s, name string, ignoreDefn bool) bool {
 	if name == "" {
 		return false

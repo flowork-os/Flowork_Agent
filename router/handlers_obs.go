@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — HTTP handler.
-
-// Observability + Settings Handlers.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -18,8 +14,6 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-// oauthImportsHandler — GET /api/oauth/imports — detect CLI tool credential
-// files (Claude Code, Codex, Cursor, GitLab Duo, …).
 func oauthImportsHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -30,7 +24,6 @@ func oauthImportsHandler(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]any{"data": statuses, "count": len(statuses)})
 }
 
-// quotaTrackerHandler — GET per-provider quota summary.
 func quotaTrackerHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -50,7 +43,6 @@ func quotaTrackerHandler(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]any{"data": statuses, "count": len(statuses)})
 }
 
-// usageHandler — GET aggregate usage (?from=&to=).
 func usageHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -71,7 +63,6 @@ func usageHandler(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]any{"data": rows, "count": len(rows)})
 }
 
-// usageTodayHandler — GET /api/usage/today quick summary card.
 func usageTodayHandler(w http.ResponseWriter, _ *http.Request) {
 	d, err := store.Open()
 	if err != nil {
@@ -87,7 +78,6 @@ func usageTodayHandler(w http.ResponseWriter, _ *http.Request) {
 	_ = json.NewEncoder(w).Encode(t)
 }
 
-// consoleLogHandler — GET recent request log entries (?limit=&provider=&status=).
 func consoleLogHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -114,7 +104,6 @@ func consoleLogHandler(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]any{"data": entries, "count": len(entries)})
 }
 
-// settingsHandler — GET load, PUT/PATCH update settings (password never returned).
 func settingsHandler(w http.ResponseWriter, r *http.Request) {
 	d, err := store.Open()
 	if err != nil {

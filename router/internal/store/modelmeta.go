@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Store SQLite layer.
-
-// Model Metadata (alias / availability / custom /.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package store
 
@@ -15,8 +11,6 @@ import (
 
 	"github.com/google/uuid"
 )
-
-// ── ModelAlias ─────────────────────────────────────────────────────────
 
 type ModelAlias struct {
 	Alias      string    `json:"alias"`
@@ -60,12 +54,10 @@ func DeleteModelAlias(d *sql.DB, alias string) error {
 	return err
 }
 
-// ── ModelAvailability ──────────────────────────────────────────────────
-
 type ModelAvailability struct {
 	Provider     string    `json:"provider"`
 	Model        string    `json:"model"`
-	Status       string    `json:"status"` // up|down|degraded|unknown
+	Status       string    `json:"status"`
 	LatencyMs    int       `json:"latencyMs"`
 	CheckedAt    time.Time `json:"checkedAt"`
 	ErrorMessage string    `json:"errorMessage,omitempty"`
@@ -102,8 +94,6 @@ func RecordAvailability(d *sql.DB, a *ModelAvailability) error {
 		a.Provider, a.Model, a.Status, a.LatencyMs, a.CheckedAt.Format(time.RFC3339), a.ErrorMessage)
 	return err
 }
-
-// ── ModelsCustom ───────────────────────────────────────────────────────
 
 type ModelCustom struct {
 	ID                string    `json:"id"`
@@ -175,8 +165,6 @@ func DeleteCustomModel(d *sql.DB, id string) error {
 	_, err := d.Exec(`DELETE FROM modelsCustom WHERE id = ?`, id)
 	return err
 }
-
-// ── ModelsDisabled ─────────────────────────────────────────────────────
 
 type ModelDisabled struct {
 	Provider   string    `json:"provider"`

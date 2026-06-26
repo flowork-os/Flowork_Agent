@@ -1,9 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Brain drawer/embedding/skills storage.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package brain
 
@@ -12,15 +10,8 @@ import (
 	"strings"
 )
 
-// ftsTable — the FTS5 virtual table name in a flowork Memory Palace DB.
-// It stores content/wing/room directly, so retrieval needs no JOIN.
 const ftsTable = "memory_fts"
 
-// ftsTokens turns free-text into safe, quoted FTS5 tokens.
-// Ported from flowork brain/fts.go: strip punctuation + FTS5 metacharacters,
-// drop tokens shorter than 2 chars, quote each remaining token. Quoting keeps
-// the query injection-safe and tolerant of noisy prompts. Empty slice means
-// "no usable terms" — caller should skip the FTS lookup.
 func ftsTokens(q string) []string {
 	q = strings.TrimSpace(q)
 	if q == "" {
@@ -47,7 +38,6 @@ func ftsTokens(q string) []string {
 	return parts
 }
 
-// joinFTS joins quoted tokens with an operator ("AND" or "OR").
 func joinFTS(tokens []string, op string) string {
 	return strings.Join(tokens, " "+op+" ")
 }

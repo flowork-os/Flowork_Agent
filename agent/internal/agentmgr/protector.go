@@ -1,14 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 24 phase 1 protector endpoints. Hardcoded baseline
-//   visible read-only via /rules?include_baseline=1. Custom rules CRUD.
-//   Phase 2 (integrasi ke SandboxRunV2 interceptor chain, karma penalty,
-//   60s rolling stats) → tambah file baru.
-//
-// protector.go — Section 24 phase 1: HPG endpoints.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package agentmgr
 
@@ -23,9 +16,6 @@ import (
 	"flowork-gui/internal/protector"
 )
 
-// ProtectorRulesHandler — GET/POST /api/agents/protector/rules?id=<agent>
-//   GET ?include_baseline=1 → merge hardcoded + custom
-//   POST → body ProtectorRule (source=custom only)
 func ProtectorRulesHandler(w http.ResponseWriter, r *http.Request) {
 	agentID := strings.TrimSpace(r.URL.Query().Get("id"))
 	if agentID == "" {
@@ -46,7 +36,7 @@ func ProtectorRulesHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		out := []map[string]any{}
-		// Custom first.
+
 		for _, r := range custom {
 			out = append(out, map[string]any{
 				"id":         r.ID,
@@ -100,8 +90,6 @@ func ProtectorRulesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// ProtectorTestHandler — POST /api/agents/protector/test?id=<agent>
-// Body {rule_type, candidate} → return hit + matched rule.
 func ProtectorTestHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
@@ -120,7 +108,7 @@ func ProtectorTestHandler(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(w, map[string]any{"error": "invalid json: " + err.Error()})
 		return
 	}
-	// Fetch custom rules from DB.
+
 	store, err := openAgentStore(agentID)
 	if err != nil {
 		httpx.WriteJSON(w, map[string]any{"error": err.Error()})
@@ -150,7 +138,6 @@ func ProtectorTestHandler(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, resp)
 }
 
-// ProtectorAuditHandler — GET /api/agents/protector/audit?id=&from=&to=&limit=
 func ProtectorAuditHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})

@@ -1,20 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Router dispatcher.
-// 2026-06-13 OWNER-APPROVED (audit→review→test→lock): the Claude subscription branch now uses
-//   creds.LoadValid (auto-refresh of an expired OAuth token via refresh_token grant) instead of a
-//   hard "expired — re-login Claude Code" error, so Claude survives unattended on Android / USB with
-//   no Claude Code. Single line change; refresh logic lives in the non-frozen internal/creds package
-//   and is mock-server unit-tested. Not hash-frozen (KERNEL_FREEZE covers the agent kernel only).
-// 2026-06-13 (release audit → fix → test → re-lock): combo per-model fallback now FALLS THROUGH on a
-//   404 "no active provider for this model" (shouldStopComboFallback) instead of failing the whole
-//   request — a combo listing models you don't all have a provider for now correctly reaches one you
-//   do. Unit-tested + verified live (the cost_optimal "smart-cheap" combo went 404 → 200).
-
-// flow_router Multi-Provider Dispatcher.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package router
 
@@ -41,7 +28,6 @@ const httpTimeout = 300 * time.Second
 
 var httpClient = &http.Client{Timeout: httpTimeout}
 
-// ── OpenAI input shape (subset) ────────────────────────────────────────
 type OpenAIRequest struct {
 	Model       string          `json:"model"`
 	Messages    []OpenAIMessage `json:"messages"`
@@ -49,15 +35,10 @@ type OpenAIRequest struct {
 	Temperature float64         `json:"temperature,omitempty"`
 	TopP        float64         `json:"top_p,omitempty"`
 	Stream      bool            `json:"stream,omitempty"`
-	// Tool calling (Phase 2). Passed through 1:1 for openai-compat upstreams;
-	// converted to Anthropic `tools`/`tool_choice` for anthropic upstreams.
+
 	Tools      json.RawMessage `json:"tools,omitempty"`
 	ToolChoice json.RawMessage `json:"tool_choice,omitempty"`
 
-	// Additional OpenAI-spec parameters preserved through the dispatcher so
-	// caller intent isn't dropped on the way to the upstream. All are
-	// omitempty / json.RawMessage so a request that doesn't set them looks
-	// identical on the wire.
 	TopK              int             `json:"top_k,omitempty"`
 	MaxCompletionTok  int             `json:"max_completion_tokens,omitempty"`
 	Thinking          json.RawMessage `json:"thinking,omitempty"`
@@ -82,10 +63,10 @@ type OpenAIRequest struct {
 type OpenAIMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
-	// Tool calling fields (Phase 2, omitempty keeps simple text path intact).
-	ToolCalls  json.RawMessage `json:"tool_calls,omitempty"`   // assistant → tool invocations
-	ToolCallID string          `json:"tool_call_id,omitempty"` // tool result → which call
-	Name       string          `json:"name,omitempty"`         // tool/function name
+
+	ToolCalls  json.RawMessage `json:"tool_calls,omitempty"`
+	ToolCallID string          `json:"tool_call_id,omitempty"`
+	Name       string          `json:"name,omitempty"`
 }
 
 type OpenAIResponse struct {
@@ -107,20 +88,15 @@ type OpenAIUsage struct {
 	PromptTokens     int `json:"prompt_tokens"`
 	CompletionTokens int `json:"completion_tokens"`
 	TotalTokens      int `json:"total_tokens"`
-	// Prompt-cache breakdown (Anthropic-style). Populated when a response
-	// carries cache_read_input_tokens / cache_creation_input_tokens so the
-	// router can log per-request cache savings.
+
 	PromptTokensDetails *OpenAIPromptTokensDetails `json:"prompt_tokens_details,omitempty"`
 }
 
-// OpenAIPromptTokensDetails mirrors the OpenAI usage breakdown for cache
-// reporting. Cached = read hits; CacheCreation = writes.
 type OpenAIPromptTokensDetails struct {
 	CachedTokens        int `json:"cached_tokens,omitempty"`
 	CacheCreationTokens int `json:"cache_creation_tokens,omitempty"`
 }
 
-// ── Anthropic shape (subset) ───────────────────────────────────────────
 type AnthropicRequest struct {
 	Model       string             `json:"model"`
 	Messages    []AnthropicMessage `json:"messages"`
@@ -152,11 +128,6 @@ type AnthropicResponse struct {
 	} `json:"usage"`
 }
 
-// ── Main dispatch ──────────────────────────────────────────────────────
-
-// DispatchChatCompletion — entry untuk POST /v1/chat/completions.
-// Lookup provider berdasarkan model → forward → log → return OpenAI format.
-// Resolves combo alias first kalau model match nama combo.
 func DispatchChatCompletion(ctx context.Context, req OpenAIRequest) (*OpenAIResponse, int, error) {
 	d, err := store.Open()
 	if err != nil {
@@ -164,10 +135,7 @@ func DispatchChatCompletion(ctx context.Context, req OpenAIRequest) (*OpenAIResp
 	}
 
 	settings, _ := store.LoadSettings(d)
-	// No model pinned on the agent → owner doctrine: route to the HIGHEST-priority
-	// ON provider's model (priority order rules when the user didn't choose). Fall
-	// back to the configured DefaultModel only if no active provider exposes a
-	// concrete model id.
+
 	if req.Model == "" {
 		if top := globalFallbackModels(d, nil); len(top) > 0 {
 			req.Model = top[0]
@@ -175,7 +143,7 @@ func DispatchChatCompletion(ctx context.Context, req OpenAIRequest) (*OpenAIResp
 			req.Model = settings.DefaultModel
 		}
 	}
-	// RTK token saver: compress large tool-result messages before forwarding.
+
 	if settings != nil && settings.RtkTokenSaver {
 		if msgs, saved := compressMessagesRTK(req.Messages); saved > 0 {
 			req.Messages = msgs
@@ -183,51 +151,31 @@ func DispatchChatCompletion(ctx context.Context, req OpenAIRequest) (*OpenAIResp
 		}
 	}
 
-	// Caveman: append output-token-saver style instruction to the system
-	// message. Pure additive mutation — translators downstream see the
-	// extended system content but don't need to know about the modifier.
 	if settings != nil && settings.CavemanLevel != "" {
 		injectCavemanIntoRequest(&req, settings.CavemanLevel)
 	}
 
-	// Normalise tool-call ids + insert any missing tool_result follow-ups.
-	// Without this, malformed payloads from upstream clients reach the
-	// Anthropic API as 400s ("unmatched tool_use ids" / "invalid id pattern").
 	preprocessToolCalls(&req)
 
-	// Enrichment BERAT (constitution 20-rules + brain knowledge) cuma buat tier
-	// KOMANDAN (sonnet). Crew/worker (haiku, volume ~5 call/task) di-SKIP — tugas
-	// mereka fokus, doktrin+knowledge ga relevan + itu yang bakar kuota → 429.
-	// (enrich_tier.go). brainInfo nil kalau di-skip → recordBrainContribution no-op.
 	var brainInfo *brainEnrichInfo
 	heavyEnriched := false
 	if !isCrewLightModel(req.Model) {
-		// Constitution: sacred-rule injection di ATAS knowledge — doktrin menang.
+
 		maybeInjectConstitution(ctx, &req, settings)
-		// Brain enrichment: knowledge + skills relevan.
+
 		brainInfo = maybeEnrichBrain(ctx, &req, settings)
 		heavyEnriched = true
 	}
-	// Antibody injection (mistakeenrich.go): mistakes karma-ranked sbg "antibodi"
-	// anti-halu SEBELUM LLM. TETEP buat SEMUA tier (kecil + nahan halu kategori).
+
 	maybeInjectAntibodies(ctx, &req, settings)
-	// Instinct injection (instinctenrich.go): insting WHEN→THEN relevan di-PAKSA
-	// masuk (sejajar antibodi) → agent SADAR kapan pakai tool/fitur. Fails open.
+
 	maybeInjectInstinct(ctx, &req, settings)
 
-	// #9 intent-gated tools: prune tool-schema ke yg RELEVAN (semantic) → potong biang
-	// token #1 (~55% prompt). Escape-hatch (tool_search/tool_lookup) selalu lolos → aman.
-	// No-op kalau FLOW_ROUTER_DYNAMIC_TOOLS!=1 (default off). dynamic_tools.go.
 	req = maybeFilterTools(ctx, req, settings)
 
-	// Model manager: resolve alias / custom (→ effective model + provider pin).
 	resolvedModel, pinnedProvider := resolveModel(d, req.Model)
 	req.Model = resolvedModel
 
-	// Combo alias resolution: if req.Model matches a combo name, pick a model
-	// from combo.Models per strategy and remember the remaining models as a
-	// per-model fallback order (used when ALL providers for the picked model
-	// 5xx — we then move on to the next combo model instead of giving up).
 	var comboFallback []string
 	if pinnedProvider == "" {
 		if combo, _ := store.GetComboByName(d, req.Model); combo != nil && len(combo.Models) > 0 {
@@ -238,12 +186,6 @@ func DispatchChatCompletion(ctx context.Context, req OpenAIRequest) (*OpenAIResp
 		}
 	}
 
-	// Per-model attempt loop: first try req.Model, then any remaining combo
-	// fallbacks, then the GLOBAL priority-ordered fallback to any other ACTIVE
-	// provider's model. The last part is the owner doctrine: when the requested
-	// model's provider is OFF or out of quota, EVERY agent's request still lands
-	// on the next ON provider by priority instead of dying with a 404. Non-combo
-	// single-provider setups pay near-zero overhead (one tiny ListProviders).
 	modelsToTry := append([]string{req.Model}, comboFallback...)
 	nPrimary := len(modelsToTry)
 	if settings == nil || settings.FallbackStrategy != "none" {
@@ -257,10 +199,7 @@ func DispatchChatCompletion(ctx context.Context, req OpenAIRequest) (*OpenAIResp
 		pin := pinnedProvider
 		switch {
 		case modelIdx >= nPrimary:
-			// Global priority fallback candidate: re-resolve its OWN provider pin
-			// (the original pin pointed at the dead provider), and run the heavy
-			// enrichment we skipped when the crew-light original was chosen — so
-			// the local fallback model still gets the Flowork doctrine injected.
+
 			rm, rp := resolveModel(d, candidateModel)
 			req.Model, pin = rm, rp
 			if !heavyEnriched && !isCrewLightModel(req.Model) {
@@ -278,15 +217,9 @@ func DispatchChatCompletion(ctx context.Context, req OpenAIRequest) (*OpenAIResp
 		}
 		lastModelErr = err
 		lastModelStatus = status
-		// Decide whether to try the next candidate. A combo exists precisely to list
-		// alternatives, so "no active provider serves THIS model" (404) must fall through to the next
-		// listed model — not fail the whole request. Upstream 5xx also falls through. Only a
-		// request-/policy-level 4xx (400 malformed, 401 bad inbound auth, 403 disabled/not-permitted)
-		// is identical across models, so we stop early and surface it.
+
 		stop := shouldStopComboFallback(status)
-		// Owner doctrine override: if THIS failure is an availability failure
-		// (provider off / quota / 5xx) and the NEXT candidate is a global ON
-		// provider, never give up — let the priority fallback serve it.
+
 		if stop && modelIdx+1 < len(modelsToTry) && modelIdx+1 >= nPrimary && availabilityFailure(status) {
 			stop = false
 		}
@@ -297,35 +230,6 @@ func DispatchChatCompletion(ctx context.Context, req OpenAIRequest) (*OpenAIResp
 	return nil, lastModelStatus, lastModelErr
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// STABLE — DO NOT MODIFY without owner approval.  (locked 2026-06-15)
-//
-// TUJUAN (biar AI berikutnya paham, jangan dibongkar):
-// Flowork = "rumah AI" dengan 2 brain TERPISAH by design:
-//   • ROUTER brain  — atur provider + suntik doktrin/konstitusi (persona via RAG).
-//   • AGENT brain   — tiap agent punya model sendiri (kv router_model → FLOWORK_AGENT_CONFIG).
-// Owner doctrine (2026-06-15): "kalau provider mati / token abis → OTOMATIS pindah
-// ke model yang ON sesuai urutan PRIORITY, berlaku SEMUA agent." Diversity penting:
-// 1 rumah banyak karakter (agent A=Claude, B=lokal) biar nggak mikir sama → JANGAN
-// paksa semua ke 1 model (jangan ubah jadi priority-first; model pilihan agent menang
-// dulu, baru failover). Failover ini yang bikin sistem selamat pas langganan cloud abis.
-//
-// availabilityFailure + globalFallbackModels + loop fallback di DispatchChatCompletion
-// = mekanisme failover-by-priority. Mirror di dispatcher_stream.go. shouldStopComboFallback
-// (combo_fallback_test.go) LOCKED terpisah — jangan disentuh.
-//
-// CATATAN OPERASIONAL (mahal dipelajari): provider lokal (llama-server) WAJIB punya
-// context cukup (-c ≥ 32768). Doktrin+brain bikin prompt membengkak ~9-12k token; kalau
-// -c 8192, llama-server tolak 400 "exceed_context_size" → tiap request lokal failover
-// ke cloud (keliatan "agent nyangkut di Claude" padahal config-nya bener). Lihat memory
-// [[flowork-router-failover]].
-// ═══════════════════════════════════════════════════════════════════════════
-
-// availabilityFailure reports whether an upstream status means "this provider
-// can't serve right now" (so the request should slide to the next ON provider
-// by priority) rather than a permanent request error every provider rejects
-// identically. Covers: 404 no active provider, 408 timeout, 429 rate/quota
-// ("token abis"), 402 out-of-credit, and all 5xx. (owner doctrine: auto-failover)
 func availabilityFailure(status int) bool {
 	switch status {
 	case http.StatusNotFound, http.StatusRequestTimeout,
@@ -335,11 +239,6 @@ func availabilityFailure(status int) bool {
 	return status >= 500
 }
 
-// globalFallbackModels returns one concrete model per ACTIVE provider, in
-// provider-priority order (ListProviders is ORDER BY priority ASC), excluding
-// models already queued in `tried` and any wildcard ("*"/"claude-*") entries
-// (the upstream needs a concrete model id). This is the priority-ordered safety
-// net behind every request. (owner doctrine)
 func globalFallbackModels(d *sql.DB, tried []string) []string {
 	provs, err := store.ListProviders(d)
 	if err != nil {
@@ -362,7 +261,7 @@ func globalFallbackModels(d *sql.DB, tried []string) []string {
 			}
 			ms = strings.TrimSpace(ms)
 			if ms == "" || ms == "*" || strings.HasSuffix(ms, "*") {
-				continue // need a concrete model id the upstream accepts
+				continue
 			}
 			key := strings.ToLower(ms)
 			if skip[key] {
@@ -370,15 +269,12 @@ func globalFallbackModels(d *sql.DB, tried []string) []string {
 			}
 			skip[key] = true
 			out = append(out, ms)
-			break // one concrete model per provider is enough
+			break
 		}
 	}
 	return out
 }
 
-// dispatchSingleModel runs the full provider-selection + try-each-candidate
-// loop for ONE concrete model. Extracted so DispatchChatCompletion can walk
-// combo fallbacks on 5xx.
 func dispatchSingleModel(ctx context.Context, d *sql.DB, req OpenAIRequest, settings *store.Settings, brainInfo *brainEnrichInfo, pinnedProvider string) (*OpenAIResponse, int, error) {
 	matches, err := store.FindActiveByModel(d, req.Model)
 	if err != nil {
@@ -390,12 +286,11 @@ func dispatchSingleModel(ctx context.Context, d *sql.DB, req OpenAIRequest, sett
 	if len(matches) == 0 {
 		return nil, http.StatusNotFound, fmt.Errorf("no active provider supports model %q", req.Model)
 	}
-	// Drop providers where this model is disabled.
+
 	if matches = filterDisabled(d, matches, req.Model); len(matches) == 0 {
 		return nil, http.StatusForbidden, fmt.Errorf("model %q is disabled", req.Model)
 	}
 
-	// Inbound API-key scope: drop providers the key is not allowed to use.
 	keyID := apiKeyID(ctx)
 	if key := APIKeyFromContext(ctx); key != nil {
 		matches = filterByAllowedProviders(matches, key)
@@ -404,8 +299,6 @@ func dispatchSingleModel(ctx context.Context, d *sql.DB, req OpenAIRequest, sett
 		}
 	}
 
-	// Per-intent multiplexing: a private prompt may only go to a local-tagged
-	// provider — refuse rather than leak to cloud.
 	if settings != nil && settings.IntentRouting.Enabled && promptIsPrivate(req, settings.IntentRouting.PrivatePatterns) {
 		tag := settings.IntentRouting.PrivateTag
 		if tag == "" {
@@ -419,8 +312,6 @@ func dispatchSingleModel(ctx context.Context, d *sql.DB, req OpenAIRequest, sett
 		log.Printf("flow_router intent-routing: private prompt → %d provider(s) tagged %q", len(local), tag)
 	}
 
-	// Cost-tier routing: classify request → filter providers by tier:* tag.
-	// Skips when user explicitly named a model an active provider serves.
 	if settings != nil && settings.CostRouting.Enabled {
 		if !(settings.CostRouting.HonorExplicitModel && hasActiveProviderForModel(matches, req.Model)) {
 			tier := ClassifyCost(req, settings.CostRouting)
@@ -431,22 +322,16 @@ func dispatchSingleModel(ctx context.Context, d *sql.DB, req OpenAIRequest, sett
 		}
 	}
 
-	// Fallback strategy: reorder candidates (priority_ordered = unchanged).
 	if settings != nil {
 		matches = applyFallbackStrategy(matches, settings.FallbackStrategy, req.Model)
 	}
 
-	// Per-(provider,model) cooldown: push currently locked pairs to the back so a
-	// healthy provider is tried first. Never drops them — a fully-locked model
-	// still gets a last-resort attempt (zero regression vs the pre-lock loop).
 	matches = reorderByModelLock(matches, req.Model)
 
-	// Try candidates in order, fallback to next on error
 	var lastErr error
 	startTotal := time.Now()
 	for _, p := range matches {
-		// 429-aware retry (ratelimit.go): rate-limit = provider SEHAT tapi kuota
-		// mepet → TUNGGU (backoff) + ulang provider SAMA, jangan langsung gagal.
+
 		var resp *OpenAIResponse
 		var status int
 		var err error
@@ -454,7 +339,7 @@ func dispatchSingleModel(ctx context.Context, d *sql.DB, req OpenAIRequest, sett
 			start := time.Now()
 			resp, status, err = forwardToProvider(ctx, &p, req)
 			latencyMs := time.Since(start).Milliseconds()
-			// Log usageHistory (best-effort). Capture per-attempt biar ga ke-race.
+
 			lr, ls, le := resp, status, err
 			safego.GoLabel("logUsage", func() {
 				logUsage(d, keyID, p.ID, req.Model, lr, ls, le, latencyMs)
@@ -473,13 +358,12 @@ func dispatchSingleModel(ctx context.Context, d *sql.DB, req OpenAIRequest, sett
 		}
 
 		if err == nil && resp != nil {
-			recoverTextToolCalls(resp) // HARNESS: <tool_call> teks bocor (model lemah) → native tool_calls + anti-bocor
-			clearModelLock(p.ID, req.Model) // recovered → prefer this pair again
+			recoverTextToolCalls(resp)
+			clearModelLock(p.ID, req.Model)
 			log.Printf("flow_router dispatch model=%s → provider=%s tokens=%d",
 				req.Model, p.Name, resp.Usage.TotalTokens)
 			recordBrainContribution(d, settings, brainInfo, answerText(resp))
-			// Feedback loop (mistakefeedback.go): kalau response masih halu
-			// kategori → naikin karma antibody (self-learning). Async, best-effort.
+
 			respCopy := resp
 			settingsCopy := settings
 			safego.GoLabel("antibodyFeedback", func() {
@@ -492,8 +376,7 @@ func dispatchSingleModel(ctx context.Context, d *sql.DB, req OpenAIRequest, sett
 		if err != nil {
 			errText = err.Error()
 		}
-		// 429 (retry habis): JANGAN lock — provider sehat, cuma rate-limited. Lock
-		// cuma bikin request berikutnya ikut gagal (cascade). Selain itu baru lock.
+
 		if status != http.StatusTooManyRequests {
 			lockModel(p.ID, req.Model, status, errText)
 		}
@@ -504,19 +387,14 @@ func dispatchSingleModel(ctx context.Context, d *sql.DB, req OpenAIRequest, sett
 	return nil, http.StatusBadGateway, fmt.Errorf("all providers failed; last error: %w", lastErr)
 }
 
-// forwardToProvider — dispatch ke provider tertentu dengan format proper.
 func forwardToProvider(ctx context.Context, p *store.ProviderConnection, req OpenAIRequest) (*OpenAIResponse, int, error) {
-	// Bergantian (ratelimit.go): max N request ke provider barengan, sisanya antri.
-	// Slot cuma dipegang selama HTTP call; backoff-sleep (di loop) di luar slot.
+
 	acquireDispatchSlot()
 	defer releaseDispatchSlot()
 
 	format, _ := p.Data[store.CfgFormat].(string)
 	baseURL, _ := p.Data[store.CfgBaseURL].(string)
 
-	// Auto-resolve format + baseURL when the provider record uses one of the
-	// "openai-compatible-…" / "anthropic-compatible-…" name prefixes and the
-	// operator didn't supply the explicit fields. Explicit values always win.
 	if format == "" {
 		if resolved := providercompat.ResolveFormat(p.Provider); resolved != "" {
 			format = resolved
@@ -530,11 +408,8 @@ func forwardToProvider(ctx context.Context, p *store.ProviderConnection, req Ope
 		return nil, 0, fmt.Errorf("provider %s missing baseUrl", p.ID)
 	}
 
-	// Power saver (idle-sleep): wake the local engine if it was unloaded, and hold it
-	// loaded until this request returns. No-op for cloud. See router/llm_idle_sleep.go.
 	defer wakeLocalIfNeeded(baseURL)()
 
-	// Vendor executor (non-stream path).
 	if ex := executors.Get(format); ex != nil {
 		body, u, st, err := ex.NonStream(ctx, p, executorRequest(req))
 		if err != nil {
@@ -564,8 +439,6 @@ func forwardToProvider(ctx context.Context, p *store.ProviderConnection, req Ope
 	}
 }
 
-// forwardOpenAICompat — passthrough untuk provider yang udah OpenAI-compat
-// (local llama-server, OpenAI API, DeepSeek, Groq, Together AI, etc).
 func forwardOpenAICompat(ctx context.Context, p *store.ProviderConnection, baseURL string, req OpenAIRequest) (*OpenAIResponse, int, error) {
 	body, err := json.Marshal(req)
 	if err != nil {
@@ -600,15 +473,11 @@ func forwardOpenAICompat(ctx context.Context, p *store.ProviderConnection, baseU
 	return &out, http.StatusOK, nil
 }
 
-// forwardAnthropic — translate OpenAI → Anthropic Messages, forward, translate back.
-// When the request carries tools/tool-role messages, the rich tool path runs
-// (buildAnthropicToolBody + parseAnthropicToolResponse). Otherwise the proven
-// simple text path is used unchanged.
 func forwardAnthropic(ctx context.Context, p *store.ProviderConnection, baseURL string, req OpenAIRequest) (*OpenAIResponse, int, error) {
 	if hasToolContext(req) {
 		return forwardAnthropicWithTools(ctx, p, baseURL, req)
 	}
-	// Translate request
+
 	anthrReq := AnthropicRequest{
 		Model:       normalizeClaudeModel(req.Model),
 		MaxTokens:   req.MaxTokens,
@@ -636,9 +505,6 @@ func forwardAnthropic(ctx context.Context, p *store.ProviderConnection, baseURL 
 		return nil, 0, fmt.Errorf("marshal anthropic: %w", err)
 	}
 
-	// Claude OAuth identity cloaking (anti-ban): billing header + fake user_id.
-	// No tools on this path, so only the identity cloak applies. No-op for
-	// non-OAuth providers.
 	if claudeUsesOAuth(p) {
 		body = applyClaudeIdentityCloak(body, "")
 	}
@@ -671,7 +537,6 @@ func forwardAnthropic(ctx context.Context, p *store.ProviderConnection, baseURL 
 		return nil, http.StatusBadGateway, fmt.Errorf("parse anthropic: %w", err)
 	}
 
-	// Translate response
 	var content string
 	for _, c := range anthrResp.Content {
 		if c.Type == "text" {
@@ -705,17 +570,16 @@ func forwardAnthropic(ctx context.Context, p *store.ProviderConnection, baseURL 
 	}, http.StatusOK, nil
 }
 
-// applyAuth attach proper auth header based on provider authType.
 func applyAuth(req *http.Request, p *store.ProviderConnection) error {
 	switch p.AuthType {
 	case store.AuthTypeNone:
-		return nil // local llama, no auth
+		return nil
 	case store.AuthTypeAPIKey:
 		k, _ := p.Data[store.CfgAPIKey].(string)
 		if k == "" {
 			return fmt.Errorf("provider %s missing apiKey", p.ID)
 		}
-		// Anthropic uses x-api-key, OpenAI uses Authorization Bearer
+
 		if p.Provider == "anthropic" {
 			req.Header.Set("x-api-key", k)
 		} else {
@@ -723,15 +587,11 @@ func applyAuth(req *http.Request, p *store.ProviderConnection) error {
 		}
 		return nil
 	case store.AuthTypeSubscription:
-		// Read live from credential source
+
 		src, _ := p.Data[store.CfgTokenSource].(string)
 		switch src {
 		case "claude_credentials":
-			// LoadValid auto-refreshes an expired subscription token (OAuth refresh_token grant) and
-			// persists the rotated token, so Claude keeps working unattended on a device with NO Claude
-			// Code to refresh the file for us (Android / USB appliance). On a normal desktop the token
-			// is already fresh (Claude Code maintains it) so this is a plain read. When no refresh is
-			// possible it returns a clear "re-import via OAuth Imports → Browse" error.
+
 			c, err := creds.LoadValid()
 			if err != nil {
 				return fmt.Errorf("claude creds: %w", err)
@@ -759,18 +619,6 @@ func applyAuth(req *http.Request, p *store.ProviderConnection) error {
 	return fmt.Errorf("unknown authType: %s", p.AuthType)
 }
 
-// pickComboModel — strategy-aware model selection dari combo.
-// Priority: return first. RoundRobin: cycle via index counter. Random: random.
-// CostOptimal: pick model dengan known lowest pricing.
-// comboFallbackOrder returns the combo's models in the order to retry after
-// `picked` has been tried. The picked model is excluded; remaining models
-// keep their original list order (priority semantics). Returns nil when the
-// combo has fewer than 2 models so the caller skips the fallback loop.
-// shouldStopComboFallback reports whether a failed combo-model attempt should STOP the per-model
-// fallback loop instead of trying the next listed model. A combo lists alternatives, so a per-model
-// failure — 404 "no active provider for this model" or any 5xx upstream — falls through to the next
-// model. A request-/policy-level 4xx (400 malformed body, 401 bad inbound auth, 403 disabled or
-// key-not-permitted) is identical across models, so it stops early and surfaces the real cause.
 func shouldStopComboFallback(status int) bool {
 	return status > 0 && status < 500 && status != http.StatusNotFound
 }
@@ -798,15 +646,12 @@ func pickComboModel(c *store.Combo) string {
 		i := nextRoundRobin("combo:"+c.ID, len(c.Models))
 		return c.Models[i]
 	case store.ComboStrategyRandom:
-		// Use time.Now nanos modulo as cheap PRNG (no crypto needed for routing).
-		// uint64 conversion avoids a negative index: on 32-bit int builds (or any
-		// nanos value that overflows int) `int(x) % len` can be negative, which
-		// would panic with index-out-of-range and crash the request goroutine.
+
 		return c.Models[int(uint64(time.Now().UnixNano())%uint64(len(c.Models)))]
 	case store.ComboStrategyCostOptimal:
-		// Pick model yang harga input+output terendah (estimateCost as proxy).
+
 		bestModel := c.Models[0]
-		bestCost := estimateCost(bestModel, 1000, 1000) // 1k+1k token sample
+		bestCost := estimateCost(bestModel, 1000, 1000)
 		for _, m := range c.Models[1:] {
 			cost := estimateCost(m, 1000, 1000)
 			if cost > 0 && (bestCost == 0 || cost < bestCost) {
@@ -815,7 +660,7 @@ func pickComboModel(c *store.Combo) string {
 			}
 		}
 		return bestModel
-	default: // priority
+	default:
 		return c.Models[0]
 	}
 }
@@ -831,8 +676,6 @@ func normalizeClaudeModel(m string) string {
 	return m
 }
 
-// logUsage — append-only request log + daily aggregate.
-// Called async (goroutine) per dispatch — never blocks caller.
 func logUsage(d any, apiKeyID, providerID, model string, resp *OpenAIResponse, status int, errIn error, latencyMs int64) {
 	db, ok := d.(*sql.DB)
 	if !ok || db == nil {
@@ -857,10 +700,6 @@ func logUsage(d any, apiKeyID, providerID, model string, resp *OpenAIResponse, s
 	_ = store.LogRequest(db, entry)
 }
 
-// estimateCost — rough USD cost estimate per million tokens.
-// estimateCost — DATA-driven cost estimate. Reads the pricing table (which
-// the user can edit via /api/pricing and which SeedDefaultPricing seeds),
-// so there is NO hardcoded rate map. Unknown model → 0 (local/free).
 func estimateCost(model string, promptTok, complTok int) float64 {
 	d, err := store.Open()
 	if err != nil {
@@ -868,7 +707,7 @@ func estimateCost(model string, promptTok, complTok int) float64 {
 	}
 	pr, err := store.LookupPricingByModel(d, model)
 	if err != nil || pr == nil {
-		return 0 // unknown model = treat as free (e.g. local llama)
+		return 0
 	}
 	return (float64(promptTok)/1e6)*pr.InputUsdPer1M + (float64(complTok)/1e6)*pr.OutputUsdPer1M
 }

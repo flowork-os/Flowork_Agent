@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Store SQLite layer.
-
-// Cross-Device Config Sync (export / import).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package store
 
@@ -38,7 +34,6 @@ type SyncBundle struct {
 	Dispatch       *DispatchSettings    `json:"dispatch,omitempty"`
 }
 
-// ExportConfig gathers the portable config snapshot (best-effort per section).
 func ExportConfig(d *sql.DB) *SyncBundle {
 	b := &SyncBundle{Version: "1", ExportedAt: time.Now().UTC().Format(time.RFC3339)}
 	b.Providers, _ = ListProviders(d)
@@ -60,8 +55,6 @@ func ExportConfig(d *sql.DB) *SyncBundle {
 	return b
 }
 
-// ImportConfig upserts everything in the bundle (idempotent by ID). Returns a
-// per-section applied count. Auth settings are left untouched.
 func ImportConfig(d *sql.DB, b *SyncBundle) map[string]int {
 	n := map[string]int{}
 	for i := range b.Providers {
@@ -114,7 +107,7 @@ func ImportConfig(d *sql.DB, b *SyncBundle) map[string]int {
 			n["customModels"]++
 		}
 	}
-	// Dispatch settings: merge onto current settings (never touches auth).
+
 	if b.Dispatch != nil {
 		if s, err := LoadSettings(d); err == nil && s != nil {
 			s.DefaultModel = b.Dispatch.DefaultModel

@@ -1,39 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-29
-// Reason: Section 6 (Workspace meta) DONE + adversarial-audit passed
-//   (3 critical: symlink-skip via os.ModeSymlink check, path traversal
-//   defense in registerMetaNoLock + Rel escape reject, errSkipAll
-//   sentinel buat hard cap maxFiles; plus important: defer f.Close
-//   via closure, dead alt-key fallback removed, defer rows.Close).
-//   API stable: RegisterMeta atomic upsert, ListMeta, LookupMeta,
-//   RebuildIndexFromDir + RebuildIndexReport, CountMeta. Future cron
-//   hourly auto-rebuild → wire kernelhost (mirror StartRetentionCron),
-//   JANGAN modify ini.
-//
-// workspace_meta.go — Section 6 roadmap: Workspace metadata per-warga.
-//
-// PURPOSE:
-//   Index file di shared workspace warga (<root>/workspace/<id>/).
-//   Register category + path + size + content_hash supaya warga lain
-//   bisa discover tools/job/document via mesh future.
-//
-// SEMANTIC:
-//   - RegisterMeta: upsert by (category, path). Idempotent.
-//   - ListMeta(category): paginated browse.
-//   - LookupMeta(path): single read by path (any category).
-//   - RebuildIndexFromDir: scan filesystem, auto-register new file +
-//     soft-delete row yang file-nya hilang. Caller butuh inject
-//     workspace root path (kernelhost owns SharedDir).
-//
-// SECURITY:
-//   - Path stored relative dari shared root (`tools/foo.py`, bukan absolute).
-//   - Caller wajib validate agentID + category whitelist sebelum invoke.
-//
-// ⚠️ NO over-prompt: workspace meta bukan untuk LLM context — purely
-// inventory. Akses via API endpoint untuk dashboard/discovery.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package agentdb
 
@@ -50,13 +18,8 @@ import (
 	"time"
 )
 
-// errSkipAll — sentinel buat short-circuit filepath.Walk saat hit
-// maxFiles cap. SkipDir cuma skip current dir; SkipAll baru ada di
-// Go 1.20+ tapi kita pakai sentinel custom supaya backward-safe.
 var errSkipAll = errors.New("workspace_meta: stop walk (cap reached)")
 
-// CategoryWhitelist — valid category names. Match shared subfolder convention
-// di kernelhost.SharedSubfolders.
 var CategoryWhitelist = map[string]struct{}{
 	"tools":    {},
 	"job":      {},
@@ -66,7 +29,6 @@ var CategoryWhitelist = map[string]struct{}{
 	"log":      {},
 }
 
-// WorkspaceMeta — satu row.
 type WorkspaceMeta struct {
 	ID          int64  `json:"id"`
 	Category    string `json:"category"`
@@ -79,11 +41,6 @@ type WorkspaceMeta struct {
 	UpdatedAt   string `json:"updated_at"`
 }
 
-// RegisterMeta — upsert via UNIQUE(category, path). Kalau row exist:
-// update size_bytes + content_hash + updated_at (preserve description +
-// shareable + created_at + restore deleted_at=NULL kalau soft-deleted).
-//
-// Description hard-cap 4KB, content_hash expected 64-hex (sha256).
 func (s *Store) RegisterMeta(category, path, description, contentHash string, sizeBytes int64, shareable bool) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -94,7 +51,7 @@ func (s *Store) RegisterMeta(category, path, description, contentHash string, si
 	if _, ok := CategoryWhitelist[category]; !ok {
 		return 0, fmt.Errorf("category %q not in whitelist", category)
 	}
-	// Reject absolute path / path traversal.
+
 	if strings.HasPrefix(path, "/") || strings.Contains(path, "..") {
 		return 0, fmt.Errorf("path must be relative, no traversal")
 	}
@@ -110,8 +67,6 @@ func (s *Store) RegisterMeta(category, path, description, contentHash string, si
 		shareInt = 1
 	}
 
-	// Atomic upsert via transaction (SELECT-then-INSERT-or-UPDATE, mirror
-	// mistakes.go pattern — undelete kalau soft-deleted).
 	tx, err := s.db.Begin()
 	if err != nil {
 		return 0, fmt.Errorf("begin tx: %w", err)
@@ -149,8 +104,7 @@ func (s *Store) RegisterMeta(category, path, description, contentHash string, si
 		return 0, fmt.Errorf("lookup meta: %w", err)
 
 	default:
-		// UPDATE existing — refresh size + hash + updated_at + undelete.
-		// Preserve description + shareable + created_at (caller intent OK).
+
 		_, uerr := tx.Exec(
 			`UPDATE workspace_meta SET
 			    size_bytes   = ?,
@@ -171,8 +125,6 @@ func (s *Store) RegisterMeta(category, path, description, contentHash string, si
 	}
 }
 
-// ListMeta — filter optional category. Order: updated_at DESC. Limit
-// default 100, max 500.
 func (s *Store) ListMeta(category string, limit int) ([]WorkspaceMeta, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -213,8 +165,6 @@ func (s *Store) ListMeta(category string, limit int) ([]WorkspaceMeta, error) {
 	return out, rows.Err()
 }
 
-// LookupMeta — single read by category + path. Return empty + nil
-// kalau ngga ada (caller cek len == 0 atau Path == "").
 func (s *Store) LookupMeta(category, path string) (WorkspaceMeta, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -242,24 +192,17 @@ func (s *Store) LookupMeta(category, path string) (WorkspaceMeta, error) {
 	return m, nil
 }
 
-// RebuildIndexReport — outcome RebuildIndexFromDir call.
 type RebuildIndexReport struct {
-	StartedAt    string  `json:"started_at"`
-	FinishedAt   string  `json:"finished_at"`
-	Scanned      int     `json:"scanned"`        // file found di disk
-	Registered   int     `json:"registered"`     // new INSERT
-	Updated      int     `json:"updated"`        // existing row hash/size berubah
-	SoftDeleted  int     `json:"soft_deleted"`   // row exist tapi file hilang
-	SkippedCat   int     `json:"skipped_category"`
-	Errors       []string `json:"errors,omitempty"`
+	StartedAt   string   `json:"started_at"`
+	FinishedAt  string   `json:"finished_at"`
+	Scanned     int      `json:"scanned"`
+	Registered  int      `json:"registered"`
+	Updated     int      `json:"updated"`
+	SoftDeleted int      `json:"soft_deleted"`
+	SkippedCat  int      `json:"skipped_category"`
+	Errors      []string `json:"errors,omitempty"`
 }
 
-// RebuildIndexFromDir — scan shared workspace root + register file baru,
-// update existing dengan hash/size baru, soft-delete row yang file-nya
-// hilang. workspaceRoot adalah path absolute ke `<root>/workspace/<agent_id>/`.
-//
-// Hard cap: max 5000 file per sweep (anti-DOS kalau folder tiba-tiba huge).
-// Per-file hash SHA-256 (full content). Buat file >100MB, hash skipped + warning.
 func (s *Store) RebuildIndexFromDir(workspaceRoot string) RebuildIndexReport {
 	rep := RebuildIndexReport{StartedAt: time.Now().UTC().Format(time.RFC3339)}
 
@@ -275,12 +218,11 @@ func (s *Store) RebuildIndexFromDir(workspaceRoot string) RebuildIndexReport {
 	}
 
 	const (
-		maxFiles      = 5000
-		maxHashBytes  = 100 * 1024 * 1024 // 100MB cap untuk hash compute
+		maxFiles     = 5000
+		maxHashBytes = 100 * 1024 * 1024
 	)
 
-	// Track yang ke-scan supaya bisa soft-delete row yang ngga muncul.
-	scanned := map[string]struct{}{} // key = "category/path"
+	scanned := map[string]struct{}{}
 
 	for category := range CategoryWhitelist {
 		catRoot := filepath.Join(workspaceRoot, category)
@@ -291,14 +233,11 @@ func (s *Store) RebuildIndexFromDir(workspaceRoot string) RebuildIndexReport {
 		werr := filepath.Walk(catRoot, func(absPath string, info os.FileInfo, werr error) error {
 			if werr != nil {
 				rep.Errors = append(rep.Errors, "walk "+absPath+": "+werr.Error())
-				return nil // continue
+				return nil
 			}
-			// CRITICAL audit fix: skip symlinks supaya attacker ngga bisa
-			// taro symlink → /etc/passwd dan bikin scanner hash sensitive
-			// file. info.Mode() check — symlinks tetap stat() via Walk
-			// (follows by default), kita cek mode untuk skip.
+
 			if info.Mode()&os.ModeSymlink != 0 {
-				return nil // skip symlink
+				return nil
 			}
 			if info.IsDir() {
 				return nil
@@ -308,23 +247,19 @@ func (s *Store) RebuildIndexFromDir(workspaceRoot string) RebuildIndexReport {
 			}
 			rep.Scanned++
 
-			// Relative path dari workspaceRoot (mis. "tools/foo.py").
 			rel, rerr := filepath.Rel(workspaceRoot, absPath)
 			if rerr != nil {
 				rep.Errors = append(rep.Errors, "rel "+absPath+": "+rerr.Error())
 				return nil
 			}
-			// Defense in depth: kalau Rel produce path dengan `..` (mis.
-			// dari symlink yang lolos cek), reject.
+
 			if strings.Contains(rel, "..") {
 				rep.Errors = append(rep.Errors, "rejected escaped path: "+rel)
 				return nil
 			}
-			// Normalize separator supaya match dengan fullKey di softDelete
-			// (e.g. Windows backslash → forward slash).
+
 			scanned[filepath.ToSlash(rel)] = struct{}{}
 
-			// Hash file via closure supaya defer f.Close() panic-safe.
 			var hash string
 			if info.Size() <= maxHashBytes {
 				hash = func() string {
@@ -341,30 +276,23 @@ func (s *Store) RebuildIndexFromDir(workspaceRoot string) RebuildIndexReport {
 				}()
 			}
 
-			// Path stored without category prefix supaya UNIQUE(category, path)
-			// pakai relative-within-category (e.g. "foo.py" bukan "tools/foo.py").
 			catRel, rerr2 := filepath.Rel(catRoot, absPath)
 			if rerr2 != nil {
 				catRel = filepath.Base(absPath)
 			}
-			catRel = filepath.ToSlash(catRel) // normalize separator
-			// Defense in depth: reject `..` in catRel juga.
+			catRel = filepath.ToSlash(catRel)
+
 			if strings.Contains(catRel, "..") {
 				rep.Errors = append(rep.Errors, "rejected escaped catRel: "+catRel)
 				return nil
 			}
 
-			// Check if existing row has same hash → skip register (no-op).
 			existing, _ := s.lookupMetaNoLock(category, catRel)
 			if existing.ID != 0 && existing.ContentHash == hash && existing.SizeBytes == info.Size() {
-				// unchanged
+
 				return nil
 			}
 
-			// Register (insert or update). Unlock s.mu sebentar — Register
-			// call ambil lock sendiri. Tapi kita di tengah filepath.Walk
-			// yang OS-level. Pakai internal upsert tanpa lock supaya ngga
-			// re-entrant deadlock.
 			id, isNew, uerr := s.registerMetaNoLock(category, catRel, "", hash, info.Size(), true)
 			_ = id
 			if uerr != nil {
@@ -382,11 +310,10 @@ func (s *Store) RebuildIndexFromDir(workspaceRoot string) RebuildIndexReport {
 			rep.Errors = append(rep.Errors, "walk "+catRoot+": "+werr.Error())
 		}
 		if errors.Is(werr, errSkipAll) {
-			break // hit cap, ngga iterate sisa category
+			break
 		}
 	}
 
-	// Soft-delete row yang ngga muncul di scan (file hilang dari disk).
 	deleted, derr := s.softDeleteMissingMetaNoLock(scanned)
 	if derr != nil {
 		rep.Errors = append(rep.Errors, "soft-delete missing: "+derr.Error())
@@ -397,14 +324,8 @@ func (s *Store) RebuildIndexFromDir(workspaceRoot string) RebuildIndexReport {
 	return rep
 }
 
-// lookupMetaNoLock — internal helper, caller wajib pegang lock (atau pakai
-// dari context yang ngga butuh lock seperti RebuildIndexFromDir holding via
-// outer wrapper).
 func (s *Store) lookupMetaNoLock(category, path string) (WorkspaceMeta, error) {
-	// NOTE: caller di RebuildIndexFromDir actually ngga hold s.mu —
-	// RebuildIndexFromDir didesain ngga lock seluruh duration supaya
-	// scan banyak file ngga monopoli writer. Concurrent caller via
-	// other method tetap aman via SQLite WAL.
+
 	var m WorkspaceMeta
 	var shareInt int
 	err := s.db.QueryRow(
@@ -424,10 +345,6 @@ func (s *Store) lookupMetaNoLock(category, path string) (WorkspaceMeta, error) {
 	return m, nil
 }
 
-// registerMetaNoLock — internal helper buat RebuildIndex. Mirror logic
-// RegisterMeta tapi tanpa s.mu lock (caller manage).
-//
-// Apply same path validation as RegisterMeta (audit fix — consistency).
 func (s *Store) registerMetaNoLock(category, path, description, contentHash string, sizeBytes int64, shareable bool) (id int64, isNew bool, err error) {
 	if category == "" || path == "" {
 		return 0, false, fmt.Errorf("category + path required")
@@ -477,11 +394,6 @@ func (s *Store) registerMetaNoLock(category, path, description, contentHash stri
 	}
 }
 
-// softDeleteMissingMetaNoLock — soft-delete row yang `category/path` ngga
-// muncul di `scanned` set. Pakai pas RebuildIndex untuk garbage collect.
-//
-// Scanned keys = `<category>/<relative-within-category>` (e.g. `tools/foo.py`).
-// Match cek single fullKey only — audit fix I6 dead alt-key fallback removed.
 func (s *Store) softDeleteMissingMetaNoLock(scanned map[string]struct{}) (int64, error) {
 	rows, err := s.db.Query(`SELECT id, category, path FROM workspace_meta WHERE deleted_at IS NULL`)
 	if err != nil {
@@ -523,7 +435,6 @@ func (s *Store) softDeleteMissingMetaNoLock(scanned map[string]struct{}) (int64,
 	return deleted, nil
 }
 
-// CountMeta — total non-deleted, optional filter category.
 func (s *Store) CountMeta(category string) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

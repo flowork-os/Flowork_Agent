@@ -1,14 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev). Locked: 2026-06-02.
-// Reason: FASE 7 TUI + QC entry. E2E verified (list/runs/result drive Flowork).
-//
-// flowork-tui — FASE 7: terminal UI buat drive + review Flowork Category Task.
-// Entry interaktif (selain Telegram/CLI/MCP) — JALUR SAMA (taskflow API).
-// Sekalian Quality-Control: list + review hasil run (timeline + keputusan).
-//
-// Command: list · run <kategori> <subjek> · runs <kategori> · result <id> · help · quit
-// Env: FLOWORK_SELF_URL (default http://127.0.0.1:1987).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
+
 package main
 
 import (
@@ -119,12 +113,12 @@ func cmdList() {
 }
 
 type run struct {
-	ID         int64  `json:"id"`
-	Status     string `json:"status"`
-	InputText  string `json:"input_text"`
-	Summary    string `json:"summary"`
-	StartedAt  string `json:"started_at"`
-	Steps      []struct {
+	ID        int64  `json:"id"`
+	Status    string `json:"status"`
+	InputText string `json:"input_text"`
+	Summary   string `json:"summary"`
+	StartedAt string `json:"started_at"`
+	Steps     []struct {
 		AgentID   string `json:"agent_id"`
 		RoleLabel string `json:"role_label"`
 		Status    string `json:"status"`

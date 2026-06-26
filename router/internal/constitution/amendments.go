@@ -1,53 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-06-17
-// Reason: Section 12 phase 2 — constitution AMENDMENT workflow (PRYORITY.MD P1).
-//   Owner-approved 2026-06-17. Tested via real HTTP path: reword + amplitude +
-//   delete + reject, idempotency no-op, append-only history trigger, soft-delete
-//   tombstone, 400/500 error mapping, anti-dup, ceiling. Additive (new table
-//   constitution_amendment), reuses no LOCKED file (proposals.go/write.go untouched).
-//   Future change → tambah file/function baru, JANGAN modify ini.
-//
-// Package constitution — Section 12 phase 2: AMENDMENT workflow.
-//
-// PURPOSE:
-//   Phase 1 (proposals.go) hanya bisa MENAMBAH rule baru (INSERT pending,
-//   UNIQUE source_file+section). Ia TIDAK bisa meng-amend rule yang sudah
-//   aktif (reword content, ubah amplitude, atau soft-delete duplikat) —
-//   persis yang dibutuhkan untuk merapikan doktrin sacred (audit 2026-06-17).
-//
-//   Amendment = perubahan ke rule EXISTING, di-antre PENDING dulu, lalu
-//   di-apply HANYA setelah owner approve (governance-gated, bukan free-edit).
-//
-// APPLY (atomic):
-//   approve menjalankan lookup target + apply + mark-settled dalam SATU
-//   transaksi SQLite. Append-only kejaga:
-//     - reword/amplitude → UPDATE constitution.content/amplitude → trigger
-//       trg_constitution_log_update meng-arsip versi lama ke
-//       constitution_history (DB-level, ikut transaksi).
-//     - delete           → UPDATE deleted_at/deleted_by (tombstone, bukan DROP).
-//   Apply TIDAK lewat brain.UpdateConstitution/SoftDeleteConstitution: dengan
-//   brain.OpenRW() MaxOpenConns=1, memanggil primitive itu di dalam tx kita
-//   (yang sudah memegang satu-satunya koneksi) = deadlock. Inline UPDATE di tx
-//   memberi atomicity penuh: gagal mark-settled → rollback → apply ikut batal
-//   → amendment tetap pending → retry 100% bersih (tidak ada double-apply).
-//   flow_router tetap sole writer brain (sama seperti write.go option C).
-//
-// ISOLATION (plug & play): file BARU, tabel BARU (constitution_amendment).
-//   TIDAK menyentuh proposals.go / write.go (keduanya LOCKED).
-//
-// SECURITY:
-//   - Nothing auto-applies. Apply hanya pada VoteAmendment(action="approve").
-//   - Target wajib rule AKTIF (deleted_at NULL, pending_quorum_review=0),
-//     dicek ULANG di dalam tx saat apply (no TOCTOU, no stale snapshot).
-//   - Idempotent: amendment yang sudah settled → no-op.
-//   - Parameterized SQL only. Content sacred TIDAK di-truncate diam-diam —
-//     oversize ditolak (truncation byte-slice bisa merusak UTF-8 + mengubah makna).
-//   - Validasi input di-wrap ErrInvalidInput → handler memetakan ke 400 vs 500.
-//
-// Source: PRYORITY.MD P1 (Constitution fix, sacred propose/vote).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package constitution
 
@@ -62,27 +16,22 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/brain"
 )
 
-// AmendAlgoVersion — amendment workflow version.
 const AmendAlgoVersion = "amend-v1"
 
-// ErrInvalidInput menandai error validasi caller (→ HTTP 400). Error lain
-// (DB/transaksi) tidak di-wrap ErrInvalidInput → handler memetakan ke 500.
 var ErrInvalidInput = errors.New("invalid input")
 
-// Amendment kinds.
 const (
-	KindReword    = "reword"    // ganti content (amp current dipertahankan)
-	KindAmplitude = "amplitude" // ganti amplitude (content current dipertahankan)
-	KindDelete    = "delete"    // soft-delete (tombstone) rule
+	KindReword    = "reword"
+	KindAmplitude = "amplitude"
+	KindDelete    = "delete"
 )
 
 const (
 	maxAmendContent = 16 * 1024
 	maxAmendField   = 512
-	maxAmplitude    = 1e7 // ceiling wajar (sacred = 999999); cegah nilai absurd/overflow
+	maxAmplitude    = 1e7
 )
 
-// Amendment — satu usulan perubahan ke rule existing.
 type Amendment struct {
 	ID            int64   `json:"id"`
 	TargetID      int64   `json:"target_id"`
@@ -101,18 +50,15 @@ type Amendment struct {
 	DecidedBy     string  `json:"decided_by,omitempty"`
 }
 
-// ProposeAmendOpts — argumen ProposeAmendment.
 type ProposeAmendOpts struct {
 	TargetID     int64
 	Kind         string
-	NewContent   string  // wajib utk reword
-	NewAmplitude float64 // wajib utk amplitude
-	Rationale    string  // alasan (audit trail) — disarankan
-	Signer       string  // proposer identity (free-form)
+	NewContent   string
+	NewAmplitude float64
+	Rationale    string
+	Signer       string
 }
 
-// ensureAmendSchema membuat tabel amendment bila belum ada (idempotent,
-// additive — tidak menyentuh tabel constitution existing).
 func ensureAmendSchema(ctx context.Context, db *sql.DB) error {
 	if _, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS constitution_amendment (
 		id             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -142,7 +88,6 @@ func ensureAmendSchema(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
-// targetRow — snapshot rule target saat lookup.
 type targetRow struct {
 	section   string
 	content   string
@@ -151,7 +96,6 @@ type targetRow struct {
 	pending   int
 }
 
-// lookupTargetQ membaca rule target lewat querier (db atau tx).
 func lookupTargetQ(ctx context.Context, q interface {
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }, id int64) (targetRow, error) {
@@ -171,7 +115,6 @@ func lookupTargetQ(ctx context.Context, q interface {
 	return tr, nil
 }
 
-// ProposeAmendment meng-antre satu amendment PENDING. TIDAK meng-apply.
 func ProposeAmendment(ctx context.Context, opts ProposeAmendOpts) (int64, error) {
 	if opts.TargetID <= 0 {
 		return 0, fmt.Errorf("%w: target_id required (positive int)", ErrInvalidInput)
@@ -215,7 +158,7 @@ func ProposeAmendment(ctx context.Context, opts ProposeAmendOpts) (int64, error)
 		if newContent == strings.TrimSpace(tr.content) {
 			return 0, fmt.Errorf("%w: new_content identical to current content; nothing to reword", ErrInvalidInput)
 		}
-		newAmp = 0 // reword keeps current amplitude (resolved at apply)
+		newAmp = 0
 	case KindAmplitude:
 		if newAmp <= 0 {
 			return 0, fmt.Errorf("%w: new_amplitude required (> 0) for amplitude change", ErrInvalidInput)
@@ -226,12 +169,11 @@ func ProposeAmendment(ctx context.Context, opts ProposeAmendOpts) (int64, error)
 		if newAmp == tr.amplitude {
 			return 0, fmt.Errorf("%w: new_amplitude identical to current (%g); nothing to change", ErrInvalidInput, tr.amplitude)
 		}
-		newContent = "" // amplitude change keeps current content
+		newContent = ""
 	case KindDelete:
 		newContent, newAmp = "", 0
 	}
 
-	// Anti-duplicate: satu amendment pending per target rule.
 	var dup int
 	if err := db.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM constitution_amendment WHERE target_id = ? AND status = 'pending'`,
@@ -272,8 +214,6 @@ func ProposeAmendment(ctx context.Context, opts ProposeAmendOpts) (int64, error)
 
 var validListStatus = map[string]bool{"": true, "pending": true, "approved": true, "rejected": true}
 
-// ListAmendments — list amendments. status kosong = semua; else filter
-// ('pending'|'approved'|'rejected'). Order id ASC. Default limit 50, max 500.
 func ListAmendments(ctx context.Context, status string, limit int) ([]Amendment, error) {
 	if limit <= 0 || limit > 500 {
 		limit = 50
@@ -324,28 +264,21 @@ func ListAmendments(ctx context.Context, status string, limit int) ([]Amendment,
 	return out, rows.Err()
 }
 
-// AmendVoteOpts — argumen VoteAmendment.
 type AmendVoteOpts struct {
 	AmendmentID int64
-	Action      string // "approve" | "reject"
+	Action      string
 	VoterID     string
 }
 
-// AmendVoteResult — hasil vote.
 type AmendVoteResult struct {
 	AmendmentID int64  `json:"amendment_id"`
 	TargetID    int64  `json:"target_id"`
 	Kind        string `json:"kind"`
 	Action      string `json:"action"`
-	Status      string `json:"status"` // "approved" | "rejected" | "no-op"
+	Status      string `json:"status"`
 	Applied     bool   `json:"applied"`
 }
 
-// VoteAmendment meng-apply atau menolak satu amendment pending.
-//   - approve → apply append-only ke rule target (reword/amplitude/delete)
-//     + mark settled, ATOMIC dalam satu transaksi.
-//   - reject  → status='rejected'.
-// Idempotent: amendment yang sudah settled → status="no-op".
 func VoteAmendment(ctx context.Context, opts AmendVoteOpts) (AmendVoteResult, error) {
 	r := AmendVoteResult{AmendmentID: opts.AmendmentID, Action: opts.Action}
 	if opts.AmendmentID <= 0 {
@@ -409,7 +342,6 @@ func VoteAmendment(ctx context.Context, opts AmendVoteOpts) (AmendVoteResult, er
 		return r, nil
 	}
 
-	// approve → ATOMIC: re-read target + apply + mark settled dalam satu tx.
 	tx, terr := db.BeginTx(ctx, nil)
 	if terr != nil {
 		return r, fmt.Errorf("begin tx: %w", terr)
@@ -478,7 +410,6 @@ func VoteAmendment(ctx context.Context, opts AmendVoteOpts) (AmendVoteResult, er
 	return r, nil
 }
 
-// CountPendingAmendments — jumlah amendment status='pending'.
 func CountPendingAmendments(ctx context.Context) (int64, error) {
 	db, err := brain.OpenRW()
 	if err != nil {

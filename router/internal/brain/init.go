@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Brain drawer/embeddings/skills.
-
-// Empty-brain bootstrap (init.go).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package brain
 
@@ -16,9 +12,6 @@ import (
 	"path/filepath"
 )
 
-// brainSchemaSQL — the minimal-but-complete schema flow_router's brain
-// handlers expect. Mirrors the flowork Memory Palace layout so a brain DB
-// created by EnsureSchema is read-compatible with the flowork ecosystem.
 const brainSchemaSQL = `
 CREATE TABLE IF NOT EXISTS agents (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -186,10 +179,6 @@ CREATE INDEX IF NOT EXISTS idx_mistakes_journal_updated   ON mistakes_journal(up
 -- See internal/recorder/recorder.go for column mapping.
 `
 
-// EnsureSchema bootstraps a Memory Palace DB at the resolved path if absent,
-// creating every table flow_router's brain handlers expect. Calling on an
-// existing DB is a no-op (CREATE … IF NOT EXISTS). Returns (created, error)
-// where created=true means a fresh DB was provisioned.
 func EnsureSchema() (bool, error) {
 	p := DBPath()
 	if p == "" {
@@ -202,8 +191,7 @@ func EnsureSchema() (bool, error) {
 			return false, fmt.Errorf("mkdir %s: %w", filepath.Dir(p), err)
 		}
 	}
-	// Open RW (creates the file when missing). Close after schema apply so the
-	// regular read-only handle from Open() picks it up cleanly on next access.
+
 	dsn := "file:" + p + "?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(0)"
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
@@ -213,15 +201,13 @@ func EnsureSchema() (bool, error) {
 	if _, err := db.Exec(brainSchemaSQL); err != nil {
 		return false, fmt.Errorf("apply schema: %w", err)
 	}
-	// Drop any cached read handles so the next Open() sees the freshly-created file.
+
 	if fresh {
 		invalidateHandles()
 	}
 	return fresh, nil
 }
 
-// invalidateHandles closes any cached read/write handles so subsequent opens
-// pick up the freshly-bootstrapped DB (called after a fresh schema apply).
 func invalidateHandles() {
 	handleMu.Lock()
 	if handle != nil {

@@ -1,29 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-31
-// Reason: File-level codemap indexer (graph tab). go/parser imports-only,
-//   skip-dirs noise, health/issue heuristik, import→edge representatif.
-//   E2E verified (139 node + 122 edge dari repo, anti-traversal).
-// 2026-06-13 (owner approve, audit): MULTI-MODULE — dulu hardcode 1 modulePrefix
-//   "flowork-gui/" (cuma agent), jadi scan monorepo (root=FLowork_os: router+agent+os)
-//   nge-NODE semua file TAPI edge=0 (import router pakai modul lain ga ke-resolve →
-//   "peta tanpa garis"). Sekarang catat SEMUA go.mod (module-path→dir) saat walk +
-//   resolveImportDir() longest-prefix → edge lintas-subproject jalan. Hapus const
-//   modulePrefix yang jadi zombie. Transparansi: 1 engine, semua folder ke-map.
-//
-// walker.go — file-level codemap indexer untuk GUI graph tab.
-//
-// Beda dari goparser.go (yang extract simbol func/type per file untuk
-// tool warga), walker.go menghasilkan node LEVEL-FILE + edge import antar
-// file — sesuai kontrak frontend codemap.js (D3 force graph):
-//
-//	node: {path, name, file_type, line_count, layer, has_tests, has_docs,
-//	       health_score, issues[], recently_touched}
-//	edge: {from, to}  (file importer → file representatif paket yang di-import)
-//
-// Root index = working dir server (repo Flowork). Skip folder noise.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
+
 package codemap
 
 import (
@@ -36,13 +15,11 @@ import (
 	"time"
 )
 
-// skipDirs — folder yang ngga di-index (build artifact, reference, vendor).
 var skipDirs = map[string]bool{
 	".git": true, "vendor": true, "node_modules": true, "referensifile": true,
 	"web": true, "bin": true, ".scratch": true, "sdk": true, "__pycache__": true,
 }
 
-// FileInfo — satu node file.
 type FileInfo struct {
 	Path            string   `json:"path"`
 	Name            string   `json:"name"`
@@ -56,13 +33,11 @@ type FileInfo struct {
 	Issues          []string `json:"issues"`
 }
 
-// FileImport — edge file→file.
 type FileImport struct {
 	From string `json:"from"`
 	To   string `json:"to"`
 }
 
-// WalkRepo index semua .go di root → file node + import edge.
 func WalkRepo(root string) ([]FileInfo, []FileImport, error) {
 	root = filepath.Clean(root)
 	type parsed struct {
@@ -74,19 +49,16 @@ func WalkRepo(root string) ([]FileInfo, []FileImport, error) {
 		touched bool
 	}
 	var files []parsed
-	dirHasTest := map[string]bool{}        // dir → ada _test.go
-	dirGoFiles := map[string][]string{}     // dir → rel .go files (non-test)
-	// goModRoots: module-path → dir relatif root. Multi-module aware — root bisa
-	// monorepo (FLowork_os) berisi BANYAK go.mod (agent=flowork-gui, router=
-	// github.com/flowork-os/flowork_Router, dst). Tanpa ini, walker cuma kenal 1
-	// modul → import lintas-subproject ga jadi edge (peta tanpa garis).
+	dirHasTest := map[string]bool{}
+	dirGoFiles := map[string][]string{}
+
 	goModRoots := map[string]string{}
 	fset := token.NewFileSet()
 	now := time.Now()
 
 	err := filepath.Walk(root, func(path string, info os.FileInfo, werr error) error {
 		if werr != nil {
-			return nil // skip unreadable, jangan abort
+			return nil
 		}
 		if info.IsDir() {
 			if skipDirs[info.Name()] || strings.HasPrefix(info.Name(), ".") && info.Name() != "." {
@@ -94,7 +66,7 @@ func WalkRepo(root string) ([]FileInfo, []FileImport, error) {
 			}
 			return nil
 		}
-		// go.mod → catat module-path → dir (buat resolve import lintas-modul).
+
 		if filepath.Base(path) == "go.mod" {
 			if mp := parseModulePath(path); mp != "" {
 				if rd, e := filepath.Rel(root, filepath.Dir(path)); e == nil {
@@ -113,7 +85,7 @@ func WalkRepo(root string) ([]FileInfo, []FileImport, error) {
 		dir := filepath.Dir(rel)
 		if strings.HasSuffix(path, "_test.go") {
 			dirHasTest[dir] = true
-			return nil // test file ngga jadi node, cuma penanda
+			return nil
 		}
 		content, cerr := os.ReadFile(path)
 		if cerr != nil {
@@ -123,11 +95,10 @@ func WalkRepo(root string) ([]FileInfo, []FileImport, error) {
 		hasDocs := false
 		imports := []string{}
 		if af, perr := parser.ParseFile(fset, path, content, parser.ParseComments); perr == nil {
-			// has_docs = ada package doc atau komentar apa pun di file.
+
 			hasDocs = af.Doc != nil || len(af.Comments) > 0
 			for _, imp := range af.Imports {
-				// Simpan FULL import path; di-resolve ke dir repo (multi-modul)
-				// di fase edge — saat semua go.mod udah ke-catat.
+
 				imports = append(imports, strings.Trim(imp.Path.Value, `"`))
 			}
 		}
@@ -142,7 +113,6 @@ func WalkRepo(root string) ([]FileInfo, []FileImport, error) {
 		return nil, nil, err
 	}
 
-	// Representatif per dir (paket) untuk target edge: file == last segment dir, else pertama.
 	rep := map[string]string{}
 	for dir, fs := range dirGoFiles {
 		sort.Strings(fs)
@@ -188,12 +158,11 @@ func WalkRepo(root string) ([]FileInfo, []FileImport, error) {
 			HasDocs: f.hasDocs, HealthScore: score, RecentlyTouched: f.touched,
 			Issues: issues,
 		})
-		// Edges: file → representatif paket yang di-import. Resolve import path
-		// (full) → dir relatif root via go.mod yang cocok (lintas-modul).
+
 		for _, imp := range f.imports {
 			impDir := resolveImportDir(imp, goModRoots)
 			if impDir == "" {
-				continue // import eksternal / stdlib → bukan edge internal
+				continue
 			}
 			target, ok := rep[impDir]
 			if !ok || target == f.rel {
@@ -210,7 +179,6 @@ func WalkRepo(root string) ([]FileInfo, []FileImport, error) {
 	return nodes, edges, nil
 }
 
-// parseModulePath baca baris `module X` dari go.mod. "" kalau ga ketemu.
 func parseModulePath(goModPath string) string {
 	b, err := os.ReadFile(goModPath)
 	if err != nil {
@@ -225,10 +193,6 @@ func parseModulePath(goModPath string) string {
 	return ""
 }
 
-// resolveImportDir cocokin import path ke salah satu module-root (longest-prefix)
-// lalu balik dir relatif root repo. "" kalau import eksternal/stdlib (bukan edge
-// internal). Contoh (root=monorepo): "github.com/flowork-os/flowork_Router/internal/router"
-// + root["github.com/flowork-os/flowork_Router"]="router" → "router/internal/router".
 func resolveImportDir(imp string, roots map[string]string) string {
 	best := ""
 	for mp := range roots {
@@ -245,7 +209,6 @@ func resolveImportDir(imp string, roots map[string]string) string {
 	return filepath.Clean(filepath.Join(roots[best], sub))
 }
 
-// layerOf — klasifikasi layer dari path (top-level dir, internal/X → X).
 func layerOf(rel string) string {
 	parts := strings.Split(filepath.ToSlash(rel), "/")
 	if len(parts) == 1 {

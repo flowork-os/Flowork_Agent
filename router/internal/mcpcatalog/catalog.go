@@ -1,40 +1,23 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — audit pass surface review.
-
-// Curated catalog of one-click MCP servers users can register without
-// hand-editing config. Two flavours:
-//
-//	Remote HTTP MCP   — hosted endpoints (exa.ai, tavily.com), no spawn
-//	Local stdio MCP   — npx-wrapped local processes (browsermcp, …)
-//
-// Surfacing this list via /api/mcp/catalog lets the dashboard's MCP tab
-// render a "register one-click" card next to each entry; the actual
-// registration still flows through the existing MCPServer CRUD so the
-// allowlist + handler paths stay consistent.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package mcpcatalog
 
-// Plugin describes a single one-click MCP entry. Empty Command means the
-// entry is HTTP-only; empty URL means it's spawn-only.
 type Plugin struct {
-	Name        string   `json:"name"`        // stable id used by clients to dedup
-	Title       string   `json:"title"`       // human-readable
-	Description string   `json:"description"` // 1-2 sentences for the card
-	Transport   string   `json:"transport"`   // "http" | "stdio"
+	Name        string   `json:"name"`
+	Title       string   `json:"title"`
+	Description string   `json:"description"`
+	Transport   string   `json:"transport"`
 	URL         string   `json:"url,omitempty"`
 	Command     string   `json:"command,omitempty"`
 	Args        []string `json:"args,omitempty"`
-	OAuth       bool     `json:"oauth,omitempty"`        // upstream uses OAuth handshake
-	Extension   string   `json:"extensionUrl,omitempty"` // companion browser/IDE extension
-	ToolNames   []string `json:"toolNames,omitempty"`    // declared tool ids
+	OAuth       bool     `json:"oauth,omitempty"`
+	Extension   string   `json:"extensionUrl,omitempty"`
+	ToolNames   []string `json:"toolNames,omitempty"`
 }
 
-// DefaultPlugins is the canonical list rendered on first boot. Operators
-// can extend at runtime via Register() or replace via Set().
 var DefaultPlugins = []Plugin{
 	{
 		Name:        "exa",
@@ -72,8 +55,6 @@ var DefaultPlugins = []Plugin{
 
 var custom []Plugin
 
-// Catalog returns the full one-click plugin list: defaults followed by any
-// runtime registrations, with later duplicates (by Name) ignored.
 func Catalog() []Plugin {
 	out := make([]Plugin, 0, len(DefaultPlugins)+len(custom))
 	seen := map[string]bool{}
@@ -94,12 +75,11 @@ func Catalog() []Plugin {
 	return out
 }
 
-// Register adds a custom plugin (idempotent by Name — later wins).
 func Register(p Plugin) {
 	if p.Name == "" {
 		return
 	}
-	// Drop any existing entry with the same name first so the new one wins.
+
 	filtered := custom[:0]
 	for _, e := range custom {
 		if e.Name != p.Name {
@@ -109,12 +89,10 @@ func Register(p Plugin) {
 	custom = append(filtered, p)
 }
 
-// Set replaces the custom layer entirely. Defaults are untouched.
 func Set(list []Plugin) {
 	custom = append(custom[:0], list...)
 }
 
-// Lookup returns the plugin with the given name, or false.
 func Lookup(name string) (Plugin, bool) {
 	for _, p := range Catalog() {
 		if p.Name == name {

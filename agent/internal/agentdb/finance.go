@@ -1,13 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 23 phase 1 finance ledger schema + accessors. Lazy
-//   CREATE. Phase 2 (currency-aware aggregate, FX rate, multi-account)
-//   → tambah file baru.
-//
-// finance.go — Section 23 phase 1: ledger row + budget config + summary.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package agentdb
 
@@ -17,20 +11,18 @@ import (
 	"time"
 )
 
-// FinanceLedger — mirror finance_ledger row.
 type FinanceLedger struct {
-	ID            int64   `json:"id"`
-	OccurredAt    string  `json:"occurred_at"`
-	Category      string  `json:"category"`
-	Provider      string  `json:"provider"`
-	Model         string  `json:"model"`
-	InputTokens   int64   `json:"input_tokens"`
-	OutputTokens  int64   `json:"output_tokens"`
-	CostUSD       float64 `json:"cost_usd"`
-	MetadataJSON  string  `json:"metadata_json"`
+	ID           int64   `json:"id"`
+	OccurredAt   string  `json:"occurred_at"`
+	Category     string  `json:"category"`
+	Provider     string  `json:"provider"`
+	Model        string  `json:"model"`
+	InputTokens  int64   `json:"input_tokens"`
+	OutputTokens int64   `json:"output_tokens"`
+	CostUSD      float64 `json:"cost_usd"`
+	MetadataJSON string  `json:"metadata_json"`
 }
 
-// FinanceBudget — mirror finance_budgets row.
 type FinanceBudget struct {
 	MetricKey    string  `json:"metric_key"`
 	BudgetValue  float64 `json:"budget_value"`
@@ -65,7 +57,6 @@ func (s *Store) ensureFinanceSchema() error {
 	return err
 }
 
-// AddLedger append row, return ID.
 func (s *Store) AddLedger(l FinanceLedger) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -96,7 +87,6 @@ func (s *Store) AddLedger(l FinanceLedger) (int64, error) {
 	return res.LastInsertId()
 }
 
-// ListLedger paginated, filter by category + time range.
 func (s *Store) ListLedger(category, from, to string, limit int) ([]FinanceLedger, error) {
 	if limit <= 0 {
 		limit = 100
@@ -144,13 +134,12 @@ func (s *Store) ListLedger(category, from, to string, limit int) ([]FinanceLedge
 	return out, rows.Err()
 }
 
-// LedgerSummary — aggregate cost per category dalam range.
 type LedgerSummary struct {
-	Category    string  `json:"category"`
-	CostUSD     float64 `json:"cost_usd"`
-	CallCount   int     `json:"call_count"`
-	InputToks   int64   `json:"input_tokens"`
-	OutputToks  int64   `json:"output_tokens"`
+	Category   string  `json:"category"`
+	CostUSD    float64 `json:"cost_usd"`
+	CallCount  int     `json:"call_count"`
+	InputToks  int64   `json:"input_tokens"`
+	OutputToks int64   `json:"output_tokens"`
 }
 
 func (s *Store) SummaryLedger(from, to string) ([]LedgerSummary, error) {
@@ -191,7 +180,6 @@ func (s *Store) SummaryLedger(from, to string) ([]LedgerSummary, error) {
 	return out, rows.Err()
 }
 
-// SetBudget upsert.
 func (s *Store) SetBudget(b FinanceBudget) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -217,7 +205,6 @@ func (s *Store) SetBudget(b FinanceBudget) error {
 	return err
 }
 
-// ListBudgets all.
 func (s *Store) ListBudgets() ([]FinanceBudget, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

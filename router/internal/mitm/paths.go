@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — MITM proxy capture/translator (TLS interception).
-
-// MITM Paths (per-OS data dirs).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package mitm
 
@@ -18,7 +14,6 @@ import (
 
 const appName = "flow_router"
 
-// DefaultDataDir returns the canonical per-OS data dir.
 func DefaultDataDir() string {
 	if runtime.GOOS == "windows" {
 		appdata := os.Getenv("APPDATA")
@@ -32,8 +27,6 @@ func DefaultDataDir() string {
 	return filepath.Join(home, "."+appName)
 }
 
-// DataDir returns the effective data dir, honoring DATA_DIR / FLOW_ROUTER_DATA
-// env (with writability fallback).
 func DataDir() string {
 	for _, k := range []string{"FLOW_ROUTER_DATA", "DATA_DIR"} {
 		v := os.Getenv(k)
@@ -51,5 +44,4 @@ func DataDir() string {
 	return DefaultDataDir()
 }
 
-// MITMDir is <DataDir>/mitm.
 func MITMDir() string { return filepath.Join(DataDir(), "mitm") }

@@ -1,13 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 29 + Section 35 phase 1 endpoints. Phase 2 (real
-//   zombie scan integration with codemap, prompt diff viewer, slot
-//   constraints) → tambah file baru.
-//
-// sec29_35.go — Section 29 zombie + Section 35 prompt endpoints.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package agentmgr
 
@@ -22,11 +16,6 @@ import (
 	"flowork-gui/internal/zombie"
 )
 
-// =============================================================================
-// Section 29: Zombie findings
-// =============================================================================
-
-// ZombieFindingsHandler — GET/POST /api/agents/zombie/findings?id=<agent>
 func ZombieFindingsHandler(w http.ResponseWriter, r *http.Request) {
 	agentID := strings.TrimSpace(r.URL.Query().Get("id"))
 	if agentID == "" {
@@ -64,8 +53,6 @@ func ZombieFindingsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// ZombieScanHandler — POST /api/agents/zombie/scan?id=<agent>&min_age_days=
-// Section 29 phase 2 real auto-detect: walk codemap_nodes, grep callers.
 func ZombieScanHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
@@ -106,7 +93,6 @@ func ZombieScanHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ZombieAckHandler — POST /api/agents/zombie/ack?id=&finding_id=
 func ZombieAckHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
@@ -131,12 +117,6 @@ func ZombieAckHandler(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, map[string]any{"ok": true})
 }
 
-// =============================================================================
-// Section 35: Self-contained prompt.md
-// =============================================================================
-
-// SelfPromptRenderHandler — GET /api/agents/self-prompt/render?id=<agent>
-// Section 35 phase 2: assemble latest slots → markdown → LLM wrapper inject.
 func SelfPromptRenderHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
@@ -164,11 +144,9 @@ func SelfPromptRenderHandler(w http.ResponseWriter, r *http.Request) {
 		byName[s.Slot] = s
 	}
 	var b strings.Builder
-	// TIME-AWARENESS (owner 2026-06-23): inject waktu LIVE (WIB default) di paling atas system-prompt
-	// SEMUA agent → fix "berita lama" (LLM ga lagi nebak tanggal dari training). Detail: time_awareness.go.
+
 	b.WriteString(WIBNowHeader())
-	// RESILIENCE (ITEM 1 roadmap agent-resilience): doktrin recovery (diagnosa/retry-transient/jujur/no-poll)
-	// → semua agent tahan-banting, ga loop-mati pas error transient. Switch FLOWORK_RESILIENCE_OFF. Detail: agent_resilience.go.
+
 	b.WriteString(RecoveryDoctrine())
 	emitted := []string{}
 	emitOne := func(slot string) {
@@ -208,10 +186,6 @@ func SelfPromptRenderHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// SelfPromptHandler — GET/POST /api/agents/self-prompt?id=<agent>&slot=
-//
-//	GET ?slot=&version= → return latest (version=0) atau specific.
-//	POST body {slot, body, notes, version} → upsert next version.
 func SelfPromptHandler(w http.ResponseWriter, r *http.Request) {
 	agentID := strings.TrimSpace(r.URL.Query().Get("id"))
 	if agentID == "" {

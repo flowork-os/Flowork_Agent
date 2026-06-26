@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — HTTP handler.
-
-// Web-fetch dispatch handler.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -21,9 +17,6 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-// webFetchHandler — POST /v1/web/fetch with JSON {url, provider?, mode?}.
-// Returns either the upstream body as the response (when text/markdown/html)
-// or a JSON envelope with base64-encoded bytes for non-text content.
 func webFetchHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -45,10 +38,6 @@ func webFetchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// SSRF guard: only allow public destinations. Blocks loopback, private,
-	// link-local (incl. cloud metadata 169.254.169.254), CGNAT, multicast.
-	// Resolves up-front so the dialer can't see a different IP than what we
-	// validated (closes the DNS rebinding window).
 	urlCtx, urlCancel := context.WithTimeout(r.Context(), 5*time.Second)
 	if _, err := safeurl.Validate(urlCtx, in.URL); err != nil {
 		urlCancel()
@@ -61,7 +50,6 @@ func webFetchHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	urlCancel()
 
-	// Resolve which vendor to call. Explicit > active media provider > "raw" fallback.
 	picked := pickFetchProvider(in.Provider, in.APIKey, in.BaseURL)
 
 	impl := fetch.Get(picked.name)
@@ -106,7 +94,6 @@ type fetchPick struct {
 	baseURL string
 }
 
-// pickFetchProvider resolves: explicit > active MediaProvider > "raw".
 func pickFetchProvider(explicit, apiKey, baseURL string) fetchPick {
 	if explicit != "" {
 		return fetchPick{name: explicit, apiKey: apiKey, baseURL: baseURL}

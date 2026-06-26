@@ -1,29 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 17 phase 2 CLI adapter. API stable: flags --agent,
-//   --base, --caller; positional command + args; --json output mode;
-//   `--repl` interactive mode. Phase 3 (auth header, stream output,
-//   profile config file) → tambah subcommand baru, JANGAN modify ini.
-//
-// flowork-cli — Section 17 phase 2 CLI slash adapter.
-//
-// Usage:
-//
-//	flowork-cli /version
-//	flowork-cli --agent mr-flow /tool_search "net"
-//	flowork-cli --base http://127.0.0.1:1987 --json /stats
-//	flowork-cli --repl                          (interactive mode)
-//
-// Default agent: mr-flow. Default base: http://127.0.0.1:1987.
-//
-// Exit code:
-//
-//	0 — slash dispatch ok (regardless of command logic outcome)
-//	1 — HTTP / network error
-//	2 — slash command not found / parse error
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -63,7 +41,6 @@ func main() {
 		return
 	}
 
-	// One-shot: argv after flags = slash command (incl. leading `/`).
 	text := strings.TrimSpace(strings.Join(flag.Args(), " "))
 	if text == "" {
 		fmt.Fprintln(os.Stderr, "usage: flowork-cli [flags] /<command> [args...]")
@@ -89,7 +66,7 @@ func runOnce(base, agent, caller, text string, jsonOut bool, timeout time.Durati
 		fmt.Println(string(raw))
 		return 0
 	}
-	// Pretty print: command + duration + result text.
+
 	if resp.Error != "" {
 		fmt.Fprintf(os.Stderr, "slash error: %s\n", resp.Error)
 		return 2
@@ -139,7 +116,6 @@ func runREPL(base, agent, caller string, jsonOut bool, timeout time.Duration) {
 	}
 }
 
-// slashResp mirrors /api/agents/slash/run response shape.
 type slashResp struct {
 	Command    string `json:"command"`
 	DurationMS int64  `json:"duration_ms"`

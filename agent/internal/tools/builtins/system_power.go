@@ -1,38 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-06-02
-// Audit rilis 2026-06-14 (§38 AI Agent): aman. resolvePowerCmdFor(goos,action) bisa dites lintas-OS;
-// Android dibedakan (butuh root) dgn error edukatif. linux=RasPi/STB. Cap exec:power + ARM + dry-run.
-// Reason: Operator power tool. E2E verified (LLM→system_power→dry-run→audit).
-//   3 controls: cap exec:power + ARM switch (FLOWORK_POWER_ARMED) + audit.
-//   argv exec (no shell). Cancellable timer with recover(). Extend (new
-//   actions / persistent arm / cancel UI) → tambah file baru, JANGAN modify ini.
-//
-// system_power.go — Section 11 extension: host power control tool.
-//
-// PURPOSE:
-//   Sanctioned, capability-gated path for an OPERATOR agent to control the
-//   host computer's power state (shutdown / reboot / suspend / lock / logout)
-//   + cancel a pending action. This is the ONLY allowed route for power ops —
-//   the generic `bash` tool denylists shutdown/reboot/poweroff/halt on purpose
-//   (shell.go), and the HPG baseline blocks them as raw commands. system_power
-//   is the deliberate exception, fenced by three controls:
-//
-//     1. Capability gate `exec:power` — broker only approves agents whose
-//        manifest.capabilities_required lists it (the operator agent), so a
-//        normal chat agent can NEVER trigger power ops.
-//     2. ARM switch — default behaviour is DRY-RUN: the command is resolved,
-//        audited, and returned, but NOT executed. Real execution requires the
-//        host env `FLOWORK_POWER_ARMED` to be truthy. This keeps dev/test on a
-//        live machine safe, and makes "go live" an explicit owner decision.
-//     3. Audit — every call (dry-run or armed) appends to the agent audit log.
-//
-//   Multi-OS: Linux (systemctl/loginctl — polkit, no sudo on desktop), macOS
-//   (osascript/pmset), Windows (shutdown.exe/rundll32). No shell — argv exec,
-//   so no injection surface. A cancel window is real: the delay runs in-process
-//   and `action:"cancel"` aborts a still-pending action.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package builtins
 
@@ -51,7 +20,6 @@ import (
 	"flowork-gui/internal/tools"
 )
 
-// systemPowerTool — control host power state. Cap-gated `exec:power`.
 type systemPowerTool struct{}
 
 func (systemPowerTool) Name() string       { return "system_power" }
@@ -68,7 +36,6 @@ func (systemPowerTool) Schema() tools.Schema {
 	}
 }
 
-// validPowerActions — whitelist. Anything else is rejected.
 var validPowerActions = map[string]bool{
 	"shutdown": true,
 	"reboot":   true,
@@ -78,12 +45,10 @@ var validPowerActions = map[string]bool{
 	"cancel":   true,
 }
 
-// pending power action — single in-flight timer guarded by a mutex so a
-// `cancel` can abort a still-waiting shutdown. Process-wide (one host).
 var (
 	powerMu      sync.Mutex
 	powerTimer   *time.Timer
-	powerPending string // human description of what's queued ("" = nothing)
+	powerPending string
 )
 
 func powerArmed() bool {
@@ -109,7 +74,6 @@ func (systemPowerTool) Run(ctx context.Context, args map[string]any) (tools.Resu
 		reason = "(no reason given)"
 	}
 
-	// ── cancel: abort a pending action ──────────────────────────────────────
 	if action == "cancel" {
 		powerMu.Lock()
 		had := powerTimer != nil
@@ -135,7 +99,6 @@ func (systemPowerTool) Run(ctx context.Context, args map[string]any) (tools.Resu
 		}}, nil
 	}
 
-	// ── delay clamp ─────────────────────────────────────────────────────────
 	delay := 10
 	if v, ok := args["delay_seconds"].(float64); ok {
 		delay = int(v)
@@ -150,7 +113,6 @@ func (systemPowerTool) Run(ctx context.Context, args map[string]any) (tools.Resu
 		delay = 3600
 	}
 
-	// ── resolve OS-specific argv ────────────────────────────────────────────
 	argv, err := resolvePowerCmd(action)
 	if err != nil {
 		return tools.Result{}, err
@@ -158,14 +120,12 @@ func (systemPowerTool) Run(ctx context.Context, args map[string]any) (tools.Resu
 	cmdStr := strings.Join(argv, " ")
 	armed := powerArmed()
 
-	// Audit BEFORE executing (a shutdown may take the host down mid-log).
 	sev := agentdb.AuditSevWarning
 	if action == "lock" || action == "logout" {
 		sev = agentdb.AuditSevInfo
 	}
 	writePowerAudit(store, caller, action, reason, cmdStr, armed, sev)
 
-	// ── DRY-RUN (not armed): resolve + audit, but do NOT execute ────────────
 	if !armed {
 		return tools.Result{
 			Output: map[string]any{
@@ -180,10 +140,9 @@ func (systemPowerTool) Run(ctx context.Context, args map[string]any) (tools.Resu
 		}, nil
 	}
 
-	// ── ARMED: schedule real execution after delay (cancellable) ────────────
 	desc := fmt.Sprintf("%s (in %ds) — %s", action, delay, reason)
 	powerMu.Lock()
-	if powerTimer != nil { // replace any previous pending action
+	if powerTimer != nil {
 		powerTimer.Stop()
 	}
 	powerPending = desc
@@ -198,9 +157,9 @@ func (systemPowerTool) Run(ctx context.Context, args map[string]any) (tools.Resu
 		powerPending = ""
 		powerMu.Unlock()
 		c := exec.Command(argv[0], argv[1:]...)
-		c.Env = os.Environ() // power tools need the real session env (DBUS/XDG)
+		c.Env = os.Environ()
 		if runErr := c.Run(); runErr != nil {
-			// Best-effort: the machine may already be going down. Log if we can.
+
 			writePowerAudit(store, caller, action, "exec failed: "+runErr.Error(), cmdStr, true, agentdb.AuditSevError)
 		}
 	})
@@ -216,15 +175,10 @@ func (systemPowerTool) Run(ctx context.Context, args map[string]any) (tools.Resu
 	}}, nil
 }
 
-// resolvePowerCmd — map (action, OS) → argv. No shell; argv only.
 func resolvePowerCmd(action string) ([]string, error) {
 	return resolvePowerCmdFor(runtime.GOOS, action)
 }
 
-// resolvePowerCmdFor — varian OS-param (bisa dites lintas platform tanpa spawn).
-// Linux mencakup Raspberry Pi & STB berbasis Linux (systemctl). Android sengaja
-// TIDAK didukung default: shutdown butuh root (`svc power shutdown`/`reboot -p`),
-// jadi "dibedakan" per desain owner — errornya edukatif (lihat di bawah), bukan diam.
 func resolvePowerCmdFor(goos, action string) ([]string, error) {
 	switch goos {
 	case "linux":
@@ -271,13 +225,12 @@ func resolvePowerCmdFor(goos, action string) ([]string, error) {
 			return []string{"shutdown.exe", "/l"}, nil
 		}
 	case "android":
-		// Dibedakan per desain: Android non-root tidak bisa shutdown program.
+
 		return nil, fmt.Errorf("system_power di Android dibedakan: shutdown/reboot butuh ROOT (`svc power shutdown` / `reboot -p`). Petunjuk: di Android pakai fitur lain (notifikasi/akun), kontrol daya OS diserahkan ke user — ini normal, bukan kesalahan lo")
 	}
 	return nil, fmt.Errorf("system_power: aksi %q belum dipetakan untuk OS %q. Petunjuk: OS yang didukung penuh = linux (termasuk RasPi/STB), darwin (macOS), windows. Kalau ini OS baru, perlu tambah cabang di resolvePowerCmdFor", action, goos)
 }
 
-// writePowerAudit — best-effort append to agent audit log.
 func writePowerAudit(store *agentdb.Store, caller, action, reason, cmdStr string, armed bool, sev string) {
 	if store == nil {
 		return

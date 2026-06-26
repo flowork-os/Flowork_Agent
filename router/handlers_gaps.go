@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — HTTP handler.
-
-// Parity Gap Closers.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -22,8 +18,6 @@ import (
 
 func indexByte(s string, b byte) int { return strings.IndexByte(s, b) }
 
-// ── providers/:id sub-actions ────────────────────────────────────────────
-
 func providerSubActionHandler(w http.ResponseWriter, r *http.Request, id, action string) {
 	d, _ := store.Open()
 	p, err := store.GetProvider(d, id)
@@ -36,14 +30,14 @@ func providerSubActionHandler(w http.ResponseWriter, r *http.Request, id, action
 	format, _ := p.Data[store.CfgFormat].(string)
 	switch action {
 	case "models":
-		// Live fetch the provider's catalog.
+
 		models := fetchProviderModels(r.Context(), baseURL, apiKey, format)
 		writeJSON(w, http.StatusOK, map[string]any{"data": models, "count": len(models)})
 	case "test":
 		valid, status, detail := probeProviderConn(r.Context(), p)
 		writeJSON(w, http.StatusOK, map[string]any{"id": id, "valid": valid, "statusCode": status, "detail": detail})
 	case "test-models":
-		// Declared models from config, marked reachable per provider probe.
+
 		valid, _, _ := probeProviderConn(r.Context(), p)
 		var results []map[string]any
 		if ms, ok := p.Data[store.CfgModels].([]any); ok {
@@ -59,7 +53,6 @@ func providerSubActionHandler(w http.ResponseWriter, r *http.Request, id, action
 	}
 }
 
-// fetchProviderModels — GET {base}/models with auth, return id list.
 func fetchProviderModels(ctx context.Context, baseURL, apiKey, format string) []map[string]any {
 	if baseURL == "" {
 		return nil
@@ -88,8 +81,6 @@ func fetchProviderModels(ctx context.Context, baseURL, apiKey, format string) []
 	return parsed.Models
 }
 
-// providersClientHandler — GET OpenAI-client-style connection config a tool
-// can copy to talk to flow_router.
 func providersClientHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"baseURL":    "http://127.0.0.1:2402/v1",
@@ -104,7 +95,6 @@ func providersClientHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// providersKiloFreeModelsHandler — curated free model list for Kilo.
 func providersKiloFreeModelsHandler(w http.ResponseWriter, r *http.Request) {
 	d, _ := store.Open()
 	providers, _ := store.ListProviders(d)
@@ -113,7 +103,7 @@ func providersKiloFreeModelsHandler(w http.ResponseWriter, r *http.Request) {
 		if !p.IsActive {
 			continue
 		}
-		// Local/no-auth providers are effectively free.
+
 		if p.AuthType != store.AuthTypeNone {
 			continue
 		}
@@ -128,10 +118,6 @@ func providersKiloFreeModelsHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"data": free, "count": len(free)})
 }
 
-// ── v1 extras ─────────────────────────────────────────────────────────────
-
-// messagesCountTokensHandler — POST /v1/messages/count_tokens (Anthropic).
-// Estimate input tokens (~chars/4) when upstream count not available.
 func messagesCountTokensHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -151,7 +137,6 @@ func messagesCountTokensHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"input_tokens": (chars / 4) + 1})
 }
 
-// modelsInfoHandler — GET /v1/models/info: richer model metadata (id + pricing).
 func modelsInfoHandler(w http.ResponseWriter, r *http.Request) {
 	d, _ := store.Open()
 	providers, _ := store.ListProviders(d)
@@ -178,7 +163,6 @@ func modelsInfoHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"object": "list", "data": out})
 }
 
-// modelsKindHandler — GET /v1/models/:kind filter (chat|embedding|image|tts|stt).
 func modelsKindHandler(w http.ResponseWriter, r *http.Request) {
 	kind := strings.TrimPrefix(r.URL.Path, "/v1/models/")
 	if kind == "info" {
@@ -187,7 +171,7 @@ func modelsKindHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	d, _ := store.Open()
 	var out []map[string]any
-	// Media kinds come from media-providers; chat from regular providers.
+
 	switch kind {
 	case "embedding", "text-to-image", "tts", "stt", "web-fetch-search":
 		mps, _ := store.ListMediaProviders(d, kind)
@@ -196,7 +180,7 @@ func modelsKindHandler(w http.ResponseWriter, r *http.Request) {
 				out = append(out, map[string]any{"id": m, "kind": kind, "provider": mp.Name})
 			}
 		}
-	default: // chat
+	default:
 		providers, _ := store.ListProviders(d)
 		seen := map[string]bool{}
 		for _, p := range providers {
@@ -216,23 +200,18 @@ func modelsKindHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"object": "list", "kind": kind, "data": out})
 }
 
-// responsesCompactHandler — POST /v1/responses/compact: Responses with a
-// terse output (alias to responses; downstreams treat identically).
 func responsesCompactHandler(w http.ResponseWriter, r *http.Request) {
 	responsesV1Handler(w, r)
 }
 
-// audioVoicesHandler — GET /v1/audio/voices: list TTS voices.
 func audioVoicesHandler(w http.ResponseWriter, r *http.Request) {
 	ttsVoicesHandler(w, r)
 }
 
-// apiChatHandler — POST /v1/api/chat: alias to chat completions.
 func apiChatHandler(w http.ResponseWriter, r *http.Request) {
 	chatCompletionsHandler(w, r)
 }
 
-// v1IndexHandler — GET /v1: capability index.
 func v1IndexHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"service":  "flow_router",
@@ -245,17 +224,10 @@ func v1IndexHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ── TTS voices ─────────────────────────────────────────────────────────────
-
-// tryFetchVoicesUpstream proxies /audio/voices from one provider. Returns
-// true when a 200 response was written to w (caller should stop iterating).
-// The HTTP context lives until the function returns, so the streaming body
-// read in copyBody never races a premature cancel.
 func tryFetchVoicesUpstream(parentCtx context.Context, w http.ResponseWriter, endpoint, apiKey string) bool {
 	ctx, cancel := context.WithTimeout(parentCtx, 8*time.Second)
 	defer cancel()
-	// SSRF guard: block link-local/cloud-metadata targets (operator BaseURL is
-	// fetched and its body streamed back to the client). Loopback/LAN allowed.
+
 	if _, verr := blockMetadataURL(ctx, endpoint); verr != nil {
 		return false
 	}
@@ -280,8 +252,6 @@ func tryFetchVoicesUpstream(parentCtx context.Context, w http.ResponseWriter, en
 	return true
 }
 
-// ttsVoicesHandler — GET voices from the active TTS provider (proxy /audio/voices),
-// else a small built-in default set.
 func ttsVoicesHandler(w http.ResponseWriter, r *http.Request) {
 	d, _ := store.Open()
 	providers, _ := store.ListMediaProviders(d, store.MediaCategoryTTS)
@@ -290,14 +260,12 @@ func ttsVoicesHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		endpoint := strings.TrimRight(providers[i].BaseURL, "/") + "/audio/voices"
-		// Use a per-iteration context that lives until the body has been
-		// fully copied — cancelling before the body read aborts the
-		// streaming copy half-way (silent truncation on slow upstreams).
+
 		if served := tryFetchVoicesUpstream(r.Context(), w, endpoint, providers[i].APIKey); served {
 			return
 		}
 	}
-	// Built-in default voices (OpenAI-compatible naming).
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"voices": []map[string]any{
 			{"id": "alloy", "name": "Alloy"}, {"id": "echo", "name": "Echo"},
@@ -308,14 +276,10 @@ func ttsVoicesHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ── auth/oidc start + test ──────────────────────────────────────────────
-
-// oidcStartHandler — alias of init (start the OIDC flow).
 func oidcStartHandler(w http.ResponseWriter, r *http.Request) {
 	authOIDCInitHandler(w, r)
 }
 
-// oidcTestHandler — GET validate OIDC config: fetch discovery, report reachable.
 func oidcTestHandler(w http.ResponseWriter, r *http.Request) {
 	d, _ := store.Open()
 	settings, _ := store.LoadSettings(d)
@@ -339,9 +303,6 @@ func oidcTestHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ── proxy-pools/:id/test ─────────────────────────────────────────────────
-
-// proxyPoolTestHandler — POST test a proxy pool's outbound connectivity.
 func proxyPoolTestHandler(w http.ResponseWriter, _ *http.Request, id string) {
 	d, _ := store.Open()
 	pools, _ := store.ListProxyPools(d)
@@ -357,7 +318,6 @@ func proxyPoolTestHandler(w http.ResponseWriter, _ *http.Request, id string) {
 	http.Error(w, "proxy pool not found", http.StatusNotFound)
 }
 
-// copyBody streams resp body to w (small helper to avoid importing io here twice).
 func copyBody(w http.ResponseWriter, resp *http.Response) (int64, error) {
 	buf := make([]byte, 32*1024)
 	var total int64
@@ -376,5 +336,4 @@ func copyBody(w http.ResponseWriter, resp *http.Response) (int64, error) {
 	}
 }
 
-// router import kept for v1 extras that may dispatch.
 var _ = router.OpenAIRequest{}

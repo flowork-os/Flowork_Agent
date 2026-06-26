@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-31
-// Reason: Resolver folder agent source-aware (fix bug.md #1) — cek source
-//   repo (ProjectRoot/agents/<id>) dulu, baru fallback staged. Handler config/
-//   toggle dulu cuma cek staged → source-agent ke-tolak "not found".
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package agentmgr
 
@@ -16,8 +12,6 @@ import (
 	"flowork-gui/internal/agentdb"
 )
 
-// agentSourceDir — folder source agent di repo (ProjectRoot/agents/<id>),
-// "" kalau bukan source agent.
 func agentSourceDir(id string) string {
 	src := filepath.Join(agentdb.ProjectRoot(), "agents", id)
 	if st, err := os.Stat(src); err == nil && st.IsDir() {
@@ -26,8 +20,6 @@ func agentSourceDir(id string) string {
 	return ""
 }
 
-// resolveAgentDir — source folder dulu (authoritative), else staged. ok=false
-// kalau dua-duanya ngga ada. Dir yang dibalikin aman buat agentdb.Resolve().
 func resolveAgentDir(id string) (string, bool) {
 	if src := agentSourceDir(id); src != "" {
 		return src, true

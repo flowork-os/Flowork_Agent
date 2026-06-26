@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Router dispatcher.
-
-// Gemini Outbound Translation (OpenAI ⇄ Gemini).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package router
 
@@ -24,7 +20,6 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-// ── Gemini shapes (subset) ──────────────────────────────────────────────
 type geminiPart struct {
 	Text string `json:"text"`
 }
@@ -57,7 +52,6 @@ type geminiResponse struct {
 	} `json:"usageMetadata"`
 }
 
-// buildGeminiRequest translates the OpenAI request into a Gemini body.
 func buildGeminiRequest(req OpenAIRequest) geminiRequest {
 	g := geminiRequest{}
 	var sysParts []string
@@ -67,7 +61,7 @@ func buildGeminiRequest(req OpenAIRequest) geminiRequest {
 			sysParts = append(sysParts, m.Content)
 		case "assistant":
 			g.Contents = append(g.Contents, geminiContent{Role: "model", Parts: []geminiPart{{Text: m.Content}}})
-		default: // user (and any tool/other → user)
+		default:
 			g.Contents = append(g.Contents, geminiContent{Role: "user", Parts: []geminiPart{{Text: m.Content}}})
 		}
 	}
@@ -84,19 +78,17 @@ func buildGeminiRequest(req OpenAIRequest) geminiRequest {
 	return g
 }
 
-// mapGeminiFinish maps a Gemini finishReason to the OpenAI vocabulary.
 func mapGeminiFinish(reason string) string {
 	switch reason {
 	case "MAX_TOKENS":
 		return "length"
 	case "SAFETY", "RECITATION", "PROHIBITED_CONTENT", "BLOCKLIST":
 		return "content_filter"
-	default: // STOP, "", others
+	default:
 		return "stop"
 	}
 }
 
-// applyGeminiAuth sets the Gemini API key header (or nothing for local).
 func applyGeminiAuth(req *http.Request, p *store.ProviderConnection) error {
 	switch p.AuthType {
 	case store.AuthTypeNone:
@@ -117,7 +109,6 @@ func geminiEndpoint(baseURL, model, action string) string {
 	return strings.TrimRight(baseURL, "/") + "/models/" + url.PathEscape(model) + ":" + action
 }
 
-// forwardGemini — non-streaming generateContent.
 func forwardGemini(ctx context.Context, p *store.ProviderConnection, baseURL string, req OpenAIRequest) (*OpenAIResponse, int, error) {
 	body, err := json.Marshal(buildGeminiRequest(req))
 	if err != nil {
@@ -176,7 +167,6 @@ func forwardGemini(ctx context.Context, p *store.ProviderConnection, baseURL str
 	}, http.StatusOK, nil
 }
 
-// streamGemini — streamGenerateContent?alt=sse → OpenAI chat.completion.chunk SSE.
 func streamGemini(ctx context.Context, p *store.ProviderConnection, baseURL string, req OpenAIRequest, w http.ResponseWriter, flusher http.Flusher) (OpenAIUsage, int, error) {
 	body, _ := json.Marshal(buildGeminiRequest(req))
 	endpoint := geminiEndpoint(baseURL, req.Model, "streamGenerateContent") + "?alt=sse"

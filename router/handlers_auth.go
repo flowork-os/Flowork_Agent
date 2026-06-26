@@ -1,14 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// 2026-06-11 (owner-approved security audit, unfreeze→refreeze): legacy SHA256
-//   password comparison now uses subtle.ConstantTimeCompare (matches the argon2
-//   path) — removes a timing oracle on pre-argon2 installs.
-// Reason: Audit pass — HTTP handler.
-
-// Auth HTTP Handlers (login/logout/status/OIDC stub).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -30,8 +23,6 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-// authStatusHandler — GET /api/auth/status — return session info if cookie
-// or Bearer provided, else { authenticated: false, requireLogin: bool }.
 func authStatusHandler(w http.ResponseWriter, r *http.Request) {
 	d, _ := store.Open()
 	settings, _ := store.LoadSettings(d)
@@ -72,9 +63,6 @@ func authStatusHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// authLoginHandler — POST { password } (password mode). Returns
-// { token, expiresAt } on success. Sets `flow_router_session` cookie.
-// Protected by an in-memory progressive lockout (see login_limiter.go).
 func authLoginHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -145,7 +133,6 @@ func authLoginHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// authLogoutHandler — POST clear cookie + delete session row.
 func authLogoutHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -166,9 +153,6 @@ func authLogoutHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"loggedOut": true})
 }
 
-// authOIDCHandler — Phase 1 stub. Returns settings + redirect URL when
-// OIDC config present. The code-flow itself lives at /api/auth/oidc/init →
-// (browser) → /api/auth/oidc/callback; this endpoint just reports status.
 func authOIDCHandler(w http.ResponseWriter, r *http.Request) {
 	d, _ := store.Open()
 	settings, _ := store.LoadSettings(d)
@@ -188,8 +172,6 @@ func authOIDCHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ── helpers ────────────────────────────────────────────────────────────
-
 const sessionCookieName = "flow_router_session"
 
 func extractAuthToken(r *http.Request) string {
@@ -203,9 +185,6 @@ func extractAuthToken(r *http.Request) string {
 	return ""
 }
 
-// hashPassword — argon2id with a per-password random salt, encoded in the
-// standard self-describing PHC string ($argon2id$v=19$m=,t=,p=$salt$hash).
-// Pure-Go (golang.org/x/crypto/argon2), no CGO.
 func hashPassword(plain string) string {
 	salt := make([]byte, 16)
 	_, _ = rand.Read(salt)
@@ -222,15 +201,12 @@ func hashPassword(plain string) string {
 		base64.RawStdEncoding.EncodeToString(h))
 }
 
-// hashPasswordSHA — LEGACY SHA256 hex (pre-argon2 installs). Kept only so
-// verifyPassword can still authenticate passwords set before the upgrade.
 func hashPasswordSHA(plain string) string {
 	salt := "flow_router_local_v1"
 	h := sha256.Sum256([]byte(salt + ":" + plain))
 	return hex.EncodeToString(h[:])
 }
 
-// verifyPassword accepts both the argon2id PHC format and the legacy SHA256 hex.
 func verifyPassword(stored, plain string) bool {
 	if stored == "" || plain == "" {
 		return false
@@ -238,11 +214,11 @@ func verifyPassword(stored, plain string) bool {
 	if strings.HasPrefix(stored, "$argon2id$") {
 		return verifyArgon2(stored, plain)
 	}
-	return subtle.ConstantTimeCompare([]byte(stored), []byte(hashPasswordSHA(plain))) == 1 // legacy
+	return subtle.ConstantTimeCompare([]byte(stored), []byte(hashPasswordSHA(plain))) == 1
 }
 
 func verifyArgon2(stored, plain string) bool {
-	parts := strings.Split(stored, "$") // ["", "argon2id", "v=19", "m=,t=,p=", salt, hash]
+	parts := strings.Split(stored, "$")
 	if len(parts) != 6 {
 		return false
 	}
@@ -265,10 +241,6 @@ func verifyArgon2(stored, plain string) bool {
 	return subtle.ConstantTimeCompare(got, want) == 1
 }
 
-// cookieSecure reports whether the session cookie should carry the Secure flag.
-// On a plain-http localhost deployment Secure would prevent the browser from
-// sending the cookie at all, so it's enabled only when the operator signals an
-// https-fronted deployment (public URL, explicit scheme, or trusted proxy).
 func cookieSecure() bool {
 	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(os.Getenv("FLOW_ROUTER_PUBLIC_URL"))), "https") {
 		return true

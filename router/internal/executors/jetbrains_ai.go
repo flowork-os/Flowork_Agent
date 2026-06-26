@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Brain drawer/embedding/skills storage.
-
-// Executor: JetBrains AI (Grazie proxy).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package executors
 
@@ -19,7 +15,7 @@ import (
 
 func init() {
 	Register(&jetbrainsAIExecutor{name: "jetbrains_ai"})
-	Register(&jetbrainsAIExecutor{name: "grazie"}) // alias
+	Register(&jetbrainsAIExecutor{name: "grazie"})
 }
 
 type jetbrainsAIExecutor struct{ name string }
@@ -37,7 +33,7 @@ func (j *jetbrainsAIExecutor) endpoint(p *store.ProviderConnection) string {
 func (j *jetbrainsAIExecutor) headers(p *store.ProviderConnection) map[string]string {
 	h := map[string]string{"Accept": "application/json"}
 	if tok, ok := p.Data[store.CfgAPIKey].(string); ok && tok != "" {
-		// Grazie expects the JWT in a dedicated header, not Bearer.
+
 		h["Grazie-Authenticate-JWT"] = tok
 	}
 	return h

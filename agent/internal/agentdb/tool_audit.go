@@ -1,14 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 12 phase 3 — tool_audit (acceptance criteria spec) +
-//   approval_queue (manual approve session). Append-only enforced via
-//   Go API. Phase 4+ (hash chain immutability, distributed audit
-//   forwarding) → tambah file baru.
-//
-// tool_audit.go — Section 12 phase 3: tool execution audit + approval queue.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package agentdb
 
@@ -17,26 +10,23 @@ import (
 	"time"
 )
 
-// ToolAudit — per Section 12 acceptance criteria. Logged setiap Sandbox
-// Run, sukses atau fail.
 type ToolAudit struct {
 	ID         int64  `json:"id"`
 	ToolName   string `json:"tool_name"`
-	Decision   string `json:"decision"`   // 'allowed' | 'denied_cap' | 'denied_disabled' | 'denied_rate' | 'denied_interceptor' | 'denied_protector' | 'pending_approve'
+	Decision   string `json:"decision"`
 	Reason     string `json:"reason"`
-	ArgsHash   string `json:"args_hash"`  // SHA256 hex of args JSON
+	ArgsHash   string `json:"args_hash"`
 	Caller     string `json:"caller"`
 	OccurredAt string `json:"occurred_at"`
 }
 
-// ApprovalQueueRow — pending sensitive operation menunggu owner approve.
 type ApprovalQueueRow struct {
 	ID          int64  `json:"id"`
 	ToolName    string `json:"tool_name"`
 	ArgsJSON    string `json:"args_json"`
 	ArgsHash    string `json:"args_hash"`
 	Reason      string `json:"reason"`
-	Status      string `json:"status"` // 'pending' | 'approved' | 'rejected' | 'expired'
+	Status      string `json:"status"`
 	Caller      string `json:"caller"`
 	RequestedAt string `json:"requested_at"`
 	DecidedAt   string `json:"decided_at"`
@@ -76,7 +66,6 @@ func (s *Store) ensureToolAuditSchema() error {
 	return err
 }
 
-// AppendToolAudit append-only. Auto-stamp occurred_at.
 func (s *Store) AppendToolAudit(a ToolAudit) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -103,7 +92,6 @@ func (s *Store) AppendToolAudit(a ToolAudit) (int64, error) {
 	return res.LastInsertId()
 }
 
-// ListToolAudit paginated.
 func (s *Store) ListToolAudit(decision, toolName string, limit int) ([]ToolAudit, error) {
 	if limit <= 0 {
 		limit = 100
@@ -146,11 +134,6 @@ func (s *Store) ListToolAudit(decision, toolName string, limit int) ([]ToolAudit
 	return out, rows.Err()
 }
 
-// =============================================================================
-// Approval queue: manual approve session workflow
-// =============================================================================
-
-// EnqueueApproval — insert pending row. Return ID.
 func (s *Store) EnqueueApproval(a ApprovalQueueRow) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -177,9 +160,6 @@ func (s *Store) EnqueueApproval(a ApprovalQueueRow) (int64, error) {
 	return res.LastInsertId()
 }
 
-// CheckApprovalByHash — return true kalau ada row dengan args_hash + status=approved
-// dalam window 1 jam (session-level). Caller (sandbox) pakai untuk re-check
-// kalau retry tool yang sebelumnya pending.
 func (s *Store) CheckApprovalByHash(toolName, argsHash string) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -197,7 +177,6 @@ func (s *Store) CheckApprovalByHash(toolName, argsHash string) (bool, error) {
 	return n > 0, err
 }
 
-// DecideApproval — set status approved/rejected + decided_at + decided_by.
 func (s *Store) DecideApproval(id int64, status, decidedBy string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -224,7 +203,6 @@ func (s *Store) DecideApproval(id int64, status, decidedBy string) error {
 	return nil
 }
 
-// ListApprovalQueue paginated.
 func (s *Store) ListApprovalQueue(status string, limit int) ([]ApprovalQueueRow, error) {
 	if limit <= 0 {
 		limit = 100

@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Provider executor HTTP call.
-
-// Vendor Executor Framework.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package executors
 
@@ -17,16 +13,12 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-// Usage mirrors router.OpenAIUsage but stays import-cycle-free.
 type Usage struct {
 	PromptTokens     int `json:"prompt_tokens"`
 	CompletionTokens int `json:"completion_tokens"`
 	TotalTokens      int `json:"total_tokens"`
 }
 
-// Request is a minimal subset of router.OpenAIRequest that executors care
-// about. Keeping it small avoids pulling the router package into here (which
-// would create an import cycle, since the dispatcher imports executors).
 type Request struct {
 	Model       string
 	Messages    []Message
@@ -35,7 +27,7 @@ type Request struct {
 	TopP        float64
 	Stream      bool
 	Tools       []map[string]any
-	RawJSON     []byte // when not empty, executor MAY use as-is (translator already produced vendor shape)
+	RawJSON     []byte
 }
 
 type Message struct {
@@ -43,10 +35,6 @@ type Message struct {
 	Content string
 }
 
-// Executor is the vendor-specific contract. Stream MUST write SSE chunks to w
-// in OpenAI delta shape (so the rest of the pipeline stays format-neutral).
-// NonStream returns a fully-formed OpenAI ChatCompletion response (JSON bytes
-// and metadata) — keep it lightweight: the dispatcher unmarshals.
 type Executor interface {
 	Name() string
 	Stream(ctx context.Context, p *store.ProviderConnection, req Request, w http.ResponseWriter, flusher http.Flusher) (Usage, int, error)
@@ -58,8 +46,6 @@ var (
 	registry   = map[string]Executor{}
 )
 
-// Register adds an Executor to the registry. Last write wins so a sub-package
-// may override an earlier built-in. Called from init() in each executor file.
 func Register(e Executor) {
 	if e == nil || e.Name() == "" {
 		return
@@ -69,14 +55,12 @@ func Register(e Executor) {
 	registry[e.Name()] = e
 }
 
-// Get returns the executor for name, or nil when none is registered.
 func Get(name string) Executor {
 	registryMu.RLock()
 	defer registryMu.RUnlock()
 	return registry[name]
 }
 
-// List returns the names of all registered executors (sorted not guaranteed).
 func List() []string {
 	registryMu.RLock()
 	defer registryMu.RUnlock()

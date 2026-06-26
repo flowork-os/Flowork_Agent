@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — HTTP handler.
-
-// Tags HTTP Handlers.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -16,7 +12,6 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-// tagsHandler — GET list / POST upsert.
 func tagsHandler(w http.ResponseWriter, r *http.Request) {
 	d, _ := store.Open()
 	switch r.Method {
@@ -43,7 +38,6 @@ func tagsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// tagCRUDHandler — /api/tags/:id PUT/DELETE.
 func tagCRUDHandler(w http.ResponseWriter, r *http.Request) {
 	d, _ := store.Open()
 	id := r.URL.Path[len("/api/tags/"):]

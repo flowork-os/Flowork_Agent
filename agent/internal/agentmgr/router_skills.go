@@ -1,19 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 7 phase 2 endpoint proxy Agent → Router skill catalog.
-//   API stable: GET /api/agents/router-skills/list?id=<agent>&search=
-//                  &limit=, GET /api/agents/router-skills/get?id=<agent>
-//                  &name=. Phase 3 (import to local skills, cache) →
-//                  tambah handler baru, JANGAN modify ini.
-//
-// router_skills.go — Section 7 phase 2: proxy Agent UI → Router skill
-// catalog. UI panggil endpoint ini (bukan langsung ke Router) — capability
-// whitelist + retry policy ke-handle di routerclient.
-//
-// Per-agent: router_url di kv. Resolve via agentdb open.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package agentmgr
 
@@ -30,11 +18,6 @@ import (
 	"flowork-gui/internal/routerclient"
 )
 
-// RouterSkillsListHandler — GET /api/agents/router-skills/list?id=<agent>
-// &search=&limit=
-//
-// Proxy ke Router /api/brain/skills/list via routerclient.Client (resolves
-// per-agent router_url + capability whitelist + retry).
 func RouterSkillsListHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
@@ -80,8 +63,6 @@ func RouterSkillsListHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// RouterSkillsGetHandler — GET /api/agents/router-skills/get?id=<agent>&name=
-// Proxy ke Router /api/brain/skills/get untuk fetch full skill detail.
 func RouterSkillsGetHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
@@ -121,12 +102,8 @@ func RouterSkillsGetHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// buildRouterClient — open agent state.db, lookup kv.router_url via Load(),
-// return configured Client. Defaults to routerclient.DefaultRouterURL kalau
-// kosong/missing.
 func buildRouterClient(agentID string) (*routerclient.Client, error) {
-	// Same choke-point isolation as openAgentStore: reject a malformed id before it
-	// becomes a filesystem path, so ?id=../other cannot escape the agents folder.
+
 	if !reID.MatchString(agentID) {
 		return nil, fmt.Errorf("invalid agent id")
 	}

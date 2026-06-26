@@ -1,13 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Port batch 13 — 8 final tools target 95%+ coverage.
-//
-// v14_extras.go:
-//   protector_rule_delete, wallet_address_remove, death_letter_seal,
-//   finance_budget_set, skill_add, skill_remove, secret_set, secret_get_keys.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package builtins
 
@@ -29,10 +23,6 @@ func init() {
 	tools.Register(&secretSetTool{})
 	tools.Register(&secretGetKeysTool{})
 }
-
-// =============================================================================
-// 1. protector_rule_delete
-// =============================================================================
 
 type protectorRuleDeleteTool struct{}
 
@@ -65,10 +55,6 @@ func (protectorRuleDeleteTool) Run(ctx context.Context, args map[string]any) (to
 	}, nil
 }
 
-// =============================================================================
-// 3. death_letter_seal — seal letter (immutable after)
-// =============================================================================
-
 type deathLetterSealTool struct{}
 
 func (deathLetterSealTool) Name() string       { return "death_letter_seal" }
@@ -99,10 +85,6 @@ func (deathLetterSealTool) Run(ctx context.Context, args map[string]any) (tools.
 		Output: map[string]any{"ok": true, "id": int64(idf)},
 	}, nil
 }
-
-// =============================================================================
-// 4. finance_budget_set
-// =============================================================================
 
 type financeBudgetSetTool struct{}
 
@@ -147,10 +129,6 @@ func (financeBudgetSetTool) Run(ctx context.Context, args map[string]any) (tools
 		Output: map[string]any{"ok": true, "metric_key": metricKey},
 	}, nil
 }
-
-// =============================================================================
-// 5. skill_add — add agent skill (Section 4)
-// =============================================================================
 
 type skillAddTool struct{}
 
@@ -205,10 +183,6 @@ func (skillAddTool) Run(ctx context.Context, args map[string]any) (tools.Result,
 	}, nil
 }
 
-// =============================================================================
-// 6. skill_remove
-// =============================================================================
-
 type skillRemoveTool struct{}
 
 func (skillRemoveTool) Name() string       { return "skill_remove" }
@@ -259,10 +233,6 @@ func (skillRemoveTool) Run(ctx context.Context, args map[string]any) (tools.Resu
 	}, nil
 }
 
-// =============================================================================
-// 7. secret_set — write secret (env credential)
-// =============================================================================
-
 type secretSetTool struct{}
 
 func (secretSetTool) Name() string       { return "secret_set" }
@@ -306,10 +276,6 @@ func (secretSetTool) Run(ctx context.Context, args map[string]any) (tools.Result
 		Output: map[string]any{"ok": true, "key": key},
 	}, nil
 }
-
-// =============================================================================
-// 8. secret_get_keys — list secret keys (no values)
-// =============================================================================
 
 type secretGetKeysTool struct{}
 

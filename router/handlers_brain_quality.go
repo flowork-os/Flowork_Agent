@@ -1,20 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-29
-// Reason: Section 5 (Quality HTTP boundary) phase 1 DONE + audit passed.
-//   POST /api/brain/quality/check. MaxBytesReader 512KB,
-//   DisallowUnknownFields anti-typo, pure passthrough ke quality.Check.
-//   Future endpoint (batch check, embedding integration) → tambah file
-//   baru, JANGAN modify ini.
-//
-// handlers_brain_quality.go — Section 5 roadmap: Quality gate admin
-// endpoint. Caller invoke standalone untuk pre-ingest check.
-//
-// Roadmap:
-//   - internal/quality/quality.go (heuristic library)
-//   - flowork_Router/roadmap.md Section 5
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -25,15 +12,8 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/quality"
 )
 
-// maxQualityBodyBytes — body cap untuk endpoint check. 512KB > maxLengthBytes
-// (256KB) supaya quality.Check return reason "too long" instead of
-// MaxBytesReader truncation.
 const maxQualityBodyBytes = 512 * 1024
 
-// brainQualityCheckHandler — POST /api/brain/quality/check
-// Body: {"content": "..."}. Return quality.Result (Allowed + Reason + 4 sub-scores).
-//
-// No DB access — pure heuristic. Cepat (< 1ms typical).
 func brainQualityCheckHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed (use POST)", http.StatusMethodNotAllowed)
@@ -45,8 +25,7 @@ func brainQualityCheckHandler(w http.ResponseWriter, r *http.Request) {
 		Content string `json:"content"`
 	}
 	dec := json.NewDecoder(r.Body)
-	// Audit fix: reject typo "contentt" / wrong field → caller dapat
-	// debug feedback instead of silent empty-content reject.
+
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&body); err != nil {
 		http.Error(w, "decode body: "+err.Error(), http.StatusBadRequest)

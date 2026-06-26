@@ -1,24 +1,12 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-06-03
-// Reason: Roadmap 2 B4 skill grow-from-patterns. Verified: successful tool freq
-//   -> candidates (failed/rare excluded). Pair w/ Fase 8 curator. Extend -> file baru.
-//
-// tool_patterns.go — Roadmap 2 Fase B4: skill GROW dari pola tool sukses.
-//
-// Curator (skills_curate.go, Fase 8) udah handle GRADE/CONSOLIDATE/ARCHIVE.
-// Yang kurang buat B4: skill TUMBUH dari pola sukses. File ini mining
-// tool_invocations (error_text='' = sukses) → tool yang sering dipake sukses
-// jadi KANDIDAT skill (di-suggest, BUKAN auto-create — auto-create = YAGNI per
-// keputusan Fase 8). Derive on-the-fly dari tool_invocations (no tabel baru).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package agentdb
 
 import "fmt"
 
-// SkillCandidate — usulan skill dari pola tool sukses berulang.
 type SkillCandidate struct {
 	ToolName     string `json:"tool_name"`
 	SuccessCount int    `json:"success_count"`
@@ -26,8 +14,6 @@ type SkillCandidate struct {
 	Suggestion   string `json:"suggestion"`
 }
 
-// SuggestSkillCandidates — tool yang dipake SUKSES >= minCount kali jadi
-// kandidat skill. Urut paling sering. Rule-based, on-demand (anti over-prompt).
 func (s *Store) SuggestSkillCandidates(minCount, limit int) ([]SkillCandidate, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -1,24 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-06-13
-// Reason: Release audit — wires the missing MITM interceptor Start/Stop control (E2E tested).
-//
-// MITM Proxy lifecycle control (Start / Stop the TLS interceptor).
-//
-// 2026-06-13 (owner-approved, release audit): the MITM proxy module shipped with CA + DNS + status
-// endpoints and a fully unit-tested TLS interception engine (internal/mitm), but NOTHING in the
-// production path ever called Manager.Start — so the GUI could install a CA and hijack DNS yet no
-// listener was bound, leaving target hosts pointing at 127.0.0.1:<nothing> (connection refused
-// instead of interception). This file wires the missing Start/Stop control so the feature is
-// actually usable end-to-end, without touching the locked engine/handler files.
-//
-// SAFETY: starting is explicit (button/endpoint), never automatic. DNS hijack is opt-in per request
-// (default OFF) so Start can bind the listener without rewriting /etc/hosts unless the user asks.
-// The default listen addr is 127.0.0.1:443 because DNS-hijacked hosts resolve to 127.0.0.1 and IDE
-// clients use the implicit HTTPS port 443 — binding :443 needs root/admin (documented). Override via
-// the request `addr` field or FLOW_ROUTER_MITM_ADDR for non-privileged testing.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -36,8 +19,6 @@ var (
 	mitmMgr   *mitm.Manager
 )
 
-// mitmListenAddr resolves the interceptor listen address: request override →
-// FLOW_ROUTER_MITM_ADDR env → default 127.0.0.1:443.
 func mitmListenAddr(reqAddr string) string {
 	if reqAddr != "" {
 		return reqAddr
@@ -48,8 +29,6 @@ func mitmListenAddr(reqAddr string) string {
 	return "127.0.0.1:443"
 }
 
-// mitmStartHandler — POST { addr?: string, hijackDNS?: bool }. Boots the TLS
-// interceptor. Idempotent: a no-op (with ok:true) when already running.
 func mitmStartHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -72,8 +51,7 @@ func mitmStartHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadGateway, map[string]any{"started": false, "error": "cert manager: " + err.Error()})
 		return
 	}
-	// DNS hijack is opt-in: pass the target hosts only when explicitly requested,
-	// otherwise NewManager gets no hosts and Start skips the /etc/hosts rewrite.
+
 	var hosts []string
 	if body.HijackDNS {
 		hosts = mitm.TargetHosts
@@ -87,7 +65,6 @@ func mitmStartHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"started": true, "addr": mitmListenAddr(body.Addr), "pid": mitm.ReadPidFile(), "dnsHijacked": body.HijackDNS})
 }
 
-// mitmStopHandler — POST. Drains the interceptor + clears DNS + pidfile.
 func mitmStopHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -108,8 +85,6 @@ func mitmStopHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"stopped": true})
 }
 
-// stopMITMOnShutdown — best-effort drain on router shutdown so a crash/exit
-// doesn't leave a bound :443 listener or a stale DNS hijack behind.
 func stopMITMOnShutdown() {
 	mitmMgrMu.Lock()
 	defer mitmMgrMu.Unlock()

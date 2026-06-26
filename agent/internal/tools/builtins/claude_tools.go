@@ -1,39 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-06-14
-// MODIFIED 2026-06-21 (owner-approved buka-lock, re-locked): Phase 6/E opsi-1 —
-//   TaskCreate +param `background`. background:true + ada prompt → state 'queued'
-//   (bukan 'pending') → di-drive ASYNC oleh worker non-beku RunQueuedTasks
-//   (task_worker.go, package main). Ini EVOLUSI tool task yg udah ada (BUKAN nambah
-//   tool surface baru) → modify in-place wajar. Additive: default false = perilaku
-//   lama (state 'pending', drive sendiri). Re-locked.
-// Reason: 10 surface-vocabulary tools VERIFIED via mr-flow (/api/chat, bukti =
-//   tool_invocations + DB): TaskCreate/Output/Update/Stop, ScheduleWakeup,
-//   Workflow, StructuredOutput JALAN; PowerShell/Monitor/SendUserFile dispatch
-//   kebukti + cap-gated benar (butuh exec:shell / net:fetch:telegram yang mr-flow
-//   sengaja ga punya). Nambah tool surface baru → tambah FILE baru + init()
-//   sendiri (pola file ini), JANGAN modify ini.
-//
-// claude_tools.go — Surface-vocabulary tools that the local model
-// (distilled) and the external driver model both expect, but Flowork did not yet
-// have. Added here in their own file with their own init() so the locked
-// builtins.go / registry.go / types.go are never touched.
-//
-// HONESTY CONTRACT (owner rule: never overclaim "done"):
-//   The kernel's invoke model is SYNCHRONOUS — a colony member runs to completion
-//   within one Call; there is no shared cross-agent scheduler polling mid-run.
-//   So the Task* family and Workflow are a DURABLE LEDGER over the agent's own
-//   store (the same agent_runs table agent_run.go uses), NOT fake parallel spawns.
-//   Each tool's Schema + Returns says exactly what it does. No tool claims an
-//   ability it does not have.
-//
-// Backing reused (no new infra, no unlock):
-//   - agent_runs table (agent_run.go)       → TaskCreate/Update/Stop/Output
-//   - wakeups table (created here)           → ScheduleWakeup
-//   - shell exec helpers (shell.go)          → PowerShell, Monitor
-//   - telegram secrets (telegram.go)         → SendUserFile (sendDocument)
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package builtins
 
@@ -69,7 +37,6 @@ func init() {
 	tools.Register(&workflowTool{})
 }
 
-// firstAllowedChat — pick the first chat id from TELEGRAM_ALLOWED_CHATS secret.
 func firstAllowedChat(secrets map[string]string) (int64, error) {
 	raw := strings.TrimSpace(secrets["TELEGRAM_ALLOWED_CHATS"])
 	if raw == "" {
@@ -87,7 +54,6 @@ func firstAllowedChat(secrets map[string]string) (int64, error) {
 	return 0, fmt.Errorf("no valid chat id in TELEGRAM_ALLOWED_CHATS")
 }
 
-// argStr — read a string arg, accepting either of two keys (e.g. task_id|taskId).
 func argStr(args map[string]any, keys ...string) string {
 	for _, k := range keys {
 		if v, ok := args[k].(string); ok && strings.TrimSpace(v) != "" {
@@ -97,7 +63,6 @@ func argStr(args map[string]any, keys ...string) string {
 	return ""
 }
 
-// argInt — read an int arg (JSON number arrives as float64).
 func argInt(args map[string]any, key string) (int64, bool) {
 	switch v := args[key].(type) {
 	case float64:
@@ -113,10 +78,6 @@ func argInt(args map[string]any, key string) (int64, bool) {
 	}
 	return 0, false
 }
-
-// =============================================================================
-// 1. PowerShell — Windows pwsh exec (educational error elsewhere)
-// =============================================================================
 
 type powerShellTool struct{}
 
@@ -143,7 +104,7 @@ func (powerShellTool) Run(ctx context.Context, args map[string]any) (tools.Resul
 	if bg, _ := args["run_in_background"].(bool); bg {
 		return tools.Result{Note: "background run not supported (synchronous kernel) — run foreground or use TaskCreate to record a long job", Output: map[string]any{"ran": false}}, nil
 	}
-	// Same denylist guard as the shell tool.
+
 	lower := strings.ToLower(cmd)
 	for _, p := range shellDenyPatterns {
 		if strings.Contains(lower, strings.ToLower(p)) {
@@ -206,10 +167,6 @@ func (powerShellTool) Run(ctx context.Context, args map[string]any) (tools.Resul
 	}}, nil
 }
 
-// =============================================================================
-// Task family — durable task ledger over agent_runs (this agent's own store).
-// =============================================================================
-
 const taskRunsDDL = `CREATE TABLE IF NOT EXISTS agent_runs (
 	id TEXT PRIMARY KEY, label TEXT, state TEXT NOT NULL DEFAULT 'pending',
 	checkpoint TEXT, updated TEXT)`
@@ -245,11 +202,7 @@ func (taskCreateTool) Run(ctx context.Context, args map[string]any) (tools.Resul
 	if _, err := db.Exec(taskRunsDDL); err != nil {
 		return tools.Result{}, fmt.Errorf("TaskCreate schema: %w", err)
 	}
-	// NOTE: separator is "_" not "-" on purpose. "task-<digits>" contains the
-	// substring "sk-<digits>" which matches the OpenAI-key shape in the result
-	// secret-redactor (loket_wire.go secretRe) and gets nuked to [REDACTED]
-	// before the model can chain the id into TaskOutput/Update/Stop. Found via
-	// a real mr-flow test, not a direct tool call.
+
 	id := fmt.Sprintf("task_%d", time.Now().UnixNano())
 	meta := map[string]any{
 		"description": argStr(args, "description"),
@@ -259,9 +212,7 @@ func (taskCreateTool) Run(ctx context.Context, args map[string]any) (tools.Resul
 	}
 	cp, _ := json.Marshal(meta)
 	now := time.Now().UTC().Format(time.RFC3339)
-	// background:true + ada prompt → state 'queued' = di-drive ASYNC oleh worker
-	// non-beku RunQueuedTasks (task_worker.go). Tanpa prompt ga bisa di-drive → tetap
-	// 'pending' (drive sendiri). Default false = perilaku lama.
+
 	state := "pending"
 	if bg, _ := args["background"].(bool); bg && strings.TrimSpace(argStr(args, "prompt")) != "" {
 		state = "queued"
@@ -305,7 +256,7 @@ func (taskUpdateTool) Run(ctx context.Context, args map[string]any) (tools.Resul
 		return tools.Result{}, err
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
-	// Optionally merge output into checkpoint json.
+
 	if out := argStr(args, "output"); out != "" {
 		var cur string
 		_ = db.QueryRow("SELECT COALESCE(checkpoint,'') FROM agent_runs WHERE id=?", id).Scan(&cur)
@@ -411,10 +362,6 @@ func (taskOutputTool) Run(ctx context.Context, args map[string]any) (tools.Resul
 	return tools.Result{Output: map[string]any{"task_id": id, "state": state, "output": output, "subject": label}}, nil
 }
 
-// =============================================================================
-// ScheduleWakeup — durable one-shot wakeup record (wakeups table)
-// =============================================================================
-
 type scheduleWakeupTool struct{}
 
 func (scheduleWakeupTool) Name() string       { return "ScheduleWakeup" }
@@ -463,10 +410,6 @@ func (scheduleWakeupTool) Run(ctx context.Context, args map[string]any) (tools.R
 		"wakeup_id": id, "due": due.Format(time.RFC3339), "delay_seconds": delay,
 	}}, nil
 }
-
-// =============================================================================
-// Monitor — poll a command until its output matches `until`, bounded by timeout
-// =============================================================================
 
 type monitorTool struct{}
 
@@ -560,10 +503,6 @@ func (monitorTool) Run(ctx context.Context, args map[string]any) (tools.Result, 
 	}
 }
 
-// =============================================================================
-// SendUserFile — send file(s) to the user over Telegram (sendDocument)
-// =============================================================================
-
 type sendUserFileTool struct{}
 
 func (sendUserFileTool) Name() string       { return "SendUserFile" }
@@ -589,7 +528,7 @@ func (sendUserFileTool) Run(ctx context.Context, args map[string]any) (tools.Res
 	if shared == "" {
 		return tools.Result{}, fmt.Errorf("SendUserFile: shared dir not in context")
 	}
-	// Collect files (array of strings, or a single string).
+
 	var files []string
 	switch v := args["files"].(type) {
 	case []any:
@@ -634,12 +573,11 @@ func (sendUserFileTool) Run(ctx context.Context, args map[string]any) (tools.Res
 			return tools.Result{}, fmt.Errorf("send %q: %w", rel, err)
 		}
 		sent = append(sent, map[string]any{"file": rel, "message_id": msgID})
-		caption = "" // caption only on first file
+		caption = ""
 	}
 	return tools.Result{Output: map[string]any{"sent": sent, "count": len(sent)}}, nil
 }
 
-// telegramSendDocument — multipart POST /bot<token>/sendDocument.
 func telegramSendDocument(ctx context.Context, token string, chatID int64, absPath, caption string) (int64, error) {
 	f, err := os.Open(absPath)
 	if err != nil {
@@ -688,10 +626,6 @@ func telegramSendDocument(ctx context.Context, token string, chatID int64, absPa
 	return tg.Result.MessageID, nil
 }
 
-// =============================================================================
-// StructuredOutput — capture a structured JSON payload as the agent's result
-// =============================================================================
-
 type structuredOutputTool struct{}
 
 func (structuredOutputTool) Name() string       { return "StructuredOutput" }
@@ -713,10 +647,6 @@ func (structuredOutputTool) Run(_ context.Context, args map[string]any) (tools.R
 	}
 	return tools.Result{Output: map[string]any{"findings": v, "ok": true}}, nil
 }
-
-// =============================================================================
-// Workflow — register a multi-step orchestration script (durable run record)
-// =============================================================================
 
 type workflowTool struct{}
 

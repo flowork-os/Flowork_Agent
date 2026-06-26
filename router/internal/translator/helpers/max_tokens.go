@@ -1,17 +1,12 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Provider request/response translator.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Helper: resolve per-model max_tokens with sensible defaults.
 package helpers
 
 import "strings"
 
-// ModelMaxTokens maps a model id (or prefix) → maximum output tokens upstream
-// will accept. Used by translators when the caller did not specify max_tokens.
 var ModelMaxTokens = map[string]int{
 	"claude-opus":       32_000,
 	"claude-sonnet":     8192,
@@ -29,11 +24,8 @@ var ModelMaxTokens = map[string]int{
 	"kimi":              8192,
 }
 
-// DefaultMaxTokens is the fallback when no rule matches.
 const DefaultMaxTokens = 4096
 
-// MaxTokensForModel returns the maximum output tokens to request for model.
-// Returns the longest prefix match in ModelMaxTokens, or DefaultMaxTokens.
 func MaxTokensForModel(model string) int {
 	if model == "" {
 		return DefaultMaxTokens
@@ -50,8 +42,6 @@ func MaxTokensForModel(model string) int {
 	return DefaultMaxTokens
 }
 
-// ResolveMaxTokens picks the explicit value when >0, otherwise the model's
-// default ceiling. Used right before sending to upstream.
 func ResolveMaxTokens(explicit int, model string) int {
 	if explicit > 0 {
 		return explicit
@@ -59,24 +49,8 @@ func ResolveMaxTokens(explicit int, model string) int {
 	return MaxTokensForModel(model)
 }
 
-// MinMaxTokensWithTools is the floor we enforce when a request carries tool
-// definitions — too low a cap causes Anthropic to truncate function-call
-// arguments mid-stream.
 const MinMaxTokensWithTools = 32000
 
-// AdjustMaxTokens fine-tunes a candidate max_tokens value based on the
-// request shape:
-//
-//  1. When hasTools=true (request carries function/tool definitions), the
-//     cap is lifted to at least MinMaxTokensWithTools so streamed argument
-//     JSON never gets truncated mid-call.
-//  2. When thinkingBudget>0, the Anthropic API requires max_tokens strictly
-//     greater than budget. If the candidate is ≤ budget we bump it to
-//     budget + 1024 so the model has headroom for the actual reply after
-//     spending the thinking budget.
-//
-// maxTokens=0 means "no explicit value" — falls back to DefaultMaxTokens
-// before adjustments apply.
 func AdjustMaxTokens(maxTokens int, hasTools bool, thinkingBudget int) int {
 	if maxTokens <= 0 {
 		maxTokens = DefaultMaxTokens

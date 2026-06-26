@@ -1,12 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-31
-// Reason: Resolver root project tunggal (fix bug.md #2) — env override
-//   FLOWORK_PROJECT_ROOT > os.Getwd(). Biar path source-agent ngga rapuh
-//   pas binary dijalankan dari cwd lain. Dipakai Resolve/SourceWorkspace +
-//   agentmgr + kernelhost.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package agentdb
 
@@ -15,9 +10,6 @@ import (
 	"strings"
 )
 
-// ProjectRoot — root source repo Flowork. Prioritas:
-//   env FLOWORK_PROJECT_ROOT (explicit, anti-rapuh) > working directory.
-// Jadi sumber kebenaran tunggal buat lokasi `agents/<id>/` + `workspace/`.
 func ProjectRoot() string {
 	if v := strings.TrimSpace(os.Getenv("FLOWORK_PROJECT_ROOT")); v != "" {
 		return v

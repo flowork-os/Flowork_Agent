@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Provider executor HTTP call.
-
-// Executor Base Helpers.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package executors
 
@@ -23,20 +19,12 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-// httpClient is shared by every executor. Mirrors the timeout profile used by
-// the router's outbound calls.
 var httpClient = &http.Client{Timeout: 300 * time.Second}
 
-// streamingPartialWrite is the sentinel status the dispatcher treats as
-// "headers/body already started — no retry possible". Kept in sync with the
-// equivalent constant in internal/router/dispatcher_stream.go.
 const StreamingPartialWrite = -1
 
-// dataLine is the SSE wire prefix for OpenAI-style delta lines.
 const dataLine = "data: "
 
-// BuildRequest constructs an outbound HTTP request shared by both Stream and
-// NonStream paths. apiKey, additional headers and URL come from the caller.
 func BuildRequest(ctx context.Context, method, url string, body []byte, headers map[string]string) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(ctx, method, url, bytes.NewReader(body))
 	if err != nil {
@@ -49,9 +37,6 @@ func BuildRequest(ctx context.Context, method, url string, body []byte, headers 
 	return req, nil
 }
 
-// PipeOpenAISSE copies an upstream OpenAI-shape SSE stream to w line-by-line,
-// flushing after each line. Used by executors whose vendor already emits
-// OpenAI chat-completion-chunk JSON in the SSE data: payload.
 func PipeOpenAISSE(resp *http.Response, w http.ResponseWriter, flusher http.Flusher) (Usage, int, error) {
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Buffer(make([]byte, 0, 1024*1024), 4*1024*1024)
@@ -85,8 +70,6 @@ func PipeOpenAISSE(resp *http.Response, w http.ResponseWriter, flusher http.Flus
 	return usage, http.StatusOK, nil
 }
 
-// DoNonStream sends a non-stream JSON POST and returns the raw response body.
-// The caller is responsible for unmarshalling into the OpenAI response shape.
 func DoNonStream(req *http.Request) ([]byte, Usage, int, error) {
 	resp, err := httpClient.Do(req)
 	if err != nil {
@@ -104,7 +87,6 @@ func DoNonStream(req *http.Request) ([]byte, Usage, int, error) {
 	return body, probe.Usage, resp.StatusCode, nil
 }
 
-// DoStream sends a streaming JSON POST and pipes the response through f.
 func DoStream(req *http.Request, w http.ResponseWriter, flusher http.Flusher) (Usage, int, error) {
 	resp, err := httpClient.Do(req)
 	if err != nil {
@@ -120,8 +102,6 @@ func DoStream(req *http.Request, w http.ResponseWriter, flusher http.Flusher) (U
 	return PipeOpenAISSE(resp, w, flusher)
 }
 
-// ProviderString safely extracts a string config value from p.Data, or "" when
-// the key is absent or the wrong type.
 func ProviderString(p *store.ProviderConnection, key string) string {
 	if p == nil || p.Data == nil {
 		return ""
@@ -141,8 +121,6 @@ func v0(v any) string {
 	}
 }
 
-// MarshalRequest emits the canonical OpenAI request body that most vendors
-// understand. Executors may post-process before sending.
 func MarshalRequest(r Request) []byte {
 	payload := map[string]any{
 		"model":      r.Model,
@@ -178,6 +156,4 @@ func truncate(s string, n int) string {
 	return s[:n] + "…"
 }
 
-// trimRightSlash is a tiny helper used by every executor when joining a base
-// URL with a path. We don't want double slashes.
 func trimRightSlash(s string) string { return strings.TrimRight(s, "/") }

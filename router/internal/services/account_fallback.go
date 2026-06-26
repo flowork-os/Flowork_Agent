@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — audit pass surface review.
-
-// Account Fallback Service.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package services
 
@@ -14,10 +10,9 @@ import (
 	"time"
 )
 
-// BackoffConfig mirrors upstream runtimeConfig BACKOFF_CONFIG.
 var BackoffConfig = struct {
-	Base     time.Duration // 1st backoff
-	Max      time.Duration // cap
+	Base     time.Duration
+	Max      time.Duration
 	MaxLevel int
 }{
 	Base:     1 * time.Second,
@@ -25,30 +20,23 @@ var BackoffConfig = struct {
 	MaxLevel: 8,
 }
 
-// TransientCooldown is the default unmatched-error cooldown.
 const TransientCooldown = 30 * time.Second
 
-// ErrorRule mirrors upstream ERROR_RULES — text match OR status match, with
-// optional exponential backoff vs fixed cooldown.
 type ErrorRule struct {
-	Text       string // substring of lowercased error text
-	Status     int    // HTTP status
-	Backoff    bool   // when true, escalates via exponential ladder
-	CooldownMs int64  // fixed cooldown (ignored when Backoff=true)
+	Text       string
+	Status     int
+	Backoff    bool
+	CooldownMs int64
 }
 
-// Cooldown helpers — named constants so the rule table stays scannable.
 var (
 	cooldownShort = int64(15 * time.Second / time.Millisecond)
 	cooldownMed   = int64(60 * time.Second / time.Millisecond)
 	cooldownLong  = int64(5 * time.Minute / time.Millisecond)
 )
 
-// ErrorRules — top-down matching, first hit wins. Text rules are checked
-// first (more specific than bare status codes) followed by status rules.
-// Order matters when the same error matches multiple patterns.
 var ErrorRules = []ErrorRule{
-	// --- Text-based rules (specific, checked first) ---
+
 	{Text: "no credentials", CooldownMs: cooldownLong},
 	{Text: "request not allowed", CooldownMs: cooldownShort},
 	{Text: "improperly formed request", CooldownMs: cooldownLong},
@@ -58,27 +46,23 @@ var ErrorRules = []ErrorRule{
 	{Text: "capacity", Backoff: true},
 	{Text: "overloaded", Backoff: true},
 
-	// --- Status-based rules ---
-	{Status: 401, CooldownMs: cooldownLong}, // unauthorized — long cool-off (creds likely expired)
-	{Status: 402, CooldownMs: cooldownLong}, // payment required — long cool-off
-	{Status: 403, CooldownMs: cooldownLong}, // forbidden — long cool-off
-	{Status: 404, CooldownMs: cooldownLong}, // not found — model gone, don't retry quickly
-	{Status: 429, Backoff: true},            // rate limit — exponential
+	{Status: 401, CooldownMs: cooldownLong},
+	{Status: 402, CooldownMs: cooldownLong},
+	{Status: 403, CooldownMs: cooldownLong},
+	{Status: 404, CooldownMs: cooldownLong},
+	{Status: 429, Backoff: true},
 	{Status: 500, CooldownMs: cooldownShort},
 	{Status: 502, CooldownMs: cooldownShort},
 	{Status: 503, CooldownMs: cooldownShort},
 	{Status: 504, CooldownMs: cooldownShort},
 }
 
-// FallbackDecision is the output of CheckFallbackError.
 type FallbackDecision struct {
 	ShouldFallback  bool
 	Cooldown        time.Duration
-	NewBackoffLevel int // unchanged when not a backoff rule
+	NewBackoffLevel int
 }
 
-// GetQuotaCooldown computes exponential cooldown for the given backoff level.
-// Level 1 → Base; Level 2 → 2×Base; Level N → 2^(N-1)×Base capped at Max.
 func GetQuotaCooldown(backoffLevel int) time.Duration {
 	if backoffLevel <= 1 {
 		return BackoffConfig.Base
@@ -91,8 +75,6 @@ func GetQuotaCooldown(backoffLevel int) time.Duration {
 	return d
 }
 
-// CheckFallbackError classifies (status, errorText) and returns the rotation
-// decision. backoffLevel is the account's current consecutive-429 counter.
 func CheckFallbackError(status int, errorText string, backoffLevel int) FallbackDecision {
 	lower := strings.ToLower(errorText)
 	for _, rule := range ErrorRules {
@@ -118,8 +100,6 @@ func CheckFallbackError(status int, errorText string, backoffLevel int) Fallback
 	return FallbackDecision{ShouldFallback: true, Cooldown: TransientCooldown, NewBackoffLevel: backoffLevel}
 }
 
-// IsAccountUnavailable returns whether the unavailableUntil moment is still
-// in the future.
 func IsAccountUnavailable(unavailableUntil time.Time) bool {
 	if unavailableUntil.IsZero() {
 		return false
@@ -127,13 +107,10 @@ func IsAccountUnavailable(unavailableUntil time.Time) bool {
 	return time.Now().Before(unavailableUntil)
 }
 
-// GetUnavailableUntil returns now + cooldown.
 func GetUnavailableUntil(cooldown time.Duration) time.Time {
 	return time.Now().Add(cooldown)
 }
 
-// GetEarliestRateLimitedUntil scans a list of futures and returns the soonest
-// one (used to set Retry-After header when ALL accounts are cooling).
 func GetEarliestRateLimitedUntil(times []time.Time) (time.Time, bool) {
 	var earliest time.Time
 	found := false

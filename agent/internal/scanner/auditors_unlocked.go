@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-31
-// Reason: Auditor "file belum di-lock" — file .go/.js/.ts tanpa header
-//   `=== LOCKED FILE ===` ditandai (info) biar hunting bug bisa fokus ke file
-//   yang belum stable/teruji (locked = udah diaudit). Daftar via init().
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package scanner
 
@@ -14,23 +10,20 @@ import (
 	"strings"
 )
 
-// lockableExt — ekstensi yang pakai konvensi LOCKED header di Flowork.
 var lockableExt = map[string]bool{".go": true, ".js": true, ".ts": true}
 
-// AuditUnlockedFile — 1 finding (info) per file lockable yang BELUM ada
-// header LOCKED. Skip _test.go (test ngga perlu lock).
 func AuditUnlockedFile(filePath, content string) []Finding {
 	ext := strings.ToLower(filepath.Ext(filePath))
 	if !lockableExt[ext] || strings.HasSuffix(filePath, "_test.go") {
 		return nil
 	}
-	// Cek header LOCKED di ~25 baris pertama (header selalu di atas).
+
 	head := content
 	if len(head) > 2000 {
 		head = head[:2000]
 	}
 	if strings.Contains(head, "=== LOCKED FILE ===") {
-		return nil // udah locked → stable
+		return nil
 	}
 	return []Finding{{
 		Auditor:     "unlocked_file_auditor",

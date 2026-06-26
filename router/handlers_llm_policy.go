@@ -1,15 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/flow_router
-// Locked at: 2026-05-30
-// Reason: Section 24+25+26+27 phase 1 minimal endpoints. CRUD chain
-//   config, call log query, localai model registry, pricing_rules CRUD,
-//   policy_budgets CRUD. Phase 2 (real provider chain orchestration,
-//   llama.cpp wrapper, cost rule eval, budget enforcement at request
-//   time) → tambah handler baru.
-//
-// handlers_llm_policy.go — Section 24-27 phase 1 admin endpoints.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -25,11 +17,6 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-// =============================================================================
-// Section 24: Provider chains + call log
-// =============================================================================
-
-// ProviderChainsHandler — GET/POST /api/provider/chains
 func ProviderChainsHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := store.Open()
 	if err != nil {
@@ -86,7 +73,6 @@ func ProviderChainsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// ProviderCallsHandler — GET /api/provider/calls?from=&to=&limit=
 func ProviderCallsHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "method not allowed"})
@@ -140,11 +126,6 @@ func ProviderCallsHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"items": out, "count": len(out)})
 }
 
-// =============================================================================
-// Section 25: LocalAI models
-// =============================================================================
-
-// LocalAIModelsHandler — GET/POST /api/localai/models
 func LocalAIModelsHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := store.Open()
 	if err != nil {
@@ -217,11 +198,6 @@ func LocalAIModelsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// =============================================================================
-// Section 26: Pricing rules
-// =============================================================================
-
-// PricingRulesHandler — GET/POST /api/pricing/rules
 func PricingRulesHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := store.Open()
 	if err != nil {
@@ -297,11 +273,6 @@ func PricingRulesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// =============================================================================
-// Section 27: Policy budgets
-// =============================================================================
-
-// PolicyBudgetsHandler — GET/POST /api/policy/budgets
 func PolicyBudgetsHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := store.Open()
 	if err != nil {
@@ -382,13 +353,10 @@ func PolicyBudgetsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// policyEngineRef — wired di main.go ke policy.Engine. Caller (tick handler)
-// invoke FireNow buat admin manual sweep.
 var policyEngineRef interface {
 	FireNow(ctx context.Context) (int, int)
 }
 
-// PolicyTickHandler — POST /api/policy/tick (admin manual sweep)
 func PolicyTickHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "method not allowed"})
@@ -406,7 +374,6 @@ func PolicyTickHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// PolicyViolationsHandler — GET /api/policy/violations?limit=
 func PolicyViolationsHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "method not allowed"})
@@ -445,6 +412,5 @@ func PolicyViolationsHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"items": out, "count": len(out)})
 }
 
-// Compile-time guard: time.Now used elsewhere; keep import sane.
 var _ = sql.ErrNoRows
 var _ = time.Now

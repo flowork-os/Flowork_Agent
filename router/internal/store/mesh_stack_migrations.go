@@ -1,14 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/flow_router
-// Locked at: 2026-05-30
-// Reason: Section 14-23 mesh stack phase 1 — schema bundle (10 tables).
-//   Single-owner reality = no actual peer logic running. Schemas siap
-//   buat phase 2 saat multi-host aktif. Phase 2 (real transport,
-//   gossip, CRDT, knowledge share, etc.) → tambah file baru per section.
-//
-// mesh_stack_migrations.go — Section 14-23 phase 1 bundle migration.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package store
 

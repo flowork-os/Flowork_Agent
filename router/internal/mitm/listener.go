@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — MITM proxy module.
-
-// MITM TLS Listener (skeleton).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package mitm
 
@@ -21,8 +17,6 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/mitm/handlers"
 )
 
-// Server is an HTTPS listener bound to a local port, using cm for per-SNI
-// certs. Pass a handler that knows how to rewrite each known IDE's traffic.
 type Server struct {
 	addr    string
 	cm      *CertManager
@@ -30,9 +24,6 @@ type Server struct {
 	httpSrv *http.Server
 }
 
-// NewServer constructs a Server. addr is "host:port" (typically
-// "127.0.0.1:8443" for development; ":443" needs CAP_NET_BIND_SERVICE or
-// elevated privileges on most OS).
 func NewServer(addr string, cm *CertManager, handler http.Handler) *Server {
 	if handler == nil {
 		handler = defaultHandler()
@@ -40,7 +31,6 @@ func NewServer(addr string, cm *CertManager, handler http.Handler) *Server {
 	return &Server{addr: addr, cm: cm, handler: handler}
 }
 
-// Start blocks until the listener stops. Use Shutdown(ctx) on signal.
 func (s *Server) Start() error {
 	if s.cm == nil {
 		return errors.New("Server.cm is nil")
@@ -63,7 +53,6 @@ func (s *Server) Start() error {
 	return s.httpSrv.Serve(tlsLn)
 }
 
-// Shutdown gracefully drains the server with the given context timeout.
 func (s *Server) Shutdown(ctx context.Context) error {
 	if s.httpSrv == nil {
 		return nil
@@ -73,7 +62,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 func defaultHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Look up the per-IDE rewriter by intercepted host.
+
 		tool := GetToolForHost(r.Host)
 		if tool == "" {
 			w.Header().Set("Content-Type", "application/json")

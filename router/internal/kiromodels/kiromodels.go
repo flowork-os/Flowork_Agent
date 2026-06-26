@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — kiromodels (Kiro provider models registry).
-
-// Kiro live model discovery + synthetic variants.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package kiromodels
 
@@ -27,7 +23,7 @@ const (
 	defaultRegion = "us-east-1"
 	fetchTimeout  = 30 * time.Second
 	cacheTTL      = 5 * time.Minute
-	// runtime headers Kiro upstream validates — values mirror the IDE's UA.
+
 	sdkVersion = "1.0.0"
 	agentOS    = "windows"
 	agentOSVer = "10.0.26200"
@@ -35,26 +31,23 @@ const (
 	kiroVer    = "0.10.32"
 )
 
-// Model is one base upstream model from the Kiro catalog.
 type Model struct {
 	ID          string `json:"id"`
 	DisplayName string `json:"displayName,omitempty"`
 	Vendor      string `json:"vendor,omitempty"`
-	Synthetic   bool   `json:"synthetic,omitempty"` // true when this id is a -thinking / -agentic / both variant
+	Synthetic   bool   `json:"synthetic,omitempty"`
 }
 
-// Catalog is the expanded model list returned to the dashboard.
 type Catalog struct {
 	Region    string    `json:"region"`
 	FetchedAt time.Time `json:"fetchedAt"`
 	Models    []Model   `json:"models"`
 }
 
-// Params is the per-call config.
 type Params struct {
-	Token      string // Kiro OAuth access token
-	ProfileArn string // arn:aws:codewhisperer:<region>:<acct>:profile/<id>
-	Region     string // optional — falls back to ProfileArn's region or "us-east-1"
+	Token      string
+	ProfileArn string
+	Region     string
 }
 
 type cacheEntry struct {
@@ -67,8 +60,6 @@ var (
 	cache   = map[string]cacheEntry{}
 )
 
-// Fetch returns the full catalog (base + synthetic variants). Cached for 5
-// minutes per credential. Honours ctx cancellation/deadline.
 func Fetch(ctx context.Context, p Params) (Catalog, error) {
 	if p.Token == "" {
 		return Catalog{}, fmt.Errorf("kiro: bearer token required")
@@ -104,16 +95,12 @@ func Fetch(ctx context.Context, p Params) (Catalog, error) {
 	return cat, nil
 }
 
-// InvalidateCache drops any cached catalogs — call after token refresh.
 func InvalidateCache() {
 	cacheMu.Lock()
 	cache = map[string]cacheEntry{}
 	cacheMu.Unlock()
 }
 
-// expandVariants produces base + -thinking + -agentic + -thinking-agentic for
-// each upstream model. The synthetic flag marks the three derived rows so the
-// dashboard can render them differently.
 func expandVariants(base []Model) []Model {
 	out := make([]Model, 0, len(base)*4)
 	for _, m := range base {
@@ -126,9 +113,6 @@ func expandVariants(base []Model) []Model {
 	return out
 }
 
-// stripSyntheticSuffixes is defensive: if the upstream catalog ever happens
-// to return an id that already looks like a synthetic variant we coerce it
-// back to the base shape.
 func stripSyntheticSuffixes(id string) string {
 	out := id
 	for _, suffix := range []string{"-thinking-agentic", "-agentic", "-thinking"} {
@@ -139,8 +123,6 @@ func stripSyntheticSuffixes(id string) string {
 	return out
 }
 
-// regionFromProfileArn extracts the region segment from an ARN like
-// "arn:aws:codewhisperer:us-east-1:123456789012:profile/abc".
 func regionFromProfileArn(arn string) string {
 	if arn == "" {
 		return defaultRegion
@@ -159,8 +141,6 @@ func cacheKey(tok, region string) string {
 
 var httpClient = &http.Client{Timeout: fetchTimeout}
 
-// fetchUpstream calls AWS CodeWhisperer's ListAvailableModels and returns
-// the base models. Headers match the Kiro IDE's UA so upstream doesn't 400.
 func fetchUpstream(ctx context.Context, p Params, region string) ([]Model, error) {
 	u, err := url.Parse(fmt.Sprintf("https://q.%s.amazonaws.com/ListAvailableModels", region))
 	if err != nil {
@@ -214,8 +194,6 @@ func fetchUpstream(ctx context.Context, p Params, region string) ([]Model, error
 	return out, nil
 }
 
-// buildUserAgent reproduces what the Kiro IDE itself sends — upstream rejects
-// requests with a malformed UA (returns 400 "format of value ... is invalid").
 func buildUserAgent() string {
 	return fmt.Sprintf(
 		"aws-sdk-js/%s ua/2.1 os/%s#%s lang/js md/nodejs#%s api/codewhispererruntime#%s m/N,E kiro/%s",

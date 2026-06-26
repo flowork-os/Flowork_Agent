@@ -1,25 +1,12 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 16 phase 2 (hot-reload support). API stable: Unregister
-//   (remove canonical + alias), Has (existence check). Locked registry.go
-//   ngga di-modify — pakai same regMu lewat package access. Phase 3
-//   (batch operation, replay journal) → tambah file baru.
-//
-// registry_dynamic.go — Section 16 phase 2: hot-reload support.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package slashcmd
 
 import "strings"
 
-// Unregister — remove command by canonical name. Also strip aliases yang
-// point ke command itu. Idempotent (no-op kalau ngga ada). Return true
-// kalau ada yang di-remove.
-//
-// Caller (custom loader) panggil saat .md di-update / di-delete sebelum
-// re-Register dengan body baru.
 func Unregister(name string) bool {
 	name = strings.ToLower(strings.TrimSpace(name))
 	if name == "" {
@@ -31,7 +18,7 @@ func Unregister(name string) bool {
 		return false
 	}
 	delete(registry, name)
-	// Sweep aliases yang target name ini.
+
 	for a, target := range aliasLookup {
 		if target == name {
 			delete(aliasLookup, a)
@@ -40,7 +27,6 @@ func Unregister(name string) bool {
 	return true
 }
 
-// Has — return true kalau name (canonical OR alias) registered.
 func Has(name string) bool {
 	name = strings.ToLower(strings.TrimSpace(name))
 	if name == "" {

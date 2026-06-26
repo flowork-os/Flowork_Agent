@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — audit pass surface review.
-
-// Tunnel Watchdog (health-check + auto-restart).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -29,8 +25,6 @@ var (
 	tunnelWatchdogMu      sync.Mutex
 )
 
-// startTunnelWatchdog launches the background probe loop. Idempotent — second
-// call is a no-op. The loop runs for the lifetime of the process.
 func startTunnelWatchdog() {
 	tunnelWatchdogMu.Lock()
 	defer tunnelWatchdogMu.Unlock()
@@ -64,10 +58,6 @@ func tunnelWatchdogTick(ctx context.Context) {
 		return
 	}
 
-	// Cloudflared: if our local pid-tracker says enabled but the URL is no
-	// longer reachable, flip enabled=false so the dashboard shows the real
-	// state. Doesn't auto-restart (that would hide chronic config issues);
-	// the user gets a visible "down" indicator.
 	if st.CloudflareEnabled && st.CloudflareURL != "" {
 		if !probeURLOK(ctx, st.CloudflareURL) && !isCloudflaredRunning() {
 			log.Printf("flow_router tunnel watchdog: cloudflared down (url=%s)", st.CloudflareURL)

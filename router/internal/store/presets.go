@@ -1,37 +1,31 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Store SQLite layer.
-
-// Provider Presets (one-click setup templates).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package store
 
-// Preset — template for one-click provider setup.
 type Preset struct {
-	ID              string   `json:"id"`                        // "openai", "anthropic-api", "anthropic-sub", "deepseek", ...
-	Name            string   `json:"name"`                      // display name
-	Icon            string   `json:"icon"`                      // emoji
-	Description     string   `json:"description"`               // tagline
-	Provider        string   `json:"provider"`                  // internal provider type
-	AuthType        string   `json:"authType"`                  // api_key | subscription | none
-	Format          string   `json:"format"`                    // openai | anthropic | gemini
-	BaseURL         string   `json:"baseUrl"`                   // upstream endpoint
-	Priority        int      `json:"priority"`                  // default priority
-	Models          []string `json:"models"`                    // pre-filled list
-	NeedsAPIKey     bool     `json:"needsApiKey"`               // show API key field
-	NeedsURL        bool     `json:"needsUrl"`                  // show base URL field (custom only)
-	TokenSource     string   `json:"tokenSource,omitempty"`     // subscription source
-	APIKeyHint      string   `json:"apiKeyHint,omitempty"`      // placeholder hint
-	APIKeyURL       string   `json:"apiKeyUrl,omitempty"`       // where to get key
-	Free            bool     `json:"free"`                      // free tier hint
-	Tag             string   `json:"tag,omitempty"`             // "cheap", "fast", "free", "premium"
-	QuotaResetHours float64  `json:"quotaResetHours,omitempty"` // rolling quota window (hours); 0 = none
+	ID              string   `json:"id"`
+	Name            string   `json:"name"`
+	Icon            string   `json:"icon"`
+	Description     string   `json:"description"`
+	Provider        string   `json:"provider"`
+	AuthType        string   `json:"authType"`
+	Format          string   `json:"format"`
+	BaseURL         string   `json:"baseUrl"`
+	Priority        int      `json:"priority"`
+	Models          []string `json:"models"`
+	NeedsAPIKey     bool     `json:"needsApiKey"`
+	NeedsURL        bool     `json:"needsUrl"`
+	TokenSource     string   `json:"tokenSource,omitempty"`
+	APIKeyHint      string   `json:"apiKeyHint,omitempty"`
+	APIKeyURL       string   `json:"apiKeyUrl,omitempty"`
+	Free            bool     `json:"free"`
+	Tag             string   `json:"tag,omitempty"`
+	QuotaResetHours float64  `json:"quotaResetHours,omitempty"`
 }
 
-// Presets — curated list of supported providers. Easy to extend.
 var Presets = []Preset{
 	{
 		ID:          "anthropic-sub",
@@ -51,7 +45,7 @@ var Presets = []Preset{
 		NeedsAPIKey:     false,
 		TokenSource:     "claude_credentials",
 		Tag:             "premium",
-		QuotaResetHours: 5, // Claude Pro/Max rolling 5-hour window (data, editable)
+		QuotaResetHours: 5,
 	},
 	{
 		ID:          "local-llama",
@@ -131,7 +125,7 @@ var Presets = []Preset{
 		Description: "Gemini 2.x family — Google AI Studio API key",
 		Provider:    "gemini",
 		AuthType:    AuthTypeAPIKey,
-		Format:      "gemini", // Phase 2: translator needed
+		Format:      "gemini",
 		BaseURL:     "https://generativelanguage.googleapis.com/v1beta",
 		Priority:    25,
 		Models: []string{
@@ -201,7 +195,7 @@ var Presets = []Preset{
 		APIKeyURL:   "https://openrouter.ai/keys",
 		Tag:         "premium",
 	},
-	// ── FREE TIER (Kiro free Claude — flagship preset) ───────────────
+
 	{
 		ID:          "kiro-ai",
 		Name:        "Kiro AI (Free Claude Unlimited)",
@@ -238,7 +232,6 @@ var Presets = []Preset{
 		Tag:         "free",
 	},
 
-	// ── PREMIUM CLOUD (big-name) ───────────────────────────────────
 	{
 		ID:          "vertex-ai",
 		Name:        "Google Vertex AI",
@@ -297,7 +290,6 @@ var Presets = []Preset{
 		Tag:         "premium",
 	},
 
-	// ── FAST INFERENCE (LPU/specialized hardware) ──────────────────
 	{
 		ID:          "cerebras",
 		Name:        "Cerebras",
@@ -355,7 +347,6 @@ var Presets = []Preset{
 		Tag:         "cheap",
 	},
 
-	// ── CHEAP + OPEN SOURCE HOSTS ──────────────────────────────────
 	{
 		ID:          "fireworks",
 		Name:        "Fireworks AI",
@@ -415,7 +406,6 @@ var Presets = []Preset{
 		Tag:         "cheap",
 	},
 
-	// ── ASIA-PACIFIC ───────────────────────────────────────────────
 	{
 		ID:          "moonshot",
 		Name:        "Moonshot (Kimi K2)",
@@ -470,7 +460,6 @@ var Presets = []Preset{
 		Tag:         "premium",
 	},
 
-	// ── REALTIME / SEARCH-AWARE ────────────────────────────────────
 	{
 		ID:          "perplexity",
 		Name:        "Perplexity",
@@ -508,7 +497,6 @@ var Presets = []Preset{
 		Tag:         "premium",
 	},
 
-	// ── LOCAL ALTERNATIVES ─────────────────────────────────────────
 	{
 		ID:          "ollama",
 		Name:        "Ollama (Local)",
@@ -557,7 +545,6 @@ var Presets = []Preset{
 		Tag:         "free",
 	},
 
-	// ── GATEWAY / PROXY ────────────────────────────────────────────
 	{
 		ID:          "litellm",
 		Name:        "LiteLLM Proxy",
@@ -588,15 +575,11 @@ var Presets = []Preset{
 			"@cf/mistral/mistral-7b-instruct-v0.2",
 		},
 		NeedsAPIKey: true,
-		NeedsURL:    true, // account ID in URL — user edit
+		NeedsURL:    true,
 		APIKeyURL:   "https://dash.cloudflare.com/profile/api-tokens",
 		Tag:         "cheap",
 	},
 
-	// ── IDE SUBSCRIPTIONS (paste your subscription token) ──────────────
-	// These wrap IDE-bundled AI subscriptions. Token is whatever your IDE
-	// stores after login — paste it in the API key field. Endpoints and
-	// model lists are best-effort; some providers may need manual override.
 	{
 		ID:          "codeium-plus",
 		Name:        "Codeium Plus",
@@ -673,7 +656,6 @@ var Presets = []Preset{
 		Tag:         "premium",
 	},
 
-	// ── CUSTOM (catch-all) ─────────────────────────────────────────
 	{
 		ID:          "custom",
 		Name:        "Custom (OpenAI-compat)",
@@ -691,7 +673,6 @@ var Presets = []Preset{
 	},
 }
 
-// GetPreset returns preset by ID. Returns nil if not found.
 func GetPreset(id string) *Preset {
 	for i := range Presets {
 		if Presets[i].ID == id {

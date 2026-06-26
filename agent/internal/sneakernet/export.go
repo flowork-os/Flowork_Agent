@@ -1,15 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 19 phase 1 export. AES-256-GCM (passphrase-derived
-//   via scrypt) + tar+gzip. State.db snapshot via dummy VACUUM INTO via
-//   file copy (SQLite lock-aware). Manifest embedded sebagai first tar
-//   entry. Phase 2 (incremental delta, CRDT version vector, ed25519
-//   sign) → tambah file baru, JANGAN modify ini.
-//
-// export.go — Section 19 phase 1: pack agent folder ke .fwsync.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package sneakernet
 
@@ -30,36 +22,23 @@ import (
 	"golang.org/x/crypto/scrypt"
 )
 
-// scrypt params — N=2^15 (32KB cache), r=8, p=1. Reasonable phone-compatible.
 const (
 	scryptN    = 1 << 15
 	scryptR    = 8
 	scryptP    = 1
-	scryptKLen = 32 // AES-256
+	scryptKLen = 32
 	saltLen    = 16
-	nonceLen   = 12 // GCM standard
+	nonceLen   = 12
 )
 
-// Header AES-encrypted file:
-//
-//	"FWSYNC1\x00" (8 byte magic) || salt (16) || nonce (12) || ciphertext (gcm seal)
-//
-// Ciphertext = gzip(tar(manifest + files)). Manifest = first entry.
-
-// ExportOptions — knob.
 type ExportOptions struct {
 	AgentID    string
-	AgentRoot  string // absolute path ke `agents/<id>/`
-	Version    string // agent version string
-	HostOrigin string // hostname asal
-	Passphrase string // empty = plain (no encryption)
+	AgentRoot  string
+	Version    string
+	HostOrigin string
+	Passphrase string
 }
 
-// Export — pack agent folder + state.db snapshot ke single writer.
-// Caller (handler) stream ke HTTP response body.
-//
-// State.db sourced langsung dari workspace/state.db. WAL mode boleh tetep
-// running (snapshot in-place lock). Production: VACUUM INTO snapshot.
 func Export(w io.Writer, opts ExportOptions) error {
 	if opts.AgentRoot == "" {
 		return fmt.Errorf("AgentRoot required")
@@ -68,12 +47,10 @@ func Export(w io.Writer, opts ExportOptions) error {
 		return fmt.Errorf("AgentID required")
 	}
 
-	// Build tar in memory (anti partial stream on error).
 	var tarBuf bytes.Buffer
 	gz := gzip.NewWriter(&tarBuf)
 	tw := tar.NewWriter(gz)
 
-	// Walk files first to count + build manifest.
 	manifest := NewManifest(opts.AgentID, opts.Version, opts.HostOrigin, opts.Passphrase != "")
 	filesCount := 0
 	var stateDBBytes int64
@@ -85,7 +62,7 @@ func Export(w io.Writer, opts ExportOptions) error {
 		if info.IsDir() {
 			return nil
 		}
-		// Symlink skip (anti-escape).
+
 		if info.Mode()&os.ModeSymlink != 0 {
 			return nil
 		}
@@ -93,11 +70,11 @@ func Export(w io.Writer, opts ExportOptions) error {
 		if rerr != nil {
 			return rerr
 		}
-		// Skip kalau path mengandung ".." (paranoid).
+
 		if strings.Contains(rel, "..") {
 			return nil
 		}
-		// Cap per-file size 100MB.
+
 		if info.Size() > 100*1024*1024 {
 			return nil
 		}
@@ -113,7 +90,6 @@ func Export(w io.Writer, opts ExportOptions) error {
 	manifest.FilesCount = filesCount
 	manifest.StateDBBytes = stateDBBytes
 
-	// Write manifest first.
 	mJSON, _ := json.Marshal(manifest)
 	if err := tw.WriteHeader(&tar.Header{
 		Name:     ManifestPath,
@@ -127,7 +103,6 @@ func Export(w io.Writer, opts ExportOptions) error {
 		return err
 	}
 
-	// Walk again, write files.
 	werr := filepath.Walk(opts.AgentRoot, func(path string, info os.FileInfo, walkErr error) error {
 		if walkErr != nil || info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 			return walkErr
@@ -169,7 +144,6 @@ func Export(w io.Writer, opts ExportOptions) error {
 	}
 	payload := tarBuf.Bytes()
 
-	// Encrypt kalau passphrase ada.
 	if opts.Passphrase != "" {
 		ct, header, err := encryptAES256GCM([]byte(opts.Passphrase), payload)
 		if err != nil {
@@ -186,7 +160,7 @@ func Export(w io.Writer, opts ExportOptions) error {
 		}
 		return nil
 	}
-	// Plain mode: still write magic supaya import detect format.
+
 	if _, err := w.Write([]byte("FWSYNC0\x00")); err != nil {
 		return err
 	}

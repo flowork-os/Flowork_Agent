@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — HTTP handler.
-
-// OAuth Device Code Flow (RFC 8628).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -21,7 +17,6 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-// oauthDeviceStartHandler — POST /api/oauth/:provider/device-code
 func oauthDeviceStartHandler(w http.ResponseWriter, r *http.Request, provider string) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -91,7 +86,6 @@ func oauthDeviceStartHandler(w http.ResponseWriter, r *http.Request, provider st
 	})
 }
 
-// oauthDevicePollHandler — POST /api/oauth/:provider/poll
 func oauthDevicePollHandler(w http.ResponseWriter, r *http.Request, provider string) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -150,19 +144,15 @@ func oauthDevicePollHandler(w http.ResponseWriter, r *http.Request, provider str
 		writeJSON(w, http.StatusOK, map[string]any{"status": "pending"})
 	case "slow_down":
 		writeJSON(w, http.StatusOK, map[string]any{"status": "slow_down"})
-	default: // expired_token, access_denied, …
+	default:
 		_ = store.DeleteOAuthToken(d, provider+":device-pending")
 		writeJSON(w, http.StatusOK, map[string]any{"status": "error", "error": tok.Error})
 	}
 }
 
-// clampDeviceExpiresIn bounds the IdP-supplied expires_in (seconds) to a sane
-// range before it is multiplied by time.Second. Without a cap a hostile or
-// buggy IdP response (e.g. expires_in = math.MaxInt64) overflows time.Duration
-// and produces a negative/wrong expiry, breaking the device flow.
 func clampDeviceExpiresIn(v int) int {
-	const min = 600          // 10 minutes — the device-flow floor we already used
-	const max = 24 * 60 * 60 // 24 hours — generous ceiling; real IdPs return <=900s
+	const min = 600
+	const max = 24 * 60 * 60
 	if v < min {
 		return min
 	}

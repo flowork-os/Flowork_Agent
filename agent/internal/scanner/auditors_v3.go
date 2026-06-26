@@ -1,13 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Port batch 2 — 10 auditor lagi. Auto-register via init().
-//
-// auditors_v3.go — 10 auditor:
-//   complexity, dockerfile_security, dep_version, atomic_write, concurrency,
-//   dangerous_import, crossos, defer_close, empty_select, context_value.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package scanner
 
@@ -17,21 +11,17 @@ import (
 )
 
 func init() {
-	Auditors["complexity_auditor"]          = AuditComplexity
+	Auditors["complexity_auditor"] = AuditComplexity
 	Auditors["dockerfile_security_auditor"] = AuditDockerfileSecurity
-	Auditors["dep_version_auditor"]         = AuditDepVersion
-	Auditors["atomic_write_auditor"]        = AuditAtomicWrite
-	Auditors["concurrency_auditor"]         = AuditConcurrency
-	Auditors["dangerous_import_auditor"]    = AuditDangerousImport
-	Auditors["crossos_auditor"]             = AuditCrossOS
-	Auditors["defer_close_auditor"]         = AuditDeferClose
-	Auditors["empty_select_auditor"]        = AuditEmptySelect
-	Auditors["context_value_auditor"]       = AuditContextValue
+	Auditors["dep_version_auditor"] = AuditDepVersion
+	Auditors["atomic_write_auditor"] = AuditAtomicWrite
+	Auditors["concurrency_auditor"] = AuditConcurrency
+	Auditors["dangerous_import_auditor"] = AuditDangerousImport
+	Auditors["crossos_auditor"] = AuditCrossOS
+	Auditors["defer_close_auditor"] = AuditDeferClose
+	Auditors["empty_select_auditor"] = AuditEmptySelect
+	Auditors["context_value_auditor"] = AuditContextValue
 }
-
-// =============================================================================
-// 1. complexity_auditor — function dengan >50 line / >5 nested level
-// =============================================================================
 
 var funcStartRE = regexp.MustCompile(`^func\s+(\(\s*\w+\s+\*?\w+\s*\)\s*)?\w+\s*\([^)]*\)`)
 
@@ -45,7 +35,7 @@ func AuditComplexity(filePath, content string) []Finding {
 		if !funcStartRE.MatchString(strings.TrimSpace(line)) {
 			continue
 		}
-		// Cari closing } di level 0
+
 		depth := 0
 		funcLine := i
 		funcEnd := i
@@ -75,10 +65,6 @@ func AuditComplexity(filePath, content string) []Finding {
 	}
 	return out
 }
-
-// =============================================================================
-// 2. dockerfile_security_auditor — Dockerfile USER root, no HEALTHCHECK
-// =============================================================================
 
 func AuditDockerfileSecurity(filePath, content string) []Finding {
 	if filepathBase(filePath) != "Dockerfile" && !strings.HasSuffix(filePath, ".dockerfile") {
@@ -155,10 +141,6 @@ func filepathBase(p string) string {
 	return p
 }
 
-// =============================================================================
-// 3. dep_version_auditor — go.mod pin version specific patterns
-// =============================================================================
-
 var unpinnedDepRE = regexp.MustCompile(`(github\.com/[^\s]+|golang\.org/[^\s]+)\s+(v0\.0\.0|latest)`)
 
 func AuditDepVersion(filePath, content string) []Finding {
@@ -182,10 +164,6 @@ func AuditDepVersion(filePath, content string) []Finding {
 	return out
 }
 
-// =============================================================================
-// 4. atomic_write_auditor — os.WriteFile / ioutil.WriteFile tanpa atomic rename
-// =============================================================================
-
 var writeFileRE = regexp.MustCompile(`(os|ioutil)\.WriteFile\s*\(`)
 
 func AuditAtomicWrite(filePath, content string) []Finding {
@@ -195,7 +173,7 @@ func AuditAtomicWrite(filePath, content string) []Finding {
 	out := []Finding{}
 	for i, line := range strings.Split(content, "\n") {
 		if writeFileRE.MatchString(line) {
-			// Heuristic: kalau line sebelum/sesudah ngga ada os.Rename, possibly non-atomic.
+
 			out = append(out, Finding{
 				Auditor:     "atomic_write_auditor",
 				Severity:    SevLow,
@@ -209,10 +187,6 @@ func AuditAtomicWrite(filePath, content string) []Finding {
 	}
 	return out
 }
-
-// =============================================================================
-// 5. concurrency_auditor — global var write tanpa mutex
-// =============================================================================
 
 var globalWriteRE = regexp.MustCompile(`^\s*(var|map\[|\w+)\s*\[?[a-zA-Z_]\w*\]?\s*=`)
 var rangeRE = regexp.MustCompile(`go func\s*\(\s*\)\s*\{[^}]*range\b`)
@@ -237,10 +211,6 @@ func AuditConcurrency(filePath, content string) []Finding {
 	}
 	return out
 }
-
-// =============================================================================
-// 6. dangerous_import_auditor — unsafe, reflect, plugin
-// =============================================================================
 
 var dangerousImportRE = regexp.MustCompile(`"(unsafe|plugin|syscall|debug/elf|crypto/dsa)"`)
 
@@ -272,17 +242,13 @@ func AuditDangerousImport(filePath, content string) []Finding {
 	return out
 }
 
-// =============================================================================
-// 7. crossos_auditor — Linux/Unix-only syscalls in cross-platform file
-// =============================================================================
-
 var unixOnlyRE = regexp.MustCompile(`\b(syscall\.SIGKILL|syscall\.Kill|syscall\.Setuid|os\.Geteuid|os\.Setegid|syscall\.Chroot)\b`)
 
 func AuditCrossOS(filePath, content string) []Finding {
 	if !strings.HasSuffix(filePath, ".go") {
 		return nil
 	}
-	// Skip _linux.go / _windows.go / _darwin.go (intentional platform code).
+
 	for _, plat := range []string{"_linux.go", "_windows.go", "_darwin.go", "_unix.go", "_bsd.go"} {
 		if strings.HasSuffix(filePath, plat) {
 			return nil
@@ -305,10 +271,6 @@ func AuditCrossOS(filePath, content string) []Finding {
 	return out
 }
 
-// =============================================================================
-// 8. defer_close_auditor — defer Close() without err handling
-// =============================================================================
-
 var deferCloseRE = regexp.MustCompile(`^\s*defer\s+\w+\.Close\s*\(\s*\)\s*$`)
 
 func AuditDeferClose(filePath, content string) []Finding {
@@ -318,7 +280,7 @@ func AuditDeferClose(filePath, content string) []Finding {
 	out := []Finding{}
 	for i, line := range strings.Split(content, "\n") {
 		if deferCloseRE.MatchString(line) {
-			// Skip kalau context atau cancel func.
+
 			if strings.Contains(line, "cancel.Close") || strings.Contains(line, "ctx.Close") {
 				continue
 			}
@@ -335,10 +297,6 @@ func AuditDeferClose(filePath, content string) []Finding {
 	}
 	return out
 }
-
-// =============================================================================
-// 9. empty_select_auditor — select {} dead-block forever
-// =============================================================================
 
 var emptySelectRE = regexp.MustCompile(`^\s*select\s*\{\s*\}`)
 
@@ -362,10 +320,6 @@ func AuditEmptySelect(filePath, content string) []Finding {
 	}
 	return out
 }
-
-// =============================================================================
-// 10. context_value_auditor — context.WithValue tanpa typed key
-// =============================================================================
 
 var ctxValueStringKeyRE = regexp.MustCompile(`context\.WithValue\s*\(\s*\w+\s*,\s*"`)
 

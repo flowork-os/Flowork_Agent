@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Store SQLite layer.
-
-// Secret-at-Rest (AES-256-GCM).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package store
 
@@ -28,7 +24,6 @@ var (
 	secretKeyBytes []byte
 )
 
-// secretKey loads (or generates once) the 32-byte machine key.
 func secretKey() []byte {
 	secretKeyOnce.Do(func() {
 		path := filepath.Join(dataDir(), "secret.key")
@@ -38,11 +33,9 @@ func secretKey() []byte {
 		}
 		key := make([]byte, 32)
 		if _, err := rand.Read(key); err != nil {
-			// crypto/rand failing is near-impossible on a healthy OS; if it does,
-			// loudly flag the degraded-crypto state instead of silently using an
-			// all-zero key (which would make "encrypted" secrets trivially readable).
+
 			log.Printf("SECURITY WARNING: crypto/rand failed generating secret key (%v) — secrets-at-rest encryption is DEGRADED (zero key). Fix entropy source.", err)
-			secretKeyBytes = make([]byte, 32) // last resort; still functional but insecure
+			secretKeyBytes = make([]byte, 32)
 			return
 		}
 		_ = os.MkdirAll(dataDir(), 0o700)
@@ -60,15 +53,13 @@ func gcm() (cipher.AEAD, error) {
 	return cipher.NewGCM(block)
 }
 
-// EncryptSecret returns "enc:v1:<base64(nonce|ciphertext)>". Empty input and
-// already-encrypted input are returned unchanged (idempotent).
 func EncryptSecret(plain string) string {
 	if plain == "" || strings.HasPrefix(plain, encPrefix) {
 		return plain
 	}
 	g, err := gcm()
 	if err != nil {
-		return plain // never lose the value
+		return plain
 	}
 	nonce := make([]byte, g.NonceSize())
 	if _, err := rand.Read(nonce); err != nil {
@@ -78,8 +69,6 @@ func EncryptSecret(plain string) string {
 	return encPrefix + base64.RawStdEncoding.EncodeToString(ct)
 }
 
-// DecryptSecret reverses EncryptSecret. Non-prefixed (legacy plaintext) values
-// and any decryption failure are returned as-is.
 func DecryptSecret(stored string) string {
 	if !strings.HasPrefix(stored, encPrefix) {
 		return stored

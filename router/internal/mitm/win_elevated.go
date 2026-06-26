@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — ./internal/mitm package — audit pass surface review.
-
-// Windows elevation helper.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package mitm
 
@@ -16,9 +12,6 @@ import (
 	"strings"
 )
 
-// IsAdmin reports whether the current process has admin/root privileges.
-// Windows: runs `whoami /groups` and looks for the S-1-16-12288 (High Mandatory)
-// SID. Unix: euid==0.
 func IsAdmin() bool {
 	if runtime.GOOS != "windows" {
 		return os.Geteuid() == 0
@@ -30,15 +23,11 @@ func IsAdmin() bool {
 	return strings.Contains(string(out), "S-1-16-12288")
 }
 
-// RunElevatedPowerShell launches a PowerShell command via runas verb so a UAC
-// prompt is shown. The actual command runs in a new elevated PowerShell.
-// Returns nil when the elevation prompt was accepted (does NOT wait for command
-// completion — same semantics as upstream's helper).
 func RunElevatedPowerShell(command string) error {
 	if runtime.GOOS != "windows" {
 		return os.ErrInvalid
 	}
-	// Use PowerShell Start-Process -Verb RunAs to invoke ourselves elevated.
+
 	starter := `Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-Command','` +
 		strings.ReplaceAll(command, "'", "''") + `'`
 	return exec.Command("powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", starter).Run()

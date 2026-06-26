@@ -1,15 +1,10 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Syscall helper (platform-specific).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package mitm
 
 import "syscall"
 
-// syscall_zero returns the platform-correct "signal 0" value used by os.Process
-// to test liveness without actually delivering a signal. On Windows, syscall
-// has no real signal 0 — passing 0 still triggers FindProcess validation.
 func syscall_zero() syscall.Signal { return syscall.Signal(0) }

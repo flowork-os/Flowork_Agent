@@ -1,14 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — HTTP handler.
-// 2026-06-13 (release audit → fix → test → re-lock): GET /api/providers and /:id now MASK data.apiKey
-//   (maskProviderSecret) so the read API never emits a plaintext key. Pairs with store.UpsertProvider
-//   preserving a blank/masked key on save. Verified live (no plaintext on GET) + unit-tested.
-
-// Resource CRUD Handlers.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -22,10 +15,6 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-// maskProviderSecret returns a copy of the provider with data.apiKey MASKED, so the read API never
-// emits the plaintext key. The key is encrypted at rest and the dispatcher reads it server-side via
-// the store (not over HTTP), so nothing legitimate needs the plaintext on the wire. A save that sends
-// the masked value back (or a blank one) is preserved as the existing key — see store.UpsertProvider.
 func maskProviderSecret(p store.ProviderConnection) store.ProviderConnection {
 	if p.Data == nil {
 		return p
@@ -46,8 +35,6 @@ func maskProviderSecret(p store.ProviderConnection) store.ProviderConnection {
 	p.Data = cp
 	return p
 }
-
-// ── Providers ────────────────────────────────────────────────────────────
 
 func providersListAddHandler(w http.ResponseWriter, r *http.Request) {
 	d, _ := store.Open()
@@ -81,8 +68,6 @@ func providersListAddHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// providerCRUDHandler — /api/providers/:id GET/PUT/DELETE, plus sub-actions
-// /:id/models, /:id/test, /:id/test-models (delegated to provider sub-handler).
 func providerCRUDHandler(w http.ResponseWriter, r *http.Request) {
 	d, _ := store.Open()
 	rest := r.URL.Path[len("/api/providers/"):]
@@ -90,7 +75,7 @@ func providerCRUDHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing id", http.StatusBadRequest)
 		return
 	}
-	// Sub-action routing: /:id/{models,test,test-models}
+
 	if i := indexByte(rest, '/'); i >= 0 {
 		id, action := rest[:i], rest[i+1:]
 		providerSubActionHandler(w, r, id, action)
@@ -135,13 +120,10 @@ func providerCRUDHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// presetsHandler — GET curated provider templates for one-click setup.
 func presetsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{"data": store.Presets})
 }
-
-// ── Combos ───────────────────────────────────────────────────────────────
 
 func combosListAddHandler(w http.ResponseWriter, r *http.Request) {
 	d, _ := store.Open()
@@ -204,8 +186,6 @@ func comboCRUDHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// ── API keys ─────────────────────────────────────────────────────────────
-
 func apiKeysListAddHandler(w http.ResponseWriter, r *http.Request) {
 	d, _ := store.Open()
 	switch r.Method {
@@ -238,7 +218,7 @@ func apiKeysListAddHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(k) // includes plaintextKey
+		_ = json.NewEncoder(w).Encode(k)
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -261,9 +241,6 @@ func apiKeyCRUDHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
-
-
-// ── Proxy pools ──────────────────────────────────────────────────────────
 
 func proxyPoolsListAddHandler(w http.ResponseWriter, r *http.Request) {
 	d, _ := store.Open()
@@ -301,7 +278,7 @@ func proxyPoolCRUDHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing id", http.StatusBadRequest)
 		return
 	}
-	// /:id/test sub-action
+
 	if i := indexByte(rest, '/'); i >= 0 {
 		id, action := rest[:i], rest[i+1:]
 		if action == "test" {
@@ -336,8 +313,6 @@ func proxyPoolCRUDHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
 }
-
-// ── Media providers ──────────────────────────────────────────────────────
 
 func mediaProvidersHandler(w http.ResponseWriter, r *http.Request) {
 	d, _ := store.Open()

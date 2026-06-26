@@ -1,14 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 11 P1 git tool — read-only ops (status/diff/log/show).
-//   Capability: exec:git. Working dir = shared workspace category subdir
-//   (caller pilih). Phase 2 write ops (commit/checkpoint/push) → tambah
-//   file baru `git_write.go`, JANGAN modify ini.
-//
-// git.go — Section 11 P1: git status/diff/log/show.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package builtins
 

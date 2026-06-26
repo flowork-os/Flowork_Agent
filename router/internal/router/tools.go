@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Router dispatcher.
-
-// Tool Calling Conversion (OpenAI ⇄ Anthropic).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package router
 
@@ -23,12 +19,6 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-// streamAnthropicWithTools — streaming counterpart of forwardAnthropicWithTools.
-// Sends the Anthropic tool body with stream:true and converts the SSE event
-// stream into OpenAI chat.completion.chunk deltas, including incremental
-// tool_calls (content_block tool_use → delta.tool_calls[].function.arguments).
-// This is what makes "streaming tool-use rounds" work for Anthropic upstreams
-// (openai-compat upstreams already stream tool_calls 1:1 via streamOpenAICompat).
 func streamAnthropicWithTools(ctx context.Context, p *store.ProviderConnection, baseURL string, req OpenAIRequest, w http.ResponseWriter, flusher http.Flusher) (OpenAIUsage, int, error) {
 	req.Stream = true
 	body, err := buildAnthropicToolBody(req)
@@ -68,7 +58,7 @@ func streamAnthropicWithTools(ctx context.Context, p *store.ProviderConnection, 
 	var usage OpenAIUsage
 	var firstWritten bool
 	stopReason := ""
-	blockToTool := map[int]int{} // anthropic content-block index → openai tool_calls index
+	blockToTool := map[int]int{}
 	toolIdx := -1
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -167,12 +157,8 @@ func streamAnthropicWithTools(ctx context.Context, p *store.ProviderConnection, 
 	return usage, http.StatusOK, nil
 }
 
-// forwardAnthropicWithTools — rich tool path. Builds an Anthropic request
-// with tool specs + structured content blocks, forwards, then converts the
-// tool_use response back to OpenAI tool_calls. Non-streaming only (streaming
-// tool_use Phase 2.1+); callers needing stream fall back to text path.
 func forwardAnthropicWithTools(ctx context.Context, p *store.ProviderConnection, baseURL string, req OpenAIRequest) (*OpenAIResponse, int, error) {
-	req.Stream = false // tool rounds resolved non-streaming
+	req.Stream = false
 	body, err := buildAnthropicToolBody(req)
 	if err != nil {
 		return nil, 0, fmt.Errorf("build anthropic tool body: %w", err)
@@ -204,8 +190,6 @@ func forwardAnthropicWithTools(ctx context.Context, p *store.ProviderConnection,
 	return out, http.StatusOK, nil
 }
 
-// hasToolContext — true when the request involves tool calling, so the rich
-// Anthropic conversion path is required instead of the simple text path.
 func hasToolContext(req OpenAIRequest) bool {
 	if len(req.Tools) > 0 && string(req.Tools) != "null" {
 		return true
@@ -218,7 +202,6 @@ func hasToolContext(req OpenAIRequest) bool {
 	return false
 }
 
-// openAIToolFn mirrors the function spec in an OpenAI tool entry.
 type openAIToolFn struct {
 	Type     string `json:"type"`
 	Function struct {
@@ -237,8 +220,6 @@ type openAIToolCall struct {
 	} `json:"function"`
 }
 
-// buildAnthropicToolBody — construct the Anthropic Messages request body
-// (as a map) including tools + structured content blocks. Returns JSON bytes.
 func buildAnthropicToolBody(req OpenAIRequest) ([]byte, error) {
 	body := map[string]any{
 		"model":      normalizeClaudeModel(req.Model),
@@ -257,7 +238,6 @@ func buildAnthropicToolBody(req OpenAIRequest) ([]byte, error) {
 		body["stream"] = true
 	}
 
-	// System prompt (collected from system messages).
 	var sysParts []string
 	var messages []map[string]any
 	for _, m := range req.Messages {
@@ -265,7 +245,7 @@ func buildAnthropicToolBody(req OpenAIRequest) ([]byte, error) {
 		case "system":
 			sysParts = append(sysParts, m.Content)
 		case "tool":
-			// OpenAI tool-result → Anthropic user message with tool_result block.
+
 			messages = append(messages, map[string]any{
 				"role": "user",
 				"content": []map[string]any{{
@@ -311,7 +291,6 @@ func buildAnthropicToolBody(req OpenAIRequest) ([]byte, error) {
 	}
 	body["messages"] = messages
 
-	// Tools: OpenAI function specs → Anthropic tool specs.
 	if len(req.Tools) > 0 && string(req.Tools) != "null" {
 		var oaTools []openAIToolFn
 		if err := json.Unmarshal(req.Tools, &oaTools); err == nil {
@@ -334,7 +313,7 @@ func buildAnthropicToolBody(req OpenAIRequest) ([]byte, error) {
 				body["tools"] = anthTools
 			}
 		}
-		// tool_choice mapping
+
 		if tc := convertToolChoice(req.ToolChoice); tc != nil {
 			body["tool_choice"] = tc
 		}
@@ -342,11 +321,6 @@ func buildAnthropicToolBody(req OpenAIRequest) ([]byte, error) {
 	return json.Marshal(body)
 }
 
-// convertToolChoice — OpenAI tool_choice → Anthropic tool_choice.
-//
-//	"auto"/"none"            → {"type":"auto"} / omit
-//	"required"               → {"type":"any"}
-//	{function:{name:"x"}}    → {"type":"tool","name":"x"}
 func convertToolChoice(raw json.RawMessage) map[string]any {
 	if len(raw) == 0 || string(raw) == "null" {
 		return nil
@@ -374,7 +348,6 @@ func convertToolChoice(raw json.RawMessage) map[string]any {
 	return nil
 }
 
-// anthropicRichResponse — Anthropic response including tool_use blocks.
 type anthropicRichResponse struct {
 	ID      string `json:"id"`
 	Content []struct {
@@ -392,8 +365,6 @@ type anthropicRichResponse struct {
 	} `json:"usage"`
 }
 
-// parseAnthropicToolResponse — convert Anthropic response (with possible
-// tool_use blocks) → OpenAI response carrying message.tool_calls.
 func parseAnthropicToolResponse(respBody []byte, reqModel string) (*OpenAIResponse, error) {
 	var ar anthropicRichResponse
 	if err := json.Unmarshal(respBody, &ar); err != nil {
@@ -437,8 +408,7 @@ func parseAnthropicToolResponse(respBody []byte, reqModel string) (*OpenAIRespon
 			msg["content"] = nil
 		}
 	}
-	// Build OpenAIResponse via raw map → marshal → unmarshal to keep the
-	// public struct authoritative while carrying tool_calls through.
+
 	out := map[string]any{
 		"id":      ar.ID,
 		"object":  "chat.completion",
@@ -460,7 +430,6 @@ func parseAnthropicToolResponse(respBody []byte, reqModel string) (*OpenAIRespon
 	if err := json.Unmarshal(raw, &resp); err != nil {
 		return nil, err
 	}
-	// tool_calls land in resp.Choices[0].Message.ToolCalls (json.RawMessage
-	// field added to OpenAIMessage), so the typed struct round-trips cleanly.
+
 	return &resp, nil
 }

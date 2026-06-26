@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — MITM proxy capture/translator (TLS interception).
-
-// Per-IDE MITM handler base.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package handlers
 
@@ -14,8 +10,6 @@ import (
 	"sync"
 )
 
-// Handler is the per-IDE contract. Handle receives the original request and
-// must call ServeHTTP back with a rewritten one OR write the response itself.
 type Handler interface {
 	Name() string
 	Handle(w http.ResponseWriter, r *http.Request)
@@ -26,7 +20,6 @@ var (
 	registry = map[string]Handler{}
 )
 
-// Register adds a handler. Called from init() of each per-IDE file.
 func Register(h Handler) {
 	if h == nil || h.Name() == "" {
 		return
@@ -36,15 +29,12 @@ func Register(h Handler) {
 	registry[h.Name()] = h
 }
 
-// Get returns a handler by name (e.g. "antigravity", "copilot", "cursor",
-// "kiro"), or nil when none.
 func Get(name string) Handler {
 	regMu.RLock()
 	defer regMu.RUnlock()
 	return registry[name]
 }
 
-// List returns registered names (sorted not guaranteed).
 func List() []string {
 	regMu.RLock()
 	defer regMu.RUnlock()

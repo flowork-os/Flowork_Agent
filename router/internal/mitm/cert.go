@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — MITM proxy module.
-
-// MITM Certificate Manager.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package mitm
 
@@ -32,19 +28,15 @@ const (
 	rsaBits        = 2048
 )
 
-// CertManager hands out tls.Certificate values keyed by Server Name (SNI).
-// Concurrency-safe; per-domain leaves are cached on disk + in memory.
 type CertManager struct {
 	dir      string
 	rootCert *x509.Certificate
 	rootKey  *rsa.PrivateKey
-	rootPEM  []byte // for OS keychain install
+	rootPEM  []byte
 	cacheMu  sync.RWMutex
 	cache    map[string]*tls.Certificate
 }
 
-// NewCertManager loads (or creates on first use) the root CA under <dir>/mitm.
-// dir is typically <dataDir> (resolved from FLOW_ROUTER_DATA env or homedir).
 func NewCertManager(dir string) (*CertManager, error) {
 	mitmDir := filepath.Join(dir, "mitm")
 	if err := os.MkdirAll(filepath.Join(mitmDir, "leaves"), 0o700); err != nil {
@@ -57,16 +49,12 @@ func NewCertManager(dir string) (*CertManager, error) {
 	return m, nil
 }
 
-// RootCAPEM returns the encoded root certificate for the user to install in
-// the OS trust store. Empty unless NewCertManager succeeded.
 func (m *CertManager) RootCAPEM() []byte {
 	out := make([]byte, len(m.rootPEM))
 	copy(out, m.rootPEM)
 	return out
 }
 
-// GetCertificate fits crypto/tls.Config.GetCertificate signature. Caller is
-// the TLS handshake; ServerName comes from the SNI client extension.
 func (m *CertManager) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 	host := hello.ServerName
 	if host == "" {
@@ -75,7 +63,6 @@ func (m *CertManager) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certifica
 	return m.issueLeaf(host)
 }
 
-// IssueLeaf returns a signed leaf for host (testable alias).
 func (m *CertManager) IssueLeaf(host string) (*tls.Certificate, error) {
 	return m.issueLeaf(host)
 }
@@ -94,7 +81,6 @@ func (m *CertManager) issueLeaf(host string) (*tls.Certificate, error) {
 		return c, nil
 	}
 
-	// Try disk first
 	certPath := filepath.Join(m.dir, "leaves", host+".pem")
 	keyPath := filepath.Join(m.dir, "leaves", host+".key")
 	if certPEM, err := os.ReadFile(certPath); err == nil {
@@ -106,7 +92,6 @@ func (m *CertManager) issueLeaf(host string) (*tls.Certificate, error) {
 		}
 	}
 
-	// Generate fresh
 	key, err := rsa.GenerateKey(rand.Reader, rsaBits)
 	if err != nil {
 		return nil, fmt.Errorf("leaf key: %w", err)
@@ -154,7 +139,7 @@ func (m *CertManager) loadOrCreateRoot() error {
 			}
 		}
 	}
-	// Generate
+
 	key, err := rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
 		return fmt.Errorf("root key: %w", err)

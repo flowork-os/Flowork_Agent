@@ -1,34 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 10 (Tool invocation audit log) phase 1 DONE.
-//   API stable: LogToolInvocation (8KB cap args/result/error),
-//   ListToolInvocations (tool_name/caller filter, cap 500),
-//   CountToolInvocations. Section 8 Retention already handles prune
-//   (cron sweep). Phase 2 host capability `host_log_tool_invocation`
-//   buat WASM agent panggil dari sandbox → tambah file baru, JANGAN
-//   modify ini.
-//
-// tool_invocations.go — Section 10 phase 1: tool call audit log per-warga.
-//
-// PURPOSE:
-//   Catat setiap tool call ke `tool_invocations` table. Buat audit
-//   (siapa pakai tool apa kapan, latency, error). Anti over-prompt:
-//   JANGAN auto-inject ke chat context — akses cuma via endpoint
-//   dashboard atau retention prune (Section 8 sudah handle).
-//
-// SCHEMA REUSE:
-//   Table `tool_invocations` (di ensureSchema): id, tool_name, args_json,
-//   result_json, error_text, latency_ms, caller, invoked_at, deleted_at.
-//
-// USE CASES:
-//   - Audit: tool X di-call N kali, P% fail, avg latency Y ms.
-//   - Training: filter status=success export ke JSONL.
-//   - Debug: cari invocation error terakhir untuk tool tertentu.
-//
-// ⚠️ args_json + result_json HARD CAP 8KB each anti-bloat.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package agentdb
 
@@ -38,7 +11,6 @@ import (
 	"time"
 )
 
-// ToolInvocation — single row.
 type ToolInvocation struct {
 	ID         int64  `json:"id"`
 	ToolName   string `json:"tool_name"`
@@ -50,9 +22,6 @@ type ToolInvocation struct {
 	InvokedAt  string `json:"invoked_at"`
 }
 
-// LogToolInvocation — insert single row. Required: tool_name. Args/result
-// JSON strings expected pre-marshaled (caller pakai tools.MarshalArgs).
-// Hard cap 8KB each.
 func (s *Store) LogToolInvocation(toolName, argsJSON, resultJSON, errorText, caller string, latencyMs int64) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -90,8 +59,6 @@ func (s *Store) LogToolInvocation(toolName, argsJSON, resultJSON, errorText, cal
 	return res.LastInsertId()
 }
 
-// ListToolInvocations — paginated. Filter optional tool_name + caller.
-// Order: invoked_at DESC. Default 50, max 500.
 func (s *Store) ListToolInvocations(toolName, caller string, limit int) ([]ToolInvocation, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -132,7 +99,6 @@ func (s *Store) ListToolInvocations(toolName, caller string, limit int) ([]ToolI
 	return out, rows.Err()
 }
 
-// CountToolInvocations — non-deleted total, optional filter tool_name.
 func (s *Store) CountToolInvocations(toolName string) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

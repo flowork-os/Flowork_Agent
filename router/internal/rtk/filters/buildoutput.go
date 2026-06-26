@@ -1,11 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — RTK (Router Tool Kit) filter.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Filter: build-output — keep ERROR/FAILED lines + last N progress lines.
 package filters
 
 import (
@@ -27,9 +24,7 @@ func (b *buildOutput) Apply(text string) string {
 	if len(lines) <= 60 {
 		return text
 	}
-	// Capture lines that look critical (errors/panics/tracebacks) — these we
-	// always preserve, but cap so a build full of "WARN" lines does not blow
-	// up to its original size.
+
 	critical := mustCompile(`(?i)\b(error|failed|traceback|panic|fatal)\b`)
 	const maxCritical = 40
 	criticalLines := make([]string, 0, maxCritical)
@@ -43,7 +38,7 @@ func (b *buildOutput) Apply(text string) string {
 			}
 		}
 	}
-	// Always keep the first 5 (banner) + last 20 (final state).
+
 	headN := 5
 	tailN := 20
 	if len(lines) < headN+tailN+10 {

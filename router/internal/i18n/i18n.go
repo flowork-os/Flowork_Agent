@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — audit pass surface review.
-
-// i18n locale catalog.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package i18n
 
@@ -22,7 +18,7 @@ var localeFS embed.FS
 
 var (
 	loadOnce sync.Once
-	catalog  = map[string]map[string]string{} // tag → key → translation
+	catalog  = map[string]map[string]string{}
 )
 
 func loadCatalog() {
@@ -49,7 +45,6 @@ func loadCatalog() {
 	})
 }
 
-// AvailableTags returns every locale tag shipped in the binary (sorted).
 func AvailableTags() []string {
 	loadCatalog()
 	out := make([]string, 0, len(catalog))
@@ -60,8 +55,6 @@ func AvailableTags() []string {
 	return out
 }
 
-// Catalog returns a read-only copy of every key/value pair for tag, or nil
-// when the tag is not shipped. Falls back to "en" when tag is "" or unknown.
 func Catalog(tag string) map[string]string {
 	loadCatalog()
 	if tag == "" {
@@ -81,8 +74,6 @@ func Catalog(tag string) map[string]string {
 	return out
 }
 
-// T translates key into tag's language, falling back to "en" when missing.
-// Returns key itself when nothing matches (so the UI always renders something).
 func T(tag, key string) string {
 	loadCatalog()
 	if tag != "" {

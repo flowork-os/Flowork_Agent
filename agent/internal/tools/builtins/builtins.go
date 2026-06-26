@@ -1,29 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 11 phase 1a (5 demo tools) DONE. API stable: Init()
-//   register echo, now, memory_get, memory_set, memory_delete.
-//   Phase 1b+ add real tools (read_file/write_file/bash_run/web_fetch/
-//   brain_search/telegram_send/etc) → tambah file baru di package ini
-//   (mis. `file.go`, `web.go`), JANGAN modify ini. Each new tool needs
-//   ke-register di Init().
-//
-// Package builtins — Section 11 phase 1a: 5 demo tools yang prove the
-// Tool foundation pattern end-to-end.
-//
-// Tools:
-//   1. echo            — return input message (capability: none)
-//   2. now             — return current UTC timestamp (capability: time:read)
-//   3. memory_get      — read tool_memory by key (capability: state:read)
-//   4. memory_set      — write tool_memory (capability: state:write)
-//   5. memory_delete   — delete tool_memory entry (capability: state:write)
-//
-// Wiring: dispatcher (di agentmgr) panggil tools.WithStore(ctx, store) →
-// builtins extract via tools.FromStore.
-//
-// Source: Flowork_Agent/roadmap.md Section 11 phase 1a.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package builtins
 
@@ -38,72 +16,59 @@ import (
 	"flowork-gui/internal/tools"
 )
 
-// Init — explicit bootstrap call dari main.go. Tidak pakai init() supaya
-// register sequence eksplisit (caller pilih kapan tools available).
-//
-// Idempotent: panic kalau dipanggil 2x karena Registry.Register panics on
-// duplicate. Caller wajib panggil exactly once at boot.
 func Init() {
 	tools.Register(&echoTool{})
 	tools.Register(&nowTool{})
 	tools.Register(&memGetTool{})
 	tools.Register(&memSetTool{})
 	tools.Register(&memDelTool{})
-	// phase 1b: file ops (file.go)
+
 	tools.Register(&fileReadTool{})
 	tools.Register(&fileWriteTool{})
 	tools.Register(&fileListTool{})
-	// BRAIN-PATH tools (brain_search/add/local/get, graph_recall, mistake_recall, immune
-	// scan/verify, federation promote, codemap) DICABUT ke builtins_brain.go (FROZEN, init
-	// self-register) — jalur brain diabadikan, ga bisa ke-drop diam-diam. Lihat lock/brain.md.
-	// Skill-author tools (impl editable: skill_suggest.go/skill_author.go) tetap di sini:
+
 	tools.Register(&skillSuggestTool{})
 	tools.Register(&skillAuthorTool{})
-	// phase 1f: comms (telegram.go)
+
 	tools.Register(&telegramSendTool{})
-	// phase 1d: web (web.go)
+
 	tools.Register(&webFetchTool{})
-	// FASE 3: tools riset (web_research.go) — anti ngarang sumber
+
 	tools.Register(&webSearchTool{})
 	tools.Register(&webArchiveTool{})
 	tools.Register(&htmlExtractTool{})
 	tools.Register(&pdfReadTool{})
-	// FASE 6: Mr.Flow jadi router — list + trigger Category Task dari chat.
+
 	tools.Register(&taskListTool{})
 	tools.Register(&taskRunTool{})
-	// phase 1c: shell (shell.go) — bash exec dengan denylist + timeout
+
 	tools.Register(&bashTool{})
-	// P1 file ops (file_advanced.go) — edit + glob + grep
+
 	tools.Register(&editTool{})
 	tools.Register(&globTool{})
 	tools.Register(&grepTool{})
-	// P1 vcs (git.go) — status/diff/log/show
+
 	tools.Register(&gitTool{})
-	// P1 skill (skill.go) — Router skill catalog client tool
+
 	tools.Register(&skillTool{})
 	tools.Register(&skillSearchTool{})
-	// phase 1g: orchestration (orchestration.go) — plan/todo/goal
+
 	tools.Register(&planReadTool{})
 	tools.Register(&planWriteTool{})
 	tools.Register(&todoTool{})
 	tools.Register(&goalDoneTool{})
-	// codemap query tools (codemap_tools.go) → builtins_brain.go (FROZEN, init self-register).
-	// Operator: host power control (system_power.go) — cap exec:power, ARM-gated.
+
 	tools.Register(&systemPowerTool{})
-	// Operator: launch whitelisted desktop apps (app_open.go) — cap exec:app.
+
 	tools.Register(&appOpenTool{})
-	// Router delegation (agent_command.go) — cap rpc:agent-invoke, Mr.Flow only.
+
 	tools.Register(&agentCommandTool{})
 }
-
-// =============================================================================
-// 1. echo — return input message
-// =============================================================================
 
 type echoTool struct{}
 
 func (echoTool) Name() string       { return "echo" }
-func (echoTool) Capability() string { return "" } // no capability needed
+func (echoTool) Capability() string { return "" }
 func (echoTool) Schema() tools.Schema {
 	return tools.Schema{
 		Description: "Echo back the input message. Demo tool — verifies dispatcher wiring.",
@@ -121,10 +86,6 @@ func (echoTool) Run(_ context.Context, args map[string]any) (tools.Result, error
 	return tools.Result{Output: map[string]any{"message": msg}}, nil
 }
 
-// =============================================================================
-// 2. now — current UTC timestamp
-// =============================================================================
-
 type nowTool struct{}
 
 func (nowTool) Name() string       { return "now" }
@@ -132,13 +93,11 @@ func (nowTool) Capability() string { return "time:read" }
 func (nowTool) Schema() tools.Schema {
 	return tools.Schema{
 		Description: "Waktu sekarang LIVE: UTC (rfc3339) + waktu lokal default WIB (UTC+7). Pakai 'local' buat tanggal/jam terkini (anti berita-basi).",
-		Params:      nil, // no params
+		Params:      nil,
 		Returns:     "{rfc3339: '<UTC>', unix_ms: <int>, local: 'YYYY-MM-DD HH:MM:SS', tz_label: 'WIB', tz_offset_hours: 7}",
 	}
 }
 
-// tzOffsetHoursEnv — offset jam lokal dari UTC. Default 7 (WIB). Switch: FLOWORK_TZ_OFFSET_HOURS
-// (selaras time_awareness.go di agentmgr — BUKAN hardcode tanggal, dihitung live dari UTC).
 func tzOffsetHoursEnv() int {
 	if v := strings.TrimSpace(os.Getenv("FLOWORK_TZ_OFFSET_HOURS")); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n >= -12 && n <= 14 {
@@ -159,18 +118,14 @@ func (nowTool) Run(_ context.Context, _ map[string]any) (tools.Result, error) {
 	local := t.Add(time.Duration(off) * time.Hour)
 	return tools.Result{
 		Output: map[string]any{
-			"rfc3339":         t.Format(time.RFC3339), // UTC (backward-compat: scheduler dll tetap baca ini)
+			"rfc3339":         t.Format(time.RFC3339),
 			"unix_ms":         t.UnixMilli(),
-			"local":           local.Format("2006-01-02 15:04:05"), // waktu lokal (default WIB)
+			"local":           local.Format("2006-01-02 15:04:05"),
 			"tz_label":        tzLabelEnv(),
 			"tz_offset_hours": off,
 		},
 	}, nil
 }
-
-// =============================================================================
-// 3. memory_get — read tool_memory by key
-// =============================================================================
 
 type memGetTool struct{}
 
@@ -205,10 +160,6 @@ func (memGetTool) Run(ctx context.Context, args map[string]any) (tools.Result, e
 	}}, nil
 }
 
-// =============================================================================
-// 4. memory_set — upsert tool_memory
-// =============================================================================
-
 type memSetTool struct{}
 
 func (memSetTool) Name() string       { return "memory_set" }
@@ -238,10 +189,6 @@ func (memSetTool) Run(ctx context.Context, args map[string]any) (tools.Result, e
 	}
 	return tools.Result{Output: map[string]any{"key": key, "ok": true}}, nil
 }
-
-// =============================================================================
-// 5. memory_delete — remove tool_memory entry
-// =============================================================================
 
 type memDelTool struct{}
 

@@ -1,13 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/checking-ai-agent
-// Locked at: 2026-05-30
-// Reason: Port batch 7 — 6 tool tambahan.
-//
-// v8_extras.go:
-//   self_prompt_render, self_prompt_set, codemap_search_advanced,
-//   wallet_alert_list, wallet_alerts_fired_list, ledger_list.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package builtins
 
@@ -25,10 +19,6 @@ func init() {
 	tools.Register(&codemapSearchAdvancedTool{})
 	tools.Register(&ledgerListTool{})
 }
-
-// =============================================================================
-// 1. self_prompt_render — render self-prompt slots full
-// =============================================================================
 
 type selfPromptRenderTool struct{}
 
@@ -55,10 +45,6 @@ func (selfPromptRenderTool) Run(ctx context.Context, args map[string]any) (tools
 		Output: map[string]any{"count": len(slots), "slots": slots},
 	}, nil
 }
-
-// =============================================================================
-// 2. self_prompt_set — set/update self-prompt slot
-// =============================================================================
 
 type selfPromptSetTool struct{}
 
@@ -102,10 +88,6 @@ func (selfPromptSetTool) Run(ctx context.Context, args map[string]any) (tools.Re
 	}, nil
 }
 
-// =============================================================================
-// 3. codemap_search_advanced — search dengan node_type + layer filter
-// =============================================================================
-
 type codemapSearchAdvancedTool struct{}
 
 func (codemapSearchAdvancedTool) Name() string       { return "codemap_search_advanced" }
@@ -141,10 +123,6 @@ func (codemapSearchAdvancedTool) Run(ctx context.Context, args map[string]any) (
 		Output: map[string]any{"count": len(nodes), "nodes": nodes},
 	}, nil
 }
-
-// =============================================================================
-// 6. ledger_list — list finance ledger entries with filter
-// =============================================================================
 
 type ledgerListTool struct{}
 

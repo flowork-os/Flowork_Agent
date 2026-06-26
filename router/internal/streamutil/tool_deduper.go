@@ -1,24 +1,17 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — audit pass surface review.
-
-// Tool Deduper (strip duplicates when MCP equivalents).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package streamutil
 
 import "regexp"
 
-// Pattern is either an exact string match or a regex.
 type Pattern struct {
 	Exact string
 	Regex *regexp.Regexp
 }
 
-// DedupeRule says: when ALL Triggers are present in the tool set, drop every
-// tool matching any pattern in Strip.
 type DedupeRule struct {
 	Triggers []Pattern
 	Strip    []Pattern
@@ -36,7 +29,6 @@ func match(name string, p Pattern) bool {
 	return false
 }
 
-// DedupRules ports upstream's 3 default rules verbatim. Extend by appending.
 var DedupRules = []DedupeRule{
 	{
 		Triggers: []Pattern{exact("mcp__exa__web_search_exa"), exact("mcp__exa__web_fetch_exa")},
@@ -52,8 +44,6 @@ var DedupRules = []DedupeRule{
 	},
 }
 
-// ToolName extracts the canonical name from either OpenAI tool ({name}) or
-// function-wrapped ({function:{name}}) shapes.
 func ToolName(t map[string]any) string {
 	if v, ok := t["name"].(string); ok && v != "" {
 		return v
@@ -66,7 +56,6 @@ func ToolName(t map[string]any) string {
 	return ""
 }
 
-// DedupeTools returns (filtered, stripped-names). Empty input is passed through.
 func DedupeTools(tools []map[string]any) ([]map[string]any, []string) {
 	if len(tools) == 0 {
 		return tools, nil

@@ -1,24 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-29
-// Reason: Section 1 (Episodic Interactions) DONE + adversarial-audit passed
-//   (capability gate state:write, hold-lock through Open+Log, RFC3339 explicit
-//   timestamp, 8KB content cap). API stable: LogInteraction/ListInteractions/
-//   PruneInteractions/CountInteractions. Future Section 8 (Retention) extend
-//   via NEW function di file lain — JANGAN ubah ini tanpa approval.
-//
-// interactions.go — Section 1 roadmap: Episodic interactions per-warga.
-//
-// PURPOSE:
-//   Log tiap interaksi warga (Telegram in/out, RPC call, scheduler fire, dst.)
-//   ke tabel `interactions` di state.db. Bukan untuk LLM context inject —
-//   anti over-prompt. Tujuan: audit, recall manual via UI, analytics.
-//
-// ⚠️ OVER-PROMPT WARNING (per standar_ai_agent.md section 11):
-//   JANGAN auto-inject interactions ke system prompt. Akses HANYA via
-//   tool call (`memory_get` future tool) atau API endpoint untuk dashboard.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package agentdb
 
@@ -29,21 +12,16 @@ import (
 	"time"
 )
 
-// Interaction — satu row di tabel `interactions`.
 type Interaction struct {
 	ID         int64          `json:"id"`
-	Channel    string         `json:"channel"`     // 'telegram' | 'rpc' | 'cron' | 'schedule'
-	Direction  string         `json:"direction"`   // 'in' | 'out'
-	Actor      string         `json:"actor"`       // chat_id, caller_id, scheduler_id
+	Channel    string         `json:"channel"`
+	Direction  string         `json:"direction"`
+	Actor      string         `json:"actor"`
 	Content    string         `json:"content"`
-	Metadata   map[string]any `json:"metadata"`    // message_id, group_id, model used
-	OccurredAt string         `json:"occurred_at"` // ISO timestamp
+	Metadata   map[string]any `json:"metadata"`
+	OccurredAt string         `json:"occurred_at"`
 }
 
-// LogInteraction insert satu row. Idempotent terhadap timestamp — caller
-// tidak set ID, SQLite autoincrement. Metadata di-marshal ke JSON.
-//
-// Content truncated kalau > 8KB (safety against bloat dari long payload).
 func (s *Store) LogInteraction(channel, direction, actor, content string, metadata map[string]any) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -55,7 +33,6 @@ func (s *Store) LogInteraction(channel, direction, actor, content string, metada
 		return 0, fmt.Errorf("direction must be 'in' or 'out'")
 	}
 
-	// Hard cap content size — anti accidental dump big payload (mis. file content).
 	const maxContentBytes = 8 * 1024
 	if len(content) > maxContentBytes {
 		content = content[:maxContentBytes] + "…[truncated]"
@@ -72,10 +49,6 @@ func (s *Store) LogInteraction(channel, direction, actor, content string, metada
 		metaJSON = "{}"
 	}
 
-	// Timestamp explicit RFC3339 UTC supaya format konsisten dengan
-	// PruneInteractions cutoff (audit fix: lexicographic compare di SQLite
-	// rusak kalau insert pakai DEFAULT `YYYY-MM-DD HH:MM:SS` lalu prune
-	// pakai RFC3339 dengan T+Z — format beda → comparison salah).
 	ts := time.Now().UTC().Format(time.RFC3339)
 	res, err := s.db.Exec(
 		`INSERT INTO interactions(channel, direction, actor, content, metadata, occurred_at) VALUES(?, ?, ?, ?, ?, ?)`,
@@ -87,8 +60,6 @@ func (s *Store) LogInteraction(channel, direction, actor, content string, metada
 	return res.LastInsertId()
 }
 
-// ListInteractions — paginated list. Filter optional: channel, actor.
-// Limit default 50, max 500 (bounded supaya ngga ke-DOS).
 func (s *Store) ListInteractions(channel, actor string, limit int) ([]Interaction, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -132,9 +103,6 @@ func (s *Store) ListInteractions(channel, actor string, limit int) ([]Interactio
 	return out, rows.Err()
 }
 
-// PruneInteractions — soft-delete row yang occurred_at lebih lama dari
-// olderThan (e.g. 30 days). Return count deleted. Hard-delete kemudian
-// jalan via retention cron (section 8 roadmap, future).
 func (s *Store) PruneInteractions(olderThan time.Duration) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -151,7 +119,6 @@ func (s *Store) PruneInteractions(olderThan time.Duration) (int64, error) {
 	return res.RowsAffected()
 }
 
-// CountInteractions — total non-deleted row. Buat metric / dashboard.
 func (s *Store) CountInteractions() (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

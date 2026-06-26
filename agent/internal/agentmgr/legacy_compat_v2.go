@@ -1,19 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Phase 1 — Doktrin Edukasi compat shim (Section 9). Multi-agent
-//   karma/topology reference NOT applicable di Mr.Flow single-warga
-//   plug-and-play (BY DESIGN). Phase 2 (multi-warga support kalau warga
-//   baru spawn) → tambah file baru.
-//
-// legacy_compat_v2.go — Section 9 (Doktrin Edukasi) reference GUI tab
-// shim. Extend (legacy_compat.go locked). Maps reference path:
-//   /api/settings/educational-errors  →  /api/agents/edu-errors?id=mr-flow
-// + shape transform: {data: [{error_code, title, message_template,
-// evolution_hint}]} ↔ backend {items: [{code, title, explanation,
-// remediation, ...}]}.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package agentmgr
 
@@ -25,12 +13,6 @@ import (
 	"flowork-gui/internal/httpx"
 )
 
-// EduErrorsCompatHandler — GET/PUT /api/settings/educational-errors
-//
-//	GET  → reference shape {data: [{error_code, title, message_template,
-//	       evolution_hint}], count}
-//	PUT  → body {error_code, message_template, evolution_hint}.
-//	       Preserve title + category by re-reading existing entry.
 func EduErrorsCompatHandler(w http.ResponseWriter, r *http.Request) {
 	store, err := openAgentStore(defaultAgentID)
 	if err != nil {
@@ -74,8 +56,7 @@ func EduErrorsCompatHandler(w http.ResponseWriter, r *http.Request) {
 			httpx.WriteJSON(w, map[string]any{"error": "error_code required"})
 			return
 		}
-		// Preserve title + category dari existing entry (reference cuma
-		// edit message + hint, title locked di seed source).
+
 		existing, lookupErr := store.LookupEduError(body.ErrorCode)
 		if lookupErr != nil {
 			httpx.WriteJSON(w, map[string]any{"error": "lookup: " + lookupErr.Error()})

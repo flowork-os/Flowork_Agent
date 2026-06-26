@@ -1,16 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Port batch 10 — final 13 auditor untuk reach 109/109 coverage.
-//
-// auditors_v11.go:
-//   tcp_keepalive, websocket_origin, json_decode_unknownfields,
-//   long_lived_token, archive_path_traversal, file_overwrite,
-//   exit_in_lib, missing_error_wrap, struct_field_alignment,
-//   middleware_no_recover, http_no_user_agent, time_truncate_round,
-//   pprof_endpoint.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package scanner
 
@@ -20,19 +11,19 @@ import (
 )
 
 func init() {
-	Auditors["tcp_keepalive_auditor"]            = AuditTCPKeepalive
-	Auditors["websocket_origin_auditor"]         = AuditWebsocketOrigin
+	Auditors["tcp_keepalive_auditor"] = AuditTCPKeepalive
+	Auditors["websocket_origin_auditor"] = AuditWebsocketOrigin
 	Auditors["json_decode_unknownfields_auditor"] = AuditJSONDecodeUnknownFields
-	Auditors["long_lived_token_auditor"]         = AuditLongLivedToken
-	Auditors["archive_path_traversal_auditor"]   = AuditArchivePathTraversal
-	Auditors["file_overwrite_auditor"]           = AuditFileOverwrite
-	Auditors["exit_in_lib_auditor"]              = AuditExitInLib
-	Auditors["missing_error_wrap_auditor"]       = AuditMissingErrorWrap
-	Auditors["middleware_no_recover_auditor"]    = AuditMiddlewareNoRecover
-	Auditors["http_no_user_agent_auditor"]       = AuditHTTPNoUserAgent
-	Auditors["time_truncate_round_auditor"]      = AuditTimeTruncateRound
-	Auditors["pprof_endpoint_auditor"]           = AuditPprofEndpoint
-	Auditors["sql_no_limit_auditor"]             = AuditSQLNoLimit
+	Auditors["long_lived_token_auditor"] = AuditLongLivedToken
+	Auditors["archive_path_traversal_auditor"] = AuditArchivePathTraversal
+	Auditors["file_overwrite_auditor"] = AuditFileOverwrite
+	Auditors["exit_in_lib_auditor"] = AuditExitInLib
+	Auditors["missing_error_wrap_auditor"] = AuditMissingErrorWrap
+	Auditors["middleware_no_recover_auditor"] = AuditMiddlewareNoRecover
+	Auditors["http_no_user_agent_auditor"] = AuditHTTPNoUserAgent
+	Auditors["time_truncate_round_auditor"] = AuditTimeTruncateRound
+	Auditors["pprof_endpoint_auditor"] = AuditPprofEndpoint
+	Auditors["sql_no_limit_auditor"] = AuditSQLNoLimit
 }
 
 var tcpDialRE = regexp.MustCompile(`net\.Dial\s*\(`)
@@ -163,7 +154,7 @@ func AuditArchivePathTraversal(filePath, content string) []Finding {
 		if !archiveExtractRE.MatchString(line) {
 			continue
 		}
-		// Check 30 line forward for filepath.Rel / strings.HasPrefix path traversal guard.
+
 		window := lines[i:minInt(i+30, len(lines))]
 		hasGuard := false
 		for _, w := range window {
@@ -214,7 +205,7 @@ func AuditExitInLib(filePath, content string) []Finding {
 	if !strings.HasSuffix(filePath, ".go") || strings.HasSuffix(filePath, "_test.go") {
 		return nil
 	}
-	// os.Exit di main() OK; flag otherwise.
+
 	if strings.Contains(content, "package main") {
 		return nil
 	}
@@ -262,7 +253,7 @@ func AuditMiddlewareNoRecover(filePath, content string) []Finding {
 	if !strings.HasSuffix(filePath, ".go") {
 		return nil
 	}
-	// Heuristic: file dengan mux.Handle / Use tanpa recover middleware visible.
+
 	if !strings.Contains(content, "mux.Handle") && !strings.Contains(content, "Use(") {
 		return nil
 	}
@@ -284,10 +275,10 @@ func AuditHTTPNoUserAgent(filePath, content string) []Finding {
 	if !strings.HasSuffix(filePath, ".go") {
 		return nil
 	}
-	// Heuristic: http.NewRequest sering dipake without User-Agent set.
+
 	out := []Finding{}
 	if strings.Contains(content, "http.NewRequest") && !strings.Contains(content, "User-Agent") {
-		// Single finding per file untuk avoid noise.
+
 		out = append(out, Finding{
 			Auditor:     "http_no_user_agent_auditor",
 			Severity:    SevLow,

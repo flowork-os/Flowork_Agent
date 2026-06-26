@@ -1,14 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// 2026-06-11 (owner-approved security audit, unfreeze→refreeze): proxy-test now
-//   calls blockMetadataURL() on the user-supplied url AND proxyUrl — SSRF guard
-//   for the cloud-metadata range. LAN/private still allowed.
-// Reason: Audit pass — HTTP handler.
-
-// Settings Sub-routes (database / proxy-test /.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -22,7 +15,6 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-// settingsDatabaseHandler — GET DB stats (file size, table row counts).
 func settingsDatabaseHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -42,8 +34,7 @@ func settingsDatabaseHandler(w http.ResponseWriter, r *http.Request) {
 	counts := map[string]int{}
 	for _, t := range tables {
 		var n int
-		// `t` selalu dari slice tabel hardcoded di atas, bukan input user; nama tabel tak bisa
-		// di-parameterize → concat wajar, aman dari SQL injection. // scanner:ignore
+
 		_ = d.QueryRow("SELECT COUNT(*) FROM " + t).Scan(&n)
 		counts[t] = n
 	}
@@ -53,8 +44,6 @@ func settingsDatabaseHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// settingsProxyTestHandler — POST { url } test outbound through proxy.
-// Returns { reachable, latencyMs, statusCode, error }.
 func settingsProxyTestHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -120,9 +109,6 @@ func settingsProxyTestHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-// settingsRequireLoginHandler — GET / PUT toggle the requireLogin flag and
-// (when enabling password mode) set the admin password. Body for PUT:
-// { requireLogin: bool, authMode: "password|oidc|none", password?: string }.
 func settingsRequireLoginHandler(w http.ResponseWriter, r *http.Request) {
 	d, _ := store.Open()
 	settings, err := store.LoadSettings(d)

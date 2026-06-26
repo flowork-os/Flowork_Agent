@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — CLI command/menu.
-
-// CLI Tools Registry.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package clitools
 
@@ -14,33 +10,30 @@ import (
 	"path/filepath"
 )
 
-// ConfigFormat — how the tool stores its settings on disk.
 type ConfigFormat string
 
 const (
 	FormatJSON   ConfigFormat = "json"
 	FormatTOML   ConfigFormat = "toml"
-	FormatEnv    ConfigFormat = "env"    // .env file (KEY=VALUE)
-	FormatYAML   ConfigFormat = "yaml"   // YAML config (custom writer)
-	FormatCustom ConfigFormat = "custom" // bespoke multi-file writer
-	FormatProxy  ConfigFormat = "proxy"  // no on-disk config, MITM proxy only
+	FormatEnv    ConfigFormat = "env"
+	FormatYAML   ConfigFormat = "yaml"
+	FormatCustom ConfigFormat = "custom"
+	FormatProxy  ConfigFormat = "proxy"
 )
 
-// Tool — one CLI integration.
 type Tool struct {
 	ID            string       `json:"id"`
 	DisplayName   string       `json:"displayName"`
-	BinaryName    string       `json:"binaryName"`              // for PATH lookup
-	BinaryAliases []string     `json:"binaryAliases,omitempty"` // alternate executables
-	SettingsPath  string       `json:"settingsPath"`            // expanded path
+	BinaryName    string       `json:"binaryName"`
+	BinaryAliases []string     `json:"binaryAliases,omitempty"`
+	SettingsPath  string       `json:"settingsPath"`
 	Format        ConfigFormat `json:"format"`
-	BaseURLKey    string       `json:"baseUrlKey,omitempty"` // env var or key path
+	BaseURLKey    string       `json:"baseUrlKey,omitempty"`
 	TokenKey      string       `json:"tokenKey,omitempty"`
-	EnvKeys       []string     `json:"envKeys"` // keys this tool understands (for reset)
+	EnvKeys       []string     `json:"envKeys"`
 	Notes         string       `json:"notes,omitempty"`
 }
 
-// All — registry of supported tools. Paths resolved at runtime via home().
 func All() []Tool {
 	home, _ := os.UserHomeDir()
 	join := func(parts ...string) string {
@@ -191,7 +184,6 @@ func All() []Tool {
 	}
 }
 
-// Get returns Tool by ID, nil if unknown.
 func Get(id string) *Tool {
 	for _, t := range All() {
 		if t.ID == id {

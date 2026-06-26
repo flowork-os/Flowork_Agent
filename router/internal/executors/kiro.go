@@ -1,11 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Provider executor HTTP call.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Executor: kiro — Kiro AWS CodeWhisperer wrapper (conversationState shape).
 package executors
 
 import (
@@ -45,14 +42,6 @@ func (k *kiroExecutor) headers(p *store.ProviderConnection) map[string]string {
 	return h
 }
 
-// kiroBody translates OpenAI messages to Kiro's conversationState shape: the
-// last user message goes into currentMessage, the rest into history.
-//
-// Synthetic suffixes on r.Model (-thinking / -agentic / -thinking-agentic)
-// are stripped before the request leaves this process — Kiro upstream only
-// accepts the base model id. The agentic flavour additionally prepends the
-// chunked-write system prompt to history so the model self-throttles
-// large writes (Kiro upstream times out around 2-3 min for big edits).
 func kiroBody(r Request) []byte {
 	isAgentic := IsKiroAgenticModel(r.Model)
 	resolvedModel := ResolveKiroModel(r.Model)
@@ -60,7 +49,6 @@ func kiroBody(r Request) []byte {
 	var history []map[string]any
 	var current map[string]any
 
-	// Agentic variant: prepend the chunked-write protocol as a system turn.
 	if isAgentic {
 		history = append(history, map[string]any{
 			"role": "system",

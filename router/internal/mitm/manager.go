@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — MITM proxy module.
-
-// MITM lifecycle manager.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package mitm
 
@@ -21,7 +17,6 @@ import (
 	"time"
 )
 
-// Manager orchestrates the TLS Server + DNS hijack + pidfile bookkeeping.
 type Manager struct {
 	server *Server
 	cm     *CertManager
@@ -30,8 +25,6 @@ type Manager struct {
 	mu     sync.Mutex
 }
 
-// NewManager prepares a Manager bound to addr (typically "127.0.0.1:443"),
-// using the given cert manager and hosts to hijack.
 func NewManager(addr string, cm *CertManager, hosts []string) *Manager {
 	return &Manager{
 		addr:  addr,
@@ -40,12 +33,8 @@ func NewManager(addr string, cm *CertManager, hosts []string) *Manager {
 	}
 }
 
-// PidFile returns the path to the MITM pidfile.
 func PidFile() string { return filepath.Join(MITMDir(), ".mitm.pid") }
 
-// Start writes the pidfile, hijacks DNS, then launches the TLS server.
-// Returns once the listener is bound; the server runs in the background.
-// Caller should call Stop on shutdown.
 func (m *Manager) Start(handler interface{}) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -60,18 +49,17 @@ func (m *Manager) Start(handler interface{}) error {
 	}
 	if len(m.hosts) > 0 {
 		if err := AddDNSEntries(m.hosts); err != nil {
-			// Pidfile cleanup on DNS failure
+
 			_ = os.Remove(PidFile())
 			return fmt.Errorf("dns hijack: %w", err)
 		}
 	}
-	srv := NewServer(m.addr, m.cm, nil) // handler hooked via package-level rewriters
+	srv := NewServer(m.addr, m.cm, nil)
 	m.server = srv
 	go func() { _ = srv.Start() }()
 	return nil
 }
 
-// Stop drains the server (5s context) and removes the pidfile and DNS entries.
 func (m *Manager) Stop() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -87,7 +75,6 @@ func (m *Manager) Stop() error {
 	return nil
 }
 
-// ReadPidFile returns the recorded pid (or 0 when missing/invalid).
 func ReadPidFile() int {
 	b, err := os.ReadFile(PidFile())
 	if err != nil {
@@ -100,8 +87,6 @@ func ReadPidFile() int {
 	return p
 }
 
-// IsRunning probes the pidfile and the OS for liveness via os.FindProcess +
-// signal 0. Returns true when a live mitm process matches the pidfile.
 func IsRunning() bool {
 	pid := ReadPidFile()
 	if pid <= 0 {
@@ -111,7 +96,6 @@ func IsRunning() bool {
 	if err != nil {
 		return false
 	}
-	// On Unix, signal 0 tests existence without killing. Windows: FindProcess
-	// already returns nil for unknown pids (per docs we can also probe).
+
 	return p.Signal(syscall_zero()) == nil
 }

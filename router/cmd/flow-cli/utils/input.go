@@ -1,11 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — CLI command/menu.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Uses bufio.Scanner on os.Stdin — no external deps.
 package utils
 
 import (
@@ -22,7 +19,6 @@ func init() {
 	stdin.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
 }
 
-// Prompt asks for a free-form string. def is the fallback when user hits Enter.
 func Prompt(label, def string) string {
 	if def != "" {
 		fmt.Printf("%s [%s]: ", label, def)
@@ -39,7 +35,6 @@ func Prompt(label, def string) string {
 	return s
 }
 
-// Confirm asks a y/N question. def is the default when user hits Enter.
 func Confirm(label string, def bool) bool {
 	defStr := "y/N"
 	if def {
@@ -56,8 +51,6 @@ func Confirm(label string, def bool) bool {
 	return s == "y" || s == "yes"
 }
 
-// Select prompts the user to pick an index from labels. Returns the picked
-// index or -1 when input is invalid / blank.
 func Select(prompt string, labels []string) int {
 	fmt.Println()
 	for i, l := range labels {
@@ -78,7 +71,6 @@ func Select(prompt string, labels []string) int {
 	return n - 1
 }
 
-// PromptInt asks for an integer, returning def on blank/invalid input.
 func PromptInt(label string, def int) int {
 	s := Prompt(label, strconv.Itoa(def))
 	n, err := strconv.Atoi(s)
@@ -88,7 +80,4 @@ func PromptInt(label string, def int) int {
 	return n
 }
 
-// PromptSecret reads input echoed back to the terminal. (No terminal echo
-// suppression — keeping CGO-free; this is the same compromise upstream makes
-// outside of its postinstall hook.)
 func PromptSecret(label string) string { return Prompt(label, "") }

@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — HTTP handler.
-
-// Usage Analytics Breakdown.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -20,7 +16,6 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-// usageBreakdownRouter — dispatch /api/usage/* sub-routes.
 func usageBreakdownRouter(w http.ResponseWriter, r *http.Request) {
 	rest := strings.TrimPrefix(r.URL.Path, "/api/usage/")
 	switch rest {
@@ -49,7 +44,7 @@ func usageBreakdownRouter(w http.ResponseWriter, r *http.Request) {
 		usageStreamHandler(w, r)
 		return
 	}
-	// Treat as connectionId (provider connection)
+
 	if rest != "" {
 		usageByConnectionHandler(w, r, rest)
 		return
@@ -57,7 +52,6 @@ func usageBreakdownRouter(w http.ResponseWriter, r *http.Request) {
 	usageHandler(w, r)
 }
 
-// usageChartHandler — GET ?days=7&granularity=day → time-series.
 func usageChartHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -105,7 +99,6 @@ func usageChartHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// usageHistoryHandler — GET ?limit=&offset=&provider=
 func usageHistoryHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -170,7 +163,6 @@ func usageHistoryHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// usageProvidersHandler — group-by provider sum across all time.
 func usageProvidersHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -211,7 +203,6 @@ func usageProvidersHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"data": out, "count": len(out)})
 }
 
-// usageRequestDetailsHandler — GET single requestDetails row by id.
 func usageRequestDetailsHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -265,13 +256,10 @@ func usageRequestDetailsHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// usageRequestLogsHandler — same surface as /api/console-log but lives
-// under /api/usage/ namespace (upstream parity).
 func usageRequestLogsHandler(w http.ResponseWriter, r *http.Request) {
 	consoleLogHandler(w, r)
 }
 
-// usageStatsHandler — top-level dashboard card. Totals across all time.
 func usageStatsHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -296,8 +284,6 @@ func usageStatsHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// usageStreamHandler — SSE stream of incoming request rows. Polls
-// usageHistory at 1s interval; emits new rows as `data:` events.
 func usageStreamHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -314,7 +300,7 @@ func usageStreamHandler(w http.ResponseWriter, r *http.Request) {
 	d, _ := store.Open()
 	var lastID int
 	_ = d.QueryRow(`SELECT COALESCE(MAX(id), 0) FROM usageHistory`).Scan(&lastID)
-	// Initial flush
+
 	fmt.Fprintf(w, "event: ready\ndata: {\"lastId\":%d}\n\n", lastID)
 	flusher.Flush()
 	ticker := time.NewTicker(1 * time.Second)
@@ -339,8 +325,6 @@ func usageStreamHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// streamUsageHistoryRows drains rows into SSE events; defer ensures rows are
-// always released even if Fprintf panics on a closed connection.
 func streamUsageHistoryRows(w http.ResponseWriter, rows *sql.Rows, lastID *int) bool {
 	defer rows.Close()
 	anyEmitted := false
@@ -364,7 +348,6 @@ func streamUsageHistoryRows(w http.ResponseWriter, rows *sql.Rows, lastID *int) 
 	return anyEmitted
 }
 
-// usageByConnectionHandler — GET /api/usage/{providerConnectionId} summary.
 func usageByConnectionHandler(w http.ResponseWriter, r *http.Request, connID string) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

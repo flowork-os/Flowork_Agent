@@ -1,13 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 27 phase 1 Go AST parser via stdlib go/ast. Extract
-//   func + type + method nodes dengan line range. Phase 2 (call edges,
-//   import edges, JS parser, language registry) → tambah file baru.
-//
-// goparser.go — Section 27 phase 1: minimal Go AST node extractor.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package codemap
 
@@ -17,9 +11,8 @@ import (
 	"go/token"
 )
 
-// Node — generic minimal node info.
 type Node struct {
-	Type      string // "func" | "type" | "method"
+	Type      string
 	Name      string
 	Signature string
 	LineStart int
@@ -27,7 +20,6 @@ type Node struct {
 	SizeLOC   int
 }
 
-// ParseGo — parse single .go file, return slice of Node.
 func ParseGo(path string, content []byte) ([]Node, error) {
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, path, content, parser.ParseComments)
@@ -76,7 +68,6 @@ func ParseGo(path string, content []byte) ([]Node, error) {
 	return out, nil
 }
 
-// shortSig — minimal "func Name(...) (...)" string.
 func shortSig(fn *ast.FuncDecl) string {
 	if fn == nil {
 		return ""

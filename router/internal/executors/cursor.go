@@ -1,11 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Provider executor HTTP call.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Executor: cursor — Cursor IDE backend (api2.cursor.sh with session + checksum).
 package executors
 
 import (
@@ -18,7 +15,7 @@ import (
 
 func init() {
 	Register(&cursorExecutor{name: "cursor"})
-	Register(&cursorExecutor{name: "cu"}) // alias matching upstream index.js
+	Register(&cursorExecutor{name: "cu"})
 }
 
 type cursorExecutor struct{ name string }
@@ -39,9 +36,6 @@ func (c *cursorExecutor) headers(p *store.ProviderConnection) map[string]string 
 	storedChecksum, _ := p.Data["cursorChecksum"].(string)
 	storedSession, _ := p.Data["sessionId"].(string)
 
-	// Auto-bundle path: when the operator gave us a token but no manually-
-	// scraped checksum, derive everything Cursor's ConnectRPC endpoint
-	// requires from the token + machineId (Jyh cipher on the timestamp).
 	if tok != "" && storedChecksum == "" {
 		h := BuildCursorHeaders(tok, machineID, false)
 		h["Accept"] = "*/*"
@@ -51,7 +45,6 @@ func (c *cursorExecutor) headers(p *store.ProviderConnection) map[string]string 
 		return h
 	}
 
-	// Manual-checksum path — preserved for users who pasted the value.
 	h := map[string]string{
 		"Accept":       "*/*",
 		"x-ghost-mode": "false",

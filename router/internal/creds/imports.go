@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — audit pass surface review.
-
-// OAuth Imports (Claude/Codex/Cursor auto-detect).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package creds
 
@@ -23,7 +19,6 @@ var (
 	errCursorVscdb = errors.New("cursor session is in state.vscdb (SQLite) — paste the token via the OAuth import tab")
 )
 
-// ImportStatus — per-source detection result.
 type ImportStatus struct {
 	Source    string `json:"source"`
 	Path      string `json:"path"`
@@ -34,7 +29,6 @@ type ImportStatus struct {
 	Error     string `json:"error,omitempty"`
 }
 
-// DetectAll — scan all known credential file locations.
 func DetectAll() []ImportStatus {
 	home, _ := os.UserHomeDir()
 	return []ImportStatus{
@@ -83,7 +77,7 @@ func detectCodex(home string) ImportStatus {
 		data, err := os.ReadFile(p)
 		if err == nil {
 			s.Found = true
-			// Best-effort parse — Codex schema differs by version
+
 			var auth map[string]any
 			if json.Unmarshal(data, &auth) == nil {
 				if tok, ok := auth["accessToken"].(string); ok {
@@ -102,9 +96,6 @@ func detectCodex(home string) ImportStatus {
 	return s
 }
 
-// LoadCodexToken reads the Codex (OpenAI) CLI access token from
-// ~/.codex/auth.json (or ~/.openai/auth.json). Handles the common shapes:
-// top-level accessToken/token, nested tokens.access_token, or OPENAI_API_KEY.
 func LoadCodexToken() (string, error) {
 	home, _ := os.UserHomeDir()
 	for _, p := range []string{
@@ -138,9 +129,6 @@ func LoadCodexToken() (string, error) {
 	return "", errNoCreds
 }
 
-// LoadCursorToken reads a Cursor session token from ~/.cursor/auth.json when
-// present (JSON form). The desktop app's state.vscdb (SQLite) is NOT parsed —
-// for that, paste the token via the OAuth import tab.
 func LoadCursorToken() (string, error) {
 	home, _ := os.UserHomeDir()
 	data, err := os.ReadFile(filepath.Join(home, ".cursor", "auth.json"))
@@ -169,8 +157,7 @@ func detectCursor(home string) ImportStatus {
 		s.Path = p
 		if _, err := os.Stat(p); err == nil {
 			s.Found = true
-			// Cursor stores session in vscdb (SQLite) — not parsing here
-			// Just signal presence. Phase 2 deep parse.
+
 			s.MaskedKey = "(session present, parse Phase 2)"
 			return s
 		}

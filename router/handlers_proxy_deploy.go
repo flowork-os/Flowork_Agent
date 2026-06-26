@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — HTTP handler.
-
-// Proxy Pool Deploy Automation (BATCH 14).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -25,8 +21,6 @@ type proxyDeployBody struct {
 	Project   string `json:"project"`
 }
 
-// cloudflareDeployHandler — POST generate a Cloudflare Worker that proxies
-// requests to the user's flow_router. Returns wrangler config + script.
 func cloudflareDeployHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -64,7 +58,7 @@ compatibility_date = "2026-01-01"
 	if _, err := exec.LookPath("wrangler"); err == nil {
 		cliAvailable = true
 	}
-	// Persist proxy pool entry (typed=cloudflare) for tracking
+
 	d, _ := store.Open()
 	pool := &store.ProxyPool{
 		Name:     body.Name,
@@ -88,7 +82,6 @@ compatibility_date = "2026-01-01"
 	})
 }
 
-// denoDeployHandler — POST generate Deno Deploy edge function.
 func denoDeployHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -136,7 +129,6 @@ Deno.serve(async (req) => {
 	})
 }
 
-// vercelDeployHandler — POST generate Vercel Edge Function proxy.
 func vercelDeployHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -186,7 +178,6 @@ export default async function handler(req) {
 	})
 }
 
-// jsString — produce a safely-escaped JS string literal.
 func jsString(s string) string {
 	out := strings.ReplaceAll(s, `\`, `\\`)
 	out = strings.ReplaceAll(out, `"`, `\"`)

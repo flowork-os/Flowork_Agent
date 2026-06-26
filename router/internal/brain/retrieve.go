@@ -1,12 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30 · re-edit 2026-06-17 (owner-approved): JOIN drawers filter
-//   deleted_at — drawer tombstoned (soft-delete) JANGAN di-retrieve (83% corpus). Re-LOCK.
-// Reason: Audit pass — Brain drawer/embeddings/skills.
-
-// Brain RAG retrieval (FTS5 BM25).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package brain
 
@@ -16,35 +11,22 @@ import (
 	"fmt"
 )
 
-// Snippet — one retrieved knowledge chunk from the Memory Palace.
 type Snippet struct {
 	DrawerID string  `json:"drawer_id"`
 	Wing     string  `json:"wing"`
 	Room     string  `json:"room"`
 	Content  string  `json:"content"`
-	Score    float64 `json:"score"` // normalized relevance, higher = better, range (0,1]
+	Score    float64 `json:"score"`
 }
 
-// RetrieveOpts controls a retrieval.
 type RetrieveOpts struct {
-	// Limit — max snippets to return. <=0 defaults to 6.
 	Limit int
-	// Wings — restrict to these wings. Empty = search all wings.
+
 	Wings []string
-	// MaxContentLen — truncate each snippet's content to this many runes (0 = no cap).
+
 	MaxContentLen int
 }
 
-// Retrieve runs an FTS5 BM25 search over the Memory Palace and returns the
-// top-N most relevant drawers for RAG context injection. This is the L2 layer
-// of the cascade, exposed as multi-result for prompt enrichment.
-// Performance: content/wing/room live in memory_fts (no JOIN needed for THOSE);
-// the only JOIN is a cheap PK existence-check on drawers.deleted_at (skip
-// tombstoned — 2026-06-17), applied AFTER the MATCH narrows to a small set.
-// AND-first matching on a 30GB+ DB is ~10x faster than OR while returning the
-// same top hits. If the stricter AND match yields nothing, falls back to OR.
-// BM25 returns lower scores for more relevant rows, so we invert to a positive
-// (0,1] relevance.
 func Retrieve(ctx context.Context, db *sql.DB, query string, opts RetrieveOpts) ([]Snippet, error) {
 	limit := opts.Limit
 	if limit <= 0 {
@@ -55,8 +37,6 @@ func Retrieve(ctx context.Context, db *sql.DB, query string, opts RetrieveOpts) 
 		return nil, nil
 	}
 
-	// Precision-first: AND match (small set, fast). Fall back to OR only if AND
-	// finds nothing — that fallback set is small too (rare terms).
 	snips, err := runFTS(ctx, db, joinFTS(tokens, "AND"), opts.Wings, limit, opts.MaxContentLen)
 	if err != nil {
 		return nil, err
@@ -70,16 +50,12 @@ func Retrieve(ctx context.Context, db *sql.DB, query string, opts RetrieveOpts) 
 	return snips, nil
 }
 
-// runFTS executes one FTS5 MATCH and maps rows to Snippets.
 func runFTS(ctx context.Context, db *sql.DB, match string, wings []string, limit, maxLen int) ([]Snippet, error) {
 	var (
 		rows *sql.Rows
 		err  error
 	)
-	// JOIN drawers buat filter deleted_at: drawer SOFT-DELETED (tombstone) JANGAN
-	// di-retrieve (owner 2026-06-17 — 83% corpus tombstoned bikin brain nyajiin data
-	// ke-hapus). JOIN = PK-lookup atas hasil MATCH (set kecil, AND-first) → murah,
-	// BUKAN scan 5M. FTS5 MATCH wajib nama-tabel PENUH (alias bikin MATCH gagal).
+
 	if len(wings) > 0 {
 		placeholders := ""
 		args := []any{match}
@@ -130,7 +106,6 @@ func runFTS(ctx context.Context, db *sql.DB, match string, wings []string, limit
 	return out, nil
 }
 
-// truncateRunes caps a string to n runes, appending an ellipsis when cut.
 func truncateRunes(s string, n int) string {
 	if n <= 0 {
 		return s

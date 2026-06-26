@@ -1,15 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — HTTP handler.
-// 2026-06-13 (release audit → fix → test → re-lock): resolveLiveToken("claude") now uses
-//   creds.LoadValid (auto-refresh) instead of creds.Load+IsExpired, so the live-quota panel keeps
-//   working unattended on a device with no Claude Code. Verified live (200 + real utilization windows,
-//   no regression). Not hash-frozen.
-
-// Live quota dispatch.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -71,16 +63,10 @@ func quotaLiveHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, snap)
 }
 
-// resolveLiveToken auto-loads the upstream credential from the same on-disk
-// sources the dispatcher uses for subscription auth. The Copilot fetcher
-// has no on-disk default in this build — callers must pass ?token=.
 func resolveLiveToken(provider string) (string, error) {
 	switch provider {
 	case "claude":
-		// LoadValid auto-refreshes an expired subscription token (refresh_token grant) and persists
-		// it — so the live-quota panel keeps working unattended on a device with no Claude Code
-		// (Android / USB appliance), consistent with the dispatcher. Returns a clear re-import error
-		// when no refresh is possible.
+
 		c, err := creds.LoadValid()
 		if err != nil {
 			return "", err

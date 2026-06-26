@@ -1,14 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Provider request/response translator.
-
-// OpenAI chat-completion SSE → Ollama JSON-lines stream translator.
-// Native Ollama clients (the `ollama` CLI, libraries like ollama-python)
-// connect to /api/chat expecting ndjson rows, not OpenAI SSE. This file
-// owns the streaming conversion + the final "done" sentinel.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package response
 
@@ -20,21 +13,12 @@ import (
 	"strings"
 )
 
-// ollamaToolAcc accumulates streaming tool_call deltas keyed by index.
 type ollamaToolAcc struct {
 	ID   string
 	Name string
 	Args string
 }
 
-// TransformOpenAISSEToOllamaNDJSON reads an OpenAI SSE stream from src and
-// writes Ollama-format NDJSON rows to dst. Each row is one JSON object
-// followed by a newline:
-//
-//	{"model":"…","message":{"role":"assistant","content":"…"},"done":false}
-//
-// and the final row carries done=true (plus any accumulated tool_calls).
-// Returns the number of OpenAI chunks consumed (for logging/usage).
 func TransformOpenAISSEToOllamaNDJSON(src io.Reader, dst io.Writer, model string) int {
 	scanner := bufio.NewScanner(src)
 	scanner.Buffer(make([]byte, 0, 256*1024), 4*1024*1024)
@@ -60,7 +44,7 @@ func TransformOpenAISSEToOllamaNDJSON(src io.Reader, dst io.Writer, model string
 		}
 		var chunk map[string]any
 		if err := json.Unmarshal([]byte(payload), &chunk); err != nil {
-			continue // skip malformed
+			continue
 		}
 		chunks++
 		choices, _ := chunk["choices"].([]any)
@@ -95,7 +79,7 @@ func TransformOpenAISSEToOllamaNDJSON(src io.Reader, dst io.Writer, model string
 				}
 			}
 		}
-		// Per-chunk text delta → one Ollama row with done=false.
+
 		if c, _ := delta["content"].(string); c != "" {
 			row := map[string]any{
 				"model": model,
@@ -109,22 +93,17 @@ func TransformOpenAISSEToOllamaNDJSON(src io.Reader, dst io.Writer, model string
 		}
 	}
 
-	// Ensure the consumer sees exactly one done=true row even when [DONE]
-	// was absent (upstream cut without the sentinel).
 	if !sentDone {
 		emitOllamaDone(dst, model, tools, finishReason)
 	}
 	return chunks
 }
 
-// emitOllamaDone writes the final row carrying any accumulated tool_calls.
-// Tool args are parsed from the streamed JSON string back into a value so
-// Ollama clients see them as a nested object (matching the native shape).
 func emitOllamaDone(w io.Writer, model string, tools map[int]*ollamaToolAcc, finishReason string) {
 	message := map[string]any{"role": "assistant", "content": ""}
 	if len(tools) > 0 {
 		calls := make([]map[string]any, 0, len(tools))
-		// Order by index for determinism.
+
 		maxIdx := -1
 		for i := range tools {
 			if i > maxIdx {
@@ -155,7 +134,7 @@ func emitOllamaDone(w io.Writer, model string, tools map[int]*ollamaToolAcc, fin
 			message["tool_calls"] = calls
 		}
 	}
-	_ = finishReason // reserved for future "stop reason" mapping if Ollama adds one
+	_ = finishReason
 	writeOllamaRow(w, map[string]any{
 		"model":   model,
 		"message": message,
@@ -172,9 +151,6 @@ func writeOllamaRow(w io.Writer, row map[string]any) {
 	_, _ = w.Write([]byte{'\n'})
 }
 
-// TransformOpenAISSEToOllamaBytes is a buffer-based convenience around
-// TransformOpenAISSEToOllamaNDJSON for callers that have the SSE body
-// already materialised (non-streaming responses, tests, etc.).
 func TransformOpenAISSEToOllamaBytes(sseBody []byte, model string) []byte {
 	src := bytes.NewReader(sseBody)
 	var dst bytes.Buffer

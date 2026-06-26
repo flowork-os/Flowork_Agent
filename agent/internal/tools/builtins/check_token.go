@@ -1,14 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval. Owner: Aola Sahidin (Mr.Dev).
-// Locked 2026-06-17 · P3 Scam Detector tool, owner-approved. Tested via real tool-dispatch
-//   (capability net:fetch enforced correctly). Engine: internal/cryptocheck.
-//
-// check_token.go — P3 Scam Detector tool: vet a crypto token for scam/rug risk.
-//
-// Tipis (pola market.go): parse args → cryptocheck.CheckToken → Result. Capability
-// net:fetch (SandboxRunV3 enforce). Data FAKTUAL dari GoPlus (EVM) / RugCheck (Solana),
-// bukan model nebak → anti-halu. Read-only (TIDAK transaksi). Dipakai langsung atau oleh
-// Scam Detector group (P3). Engine: internal/cryptocheck.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
+
 package builtins
 
 import (

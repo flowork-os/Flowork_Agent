@@ -1,25 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — HTTP handler.
-
-// Vendor-specific TTS voice catalog endpoints.
-//
-// Each vendor exposes its voice list at a different URL with a different
-// response shape. The frontend voice picker wants a uniform
-// {languages, byLang} envelope grouped by ISO language code. These
-// handlers fetch the vendor catalogue, normalise the shape, and return it.
-//
-// Routes:
-//   GET /api/media-providers/tts/deepgram/voices[?lang=]
-//   GET /api/media-providers/tts/elevenlabs/voices[?lang=]
-//   GET /api/media-providers/tts/inworld/voices[?lang=]
-//   GET /api/media-providers/tts/minimax/voices[?provider=minimax|minimax-cn&voice_type=all&lang=]
-//
-// The generic /api/media-providers/tts/voices endpoint is unchanged and
-// continues to serve the active-provider fallback.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -37,14 +19,12 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-// voiceLang is one language bucket in the normalised response.
 type voiceLang struct {
 	Code   string     `json:"code"`
 	Name   string     `json:"name"`
 	Voices []voiceRec `json:"voices"`
 }
 
-// voiceRec is one voice entry inside a language bucket.
 type voiceRec struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
@@ -52,14 +32,11 @@ type voiceRec struct {
 	Category string `json:"category,omitempty"`
 }
 
-// voiceEnvelope is the response shape every per-vendor handler returns.
 type voiceEnvelope struct {
 	Languages []voiceLang           `json:"languages"`
 	ByLang    map[string]*voiceLang `json:"byLang"`
 }
 
-// addVoice inserts v into the language bucket for code (creating the
-// bucket on first use). Dedupes by voice ID within the same bucket.
 func (e *voiceEnvelope) addVoice(code string, v voiceRec) {
 	if e.ByLang == nil {
 		e.ByLang = map[string]*voiceLang{}
@@ -77,8 +54,6 @@ func (e *voiceEnvelope) addVoice(code string, v voiceRec) {
 	bucket.Voices = append(bucket.Voices, v)
 }
 
-// finalize sorts language buckets and the voices inside each, then flattens
-// the map into the Languages slice for stable JSON output.
 func (e *voiceEnvelope) finalize() {
 	keys := make([]string, 0, len(e.ByLang))
 	for k := range e.ByLang {
@@ -101,8 +76,6 @@ func (e *voiceEnvelope) finalize() {
 	}
 }
 
-// firstActiveAPIKey returns the API key from the first active TTS provider
-// whose Provider field matches vendor, or "" if none.
 func firstActiveAPIKey(vendor string) string {
 	d, err := store.Open()
 	if err != nil {
@@ -120,7 +93,6 @@ func firstActiveAPIKey(vendor string) string {
 	return ""
 }
 
-// emitVoices writes envelope as JSON, optionally filtered to a single lang.
 func emitVoices(w http.ResponseWriter, env *voiceEnvelope, langFilter string) {
 	env.finalize()
 	if langFilter != "" {
@@ -135,8 +107,6 @@ func emitVoices(w http.ResponseWriter, env *voiceEnvelope, langFilter string) {
 	writeJSON(w, http.StatusOK, env)
 }
 
-// ttsVendorGet is the shared GET request driver — applies a 15s ctx,
-// surfaces upstream non-2xx as a 502 with the body text snippet.
 func ttsVendorGet(ctx context.Context, url, authHeader, authValue string) (json.RawMessage, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -155,8 +125,6 @@ func ttsVendorGet(ctx context.Context, url, authHeader, authValue string) (json.
 	return body, nil
 }
 
-// httpClientVoices is a dedicated client with a moderate timeout so a
-// hung vendor doesn't pin the handler.
 var httpClientVoices = &http.Client{Timeout: 15 * time.Second}
 
 func snippet(b []byte) string {
@@ -166,8 +134,6 @@ func snippet(b []byte) string {
 	}
 	return s
 }
-
-// ── Deepgram ────────────────────────────────────────────────────────────
 
 func deepgramVoicesHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -216,8 +182,6 @@ func deepgramVoicesHandler(w http.ResponseWriter, r *http.Request) {
 	emitVoices(w, env, r.URL.Query().Get("lang"))
 }
 
-// ── ElevenLabs ──────────────────────────────────────────────────────────
-
 func elevenlabsVoicesHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -235,10 +199,10 @@ func elevenlabsVoicesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	var raw struct {
 		Voices []struct {
-			VoiceID            string   `json:"voice_id"`
-			Name               string   `json:"name"`
-			VerifiedLanguages  []string `json:"verified_languages"`
-			Labels             map[string]any `json:"labels"`
+			VoiceID           string         `json:"voice_id"`
+			Name              string         `json:"name"`
+			VerifiedLanguages []string       `json:"verified_languages"`
+			Labels            map[string]any `json:"labels"`
 		} `json:"voices"`
 	}
 	if err := json.Unmarshal(body, &raw); err != nil {
@@ -269,8 +233,6 @@ func elevenlabsVoicesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	emitVoices(w, env, r.URL.Query().Get("lang"))
 }
-
-// ── Inworld ─────────────────────────────────────────────────────────────
 
 func inworldVoicesHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -316,8 +278,6 @@ func inworldVoicesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	emitVoices(w, env, r.URL.Query().Get("lang"))
 }
-
-// ── MiniMax ─────────────────────────────────────────────────────────────
 
 var minimaxVoiceEndpoints = map[string]string{
 	"minimax":    "https://api.minimax.io/v1/get_voice",
@@ -405,9 +365,6 @@ func minimaxVoicesHandler(w http.ResponseWriter, r *http.Request) {
 	emitVoices(w, env, q.Get("lang"))
 }
 
-// normalizeMiniMaxVoices folds the 4 voice-group arrays into the shared
-// envelope shape. Pulled out as a package-level function so it can be
-// unit-tested without mocking the HTTP round-trip.
 func normalizeMiniMaxVoices(data map[string]any) *voiceEnvelope {
 	env := &voiceEnvelope{}
 	for _, group := range minimaxVoiceGroups {
@@ -449,8 +406,6 @@ func normalizeMiniMaxVoices(data map[string]any) *voiceEnvelope {
 	return env
 }
 
-// inferMiniMaxLanguage extracts the language tag from a voice id like
-// "English_FluentMan" — MiniMax encodes language as the prefix before "_".
 func inferMiniMaxLanguage(voiceID string) string {
 	s := strings.TrimSpace(voiceID)
 	if !strings.Contains(s, "_") {
@@ -463,7 +418,6 @@ func inferMiniMaxLanguage(voiceID string) string {
 	return s[:idx]
 }
 
-// firstStrTTS returns the first non-empty string from xs.
 func firstStrTTS(xs ...string) string {
 	for _, s := range xs {
 		if s != "" {

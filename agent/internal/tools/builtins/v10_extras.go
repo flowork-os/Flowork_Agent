@@ -1,13 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Port batch 9 — 6 tool tambahan.
-//
-// v10_extras.go:
-//   sneakernet_export_query, sneakernet_import_query, slash_alias_list,
-//   tool_subscriptions_count, schedule_runs_query, scanner_quick_scan.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package builtins
 
@@ -27,10 +21,6 @@ func init() {
 	tools.Register(&scannerQuickScanTool{})
 	tools.Register(&schedulerNextTool{})
 }
-
-// =============================================================================
-// 1. sneakernet_export_query — query export history
-// =============================================================================
 
 type sneakernetExportQueryTool struct{}
 
@@ -65,10 +55,6 @@ func (sneakernetExportQueryTool) Run(ctx context.Context, args map[string]any) (
 	}, nil
 }
 
-// =============================================================================
-// 2. slash_alias_list — list slash aliases
-// =============================================================================
-
 type slashAliasListTool struct{}
 
 func (slashAliasListTool) Name() string       { return "slash_alias_list" }
@@ -86,15 +72,11 @@ func (slashAliasListTool) Run(ctx context.Context, args map[string]any) (tools.R
 	if !ok {
 		return tools.Result{}, fmt.Errorf("agent store not available")
 	}
-	// Aliases table not yet wired to public Store API — return empty for now.
+
 	return tools.Result{
 		Output: map[string]any{"count": 0, "aliases": []any{}, "note": "alias API placeholder — future enhancement"},
 	}, nil
 }
-
-// =============================================================================
-// 3. tool_subscriptions_count — quick count + breakdown by source
-// =============================================================================
 
 type toolSubscriptionsCountTool struct{}
 
@@ -125,10 +107,6 @@ func (toolSubscriptionsCountTool) Run(ctx context.Context, args map[string]any) 
 		Output: map[string]any{"total": len(subs), "by_source": bySource},
 	}, nil
 }
-
-// =============================================================================
-// 4. schedule_runs_query — list scheduler_runs history
-// =============================================================================
 
 type scheduleRunsQueryTool struct{}
 
@@ -165,10 +143,6 @@ func (scheduleRunsQueryTool) Run(ctx context.Context, args map[string]any) (tool
 	}, nil
 }
 
-// =============================================================================
-// 5. scanner_quick_scan — quick scan workspace_meta paths
-// =============================================================================
-
 type scannerQuickScanTool struct{}
 
 func (scannerQuickScanTool) Name() string       { return "scanner_quick_scan" }
@@ -201,10 +175,6 @@ func (scannerQuickScanTool) Run(ctx context.Context, args map[string]any) (tools
 		Output: totals,
 	}, nil
 }
-
-// =============================================================================
-// 6. scheduler_next — predict next fire time per schedule (placeholder)
-// =============================================================================
 
 type schedulerNextTool struct{}
 

@@ -1,14 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 12 phase 3 — non-Linux (Windows/macOS/Darwin) no-op
-//   memory limiter. Future: macOS via launchd resource limits, Windows
-//   via Job Object SetInformationJobObject. Phase 4+ → tambah file
-//   build-tag.
-//
-// shell_rlimit_other.go — Section 12 phase 3: no-op stub.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 //go:build !linux
 // +build !linux
@@ -18,7 +11,7 @@ package builtins
 import "os/exec"
 
 func applyMemLimit(c *exec.Cmd, command string) {
-	// no-op on non-Linux.
+
 	_ = c
 	_ = command
 }

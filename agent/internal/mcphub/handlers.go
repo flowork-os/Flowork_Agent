@@ -1,12 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval (reversible, owner-editable).
-// Owner: Aola Sahidin (Mr.Dev)
-// Locked: 2026-06-06
-// Reason: MCP hub HTTP API (Phase 2). Owner-gated /api/mcp endpoints.
-//
-// handlers.go — HTTP face of the MCP connector hub. Owner-gated (behind the same
-// auth middleware as the rest of /api): installing an MCP server + supplying its
-// token is a high-risk, owner-only action.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
+
 package mcphub
 
 import (
@@ -26,13 +22,10 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 	_ = json.NewEncoder(w).Encode(body)
 }
 
-// ListHandler — GET /api/mcp → installed MCP connectors (+ live tools, env names).
 func ListHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 0, map[string]any{"connectors": Default.List()})
 }
 
-// InstallHandler — POST /api/mcp/install {id, command, args, env}. Stores the server
-// spec in the connector's own folder. The owner pastes the standard mcpServers shape.
 func InstallHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "POST only"})
@@ -55,7 +48,6 @@ func InstallHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 0, map[string]any{"ok": true, "id": body.ID})
 }
 
-// idAction handles {id}-only POSTs (enable/disable/uninstall).
 func idAction(w http.ResponseWriter, r *http.Request, fn func(id string) error) {
 	if r.Method != http.MethodPost {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "POST only"})
@@ -75,7 +67,6 @@ func idAction(w http.ResponseWriter, r *http.Request, fn func(id string) error) 
 	writeJSON(w, 0, map[string]any{"ok": true, "id": body.ID})
 }
 
-// EnableHandler — POST /api/mcp/enable {id}. Spawns the server + registers its tools.
 func EnableHandler(w http.ResponseWriter, r *http.Request) {
 	idAction(w, r, func(id string) error {
 		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
@@ -84,12 +75,10 @@ func EnableHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// DisableHandler — POST /api/mcp/disable {id}. Unregisters tools + reaps the process.
 func DisableHandler(w http.ResponseWriter, r *http.Request) {
 	idAction(w, r, Default.Disable)
 }
 
-// UninstallHandler — POST /api/mcp/uninstall {id}. Removes the connector entirely.
 func UninstallHandler(w http.ResponseWriter, r *http.Request) {
 	idAction(w, r, Default.Uninstall)
 }

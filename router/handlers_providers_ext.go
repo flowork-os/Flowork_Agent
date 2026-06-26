@@ -1,17 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// 2026-06-11 (owner-approved security audit, unfreeze→refreeze): provider probe
-//   handlers (validate + suggested-models) now call blockMetadataURL() so a
-//   user-supplied baseUrl can't be used to SSRF the cloud-metadata endpoint. The
-//   guard allows LAN/private (legit local providers), blocking only link-local.
-// Reason: Audit pass — HTTP handler.
-// 2026-06-13 (release audit → fix → test → re-lock): probeProviderConn (test-batch) now runs the
-//   stored baseUrl through blockMetadataURL too — SSRF-guard parity with validate/suggested-models.
-
-// Provider CRUD Extended (BATCH 3).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -31,9 +21,6 @@ import (
 
 var providerProbeClient = &http.Client{Timeout: 10 * time.Second}
 
-// providerValidateHandler — POST { baseUrl, apiKey?, format?, models? }
-// Pings the provider's model-list (or chat) endpoint. Returns valid=true
-// when reachable and not auth-rejected (401/403).
 func providerValidateHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -64,8 +51,6 @@ func providerValidateHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// probeProvider — GET {base}/models with auth; valid if not 401/403 and
-// connection succeeded.
 func probeProvider(ctx context.Context, baseURL, apiKey, format string) (bool, int, string) {
 	endpoint := strings.TrimRight(baseURL, "/") + "/models"
 	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
@@ -84,7 +69,7 @@ func probeProvider(ctx context.Context, baseURL, apiKey, format string) (bool, i
 	if resp.StatusCode == 401 || resp.StatusCode == 403 {
 		return false, resp.StatusCode, "auth rejected"
 	}
-	// 200/404/405 → endpoint reachable; treat as valid connection
+
 	return resp.StatusCode < 500, resp.StatusCode, "reachable"
 }
 
@@ -100,17 +85,13 @@ func applyProbeAuth(req *http.Request, apiKey, format string) {
 	}
 }
 
-// probeProviderConn — auth-aware probe of a stored provider. For subscription
-// providers it resolves the LIVE credential (e.g. claude .credentials.json)
-// instead of a static apiKey, so subscription validate no longer false-401s.
 func probeProviderConn(ctx context.Context, p *store.ProviderConnection) (bool, int, string) {
 	baseURL, _ := p.Data[store.CfgBaseURL].(string)
 	format, _ := p.Data[store.CfgFormat].(string)
 	if baseURL == "" {
 		return false, 0, "missing baseUrl"
 	}
-	// SSRF guard parity with validate/suggested-models: never let a stored baseUrl probe the
-	// cloud-metadata link-local endpoint. LAN/private (legit local providers) stays allowed.
+
 	if _, gerr := blockMetadataURL(ctx, baseURL); gerr != nil {
 		return false, 0, gerr.Error()
 	}
@@ -123,7 +104,7 @@ func probeProviderConn(ctx context.Context, p *store.ProviderConnection) (bool, 
 	}
 	switch p.AuthType {
 	case store.AuthTypeNone:
-		// no auth
+
 	case store.AuthTypeAPIKey:
 		apiKey, _ := p.Data[store.CfgAPIKey].(string)
 		applyProbeAuth(req, apiKey, format)
@@ -156,8 +137,6 @@ func probeProviderConn(ctx context.Context, p *store.ProviderConnection) (bool, 
 	return resp.StatusCode < 500, resp.StatusCode, "reachable"
 }
 
-// providerSuggestedModelsHandler — POST { baseUrl, apiKey?, format?, preset? }
-// Fetches the provider's /models, applies preset filter, returns mapped list.
 func providerSuggestedModelsHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -203,7 +182,7 @@ func providerSuggestedModelsHandler(w http.ResponseWriter, r *http.Request) {
 		models = parsed.Models
 	}
 	if len(models) == 0 {
-		// Maybe the response is a bare array
+
 		var bare []map[string]any
 		if json.Unmarshal(raw, &bare) == nil {
 			models = bare
@@ -213,7 +192,6 @@ func providerSuggestedModelsHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"data": filtered, "count": len(filtered), "preset": body.Preset})
 }
 
-// applyModelPreset — filter+map model catalog per named preset.
 func applyModelPreset(models []map[string]any, preset string) []map[string]any {
 	var out []map[string]any
 	switch preset {
@@ -244,7 +222,7 @@ func applyModelPreset(models []map[string]any, preset string) []map[string]any {
 				out = append(out, map[string]any{"id": id, "name": id})
 			}
 		}
-	default: // "all" or unknown → map id+name only
+	default:
 		for _, m := range models {
 			out = append(out, map[string]any{
 				"id":   m["id"],
@@ -255,8 +233,6 @@ func applyModelPreset(models []map[string]any, preset string) []map[string]any {
 	return out
 }
 
-// providerTestBatchHandler — POST { providerIds: [...] } → validate each
-// stored provider concurrently. Returns per-id result.
 func providerTestBatchHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -270,7 +246,7 @@ func providerTestBatchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	d, _ := store.Open()
-	// If empty, test all
+
 	if len(body.ProviderIDs) == 0 {
 		all, _ := store.ListProviders(d)
 		for _, p := range all {

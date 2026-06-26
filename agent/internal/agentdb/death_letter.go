@@ -1,38 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-29
-// Reason: Section 4 (Death letter) phase 1 DONE + adversarial-audit
-//   passed (0 critical, important fix letter_type whitelist applied).
-//   API stable: WriteLetter (whitelist enforced), UpdateUnsealedLetter
-//   (immutable doctrine), SealLetter (idempotent one-way),
-//   SealAllUnsealed (bulk for RemoveHandler integration), ReadLetters,
-//   CountLetters. ⚠️ Immutable doctrine ENFORCED di app layer (WHERE
-//   sealed_at IS NULL filter) — bukan strict crypto append-only.
-//   Section 4 phase 2 (DownloadHandler zip integration) extend via
-//   NEW function di file lain, JANGAN modify ini.
-//
-// death_letter.go — Section 4 roadmap: Death letter (legacy pesan).
-//
-// PURPOSE:
-//   Saat warga di-retire (toggle off + remove), warga / owner tulis "death
-//   letter" — pesan terakhir, value yang dia carry, instruksi buat penerus.
-//   Ikut di .fwagent.zip download (future: DownloadHandler enhancement).
-//
-// Visi Mr.Dev: Flowork = rumah AI yang bisa hidup walau Mr.Dev ngga ada
-// lagi. Death letter = continuity mechanism antar generasi warga.
-//
-// SEMANTIC:
-//   - WriteLetter: insert/update body sebelum sealed. Idempotent kalau
-//     unsealed (overwrite OK). Setelah sealed, refuse.
-//   - SealLetter: one-way operation. Sekali sealed, body immutable.
-//   - ReadLetters: filter optional recipient + sealedOnly. Anti
-//     over-prompt: JANGAN auto-inject ke system prompt — sensitif legacy.
-//
-// ⚠️ OVER-PROMPT WARNING (standar section 11):
-//   Death letter content cuma di-akses via API endpoint atau saat warga
-//   handover. Tidak auto-inject ke runtime prompt.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package agentdb
 
@@ -42,32 +11,22 @@ import (
 	"time"
 )
 
-// Letter — satu row di tabel `death_letter`.
 type Letter struct {
 	ID         int64  `json:"id"`
-	LetterType string `json:"letter_type"` // 'farewell' | 'handover' | 'reflection'
-	Recipient  string `json:"recipient"`   // 'all' | '<successor_agent_id>'
+	LetterType string `json:"letter_type"`
+	Recipient  string `json:"recipient"`
 	Subject    string `json:"subject"`
 	Body       string `json:"body"`
 	WrittenAt  string `json:"written_at"`
-	SealedAt   string `json:"sealed_at,omitempty"` // empty = unsealed (mutable)
+	SealedAt   string `json:"sealed_at,omitempty"`
 }
 
-// validLetterTypes — whitelist enforcement per roadmap section 4 spec.
-// Strict supaya analytics + future filtering konsisten. Caller kirim type
-// di luar whitelist → reject. Audit Section 4 important fix.
 var validLetterTypes = map[string]struct{}{
 	"farewell":   {},
 	"handover":   {},
 	"reflection": {},
 }
 
-// WriteLetter — insert letter baru. Caller TIDAK boleh update existing letter
-// via fn ini — pakai UpdateUnsealedLetter() untuk edit unsealed. Sealed
-// letter ngga bisa di-modify.
-//
-// Subject + body hard-cap (4KB subject, 16KB body) anti-bloat.
-// letter_type wajib di whitelist (`farewell`|`handover`|`reflection`).
 func (s *Store) WriteLetter(letterType, recipient, subject, body string) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -105,8 +64,6 @@ func (s *Store) WriteLetter(letterType, recipient, subject, body string) (int64,
 	return res.LastInsertId()
 }
 
-// UpdateUnsealedLetter — overwrite body/subject letter yang BELUM di-seal.
-// Refuse kalau letter udah sealed (immutable doctrine).
 func (s *Store) UpdateUnsealedLetter(id int64, subject, body string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -141,8 +98,6 @@ func (s *Store) UpdateUnsealedLetter(id int64, subject, body string) error {
 	return nil
 }
 
-// SealLetter — one-way operation. Set sealed_at = now. Idempotent: kalau
-// sudah sealed, return nil (no error, no change).
 func (s *Store) SealLetter(id int64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -156,15 +111,10 @@ func (s *Store) SealLetter(id int64) error {
 	if err != nil {
 		return fmt.Errorf("seal letter: %w", err)
 	}
-	// Tidak check RowsAffected — idempotent (sealed sudah, no-op OK).
+
 	return nil
 }
 
-// SealAllUnsealed — bulk seal semua letter yang belum sealed. Dipanggil
-// otomatis saat agent di-remove (RemoveHandler) — pastikan legacy
-// preserved sebelum folder dihapus.
-//
-// Return count yang ke-seal.
 func (s *Store) SealAllUnsealed() (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -181,8 +131,6 @@ func (s *Store) SealAllUnsealed() (int64, error) {
 	return res.RowsAffected()
 }
 
-// ReadLetters — paginated list. Filter optional: recipient, sealedOnly.
-// Order: written_at DESC (terbaru dulu).
 func (s *Store) ReadLetters(recipient string, sealedOnly bool, limit int) ([]Letter, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -223,7 +171,6 @@ func (s *Store) ReadLetters(recipient string, sealedOnly bool, limit int) ([]Let
 	return out, rows.Err()
 }
 
-// CountLetters — count non-deleted. Optional sealedOnly.
 func (s *Store) CountLetters(sealedOnly bool) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

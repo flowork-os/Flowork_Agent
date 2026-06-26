@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Provider adapter.
-
-// Image provider catalog (12 vendor).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package image
 
@@ -14,22 +10,19 @@ import (
 	"sync"
 )
 
-// Request is the minimum image-gen shape every vendor accepts. The caller
-// constructs this from /v1/images JSON; vendor code shapes it into upstream.
 type Request struct {
 	Model          string
 	Prompt         string
 	NegativePrompt string
-	Size           string // e.g. "1024x1024"
-	N              int    // count
-	Quality        string // e.g. "standard" / "hd"
+	Size           string
+	N              int
+	Quality        string
 	Style          string
 	APIKey         string
-	BaseURL        string // optional override
+	BaseURL        string
 	Extra          map[string]any
 }
 
-// Result is the normalized OpenAI-shape response (one or more URLs / b64).
 type Result struct {
 	Data []ResultImage `json:"data"`
 }
@@ -39,7 +32,6 @@ type ResultImage struct {
 	B64JSON string `json:"b64_json,omitempty"`
 }
 
-// ImageProvider is the vendor contract.
 type ImageProvider interface {
 	Name() string
 	Generate(ctx context.Context, req Request) (*Result, error)
@@ -50,7 +42,6 @@ var (
 	registry = map[string]ImageProvider{}
 )
 
-// Register adds a provider. Called from init() of each vendor file.
 func Register(p ImageProvider) {
 	if p == nil || p.Name() == "" {
 		return
@@ -60,14 +51,12 @@ func Register(p ImageProvider) {
 	registry[p.Name()] = p
 }
 
-// Get returns a provider by name, or nil.
 func Get(name string) ImageProvider {
 	regMu.RLock()
 	defer regMu.RUnlock()
 	return registry[name]
 }
 
-// List returns every registered name (sort order not guaranteed).
 func List() []string {
 	regMu.RLock()
 	defer regMu.RUnlock()

@@ -1,17 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — audit pass surface review.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Vendor: claude — Anthropic OAuth usage endpoint.
-// GET https://api.anthropic.com/api/oauth/usage with the consumer OAuth
-// access_token (the one Claude Code stores in ~/.claude/.credentials.json).
-// Response carries percent-utilization windows: five_hour (5h rolling),
-// seven_day (overall weekly), plus optional per-model weekly windows
-// (seven_day_sonnet, seven_day_opus, …). We expose each as a Window with
-// Used = utilization%, Total = 100, Unit = "percent".
 package quotalive
 
 import (

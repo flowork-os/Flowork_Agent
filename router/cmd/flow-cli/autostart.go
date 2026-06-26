@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — CLI command/menu.
-
-// flow-cli autostart (multi-OS).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -77,8 +73,6 @@ func autostartStatus() error {
 	return fmt.Errorf("autostart not supported on %s", runtime.GOOS)
 }
 
-// ── Linux ───────────────────────────────────────────────────────────────
-
 func linuxAutostartPath() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".config", "autostart", autostartName+".desktop")
@@ -106,8 +100,6 @@ func linuxAutostartWrite(exe string) error {
 	return nil
 }
 
-// ── macOS ───────────────────────────────────────────────────────────────
-
 func macAutostartPath() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, "Library", "LaunchAgents", "com.flow_router.plist")
@@ -132,13 +124,11 @@ func macAutostartWrite(exe string) error {
 	if err := os.WriteFile(p, []byte(plist), 0o644); err != nil {
 		return err
 	}
-	// load it immediately so it's effective without a re-login
+
 	_ = exec.Command("launchctl", "load", p).Run()
 	fmt.Println("autostart enabled:", p)
 	return nil
 }
-
-// ── Windows ─────────────────────────────────────────────────────────────
 
 func winAutostartWrite(exe string) error {
 	ps := fmt.Sprintf(
@@ -182,8 +172,6 @@ func winAutostartStatus() error {
 	fmt.Println("autostart:", s)
 	return nil
 }
-
-// ── shared ──────────────────────────────────────────────────────────────
 
 func reportStat(path string) error {
 	if _, err := os.Stat(path); err == nil {

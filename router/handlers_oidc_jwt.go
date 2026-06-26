@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — HTTP handler.
-
-// OIDC id_token verification (RS256 / JWKS / nonce).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -23,7 +19,6 @@ import (
 	"time"
 )
 
-// verifyOIDCIDToken validates the JWT and returns its claims on success.
 func verifyOIDCIDToken(ctx context.Context, jwksURI, idToken, issuer, clientID, nonce string) (map[string]any, error) {
 	parts := strings.Split(idToken, ".")
 	if len(parts) != 3 {
@@ -84,7 +79,6 @@ func verifyOIDCIDToken(ctx context.Context, jwksURI, idToken, issuer, clientID, 
 	return claims, nil
 }
 
-// audMatches accepts aud as a string or a list of strings.
 func audMatches(aud any, clientID string) bool {
 	switch v := aud.(type) {
 	case string:
@@ -99,7 +93,6 @@ func audMatches(aud any, clientID string) bool {
 	return false
 }
 
-// fetchJWKSKey downloads the JWKS and builds the RSA public key for kid.
 func fetchJWKSKey(ctx context.Context, jwksURI, kid string) (*rsa.PublicKey, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, jwksURI, nil)
 	if err != nil {
@@ -128,9 +121,7 @@ func fetchJWKSKey(ctx context.Context, jwksURI, kid string) (*rsa.PublicKey, err
 		if k.Kty != "RSA" {
 			continue
 		}
-		// When the token specifies a kid, require an exact match against the
-		// JWKS key. Falling through to a key without kid (or a different kid)
-		// would let any RSA key in the set verify the token.
+
 		if kid != "" && k.Kid != kid {
 			continue
 		}

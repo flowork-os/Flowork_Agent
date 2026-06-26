@@ -1,13 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval (reversible, owner-editable).
-// Owner: Aola Sahidin (Mr.Dev)
-// Locked: 2026-06-06
-// Reason: Connections HTTP API (Phase 1). Stable endpoint surface for the GUI.
-//
-// handlers.go — HTTP face of the Connections registry. Owner-gated (mounted behind
-// the same auth middleware as the rest of /api). Install reuses the uniform .fwpack
-// gerbang (kind:channel dispatch in plugin_handler.go); these handlers cover the
-// rest of a connector's lifecycle: list · toggle · config · uninstall.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
+
 package connections
 
 import (
@@ -25,13 +20,10 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 	_ = json.NewEncoder(w).Encode(body)
 }
 
-// ListHandler — GET /api/connections → every installed connector + its status.
 func ListHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 0, map[string]any{"connectors": List()})
 }
 
-// ToggleHandler — POST /api/connections/toggle {id, enabled}. Enable/disable a
-// connector by its in-folder marker.
 func ToggleHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "POST only"})
@@ -52,8 +44,6 @@ func ToggleHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 0, map[string]any{"ok": true, "id": body.ID, "enabled": body.Enabled})
 }
 
-// UninstallHandler — POST /api/connections/uninstall {id}. Removes the connector's
-// folder — and with it everything the connector owned (config + token).
 func UninstallHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "POST only"})
@@ -73,9 +63,6 @@ func UninstallHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 0, map[string]any{"ok": true, "uninstalled": body.ID})
 }
 
-// ConfigHandler — GET /api/connections/config?id= → masked config;
-// POST /api/connections/config {id, config:{...}} → merge into the connector's own
-// folder. Credentials are masked on GET; the real value stays in the folder.
 func ConfigHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:

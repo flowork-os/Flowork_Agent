@@ -1,11 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — ./internal/mitm/handlers package — audit pass surface review.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Per-IDE MITM handler: cursor (Cursor IDE chat backend).
 package handlers
 
 import "net/http"
@@ -16,10 +13,6 @@ type cursorHandler struct{}
 
 func (c *cursorHandler) Name() string { return "cursor" }
 
-// Handle maps Cursor's /BidiAppend, /RunSSE, /RunPoll, /Run RPC paths to
-// flow_router's chat completions endpoint. We strip the Cursor checksum +
-// session headers — the local dispatcher does not need them and they only
-// carry IDE-specific telemetry.
 func (c *cursorHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	r.Header.Del("x-cursor-checksum")
 	r.Header.Del("x-cursor-session-id")

@@ -1,23 +1,17 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — ./cmd/flow-cli/utils package — audit pass surface review.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Common menu plumbing shared by all sub-menus.
 package utils
 
 import "fmt"
 
-// MenuItem is one entry in an interactive menu.
 type MenuItem struct {
 	Label  string
 	Action func() error
 }
 
-// RunMenu draws a numbered list with title and dispatches to the picked item.
-// Returns when the user picks "Back" (the implicit final entry) or invalid input.
 func RunMenu(title string, items []MenuItem) error {
 	for {
 		Header(title)

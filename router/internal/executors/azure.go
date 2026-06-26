@@ -1,11 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Provider executor HTTP call.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Executor: azure — Azure OpenAI deployment endpoint shape.
 package executors
 
 import (
@@ -23,12 +20,6 @@ type azureExecutor struct{}
 
 func (a *azureExecutor) Name() string { return "azure" }
 
-// endpoint composes the Azure URL:
-//
-//	{baseURL}/openai/deployments/{deployment}/chat/completions?api-version=...
-//
-// deployment defaults to the model name when the provider's `deployment` config
-// is empty.
 func (a *azureExecutor) endpoint(p *store.ProviderConnection, model string) string {
 	base := ProviderString(p, store.CfgBaseURL)
 	deployment, _ := p.Data["deployment"].(string)

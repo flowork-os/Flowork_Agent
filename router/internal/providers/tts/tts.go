@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Provider adapter.
-
-// TTS provider catalog (10 vendor).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package tts
 
@@ -18,21 +14,17 @@ import (
 	"time"
 )
 
-// Request is the minimum TTS shape. Voice is vendor-specific id (e.g. "alloy"
-// for OpenAI, "en-US-Standard-A" for Google, custom for ElevenLabs).
 type Request struct {
 	Model          string
 	Input          string
 	Voice          string
-	ResponseFormat string // mp3 / wav / opus / flac / pcm
+	ResponseFormat string
 	Speed          float64
 	APIKey         string
 	BaseURL        string
 	Extra          map[string]any
 }
 
-// TTSProvider is the vendor contract. Speak returns the raw audio bytes plus
-// the actual content-type so the dispatcher can write it back to the client.
 type TTSProvider interface {
 	Name() string
 	Speak(ctx context.Context, req Request) (audio []byte, contentType string, err error)
@@ -43,7 +35,6 @@ var (
 	registry = map[string]TTSProvider{}
 )
 
-// Register adds a provider.
 func Register(p TTSProvider) {
 	if p == nil || p.Name() == "" {
 		return
@@ -53,14 +44,12 @@ func Register(p TTSProvider) {
 	registry[p.Name()] = p
 }
 
-// Get returns a provider by name, or nil.
 func Get(name string) TTSProvider {
 	regMu.RLock()
 	defer regMu.RUnlock()
 	return registry[name]
 }
 
-// List returns every registered name.
 func List() []string {
 	regMu.RLock()
 	defer regMu.RUnlock()
@@ -71,12 +60,8 @@ func List() []string {
 	return out
 }
 
-// ── shared helpers ────────────────────────────────────────────────────────
-
 var ttsHTTPClient = &http.Client{Timeout: 5 * time.Minute}
 
-// doAudioRequest sends r and returns (body, contentType, err). The body is
-// streamed up to 64 MiB.
 func doAudioRequest(r *http.Request) ([]byte, string, error) {
 	resp, err := ttsHTTPClient.Do(r)
 	if err != nil {

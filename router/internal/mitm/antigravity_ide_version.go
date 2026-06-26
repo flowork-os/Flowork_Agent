@@ -1,23 +1,14 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — ./internal/mitm package — audit pass surface review.
-
-// Antigravity IDE version override.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package mitm
 
 import "strings"
 
-// Default override; bumped over time to match the version Cloud Code Assist's
-// Antigravity endpoint expects.
 var AntigravityIDEVersionDefault = "0.16.0"
 
-// ApplyAntigravityIDEVersionOverride rewrites the IDE version header value to
-// match what Antigravity expects. Mirrors the upstream patch step that prevents
-// "your client is too old" errors when the upstream gets aggressive about it.
 func ApplyAntigravityIDEVersionOverride(headers map[string]string) {
 	if headers == nil {
 		return

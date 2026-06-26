@@ -1,22 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 29 zombie_findings + Section 32 mode_config (kv shortcut)
-//   + Section 35 self_prompt schema. Lazy CREATE. Phase 2 (real zombie
-//   heuristic via callgraph, mode handler integration, prompt versioning)
-//   → tambah file baru.
-//
-// zombie_modes_prompt.go — Sections 29 + 32 + 35 phase 1 minimal schemas.
-//
-// MODIFIED 2026-06-20 (owner-approved, re-locked): fix bug SQL ListSelfPromptSlots
-//   — antipattern `WHERE version IN (SELECT MAX(version) GROUP BY slot)` salah
-//   match versi-rendah slot lain yang angka-versinya nyamain max slot lain
-//   (mis. 00_constitution v1 ke-ambil gara2 01_twin max=1) → render bisa milih
-//   versi LAMA, misi/aturan sacred hilang dari prompt. Diganti korelasi per-slot
-//   `WHERE version = (SELECT MAX(version) WHERE slot = sp.slot)`. Test:
-//   selfprompt_render_test.go (PASS w/fix, FAIL w/o).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package agentdb
 
@@ -26,30 +11,22 @@ import (
 	"time"
 )
 
-// =============================================================================
-// Section 29: zombie_findings
-// =============================================================================
-
 type ZombieFinding struct {
-	ID          int64  `json:"id"`
-	FilePath    string `json:"file_path"`
-	SymbolName  string `json:"symbol_name"`
-	SymbolType  string `json:"symbol_type"` // 'file' | 'func' | 'type'
-	Confidence  string `json:"confidence"`  // 'high' | 'medium' | 'low'
-	Reason      string `json:"reason"`
-	DetectedAt  string `json:"detected_at"`
-	Acknowledged bool  `json:"acknowledged"`
+	ID           int64  `json:"id"`
+	FilePath     string `json:"file_path"`
+	SymbolName   string `json:"symbol_name"`
+	SymbolType   string `json:"symbol_type"`
+	Confidence   string `json:"confidence"`
+	Reason       string `json:"reason"`
+	DetectedAt   string `json:"detected_at"`
+	Acknowledged bool   `json:"acknowledged"`
 }
-
-// =============================================================================
-// Section 35: self_prompt (per-warga self-contained prompt.md storage)
-// =============================================================================
 
 type SelfPrompt struct {
 	ID        int64  `json:"id"`
-	Slot      string `json:"slot"`       // 'system' | 'persona' | 'guideline' | 'task'
+	Slot      string `json:"slot"`
 	Version   int    `json:"version"`
-	Body      string `json:"body"`       // markdown content
+	Body      string `json:"body"`
 	UpdatedAt string `json:"updated_at"`
 	Notes     string `json:"notes"`
 }
@@ -156,8 +133,6 @@ func (s *Store) AcknowledgeZombie(id int64) error {
 	return err
 }
 
-// Section 35: prompt slot CRUD. Versioned (UNIQUE slot+version).
-// SetSelfPrompt insert next version (caller pass version 0 → auto-increment).
 func (s *Store) SetSelfPrompt(slot, body, notes string, version int) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -172,7 +147,7 @@ func (s *Store) SetSelfPrompt(slot, body, notes string, version int) (int64, err
 		return 0, fmt.Errorf("body too large (cap 64KB)")
 	}
 	if version <= 0 {
-		// Auto-increment from MAX(version).
+
 		var maxV int
 		_ = s.db.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM self_prompt WHERE slot = ?`, slot).Scan(&maxV)
 		version = maxV + 1
@@ -196,7 +171,7 @@ func (s *Store) GetSelfPrompt(slot string, version int) (SelfPrompt, error) {
 		return SelfPrompt{}, err
 	}
 	if version <= 0 {
-		// Latest version.
+
 		var sp SelfPrompt
 		err := s.db.QueryRow(
 			`SELECT id, slot, version, body, updated_at, notes

@@ -1,11 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — ./cmd/flow-cli/utils package — audit pass surface review.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Model selector: fetch /v1/models from the router and prompt user to pick.
 package utils
 
 import (
@@ -14,8 +11,6 @@ import (
 	"github.com/flowork-os/flowork_Router/cmd/flow-cli/api"
 )
 
-// PickModel asks the router for /v1/models, sorts by id, and prompts the user
-// to choose one. Returns "" when no models found or selection cancelled.
 func PickModel(c *api.Client) string {
 	var wrap struct {
 		Data []struct {

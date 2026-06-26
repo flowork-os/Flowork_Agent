@@ -1,13 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 24 phase 1 protector schema. Lazy CREATE. Phase 2
-//   (rule revisions, version vector, escalation chain) → tambah file
-//   baru, JANGAN modify ini.
-//
-// protector.go — Section 24 phase 1: protector_rules + protector_audit.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package agentdb
 
@@ -17,8 +11,6 @@ import (
 	"time"
 )
 
-// ProtectorRule mirrors row. Hardcoded source = immutable (DB delete
-// no-op secara security karena baseline.go Go memory wins).
 type ProtectorRule struct {
 	ID        int64  `json:"id"`
 	RuleType  string `json:"rule_type"`
@@ -29,7 +21,6 @@ type ProtectorRule struct {
 	CreatedAt string `json:"created_at"`
 }
 
-// ProtectorAudit row.
 type ProtectorAudit struct {
 	ID         int64  `json:"id"`
 	OccurredAt string `json:"occurred_at"`
@@ -67,8 +58,6 @@ func (s *Store) ensureProtectorSchema() error {
 	return err
 }
 
-// AddProtectorRule — INSERT. Source must be 'custom'. Caller (handler)
-// reject kalau source='hardcoded' (anti DB tampering).
 func (s *Store) AddProtectorRule(rule ProtectorRule) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -99,8 +88,6 @@ func (s *Store) AddProtectorRule(rule ProtectorRule) (int64, error) {
 	return res.LastInsertId()
 }
 
-// ListProtectorRules — return custom rows. Caller append hardcoded baseline
-// via protector.Baseline() untuk fitur "see all".
 func (s *Store) ListProtectorRules() ([]ProtectorRule, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -128,8 +115,6 @@ func (s *Store) ListProtectorRules() ([]ProtectorRule, error) {
 	return out, rows.Err()
 }
 
-// DeleteProtectorRule — reject kalau source=hardcoded di DB (additional
-// safety beyond baseline.go immutable Go memory).
 func (s *Store) DeleteProtectorRule(id int64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -148,7 +133,6 @@ func (s *Store) DeleteProtectorRule(id int64) error {
 	return err
 }
 
-// ToggleProtectorRule.
 func (s *Store) ToggleProtectorRule(id int64, enabled bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -170,7 +154,6 @@ func (s *Store) ToggleProtectorRule(id int64, enabled bool) error {
 	return nil
 }
 
-// InsertProtectorAudit append.
 func (s *Store) InsertProtectorAudit(a ProtectorAudit) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -191,7 +174,6 @@ func (s *Store) InsertProtectorAudit(a ProtectorAudit) (int64, error) {
 	return res.LastInsertId()
 }
 
-// ListProtectorAudit paginated.
 func (s *Store) ListProtectorAudit(from, to string, limit int) ([]ProtectorAudit, error) {
 	if limit <= 0 {
 		limit = 100

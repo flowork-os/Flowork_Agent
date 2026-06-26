@@ -1,15 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 18 phase 1 scheduler support. Existing `schedules` table
-//   di-extend via lazy ALTER + new `scheduler_runs` table via CREATE IF
-//   NOT EXISTS. Locked agentdb.go ngga di-modify. Phase 2 (distributed
-//   lock, multi-instance, advanced cron syntax L/W/#) → tambah file baru.
-//
-// scheduler.go — Section 18 phase 1: schedule extension + scheduler_runs
-// audit log + accessors buat scheduler engine.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package agentdb
 
@@ -20,9 +12,6 @@ import (
 	"time"
 )
 
-// SchedulerSchemaInit — lazy CREATE + ALTER. Idempotent — pakai info_schema
-// helper via `pragma_table_info` untuk skip ALTER kalau column udah ada.
-// Caller (scheduler engine) panggil first.
 func (s *Store) SchedulerSchemaInit() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -31,7 +20,7 @@ func (s *Store) SchedulerSchemaInit() error {
 		return err
 	}
 	defer tx.Rollback()
-	// scheduler_runs table — sequential ID + status + audit.
+
 	if _, err := tx.Exec(`
 		CREATE TABLE IF NOT EXISTS scheduler_runs (
 		  id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,7 +40,7 @@ func (s *Store) SchedulerSchemaInit() error {
 	`); err != nil {
 		return fmt.Errorf("create scheduler_runs: %w", err)
 	}
-	// ALTER schedules: tambah 3 column kalau belum ada.
+
 	if err := addColIfMissing(tx, "schedules", "last_run_at", "TEXT"); err != nil {
 		return err
 	}
@@ -64,7 +53,6 @@ func (s *Store) SchedulerSchemaInit() error {
 	return tx.Commit()
 }
 
-// addColIfMissing — query pragma_table_info, ALTER kalau column belum ada.
 func addColIfMissing(tx *sql.Tx, table, col, typeSpec string) error {
 	rows, err := tx.Query(`SELECT name FROM pragma_table_info(?)`, table)
 	if err != nil {
@@ -75,7 +63,7 @@ func addColIfMissing(tx *sql.Tx, table, col, typeSpec string) error {
 		var name string
 		if serr := rows.Scan(&name); serr == nil {
 			if strings.EqualFold(name, col) {
-				return nil // already exists
+				return nil
 			}
 		}
 	}
@@ -90,20 +78,16 @@ func addColIfMissing(tx *sql.Tx, table, col, typeSpec string) error {
 	return nil
 }
 
-// ScheduleRow — minimal mirror dari `schedules` row dengan kolom scheduler
-// runtime butuh. Field selain ini di-Load() biasa.
 type ScheduleRow struct {
-	ID         string  `json:"id"`
-	Cron       string  `json:"cron"`
-	Task       string  `json:"task"`
-	Enabled    bool    `json:"enabled"`
-	LastRunAt  *string `json:"last_run_at,omitempty"`
-	NextRunAt  *string `json:"next_run_at,omitempty"`
-	OrderIdx   int     `json:"order_idx"`
+	ID        string  `json:"id"`
+	Cron      string  `json:"cron"`
+	Task      string  `json:"task"`
+	Enabled   bool    `json:"enabled"`
+	LastRunAt *string `json:"last_run_at,omitempty"`
+	NextRunAt *string `json:"next_run_at,omitempty"`
+	OrderIdx  int     `json:"order_idx"`
 }
 
-// ListSchedulesForRunner — SELECT * dari schedules + 3 column phase 2.
-// Caller scheduler.tick pakai. Order by order_idx ASC.
 func (s *Store) ListSchedulesForRunner() ([]ScheduleRow, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -139,7 +123,6 @@ func (s *Store) ListSchedulesForRunner() ([]ScheduleRow, error) {
 	return out, rows.Err()
 }
 
-// UpdateScheduleRunTime — set last_run_at + next_run_at.
 func (s *Store) UpdateScheduleRunTime(scheduleID, lastRunAt, nextRunAt string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -150,7 +133,6 @@ func (s *Store) UpdateScheduleRunTime(scheduleID, lastRunAt, nextRunAt string) e
 	return err
 }
 
-// SchedulerRun — mirror scheduler_runs row.
 type SchedulerRun struct {
 	ID         int64  `json:"id"`
 	ScheduleID string `json:"schedule_id"`
@@ -164,7 +146,6 @@ type SchedulerRun struct {
 	ErrorText  string `json:"error_text"`
 }
 
-// InsertSchedulerRun — append audit row. Return inserted ID.
 func (s *Store) InsertSchedulerRun(run SchedulerRun) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -182,8 +163,6 @@ func (s *Store) InsertSchedulerRun(run SchedulerRun) (int64, error) {
 	return res.LastInsertId()
 }
 
-// ListSchedulerRuns — list audit rows for a schedule, paginated. Limit
-// default 50, max 500.
 func (s *Store) ListSchedulerRuns(scheduleID string, limit int) ([]SchedulerRun, error) {
 	if limit <= 0 {
 		limit = 50
@@ -221,5 +200,4 @@ func (s *Store) ListSchedulerRuns(scheduleID string, limit int) ([]SchedulerRun,
 	return out, rows.Err()
 }
 
-// AbsTime utility — helper untuk format consistent RFC3339 timestamps.
 func AbsTime(t time.Time) string { return t.UTC().Format(time.RFC3339) }

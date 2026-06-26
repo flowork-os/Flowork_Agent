@@ -1,33 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-31 (re-audited 2026-06-07)
-// Reason: Settings handlers (owner-level). Audit pass — API key GET masked
-//
-//	(4 char), envKeyRe UPPER_SNAKE filter (password hash not exposed/setenv),
-//	IsSensitiveEnvKey blocklist (refuse PATH/LD_*/DYLD_*/FLOWORK_*/… injection),
-//	MaxBytesReader. E2E verified. (Wallet feature removed 2026-06-06.)
-//
-// Update 2026-06-07 (owner-approved audit): KeysHandler POST now refuses an empty
-//	value — the GUI clears the value field on Edit, so a stray Save would otherwise
-//	overwrite the real secret with "" (silent wipe). Removal is an explicit DELETE.
-//	Tested (keys_empty_test.go).
-// Update 2026-06-11 (owner-approved, re-locked): added RouterDefaultHandler
-//	(GET/POST /api/settings/router-default) — the GLOBAL default model + router URL
-//	(KV-backed config, NOT secrets). model validated by modelRe; router_url requires
-//	http(s):// and is localhost-validated downstream (routerclient host whitelist),
-//	so a stray external value can never exfiltrate. os.Setenv FLOWORK_LLM_MODEL /
-//	ROUTER_DEFAULT_URL live; empty clears the override. IsSensitiveEnvKey untouched.
-//
-// Package settingsapi — HTTP handler untuk halaman Settings (owner-level).
-// Semua operasi menyentuh flowork.db GLOBAL (floworkdb), tidak per-warga.
-//
-// Endpoint:
-//
-//	GET/POST/DELETE /api/settings/keys      — API key global (masked on GET, reserved-env refused)
-//	GET/POST        /api/settings/notify    — Telegram owner notification (token masked)
-//	GET/POST        /api/settings/youtube*  — YouTube OAuth status + credentials + config
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
+
 package settingsapi
 
 import (
@@ -43,23 +18,13 @@ import (
 	"flowork-gui/internal/httpx"
 )
 
-// TestNotifyFunc — di-wire dari main.go (notifyOwnerTelegram). Buat tombol
-// "Test" di Settings → Notifikasi.
 var TestNotifyFunc func(ctx context.Context, text string) error
 
-// keys floworkdb untuk notif Telegram owner-level (TERPISAH dari secret agent
-// — agent tetap isolated/plug-and-play).
 const (
-	notifyTokenKey = "NOTIFY_TG_TOKEN" // secrets
-	notifyChatKey  = "notify_tg_chat"  // kv
+	notifyTokenKey = "NOTIFY_TG_TOKEN"
+	notifyChatKey  = "notify_tg_chat"
 )
 
-// NotifyHandler — GET/POST /api/settings/notify
-//
-//	GET  → {bot_token_masked, chat_id, set}
-//	POST → {bot_token?, chat_id, test?} simpan ke flowork.db; bot_token kosong
-//	       = jangan overwrite (biar masked GET ngga nimpa). test=true → kirim
-//	       pesan tes ke owner.
 func (a *API) NotifyHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -80,7 +45,7 @@ func (a *API) NotifyHandler(w http.ResponseWriter, r *http.Request) {
 			httpx.WriteJSON(w, map[string]any{"error": "invalid json: " + err.Error()})
 			return
 		}
-		// Token cuma di-update kalau diisi (kosong = pertahankan yang lama).
+
 		if strings.TrimSpace(body.BotToken) != "" {
 			if err := a.store.SetSecret(notifyTokenKey, strings.TrimSpace(body.BotToken)); err != nil {
 				httpx.WriteJSON(w, map[string]any{"error": err.Error()})
@@ -111,15 +76,8 @@ func (a *API) NotifyHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// envKeyRe — API key valid = nama env var (UPPER_SNAKE). Menyaring juga biar
-// owner_password_hash (lowercase) gak ikut ke-expose / ke-setenv.
 var envKeyRe = regexp.MustCompile(`^[A-Z][A-Z0-9_]*$`)
 
-// IsSensitiveEnvKey reports whether an env-var name must NEVER be settable as an
-// owner "API key" — because it would change how the process or its child commands
-// run (loader/PATH hijack, or forging the kernel's own loopback identity). A key
-// like ETHERSCAN_API_KEY is fine; PATH / LD_PRELOAD / FLOWORK_LOOPBACK_SECRET are not.
-// Used by BOTH the POST handler and the boot loader (defense at write AND re-inject).
 func IsSensitiveEnvKey(k string) bool {
 	switch k {
 	case "PATH", "HOME", "SHELL", "IFS", "ENV", "BASH_ENV", "GOROOT", "GOPATH",
@@ -134,20 +92,14 @@ func IsSensitiveEnvKey(k string) bool {
 	return false
 }
 
-// API — handler set, di-back floworkdb global store.
 type API struct {
 	store *floworkdb.Store
 }
 
-// New bikin API.
 func New(store *floworkdb.Store) *API {
 	return &API{store: store}
 }
 
-// KeysHandler — GET/POST /api/settings/keys
-//
-//	GET  → daftar key + nilai MASKED (4 char terakhir).
-//	POST → {key,value} simpan ke secrets + os.Setenv langsung (live).
 func (a *API) KeysHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -158,7 +110,7 @@ func (a *API) KeysHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		items := []map[string]any{}
 		for _, k := range keys {
-			if !envKeyRe.MatchString(k) { // skip owner_password_hash dll
+			if !envKeyRe.MatchString(k) {
 				continue
 			}
 			v, _ := a.store.GetSecret(k)
@@ -187,9 +139,7 @@ func (a *API) KeysHandler(w http.ResponseWriter, r *http.Request) {
 			httpx.WriteJSON(w, map[string]any{"error": "key " + key + " is reserved (loader/PATH/kernel env) — refused"})
 			return
 		}
-		// Refuse an empty value: the GUI clears the value field on "Edit", so a
-		// stray Save would otherwise overwrite the real secret with "" (silent
-		// wipe). Removing a key is an explicit DELETE, never an empty POST.
+
 		if strings.TrimSpace(body.Value) == "" {
 			httpx.WriteJSON(w, map[string]any{"error": "value kosong — isi nilai baru, atau pakai tombol Hapus buat ngebuang key"})
 			return
@@ -198,7 +148,7 @@ func (a *API) KeysHandler(w http.ResponseWriter, r *http.Request) {
 			httpx.WriteJSON(w, map[string]any{"error": err.Error()})
 			return
 		}
-		// Live-inject ke env supaya engine (wallet, dll) langsung pakai tanpa restart.
+
 		_ = os.Setenv(key, body.Value)
 		httpx.WriteJSON(w, map[string]any{"ok": true})
 	case http.MethodDelete:
@@ -218,20 +168,8 @@ func (a *API) KeysHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// modelRe — default model id sanity: letters/digits/_-.:/ (e.g. claude-haiku-4-5).
 var modelRe = regexp.MustCompile(`^[A-Za-z0-9_.:/-]{1,64}$`)
 
-// RouterDefaultHandler — GET/POST /api/settings/router-default.
-//
-// The GLOBAL fallback used by any agent that does NOT pin its own model/router.
-// Per-agent config still wins (an agent that sets its own model keeps it); these
-// two values only fill the blank. Stored in the generic KV (config, not a secret)
-// and mirrored into the process env so agents pick them up:
-//   - model      -> FLOWORK_LLM_MODEL  (already forwarded to every agent at boot)
-//   - router_url -> ROUTER_DEFAULT_URL (read by the llm.complete provider)
-//
-// router_url is localhost-validated downstream (routerclient host whitelist), so
-// a stray external value can never exfiltrate — it just falls back to the default.
 func (a *API) RouterDefaultHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -265,9 +203,7 @@ func (a *API) RouterDefaultHandler(w http.ResponseWriter, r *http.Request) {
 			httpx.WriteJSON(w, map[string]any{"error": err.Error()})
 			return
 		}
-		// Model: GA di-mirror ke env lagi (owner 2026-06-20: "kebenaran di GUI bukan env").
-		// Tersimpan di kv llm_default_model, dibaca live via floworkdb.DefaultModelShared().
-		// Router URL masih di-inject ke env (routerclient pakai ROUTER_DEFAULT_URL).
+
 		if url != "" {
 			_ = os.Setenv("ROUTER_DEFAULT_URL", url)
 		} else {
@@ -279,7 +215,6 @@ func (a *API) RouterDefaultHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// mask — tampilkan 4 char terakhir, sisanya bullet.
 func mask(v string) string {
 	v = strings.TrimSpace(v)
 	if v == "" {

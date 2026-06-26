@@ -1,14 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Provider adapter.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Vendor: assemblyai — AssemblyAI Universal STT.
-// Protocol: 3-step (upload audio → submit transcription job → poll until
-// done). We poll up to 120s; longer audio is supported but the caller
-// should accept that the API returns within that budget.
 package stt
 
 import (
@@ -29,7 +23,6 @@ func (a *assemblyAIProvider) Name() string { return "assemblyai" }
 func (a *assemblyAIProvider) Transcribe(ctx context.Context, req Request) (Result, error) {
 	base := defaultStr(req.BaseURL, "https://api.assemblyai.com/v2")
 
-	// 1) Upload raw audio bytes.
 	uploadReq, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/upload", bytes.NewReader(req.Audio))
 	if err != nil {
 		return Result{}, fmt.Errorf("build upload: %w", err)
@@ -47,7 +40,6 @@ func (a *assemblyAIProvider) Transcribe(ctx context.Context, req Request) (Resul
 		return Result{}, fmt.Errorf("upload parse: %v body=%s", err, head(upRaw))
 	}
 
-	// 2) Submit transcription job.
 	body := map[string]any{
 		"audio_url": up.UploadURL,
 	}
@@ -77,7 +69,6 @@ func (a *assemblyAIProvider) Transcribe(ctx context.Context, req Request) (Resul
 		return Result{}, fmt.Errorf("submit parse: %v body=%s", err, head(subRaw))
 	}
 
-	// 3) Poll up to 120s.
 	deadline := time.Now().Add(120 * time.Second)
 	for time.Now().Before(deadline) {
 		select {
@@ -115,7 +106,7 @@ func (a *assemblyAIProvider) Transcribe(ctx context.Context, req Request) (Resul
 		case "error":
 			return Result{}, fmt.Errorf("assemblyai: %s", poll.Error)
 		}
-		// "queued" / "processing" → keep polling.
+
 	}
 	return Result{}, fmt.Errorf("assemblyai: poll timeout after 120s")
 }

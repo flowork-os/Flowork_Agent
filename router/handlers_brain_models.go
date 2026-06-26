@@ -1,30 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 11 (HTTP boundary) phase 1 DONE. Namespace
-//   /api/brain/models (anti-collision dengan existing /api/models
-//   handlers_models_meta.go yang serve flowork-settings store).
-//   Endpoints stable: POST upsert, GET list filter (category/is_free/
-//   max_cost/limit), GET /get?id= single, DELETE. MaxBytesReader 16KB,
-//   DisallowUnknownFields. Future refresh/resolve endpoints → tambah
-//   file baru, JANGAN modify ini.
-//
-// handlers_brain_models.go — Section 11 phase 1: model pool CRUD.
-//
-// NAMESPACE /api/brain/models (NOT /api/models — avoid collision dengan
-// existing handlers_models_meta.go yang serve flowork-settings store).
-//
-// Endpoints:
-//   POST   /api/brain/models — upsert single (body: UpsertOpts)
-//   GET    /api/brain/models?category=&is_free=1&max_cost=&limit=
-//   GET    /api/brain/models/get?id=<model_id>
-//   DELETE /api/brain/models?id=<model_id> — DESTRUCTIVE physical row remove
-//
-// Roadmap:
-//   - internal/modelpool/modelpool.go (Upsert/Get/List/Delete/Count)
-//   - flowork_Router/roadmap.md Section 11 phase 1
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -39,10 +16,6 @@ import (
 
 const maxBrainModelBodyBytes = 16 * 1024
 
-// brainModelsHandler — dispatch /api/brain/models by method.
-//   POST   → upsert
-//   GET    → list
-//   DELETE → remove
 func brainModelsHandler(w http.ResponseWriter, r *http.Request) {
 	if !ensureBrainReady(w, r) {
 		return
@@ -59,7 +32,6 @@ func brainModelsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// brainModelsPost — POST /api/brain/models — upsert.
 func brainModelsPost(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxBrainModelBodyBytes)
 	var body modelpool.UpsertOpts
@@ -81,7 +53,6 @@ func brainModelsPost(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// brainModelsList — GET /api/brain/models?category=&is_free=1&max_cost=&limit=
 func brainModelsList(w http.ResponseWriter, r *http.Request) {
 	opts := modelpool.ListOpts{
 		Category:   strings.TrimSpace(r.URL.Query().Get("category")),
@@ -105,7 +76,6 @@ func brainModelsList(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"items": items, "count": len(items)})
 }
 
-// brainModelsDelete — DELETE /api/brain/models?id=<model_id> — DESTRUCTIVE.
 func brainModelsDelete(w http.ResponseWriter, r *http.Request) {
 	modelID := strings.TrimSpace(r.URL.Query().Get("id"))
 	if modelID == "" {
@@ -124,7 +94,6 @@ func brainModelsDelete(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "deleted": n, "model_id": modelID})
 }
 
-// brainModelsGetHandler — GET /api/brain/models/get?id=<model_id>
 func brainModelsGetHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed (use GET)", http.StatusMethodNotAllowed)

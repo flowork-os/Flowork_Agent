@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 12 phase 3 approval endpoints + tool_audit query.
-//
-// approval.go — Section 12 phase 3: approval workflow + tool_audit endpoints.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package agentmgr
 
@@ -17,9 +13,6 @@ import (
 	"flowork-gui/internal/httpx"
 )
 
-// ApprovalQueueHandler — GET/POST /api/agents/protector/approval/queue?id=<agent>
-//   GET ?status=pending → list
-//   (POST handled by separate approve/reject endpoints)
 func ApprovalQueueHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
@@ -45,12 +38,10 @@ func ApprovalQueueHandler(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, map[string]any{"items": rows, "count": len(rows)})
 }
 
-// ApproveHandler — POST /api/agents/protector/approve_pending?id=&queue_id=
 func ApproveHandler(w http.ResponseWriter, r *http.Request) {
 	decideApproval(w, r, "approved")
 }
 
-// RejectHandler — POST /api/agents/protector/reject_pending?id=&queue_id=
 func RejectHandler(w http.ResponseWriter, r *http.Request) {
 	decideApproval(w, r, "rejected")
 }
@@ -87,7 +78,6 @@ func decideApproval(w http.ResponseWriter, r *http.Request, status string) {
 	})
 }
 
-// ToolAuditHandler — GET /api/agents/tool-audit?id=&decision=&tool=&limit=
 func ToolAuditHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})

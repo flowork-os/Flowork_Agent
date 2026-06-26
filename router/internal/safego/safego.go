@@ -1,20 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — audit pass surface review.
-
-// Goroutine launcher with a panic recovery net.
-//
-// Fire-and-forget background work (metrics, logging, MITM capture, pipe
-// drainers) inherits the default Go behaviour: an unrecovered panic in any
-// goroutine crashes the entire process. safego wraps the work in a deferred
-// recover and logs the stack so a bug in a background task can't tear down
-// the whole router.
-//
-// Use Go(fn) for the common case. Pass a label string when you want the
-// recovery log to point at a specific call site.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package safego
 
@@ -23,13 +10,10 @@ import (
 	"runtime/debug"
 )
 
-// Go runs fn in a new goroutine with panic recovery.
 func Go(fn func()) {
 	GoLabel("", fn)
 }
 
-// GoLabel is Go with a custom label printed on recovery — useful when a
-// generic stack trace isn't enough to find the offending site.
 func GoLabel(label string, fn func()) {
 	go func() {
 		defer func() {

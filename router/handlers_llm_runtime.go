@@ -1,14 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/flow_router
-// Locked at: 2026-05-30
-// Reason: Sections 24+25+26 phase 2 runtime endpoints — chain run,
-//   LocalAI start/stop/status, pricing calc + manual cost log. Phase 3
-//   (chain stream SSE, llama.cpp model HF download, owner-override audit)
-//   → tambah file baru.
-//
-// handlers_llm_runtime.go — Sections 24-26 phase 2 runtime endpoints.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -25,9 +18,6 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-// ChainRunHandler — POST /api/provider/chain/run?chain=default
-// Body OpenAI-compat chat request. Try primary→fallback→error. Auto-
-// log cost via pricing.Calc + pricing.LogCall.
 func ChainRunHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "method not allowed"})
@@ -58,13 +48,13 @@ func ChainRunHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadGateway, map[string]any{"error": rerr.Error()})
 		return
 	}
-	// Auto cost calc + log.
+
 	cost, _ := pricing.Calc(db, resp.Provider, resp.Model, "",
 		resp.Usage.PromptTokens, resp.Usage.CompletionTokens)
 	_ = pricing.LogCall(db, caller, resp.Provider, resp.Model,
 		resp.Usage.PromptTokens, resp.Usage.CompletionTokens,
 		cost, resp.LatencyMS, "success")
-	// Set cost header (mirror Section 23 Agent acceptance).
+
 	w.Header().Set("X-Router-Cost-USD", strconv.FormatFloat(cost, 'f', 6, 64))
 	w.Header().Set("X-Router-Provider", resp.Provider)
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -77,20 +67,12 @@ func ChainRunHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// =============================================================================
-// Section 25: LocalAI runtime control
-// =============================================================================
-
 var (
 	localAIRuntimeRef *localai.Runtime
-	// localAIRuntimeMu serializes the lazy-init + start/stop/status of the
-	// shared runtime. net/http runs one goroutine per request, so without this
-	// two concurrent POSTs could both see localAIRuntimeRef==nil, each build a
-	// *Runtime, and orphan one llama-server subprocess (data race on the ptr).
+
 	localAIRuntimeMu sync.Mutex
 )
 
-// LocalAIRuntimeHandler — POST {action: start|stop|status, model_name?, gguf_path?}
 func LocalAIRuntimeHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "method not allowed"})
@@ -112,7 +94,7 @@ func LocalAIRuntimeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	switch body.Action {
 	case "start":
-		// Resolve gguf_path from registry kalau ngga di-supply.
+
 		gguf := body.GGUFPath
 		if gguf == "" && body.ModelName != "" {
 			db, _ := store.Open()
@@ -135,13 +117,6 @@ func LocalAIRuntimeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// =============================================================================
-// Section 26: Real-time pricing calc + log
-// =============================================================================
-
-// PricingCalcHandler — POST {provider, model, tier?, input_tokens, output_tokens}
-// Return computed cost_usd. Caller (external) panggil setelah LLM
-// response untuk pre-calc cost dan log.
 func PricingCalcHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "method not allowed"})
@@ -175,8 +150,6 @@ func PricingCalcHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// PricingLogCallHandler — POST {caller, provider, model, input/output,
-// cost_usd?, latency_ms?, status?}. Caller (test/admin) manual log.
 func PricingLogCallHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "method not allowed"})
@@ -201,7 +174,7 @@ func PricingLogCallHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
 		return
 	}
-	// Auto-calc kalau cost_usd 0 dan tokens > 0.
+
 	if body.CostUSD == 0 && body.InputTokens+body.OutputTokens > 0 {
 		body.CostUSD, _ = pricing.Calc(db, body.Provider, body.Model, "",
 			body.InputTokens, body.OutputTokens)

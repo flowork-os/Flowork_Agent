@@ -1,14 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Port batch 11 — 8 tool tambahan.
-//
-// v12_extras.go:
-//   workspace_upsert, edu_error_upsert, protector_rule_add,
-//   workspace_meta_count, audit_count, decision_count,
-//   mistake_promote_eligible, slash_alias_resolve.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package builtins
 
@@ -31,10 +24,6 @@ func init() {
 	tools.Register(&protectorRuleAddTool{})
 	tools.Register(&slashAliasResolveTool{})
 }
-
-// =============================================================================
-// 1. workspace_upsert — register/update workspace_meta entry
-// =============================================================================
 
 type workspaceUpsertTool struct{}
 
@@ -76,10 +65,6 @@ func (workspaceUpsertTool) Run(ctx context.Context, args map[string]any) (tools.
 		Output: map[string]any{"ok": true, "id": id},
 	}, nil
 }
-
-// =============================================================================
-// 2. edu_error_upsert — register/update educational error
-// =============================================================================
 
 type eduErrorUpsertTool struct{}
 
@@ -127,10 +112,6 @@ func (eduErrorUpsertTool) Run(ctx context.Context, args map[string]any) (tools.R
 	}, nil
 }
 
-// =============================================================================
-// 3. workspace_meta_count
-// =============================================================================
-
 type workspaceMetaCountTool struct{}
 
 func (workspaceMetaCountTool) Name() string       { return "workspace_meta_count" }
@@ -160,10 +141,6 @@ func (workspaceMetaCountTool) Run(ctx context.Context, args map[string]any) (too
 		Output: map[string]any{"total": len(items), "by_category": byCategory},
 	}, nil
 }
-
-// =============================================================================
-// 4. audit_count
-// =============================================================================
 
 type auditCountTool struct{}
 
@@ -198,10 +175,6 @@ func (auditCountTool) Run(ctx context.Context, args map[string]any) (tools.Resul
 	}, nil
 }
 
-// =============================================================================
-// 5. decision_count
-// =============================================================================
-
 type decisionCountTool struct{}
 
 func (decisionCountTool) Name() string       { return "decision_count" }
@@ -233,10 +206,6 @@ func (decisionCountTool) Run(ctx context.Context, args map[string]any) (tools.Re
 		Output: map[string]any{"by_type": byType, "by_outcome": byOutcome, "total": len(items)},
 	}, nil
 }
-
-// =============================================================================
-// 6. mistake_promote_eligible
-// =============================================================================
 
 type mistakePromoteEligibleTool struct{}
 
@@ -275,10 +244,6 @@ func (mistakePromoteEligibleTool) Run(ctx context.Context, args map[string]any) 
 	}, nil
 }
 
-// =============================================================================
-// 7. protector_rule_add — add new protector rule
-// =============================================================================
-
 type protectorRuleAddTool struct{}
 
 func (protectorRuleAddTool) Name() string       { return "protector_rule_add" }
@@ -308,7 +273,7 @@ func (protectorRuleAddTool) Run(ctx context.Context, args map[string]any) (tools
 	if name == "" || pattern == "" || action == "" {
 		return tools.Result{}, fmt.Errorf("name + pattern + action required")
 	}
-	// Map: name → rule_type, reason → source (audit context).
+
 	source := reason
 	if source == "" {
 		source = "tool:" + name
@@ -328,10 +293,6 @@ func (protectorRuleAddTool) Run(ctx context.Context, args map[string]any) (tools
 		Output: map[string]any{"ok": true, "id": id},
 	}, nil
 }
-
-// =============================================================================
-// 8. slash_alias_resolve — resolve alias → command
-// =============================================================================
 
 type slashAliasResolveTool struct{}
 
@@ -357,7 +318,7 @@ func (slashAliasResolveTool) Run(ctx context.Context, args map[string]any) (tool
 	if alias == "" {
 		return tools.Result{}, fmt.Errorf("alias required")
 	}
-	// Aliases table not yet wired ke public API — placeholder.
+
 	return tools.Result{
 		Output: map[string]any{"found": false, "alias": alias, "note": "alias table API placeholder — future enhancement"},
 	}, nil

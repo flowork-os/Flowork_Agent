@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — MITM proxy module.
-
-// MITM Config (TARGET_HOSTS, URL_PATTERNS, MODEL_*).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package mitm
 
@@ -14,8 +10,6 @@ import (
 	"strings"
 )
 
-// TargetHosts is the canonical list of hosts the MITM intercepts. Mirrors
-// upstream config.js TARGET_HOSTS exactly.
 var TargetHosts = []string{
 	"daily-cloudcode-pa.googleapis.com",
 	"cloudcode-pa.googleapis.com",
@@ -24,8 +18,6 @@ var TargetHosts = []string{
 	"api2.cursor.sh",
 }
 
-// URLPatterns maps the tool name to the URL substrings the rewriter cares
-// about. Mirrors upstream config.js URL_PATTERNS.
 var URLPatterns = map[string][]string{
 	"antigravity": {":generateContent", ":streamGenerateContent"},
 	"copilot":     {"/chat/completions", "/v1/messages", "/responses"},
@@ -33,7 +25,6 @@ var URLPatterns = map[string][]string{
 	"cursor":      {"/BidiAppend", "/RunSSE", "/RunPoll", "/Run"},
 }
 
-// ModelSynonyms — rawModel exact match → canonical alias.
 var ModelSynonyms = map[string]map[string]string{
 	"antigravity": {
 		"gemini-default":      "gemini-3.5-flash-low",
@@ -43,14 +34,11 @@ var ModelSynonyms = map[string]map[string]string{
 	},
 }
 
-// ModelPattern is a (regex → canonical-alias) fallback entry. Order matters:
-// more specific patterns first.
 type ModelPattern struct {
 	Match *regexp.Regexp
 	Alias string
 }
 
-// ModelPatterns mirrors upstream config.js MODEL_PATTERNS.
 var ModelPatterns = map[string][]ModelPattern{
 	"antigravity": {
 		{regexp.MustCompile(`(?i)flash.*low|low.*flash|flash.*medium|medium.*flash`), "gemini-3.5-flash-low"},
@@ -63,8 +51,6 @@ var ModelPatterns = map[string][]ModelPattern{
 	},
 }
 
-// LogBlacklistURLParts — substrings whose req/resp must NOT be dumped (noisy
-// telemetry / polling). Mirrors upstream LOG_BLACKLIST_URL_PARTS.
 var LogBlacklistURLParts = []string{
 	"recordCodeAssistMetrics",
 	"recordTrajectoryAnalytics",
@@ -73,8 +59,6 @@ var LogBlacklistURLParts = []string{
 	"fetchUserInfo",
 }
 
-// GetToolForHost returns the per-IDE handler key ("antigravity" / "copilot" /
-// "kiro" / "cursor") for the given host, or "" when not intercepted.
 func GetToolForHost(host string) string {
 	h := strings.SplitN(host, ":", 2)[0]
 	switch h {

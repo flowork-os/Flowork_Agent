@@ -1,13 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 23 phase 1 finance endpoints. Phase 2 (auto-ingestion
-//   dari Router X-Router-Cost-Usd response header, dormancy detector,
-//   ratelimit budget enforcement) → tambah file baru.
-//
-// finance.go — Section 23 phase 1: ledger + budget endpoints.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package agentmgr
 
@@ -22,9 +16,6 @@ import (
 	"flowork-gui/internal/httpx"
 )
 
-// FinanceLedgerHandler — GET/POST /api/agents/finance/ledger?id=<agent>
-//   GET  — list ?category=&from=&to=&limit=
-//   POST — body FinanceLedger (insert row)
 func FinanceLedgerHandler(w http.ResponseWriter, r *http.Request) {
 	agentID := strings.TrimSpace(r.URL.Query().Get("id"))
 	if agentID == "" {
@@ -71,7 +62,6 @@ func FinanceLedgerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// FinanceSummaryHandler — GET /api/agents/finance/summary?id=&from=&to=
 func FinanceSummaryHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
@@ -103,10 +93,6 @@ func FinanceSummaryHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// FinanceCheckBudgetHandler — GET /api/agents/finance/check_budget?id=&metric_key=
-// Return {allowed, current_value, budget_value, warning_pct, exceeded}
-// Caller (Mr.Flow pre-LLM-call wrapper) panggil ini → kalau allowed=false → block
-// + log decision "budget_exceeded".
 func FinanceCheckBudgetHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
@@ -138,27 +124,26 @@ func FinanceCheckBudgetHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if targetBudget == nil {
-		// No budget configured → always allowed.
+
 		httpx.WriteJSON(w, map[string]any{
-			"allowed":      true,
-			"reason":       "no budget configured",
-			"metric_key":   metricKey,
+			"allowed":       true,
+			"reason":        "no budget configured",
+			"metric_key":    metricKey,
 			"current_value": 0,
 		})
 		return
 	}
 	if !targetBudget.Enabled {
 		httpx.WriteJSON(w, map[string]any{
-			"allowed":      true,
-			"reason":       "budget disabled",
-			"metric_key":   metricKey,
+			"allowed":       true,
+			"reason":        "budget disabled",
+			"metric_key":    metricKey,
 			"current_value": 0,
 			"budget_value":  targetBudget.BudgetValue,
 		})
 		return
 	}
 
-	// Sum cost_usd today (UTC).
 	from := time.Now().UTC().Format("2006-01-02") + "T00:00:00Z"
 	to := time.Now().UTC().Format(time.RFC3339)
 	summary, err := store.SummaryLedger(from, to)
@@ -178,7 +163,7 @@ func FinanceCheckBudgetHandler(w http.ResponseWriter, r *http.Request) {
 	reason := ""
 	if exceeded {
 		reason = "daily budget exceeded"
-		// Log decision.
+
 		inputs := map[string]any{
 			"metric_key":    metricKey,
 			"current_value": totalToday,
@@ -201,7 +186,6 @@ func FinanceCheckBudgetHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// FinanceBudgetHandler — GET/POST /api/agents/finance/budget?id=<agent>
 func FinanceBudgetHandler(w http.ResponseWriter, r *http.Request) {
 	agentID := strings.TrimSpace(r.URL.Query().Get("id"))
 	if agentID == "" {

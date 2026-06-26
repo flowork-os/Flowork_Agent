@@ -1,11 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Provider executor HTTP call.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Executor: codex — ChatGPT Codex backend (chatgpt-backend with session token).
 package executors
 
 import (
@@ -50,23 +47,19 @@ func (c *codexExecutor) headers(p *store.ProviderConnection) map[string]string {
 	return h
 }
 
-// buildBody wraps the standard MarshalRequest output with Codex-specific
-// fields: default `instructions` system prompt (when the caller didn't
-// supply one) + `store: false` (Codex requirement, anything else is
-// rejected). Returns the patched JSON.
 func (c *codexExecutor) buildBody(req Request) []byte {
 	raw := MarshalRequest(req)
-	body := map[string]any{} // non-nil: raw "null"/primitif → tanpa init, write bawah PANIC
+	body := map[string]any{}
 	if err := json.Unmarshal(raw, &body); err != nil {
-		// Fall back to the raw shape — better to ship something than nothing.
+
 		return raw
 	}
-	// Inject default instructions only when empty / missing.
+
 	current, _ := body["instructions"].(string)
 	if current == "" {
 		body["instructions"] = CodexDefaultInstructions
 	}
-	// Codex API hard-requires store=false.
+
 	body["store"] = false
 	out, err := json.Marshal(body)
 	if err != nil {

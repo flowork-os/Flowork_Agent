@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Store SQLite layer.
-
-// KV-backed Misc Stores.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package store
 
@@ -15,16 +11,14 @@ import (
 	"time"
 )
 
-// ── OAuth Tokens ───────────────────────────────────────────────────────
-
 type OAuthTokenRecord struct {
-	Provider     string `json:"provider"` // codex|cursor|gitlab|iflow|kiro|claude|...
+	Provider     string `json:"provider"`
 	AccessToken  string `json:"accessToken,omitempty"`
 	RefreshToken string `json:"refreshToken,omitempty"`
 	IDToken      string `json:"idToken,omitempty"`
 	TokenType    string `json:"tokenType"`
 	Scope        string `json:"scope,omitempty"`
-	ExpiresAt    string `json:"expiresAt,omitempty"` // RFC3339
+	ExpiresAt    string `json:"expiresAt,omitempty"`
 	Extra        any    `json:"extra,omitempty"`
 	UpdatedAt    string `json:"updatedAt"`
 }
@@ -53,9 +47,7 @@ func GetOAuthToken(d *sql.DB, provider string) (*OAuthTokenRecord, error) {
 
 func UpsertOAuthToken(d *sql.DB, t *OAuthTokenRecord) error {
 	t.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
-	// Encrypt bearer/refresh/id tokens at rest (AES-256-GCM, "enc:" prefix) to
-	// match the provider-API-key doctrine. EncryptSecret is idempotent + a no-op
-	// on empty strings, so pending records (data lives in Extra) are untouched.
+
 	rec := *t
 	rec.AccessToken = EncryptSecret(rec.AccessToken)
 	rec.RefreshToken = EncryptSecret(rec.RefreshToken)
@@ -67,12 +59,10 @@ func DeleteOAuthToken(d *sql.DB, provider string) error {
 	return kvDelete(d, oauthKVPrefix+provider)
 }
 
-// ── MCP Servers ────────────────────────────────────────────────────────
-
 type MCPServer struct {
 	ID        string            `json:"id"`
 	Name      string            `json:"name"`
-	Transport string            `json:"transport"` // stdio|sse|http
+	Transport string            `json:"transport"`
 	Command   string            `json:"command,omitempty"`
 	Args      []string          `json:"args,omitempty"`
 	Env       map[string]string `json:"env,omitempty"`
@@ -99,8 +89,6 @@ func UpsertMCPServer(d *sql.DB, m *MCPServer) error {
 func DeleteMCPServer(d *sql.DB, id string) error {
 	return kvDelete(d, mcpKVPrefix+id)
 }
-
-// ── Tunnel State (singleton) ───────────────────────────────────────────
 
 type TunnelState struct {
 	CloudflareEnabled  bool   `json:"cloudflareEnabled"`
@@ -132,12 +120,10 @@ func SaveTunnelState(d *sql.DB, t *TunnelState) error {
 	return kvUpsert(d, tunnelKey, t)
 }
 
-// ── Locale Pref (singleton) ────────────────────────────────────────────
-
 type LocalePref struct {
-	Locale    string `json:"locale"`   // en|id|zh|...
-	Timezone  string `json:"timezone"` // Asia/Jakarta default
-	Theme     string `json:"theme"`    // dark|light|auto
+	Locale    string `json:"locale"`
+	Timezone  string `json:"timezone"`
+	Theme     string `json:"theme"`
 	UpdatedAt string `json:"updatedAt"`
 }
 
@@ -159,17 +145,15 @@ func SaveLocalePref(d *sql.DB, p *LocalePref) error {
 	return kvUpsert(d, localeKey, p)
 }
 
-// ── CLI Tool State (per-toolId detection cache) ────────────────────────
-
 type CLIToolState struct {
-	ToolID          string         `json:"toolId"` // claude|codex|cursor|cline|...
+	ToolID          string         `json:"toolId"`
 	Installed       bool           `json:"installed"`
 	HasCredentials  bool           `json:"hasCredentials"`
 	BinaryPath      string         `json:"binaryPath,omitempty"`
 	CredentialsPath string         `json:"credentialsPath,omitempty"`
 	Version         string         `json:"version,omitempty"`
 	Settings        map[string]any `json:"settings,omitempty"`
-	Status          string         `json:"status"` // ok|missing|stale|error
+	Status          string         `json:"status"`
 	Notes           string         `json:"notes,omitempty"`
 	UpdatedAt       string         `json:"updatedAt"`
 }
@@ -188,8 +172,6 @@ func UpsertCLIToolState(d *sql.DB, s *CLIToolState) error {
 	s.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 	return kvUpsert(d, cliToolKVPrefix+s.ToolID, s)
 }
-
-// ── Generic KV helpers ─────────────────────────────────────────────────
 
 func kvList[T any](d *sql.DB, prefix string) ([]T, error) {
 	rows, err := d.Query(`SELECT k, v FROM kv WHERE k LIKE ? ORDER BY k ASC`, prefix+"%")

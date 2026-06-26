@@ -1,13 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Port batch 10 — 6 tool tambahan.
-//
-// v11_extras.go:
-//   stat_summary, capabilities_list, watchdog_alerts_list,
-//   zombie_findings_list, persona_get, decision_search.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package builtins
 
@@ -27,10 +21,6 @@ func init() {
 	tools.Register(&personaGetTool{})
 	tools.Register(&decisionSearchTool{})
 }
-
-// =============================================================================
-// 1. stat_summary — quick overview semua tables
-// =============================================================================
 
 type statSummaryTool struct{}
 
@@ -56,18 +46,14 @@ func (statSummaryTool) Run(ctx context.Context, args map[string]any) (tools.Resu
 	subs, _ := store.ListSubscriptions()
 	return tools.Result{
 		Output: map[string]any{
-			"interactions":   interactions,
-			"death_letters":  letters,
-			"scanner_runs":   len(runs),
-			"schedules":      len(schedules),
-			"subscriptions":  len(subs),
+			"interactions":  interactions,
+			"death_letters": letters,
+			"scanner_runs":  len(runs),
+			"schedules":     len(schedules),
+			"subscriptions": len(subs),
 		},
 	}, nil
 }
-
-// =============================================================================
-// 2. capabilities_list — return agent capabilities (sebagai self-intro)
-// =============================================================================
 
 type capabilitiesListTool struct{}
 
@@ -97,10 +83,6 @@ func (capabilitiesListTool) Run(ctx context.Context, args map[string]any) (tools
 		Output: map[string]any{"count": len(out), "capabilities": out},
 	}, nil
 }
-
-// =============================================================================
-// 3. watchdog_alerts_list — list watchdog alerts triggered
-// =============================================================================
 
 type watchdogAlertsListTool struct{}
 
@@ -137,10 +119,6 @@ func (watchdogAlertsListTool) Run(ctx context.Context, args map[string]any) (too
 	}, nil
 }
 
-// =============================================================================
-// 4. zombie_findings_list — list zombie code findings
-// =============================================================================
-
 type zombieFindingsListTool struct{}
 
 func (zombieFindingsListTool) Name() string       { return "zombie_findings_list" }
@@ -173,7 +151,7 @@ func (zombieFindingsListTool) Run(ctx context.Context, args map[string]any) (too
 	if err != nil {
 		return tools.Result{}, fmt.Errorf("list zombie findings: %w", err)
 	}
-	// Client-side filter by confidence (signature minimal).
+
 	if confidence != "" {
 		filtered := items[:0]
 		for _, f := range items {
@@ -187,10 +165,6 @@ func (zombieFindingsListTool) Run(ctx context.Context, args map[string]any) (too
 		Output: map[string]any{"count": len(items), "findings": items},
 	}, nil
 }
-
-// =============================================================================
-// 5. persona_get — return current persona prompt
-// =============================================================================
 
 type personaGetTool struct{}
 
@@ -218,10 +192,6 @@ func (personaGetTool) Run(ctx context.Context, args map[string]any) (tools.Resul
 		Output: map[string]any{"prompt": prompt, "length": len(prompt)},
 	}, nil
 }
-
-// =============================================================================
-// 6. decision_search — search decisions by type substring
-// =============================================================================
 
 type decisionSearchTool struct{}
 
@@ -251,7 +221,7 @@ func (decisionSearchTool) Run(ctx context.Context, args map[string]any) (tools.R
 			limit = 200
 		}
 	}
-	items, err := store.ListDecisions("", limit*3) // overfetch + filter
+	items, err := store.ListDecisions("", limit*3)
 	if err != nil {
 		return tools.Result{}, fmt.Errorf("list decisions: %w", err)
 	}

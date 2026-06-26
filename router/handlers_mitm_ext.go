@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — HTTP handler.
-
-// MITM Full Body Capture + Replay (BATCH 16).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -24,14 +20,12 @@ var (
 	mitmCaptureEnabled bool
 )
 
-// MITMCaptureEnabled — checked from chat dispatch hot path.
 func MITMCaptureEnabled() bool {
 	mitmCaptureMu.RLock()
 	defer mitmCaptureMu.RUnlock()
 	return mitmCaptureEnabled
 }
 
-// mitmCaptureToggleHandler — POST { enabled: bool } toggle full-body capture.
 func mitmCaptureToggleHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -47,17 +41,15 @@ func mitmCaptureToggleHandler(w http.ResponseWriter, r *http.Request) {
 	mitmCaptureMu.Lock()
 	mitmCaptureEnabled = body.Enabled
 	mitmCaptureMu.Unlock()
-	// Persist toggle to kv so survives restart
+
 	d, _ := store.Open()
-	_ = store.SaveTunnelState(d, &store.TunnelState{}) // touch to ensure kv ready
+	_ = store.SaveTunnelState(d, &store.TunnelState{})
 	_, _ = d.Exec(`INSERT INTO kv (k, v, updatedAt) VALUES ('mitm:capture','` +
 		map[bool]string{true: "true", false: "false"}[body.Enabled] +
 		`', datetime('now')) ON CONFLICT(k) DO UPDATE SET v=excluded.v, updatedAt=excluded.updatedAt`)
 	writeJSON(w, http.StatusOK, map[string]any{"enabled": body.Enabled})
 }
 
-// mitmFullDetailHandler — GET /api/mitm/full/:id, return full request +
-// response body for forensic inspection.
 func mitmFullDetailHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -72,7 +64,6 @@ func mitmFullDetailHandler(w http.ResponseWriter, r *http.Request) {
 	usageRequestDetailsHandler(w, r)
 }
 
-// mitmRecentFullHandler — GET list of recent captured rows (with bodies).
 func mitmRecentFullHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -121,7 +112,6 @@ func mitmRecentFullHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// loadMITMCaptureState — call at boot to restore previous setting.
 func loadMITMCaptureState() {
 	d, err := store.Open()
 	if err != nil {
@@ -135,14 +125,12 @@ func loadMITMCaptureState() {
 	}
 }
 
-// recordMITMRequest — called from chat handler when capture enabled.
-// Inserts a row in requestDetails. Non-blocking caller.
 func recordMITMRequest(providerID, model, clientIP, clientUA string, reqBody []byte, statusCode int, errMsg string, durationMs int64, respBody []byte) {
 	d, err := store.Open()
 	if err != nil {
 		return
 	}
-	const maxBody = 256 * 1024 // cap each body at 256 KB
+	const maxBody = 256 * 1024
 	trunc := func(b []byte) string {
 		if len(b) > maxBody {
 			return string(b[:maxBody]) + "\n…[truncated]"

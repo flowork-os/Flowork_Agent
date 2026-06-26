@@ -1,14 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — HTTP handler.
-// 2026-06-13 (release audit, compared vs decolua/9router): openAIToGemini now matches the reference
-//   (openai-to-gemini.js) — system → top-level `systemInstruction` (not a contents role Gemini
-//   rejects), assistant→model / else→user, and temperature/max_tokens → `generationConfig`. Verified.
-
-// Translator HTTP Handlers.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -25,7 +18,6 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/translator/helpers"
 )
 
-// translatorRouterHandler — dispatch /api/translator and sub-routes.
 func translatorRouterHandler(w http.ResponseWriter, r *http.Request) {
 	rest := strings.TrimPrefix(r.URL.Path, "/api/translator")
 	rest = strings.TrimPrefix(rest, "/")
@@ -57,7 +49,7 @@ func translatorRouterHandler(w http.ResponseWriter, r *http.Request) {
 		translatorConsoleLogsStreamHandler(w, r)
 		return
 	}
-	// Plain :id path (e.g. /api/translator/<id> DELETE)
+
 	translatorCRUDHandler(w, r, rest)
 }
 
@@ -142,9 +134,6 @@ func translatorCRUDHandler(w http.ResponseWriter, r *http.Request, id string) {
 	}
 }
 
-// translatorTranslateHandler — POST { sourceFormat, targetFormat, payload }
-// Performs format conversion (basic message-array remap). Phase 1: best-effort
-// OpenAI ⇄ Anthropic ⇄ Gemini shape remap. Future: full tool_call conversion.
 func translatorTranslateHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -171,12 +160,6 @@ func translatorTranslateHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// translatorSendHandler — translate + dispatch /v1/chat/completions.
-// Body: { sourceFormat, targetFormat, payload }. Returns dispatch response in
-// targetFormat-translated shape (best effort).
-// translatorSendHandler — BATCH 20 full. Accept a request in sourceFormat,
-// normalize → canonical OpenAI, dispatch live to a provider, then translate
-// the response into targetFormat. Body: { sourceFormat, targetFormat, payload }.
 func translatorSendHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -225,7 +208,6 @@ func translatorSendHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// normalizeToCanonical — convert any-format payload into router.OpenAIRequest.
 func normalizeToCanonical(format string, payload map[string]any) (*router.OpenAIRequest, error) {
 	raw, _ := json.Marshal(payload)
 	req := &router.OpenAIRequest{}
@@ -287,7 +269,6 @@ func normalizeToCanonical(format string, payload map[string]any) (*router.OpenAI
 	return req, nil
 }
 
-// formatResponseAs — convert canonical OpenAI response → target format shape.
 func formatResponseAs(format string, resp *router.OpenAIResponse) any {
 	var content string
 	if len(resp.Choices) > 0 {
@@ -314,7 +295,7 @@ func formatResponseAs(format string, resp *router.OpenAIResponse) any {
 				"totalTokenCount": resp.Usage.TotalTokens,
 			},
 		}
-	default: // openai
+	default:
 		return resp
 	}
 }
@@ -337,8 +318,6 @@ func anyToText(v any) string {
 	return ""
 }
 
-// translatorConsoleLogsStreamHandler — GET SSE stream of translator activity.
-// Emits a snapshot then heartbeats; closes when client disconnects.
 func translatorConsoleLogsStreamHandler(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -367,24 +346,20 @@ func translatorConsoleLogsStreamHandler(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-// translatorConsoleLogsHandler — GET recent translator activity (uses
-// requestDetails table filtered to translator UI hits).
 func translatorConsoleLogsHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	// Phase 1: return empty list. Phase 2 will tag translator requests.
+
 	writeJSON(w, http.StatusOK, map[string]any{"data": []any{}, "count": 0, "phase": "phase2_pending"})
 }
 
-// translateFormat — best-effort shape mapping between OpenAI / Anthropic /
-// Gemini message arrays. Used by /api/translator/translate.
 func translateFormat(src, dst string, payload map[string]any) (map[string]any, error) {
 	if src == dst || src == "" || dst == "" {
 		return payload, nil
 	}
-	// Normalize to internal canonical form first (OpenAI-style)
+
 	canonical := payload
 	switch src {
 	case "anthropic":
@@ -392,11 +367,11 @@ func translateFormat(src, dst string, payload map[string]any) (map[string]any, e
 	case "gemini":
 		canonical = geminiToOpenAI(payload)
 	case "openai":
-		// already canonical
+
 	default:
 		return nil, errInvalid("unknown sourceFormat: " + src)
 	}
-	// Convert canonical (OpenAI) → target
+
 	switch dst {
 	case "openai":
 		return canonical, nil
@@ -509,11 +484,6 @@ func openAIToAnthropic(p map[string]any) map[string]any {
 	return out
 }
 
-// openAIToGemini — faithful to the decolua/9router reference (openai-to-gemini.js):
-//   • an OpenAI "system" message → top-level `systemInstruction` when other messages exist
-//     (Gemini `contents[]` only accepts user/model roles); a lone system message becomes a user turn.
-//   • assistant → "model", everything else → "user".
-//   • temperature / max_tokens → `generationConfig` { temperature, maxOutputTokens }.
 func openAIToGemini(p map[string]any) map[string]any {
 	out := map[string]any{"model": p["model"]}
 	arr, _ := p["messages"].([]any)
@@ -530,7 +500,7 @@ func openAIToGemini(p map[string]any) map[string]any {
 				out["systemInstruction"] = map[string]any{"parts": []map[string]any{{"text": content}}}
 				continue
 			}
-			role = "user" // sole message → user turn
+			role = "user"
 		}
 		if role == "assistant" {
 			role = "model"

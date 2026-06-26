@@ -1,11 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — Provider request/response translator.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Helper: OpenAI Responses API shape ↔ canonical.
 package helpers
 
 import (
@@ -13,26 +10,23 @@ import (
 	"strings"
 )
 
-// ParseResponsesInput accepts the `input` field of a /v1/responses request,
-// which can be a plain string or a list of `{role, content}` items. Returns
-// canonical chat messages.
 func ParseResponsesInput(raw json.RawMessage) []map[string]any {
 	if len(raw) == 0 {
 		return nil
 	}
-	// Plain string → single user message
+
 	var s string
 	if err := json.Unmarshal(raw, &s); err == nil && s != "" {
 		return []map[string]any{{"role": "user", "content": s}}
 	}
-	// Array of items
+
 	var arr []json.RawMessage
 	if err := json.Unmarshal(raw, &arr); err != nil {
 		return []map[string]any{{"role": "user", "content": string(raw)}}
 	}
 	out := make([]map[string]any, 0, len(arr))
 	for _, item := range arr {
-		// Try string-in-array
+
 		var s string
 		if err := json.Unmarshal(item, &s); err == nil {
 			out = append(out, map[string]any{"role": "user", "content": s})
@@ -53,8 +47,6 @@ func ParseResponsesInput(raw json.RawMessage) []map[string]any {
 	return out
 }
 
-// EncodeResponsesOutput wraps a plain text reply in the Responses API
-// "output[]" shape that the OpenAI Responses dialect expects.
 func EncodeResponsesOutput(text string) []map[string]any {
 	return []map[string]any{
 		{
@@ -76,10 +68,6 @@ func jsonToAny(raw json.RawMessage) any {
 	return v
 }
 
-// NormalizeResponsesInput converts the Responses-API `input` field (either a
-// plain string or an array of items) into a canonical array of typed
-// message items. Empty inputs are replaced with a "…" placeholder so
-// providers that reject empty messages[] still get a well-formed request.
 func NormalizeResponsesInput(raw json.RawMessage) []map[string]any {
 	placeholder := func(text string) []map[string]any {
 		if text == "" {
@@ -96,7 +84,7 @@ func NormalizeResponsesInput(raw json.RawMessage) []map[string]any {
 	if len(raw) == 0 {
 		return placeholder("")
 	}
-	// String → single user message wrapping it in input_text content.
+
 	var s string
 	if err := json.Unmarshal(raw, &s); err == nil {
 		txt := strings.TrimSpace(s)
@@ -111,7 +99,7 @@ func NormalizeResponsesInput(raw json.RawMessage) []map[string]any {
 			},
 		}}
 	}
-	// Array passthrough — inject placeholder if empty.
+
 	var arr []map[string]any
 	if err := json.Unmarshal(raw, &arr); err == nil {
 		if len(arr) == 0 {
@@ -122,19 +110,6 @@ func NormalizeResponsesInput(raw json.RawMessage) []map[string]any {
 	return nil
 }
 
-// ConvertResponsesAPIFormat translates an OpenAI Responses API body into the
-// canonical chat-completions shape:
-//
-//   - `instructions` (string) becomes the leading system message
-//   - `input` array items expand into role-tagged messages
-//   - `function_call` items group into the assistant's `tool_calls`
-//   - `function_call_output` items become role=tool messages
-//   - Content types normalised: input_text/output_text → text;
-//     input_image → image_url
-//   - `reasoning` items dropped (display-only)
-//   - Responses-API-only fields stripped from the result
-//
-// Returns a NEW map; the input is left untouched.
 func ConvertResponsesAPIFormat(body map[string]any) map[string]any {
 	if _, has := body["input"]; !has {
 		return body
@@ -242,13 +217,10 @@ func ConvertResponsesAPIFormat(body map[string]any) map[string]any {
 	return result
 }
 
-// normaliseResponsesContent converts an item's content (string or typed
-// array) into the canonical chat-completions shape: input_text /
-// output_text → text; input_image → image_url. Unknown types pass through.
 func normaliseResponsesContent(raw any) any {
 	parts, ok := raw.([]any)
 	if !ok {
-		return raw // already a string or unknown shape
+		return raw
 	}
 	out := make([]map[string]any, 0, len(parts))
 	for _, p := range parts {

@@ -1,11 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — audit pass surface review.
-
-// Web-fetch provider catalog.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package fetch
 
@@ -22,8 +18,6 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/safeurl"
 )
 
-// Request is the URL-fetch shape. Mode is vendor-specific hint (e.g. "raw" /
-// "markdown" / "screenshot") and may be ignored by simpler vendors.
 type Request struct {
 	URL     string
 	Mode    string
@@ -32,8 +26,6 @@ type Request struct {
 	Extra   map[string]any
 }
 
-// Result is the vendor-neutral response. ContentType reflects the actual MIME
-// of Body (text/markdown for reader services, text/html for raw fetch).
 type Result struct {
 	URL         string
 	Title       string
@@ -42,7 +34,6 @@ type Result struct {
 	StatusCode  int
 }
 
-// Fetcher is the vendor contract.
 type Fetcher interface {
 	Name() string
 	Fetch(ctx context.Context, req Request) (Result, error)
@@ -53,7 +44,6 @@ var (
 	registry = map[string]Fetcher{}
 )
 
-// Register adds a provider (idempotent — last writer wins).
 func Register(p Fetcher) {
 	if p == nil || p.Name() == "" {
 		return
@@ -63,14 +53,12 @@ func Register(p Fetcher) {
 	registry[p.Name()] = p
 }
 
-// Get returns the provider by name, or nil.
 func Get(name string) Fetcher {
 	regMu.RLock()
 	defer regMu.RUnlock()
 	return registry[name]
 }
 
-// List returns every registered vendor name.
 func List() []string {
 	regMu.RLock()
 	defer regMu.RUnlock()
@@ -81,12 +69,6 @@ func List() []string {
 	return out
 }
 
-// fetchHTTPClient is SSRF-hardened: redirects are re-validated against the
-// public-only policy (a public URL must not 302 into a private/metadata
-// address), and the dialer re-checks the actual resolved IP at connect time and
-// pins it (closing the DNS-rebinding window where a host resolves public at
-// validation and private at dial). Initial-URL validation still happens in the
-// caller via safeurl.Validate; these are the second line of defence.
 var fetchHTTPClient = &http.Client{
 	Timeout: 60 * time.Second,
 	CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -109,12 +91,6 @@ var fetchHTTPClient = &http.Client{
 	},
 }
 
-// safeDialContext resolves the target, rejects any non-public IP, and dials the
-// validated IP literal directly (so no second resolution can swap in a private
-// address). This is the anti-SSRF / anti-DNS-rebind dial path for web fetches.
-// allowPrivateDial relaxes the dial-time public-IP enforcement. It exists ONLY
-// so unit tests can reach loopback httptest servers; it is never set in
-// production (default false → loopback/private/metadata are blocked).
 var allowPrivateDial = false
 
 func safeDialContext(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -138,13 +114,10 @@ func safeDialContext(ctx context.Context, network, addr string) (net.Conn, error
 			return nil, fmt.Errorf("%w: %s -> %s", safeurl.ErrBlocked, host, a.IP)
 		}
 	}
-	// Pin the resolved IP (dial it directly) so no second resolution can swap in
-	// a private address after validation — closes the DNS-rebind window.
+
 	return d.DialContext(ctx, network, net.JoinHostPort(ips[0].IP.String(), port))
 }
 
-// doHTTPRequest sends r and reads up to 8 MiB. Caller-supplied headers are
-// already on the request.
 func doHTTPRequest(r *http.Request) ([]byte, *http.Response, error) {
 	resp, err := fetchHTTPClient.Do(r)
 	if err != nil {

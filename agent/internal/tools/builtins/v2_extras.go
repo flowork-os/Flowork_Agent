@@ -1,13 +1,7 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Port batch 1 dari referensi tools yang high-value untuk single-
-//   warga. 4 tool baru: death_letter_write (Section 4 wasiat), fact_recall
-//   + fact_write (Section 5 KV fact store), askuser (clarification escape).
-//
-// v2_extras.go — 4 tool tambahan dari referensi. Auto-register via init().
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package builtins
 
@@ -25,10 +19,6 @@ func init() {
 	tools.Register(&factWriteTool{})
 	tools.Register(&askUserTool{})
 }
-
-// =============================================================================
-// 1. death_letter_write — Section 4 wasiat
-// =============================================================================
 
 type deathLetterWriteTool struct{}
 
@@ -80,10 +70,6 @@ func (deathLetterWriteTool) Run(ctx context.Context, args map[string]any) (tools
 	}, nil
 }
 
-// =============================================================================
-// 2. fact_recall — baca fact dari tool_memory
-// =============================================================================
-
 type factRecallTool struct{}
 
 func (factRecallTool) Name() string       { return "fact_recall" }
@@ -123,10 +109,6 @@ func (factRecallTool) Run(ctx context.Context, args map[string]any) (tools.Resul
 	}, nil
 }
 
-// =============================================================================
-// 3. fact_write — tulis fact ke tool_memory
-// =============================================================================
-
 type factWriteTool struct{}
 
 func (factWriteTool) Name() string       { return "fact_write" }
@@ -164,10 +146,6 @@ func (factWriteTool) Run(ctx context.Context, args map[string]any) (tools.Result
 		Note:   fmt.Sprintf("Fact %q tersimpan (%d chars).", key, len(value)),
 	}, nil
 }
-
-// =============================================================================
-// 4. askuser — clarification escape hatch
-// =============================================================================
 
 type askUserTool struct{}
 

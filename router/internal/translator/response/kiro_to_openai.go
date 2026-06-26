@@ -1,11 +1,8 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Audit pass — ./internal/translator/response package — audit pass surface review.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// Response translator: Kiro CodeWhisperer → OpenAI ChatCompletion.
 package response
 
 import "github.com/flowork-os/flowork_Router/internal/translator"
@@ -14,8 +11,6 @@ func init() {
 	translator.Register(translator.Pair{From: "kiro", To: "openai"}, translator.DirResponse, KiroToOpenAI)
 }
 
-// KiroToOpenAI extracts assistantResponse.text and wraps it in an OpenAI completion.
-// Kiro shape (post-decode): { content: { text: "…" }, eventId, … }
 func KiroToOpenAI(body map[string]any) map[string]any {
 	var text string
 	if content, ok := body["content"].(map[string]any); ok {
