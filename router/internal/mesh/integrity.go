@@ -35,10 +35,36 @@ func manifestPath() string {
 	return "../KERNEL_FREEZE.md"
 }
 
+// computeFromAnchor — fallback kalau manifest tier-2 (super_scrit.md) DIHAPUS dari PC. Hash file
+// di tier2AnchorFiles (integrity_anchor.go), banding root ke tier2AnchorRoot (const di binary).
+// Beda/hilang → tampered. Const kosong/placeholder → tak bisa verifikasi → fail-open (clean=true).
+func computeFromAnchor() {
+	if len(tier2AnchorFiles) == 0 || tier2AnchorRoot == "" || tier2AnchorRoot == "PLACEHOLDER_ROOT" {
+		coreClean, coreRoot, coreCheckedCnt = true, "", 0
+		return
+	}
+	clean := true
+	var hashes []string
+	for _, path := range tier2AnchorFiles {
+		data, rerr := os.ReadFile(path)
+		if rerr != nil {
+			clean = false
+			continue
+		}
+		sum := sha256.Sum256(data)
+		hashes = append(hashes, hex.EncodeToString(sum[:]))
+	}
+	sort.Strings(hashes)
+	root := sha256.Sum256([]byte(strings.Join(hashes, "\n")))
+	got := hex.EncodeToString(root[:])
+	coreRoot, coreCheckedCnt = got, len(hashes)
+	coreClean = clean && got == tier2AnchorRoot
+}
+
 func computeIntegrity() {
 	f, err := os.Open(manifestPath())
 	if err != nil {
-		coreClean, coreRoot, coreCheckedCnt = true, "", 0
+		computeFromAnchor()
 		return
 	}
 	defer f.Close()
