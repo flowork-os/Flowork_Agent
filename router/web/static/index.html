@@ -3308,12 +3308,15 @@ done &lt; my_knowledge.jsonl</pre>
         ctx.textBaseline = 'middle';
         ctx.fillText(typeIcon, 0, 0);
 
-        // Label below
+        // Label below — DIBATASI biar gak numpuk/smear (full label tetap di panel detail).
+        // Hover = boleh lebih panjang (40) biar kebaca; normal = 20 char.
         ctx.fillStyle = isHovered ? '#ffffff' : '#cbd5e1';
         ctx.font = isHovered ? 'bold 10px Arial' : '9px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        ctx.fillText(node.label, 0, node.r + 4);
+        const _lbl = String(node.label || '');
+        const _max = isHovered ? 40 : 20;
+        ctx.fillText(_lbl.length > _max ? _lbl.slice(0, _max) + '…' : _lbl, 0, node.r + 4);
 
         ctx.restore();
       }
