@@ -1,8 +1,9 @@
 # SESI OPUS 2026-06-26 — RANGKUMAN KERJA + KEPUTUSAN (owner istirahat → autonomous)
 
 > Owner pasrah penuh ("titip rumah"). Prinsip: paling stabil & permanen, cabut-akar, switch-before-
-> freeze, test-before-freeze, QC GUI beneran (verified pakai screenshot CDP/chromium), push BASE doang
-> (public = rollback), tulis ALASAN di sini. Backup penuh: `Pictures/flowok_backup/FLOWORKOS4`.
+> freeze, test-before-freeze, QC GUI beneran (verified pakai screenshot CDP/chromium), **push WAJIB
+> ke DUA repo (public Flowork-OS + flowork-base)** sesuai `ruleemas.md` rule 3, tulis ALASAN di sini.
+> Backup penuh: `Pictures/flowok_backup/FLOWORKOS4`.
 
 ## ✅ SELESAI (dibangun + di-test + verified GUI + frozen + pushed ke flowork-base)
 

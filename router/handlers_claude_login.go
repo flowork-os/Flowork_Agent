@@ -1,10 +1,7 @@
-// Claude per-device OAuth login HTTP handlers.
-//
-// Lets a device with NO Claude Code (USB appliance / Android) log into Claude on its OWN — getting an
-// independent refresh token instead of sharing (and rotating) the desktop's. Two steps: /start
-// returns the authorize URL + stashes the PKCE verifier; /complete takes the pasted code and swaps it
-// for tokens (persisted via creds.SaveClaude, which the dispatcher reads). New routes, no edit to the
-// locked oauth handler.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -22,8 +19,6 @@ import (
 
 const claudeLoginPending = "claude:login-pending"
 
-// claudeLoginStartHandler — POST /api/claude-login/start. Generates PKCE + state, stores them, and
-// returns the authorize URL the owner opens to log THIS device into Claude independently.
 func claudeLoginStartHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -56,9 +51,6 @@ func claudeLoginStartHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// claudeLoginCompleteHandler — POST /api/claude-login/complete { code }. Accepts the pasted code
-// (which may arrive as "code#state"), validates state, exchanges it for an independent token pair,
-// and persists it (SaveClaude → dispatcher; also recorded in the KV store).
 func claudeLoginCompleteHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -74,7 +66,7 @@ func claudeLoginCompleteHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	code := strings.TrimSpace(body.Code)
 	state := strings.TrimSpace(body.State)
-	// The callback page shows "code#state" — accept that whole string pasted into the code field.
+
 	if i := strings.Index(code, "#"); i >= 0 {
 		if state == "" {
 			state = code[i+1:]
@@ -99,8 +91,7 @@ func claudeLoginCompleteHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "pending login malformed — click Start again", http.StatusBadRequest)
 		return
 	}
-	// CSRF: when the pasted blob carried a state, it MUST match (constant-time). PKCE verifier binding
-	// is the primary protection; the state check is belt-and-suspenders.
+
 	if state != "" && subtle.ConstantTimeCompare([]byte(state), []byte(storedState)) != 1 {
 		http.Error(w, "state mismatch — restart the login", http.StatusBadRequest)
 		return
