@@ -1,17 +1,8 @@
-// binary_ext.go — GROWTH-POINT (NON-frozen). #5 binary-vector recall (scale lever).
-//
-// AKAR: di korpus JUTAAN drawer, int8 full-scan dot (Search) jadi bottleneck. SOLUSI 2-tahap:
-//   (1) COARSE biner: sign-bit tiap dim (int8>0 → 1) → query XNOR vektor → popcount = agreement
-//       (≈ cosine, sign-LSH). Cepat banget (128 byte/vektor vs 1024). Ambil top-M kandidat.
-//   (2) RERANK int8: SearchSubset(int8 dot) cuma di M kandidat → akurasi int8 BALIK (final score exact).
-// Recall tinggi (rerank exact) + jauh lebih cepat di korpus gede.
-//
-// AUTO-DETECT (owner 2026-06-26): default "auto" → AKTIF cuma kalau korpus >= 1 JUTA drawer.
-// Di bawah 1jt → int8 full-scan biasa (ZERO perubahan). Switch FLOWORK_BINARY_VECTOR (auto|on|off),
-// threshold FLOWORK_BINARY_VECTOR_MIN (default 1000000). GUI Switch Fitur (prefix FLOWORK_).
-//
-// CATATAN: ini optimasi VECTOR-SEARCH drawer. Konstitusi/insting injection = jalur LAIN (DB/
-// constitution table) → ga kesentuh. Konstitusi default tetep selalu nempel.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah fitur TANPA buka frozen: file sibling baru + registry (RegisterMeshFilter/
+// RegisterExtraRoute/RegisterGraphProjection) + SWITCH fwswitch. Pola: lock/frozen-core.md
+
 package vecindex
 
 import (
@@ -26,12 +17,11 @@ import (
 
 type binData struct {
 	words int
-	sigs  []uint64 // n*words, sign-bit per dim
+	sigs  []uint64
 }
 
-var binCache sync.Map // *Index -> *binData (lazy, per-index)
+var binCache sync.Map
 
-// binaryMinN — threshold auto-aktif (default 1 juta). Env FLOWORK_BINARY_VECTOR_MIN override.
 func binaryMinN() int {
 	if v := strings.TrimSpace(os.Getenv("FLOWORK_BINARY_VECTOR_MIN")); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
@@ -41,7 +31,6 @@ func binaryMinN() int {
 	return 1_000_000
 }
 
-// useBinary — auto (default): aktif kalau Len>=threshold. on/off: paksa. Anti-degenerate: butuh dim>0.
 func (ix *Index) useBinary() bool {
 	if ix.dim <= 0 || ix.Len() < 256 {
 		return false
@@ -52,7 +41,7 @@ func (ix *Index) useBinary() bool {
 	case "on", "1", "true", "force":
 		return true
 	}
-	return ix.Len() >= binaryMinN() // auto
+	return ix.Len() >= binaryMinN()
 }
 
 func (ix *Index) binSigs() *binData {
@@ -103,14 +92,12 @@ func signQuery(q []int8, words int) []uint64 {
 	return out
 }
 
-// searchBinary — coarse popcount (top-M) → rerank int8 (top-k exact). Dipanggil dari Search.
 func (ix *Index) searchBinary(query []float32, k int) []Hit {
 	bd := ix.binSigs()
 	q := make([]int8, ix.dim)
 	quantizeInto(query, ix.scale, q)
 	qs := signQuery(q, bd.words)
 
-	// M = overfetch generous biar true top-k masuk kandidat (rerank exact → recall tinggi).
 	M := k * 64
 	if M < 2000 {
 		M = 2000
@@ -142,7 +129,7 @@ func (ix *Index) searchBinary(query []float32, k int) []Hit {
 				base := i * bd.words
 				var agree int32
 				for wi := 0; wi < bd.words; wi++ {
-					// bit sama (NOT XOR) = agreement; makin tinggi makin mirip.
+
 					agree += int32(bits.OnesCount64(^(qs[wi] ^ bd.sigs[base+wi])))
 				}
 				top = pushTopK(top, M, scored{i, agree})
@@ -157,7 +144,7 @@ func (ix *Index) searchBinary(query []float32, k int) []Hit {
 			cand = append(cand, s.idx)
 		}
 	}
-	// RERANK int8 exact di kandidat → top-k final.
+
 	hits := ix.SearchSubset(query, cand, k)
 	sort.Slice(hits, func(a, b int) bool { return hits[a].Score > hits[b].Score })
 	return hits

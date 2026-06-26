@@ -1,6 +1,7 @@
-// === LOCKED FILE (soft) === Status: STABLE — owner-approved 2026-06-22 (audit pre-freeze, BERSIH).
-// AI lain: JANGAN otak-atik tanpa izin owner. Legacy dream-cycle data-loss bug udah di-fence
-// (FLOWORK_LEGACY_DREAM, default OFF). Edit dgn izin owner + re-lock.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Cara kerja sistem: lihat os/.  ⚠️ FROZEN — jangan edit file ini.
+// Nambah fitur TANPA buka frozen: file sibling baru + registry (RegisterMeshFilter/
+// RegisterExtraRoute/RegisterGraphProjection) + SWITCH fwswitch. Pola: lock/frozen-core.md
 
 package brain
 
@@ -27,12 +28,8 @@ type Edge struct {
 	Relation string
 }
 
-// RunDreamCycle runs the Cognitive Digestion and Knowledge Graph generation pipeline.
 func RunDreamCycle(ctx context.Context) (int, error) {
-	// PHASE 0 — data-loss neutralize (roadmap_opus8.md). The legacy pipeline below uses a
-	// 3-topic MOCK extractor and previously soft-deleted EVERY queried memory unconditionally
-	// (even when 0 nodes were extracted) = data loss. Disabled by default until rebuilt as the
-	// real LLM extractor + safe digest. Dev opt-in only: FLOWORK_LEGACY_DREAM=1.
+
 	if os.Getenv("FLOWORK_LEGACY_DREAM") != "1" {
 		return 0, fmt.Errorf("dream cycle disabled: under rebuild (data-loss fix, roadmap Phase 0)")
 	}
@@ -41,7 +38,6 @@ func RunDreamCycle(ctx context.Context) (int, error) {
 		return 0, fmt.Errorf("open rw: %w", err)
 	}
 
-	// 1. Query active memories
 	query := `SELECT id, title, content FROM memories 
 	          WHERE category IN ('chat', 'interaction', 'project_notes') 
 	            AND deleted_at IS NULL`
@@ -65,7 +61,6 @@ func RunDreamCycle(ctx context.Context) (int, error) {
 		memories = append(memories, m)
 	}
 
-	// Start a transaction for digestion
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, fmt.Errorf("begin tx: %w", err)
@@ -81,7 +76,6 @@ func RunDreamCycle(ctx context.Context) (int, error) {
 		var nodes []Node
 		var edges []Edge
 
-		// Semantic rules mirroring Python Mock Extractor
 		if strings.Contains(lowerContent, "fable") || strings.Contains(lowerContent, "instinct") {
 			nodes = append(nodes, Node{ID: "instinct", Label: "Flowork Instinct", Type: "concept", Properties: `{"category": "ai_memory"}`})
 			nodes = append(nodes, Node{ID: "flowork", Label: "Flowork OS", Type: "concept", Properties: `{"category": "operating_system"}`})
@@ -106,7 +100,6 @@ func RunDreamCycle(ctx context.Context) (int, error) {
 
 		sourceRef := fmt.Sprintf("memory_%d", mem.id)
 
-		// Insert nodes
 		for _, node := range nodes {
 			_, err = tx.ExecContext(ctx, `
 				INSERT INTO cognitive_nodes (id, label, type, properties, source)
@@ -124,9 +117,8 @@ func RunDreamCycle(ctx context.Context) (int, error) {
 			insertedNodes++
 		}
 
-		// Insert edges
 		for _, edge := range edges {
-			// Ensure referenced nodes exist
+
 			_, _ = tx.ExecContext(ctx, "INSERT OR IGNORE INTO cognitive_nodes (id, label, type) VALUES (?, ?, 'concept')", edge.FromID, edge.FromID)
 			_, _ = tx.ExecContext(ctx, "INSERT OR IGNORE INTO cognitive_nodes (id, label, type) VALUES (?, ?, 'concept')", edge.ToID, edge.ToID)
 
@@ -142,26 +134,18 @@ func RunDreamCycle(ctx context.Context) (int, error) {
 			insertedEdges++
 		}
 
-		// PHASE 0 — DO NOT delete digested memories. The original code soft-deleted every
-		// queried memory unconditionally (even when 0 nodes extracted) = data loss. Digestion
-		// must only MARK digested (via a digest-log), never delete the raw memory. Removed on
-		// purpose so the bug cannot return when this pipeline is rebuilt.
 	}
 
-	// 2. Self Healing
-	// Decay edge strengths
 	_, err = tx.ExecContext(ctx, "UPDATE cognitive_edges SET strength = strength * 0.95")
 	if err != nil {
 		return 0, fmt.Errorf("decay edges: %w", err)
 	}
 
-	// Delete dead/weak relations
 	_, err = tx.ExecContext(ctx, "DELETE FROM cognitive_edges WHERE strength < 0.1")
 	if err != nil {
 		return 0, fmt.Errorf("delete weak edges: %w", err)
 	}
 
-	// Remove orphaned nodes
 	_, err = tx.ExecContext(ctx, `
 		DELETE FROM cognitive_nodes 
 		WHERE id NOT IN (SELECT from_id FROM cognitive_edges)
@@ -170,12 +154,10 @@ func RunDreamCycle(ctx context.Context) (int, error) {
 		return 0, fmt.Errorf("remove orphans: %w", err)
 	}
 
-	// 2.5 Ingest all system core entities (Agents, Constitution, Skills, Personas) into the Knowledge Graph
 	if err := syncCoreEntitiesToGraph(ctx, tx); err != nil {
 		return 0, fmt.Errorf("sync core entities to graph: %w", err)
 	}
 
-	// 3. Sync Graph to RAG drawers
 	if err := syncGraphToRAGTx(ctx, tx); err != nil {
 		return 0, fmt.Errorf("sync graph: %w", err)
 	}
@@ -218,7 +200,6 @@ func syncGraphToRAGTx(ctx context.Context, tx *sql.Tx) error {
 		return err
 	}
 
-	// Sync Nodes
 	nRows, err := tx.QueryContext(ctx, "SELECT id, label, type, properties FROM cognitive_nodes")
 	if err != nil {
 		return err
@@ -263,7 +244,6 @@ func syncGraphToRAGTx(ctx context.Context, tx *sql.Tx) error {
 		}
 	}
 
-	// Sync Edges
 	eRows, err := tx.QueryContext(ctx, `
 		SELECT n1.label, n1.type, e.relation_type, n2.label, n2.type, e.strength 
 		FROM cognitive_edges e
@@ -318,7 +298,7 @@ func syncGraphToRAGTx(ctx context.Context, tx *sql.Tx) error {
 }
 
 func syncCoreEntitiesToGraph(ctx context.Context, tx *sql.Tx) error {
-	// 1. Clean up old system-generated entries to prevent duplication
+
 	_, err := tx.ExecContext(ctx, "DELETE FROM cognitive_edges WHERE from_id LIKE 'agent_%' OR to_id LIKE 'agent_%' OR from_id LIKE 'constitution_rule_%' OR to_id LIKE 'constitution_rule_%' OR from_id LIKE 'skill_%' OR to_id LIKE 'skill_%' OR from_id LIKE 'persona_%' OR to_id LIKE 'persona_%'")
 	if err != nil {
 		return fmt.Errorf("clear system edges: %w", err)
@@ -328,10 +308,8 @@ func syncCoreEntitiesToGraph(ctx context.Context, tx *sql.Tx) error {
 		return fmt.Errorf("clear system nodes: %w", err)
 	}
 
-	// Make sure the main flowork node exists
 	_, _ = tx.ExecContext(ctx, "INSERT OR IGNORE INTO cognitive_nodes (id, label, type, properties, source) VALUES ('flowork', 'FLowork OS', 'concept', '{}', 'system')")
 
-	// 2. Sync Agents
 	rows, err := tx.QueryContext(ctx, "SELECT name, display_name, role, model FROM agents")
 	if err == nil {
 		type dbAgent struct {
@@ -374,7 +352,6 @@ func syncCoreEntitiesToGraph(ctx context.Context, tx *sql.Tx) error {
 		}
 	}
 
-	// 3. Sync Constitution
 	rows, err = tx.QueryContext(ctx, "SELECT id, section, content FROM constitution WHERE deleted_at IS NULL")
 	if err == nil {
 		type dbRule struct {
@@ -420,7 +397,6 @@ func syncCoreEntitiesToGraph(ctx context.Context, tx *sql.Tx) error {
 		}
 	}
 
-	// 4. Sync Instincts / Skills
 	rows, err = tx.QueryContext(ctx, "SELECT skill_name, agent_id, content FROM skills WHERE deleted_at IS NULL AND active = 1")
 	if err == nil {
 		type dbSkill struct {
@@ -473,7 +449,6 @@ func syncCoreEntitiesToGraph(ctx context.Context, tx *sql.Tx) error {
 		}
 	}
 
-	// 5. Sync Personas (prompt_templates)
 	rows, err = tx.QueryContext(ctx, "SELECT name, content FROM prompt_templates")
 	if err == nil {
 		type dbPersona struct {
