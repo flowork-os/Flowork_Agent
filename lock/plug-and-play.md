@@ -35,5 +35,21 @@ registry FROZEN (immutable, masuk root-hash integrity); extension = sibling/DATA
 - Cloaking: `TestCloakProfileOverride` PASS (default + env override). Switch di GUI fwswitch.
 - Semua: delete-test (hapus sibling non-frozen → build OK) + integrity tetap clean.
 
+## 2 LEVEL plug-and-play (PENTING — owner 2026-06-27)
+- **Backend seam (dev):** nambah lewat file sibling + `Register*()` / DATA → perlu rebuild. SUDAH (tunnel/proxy/cli/translator/executor/media).
+- **GUI-CRUD (user):** tombol Add/Edit/Delete DI GUI (DB-backed) → user copot-pasang tanpa kode. Inilah "truth di GUI".
+
+## Audit GUI-CRUD per tab (2026-06-27)
+✅ FULL GUI-CRUD: providers, combos, models, proxy-pools, media(×5), pricing, skills, translator, brain.
+⚠️ sebagian: mcp (add/del, no edit), api-keys (create/revoke), tags (create/del, no edit), oauth-imports (store/revoke, no edit).
+❌ BELUM GUI-CRUD (owner sorot): **cli-tools** (read-only auto-detect), **tunnel** (cuma enable/disable cloudflare+tailscale — backend `/api/tunnel/providers` ADA, GUI belum), **mesh-console** (belum ada UI approve antrian + switch share/approve).
+
+## ROADMAP GUI-CRUD (yang owner mau)
+- [ ] **Mesh console**: panel share/approve (state switch) + antrian pending knowledge + tombol Approve/Reject (`/api/mesh/knowledge/pending|approve|reject`). [Switch on/off sudah di tab "Switch Fitur" fwswitch.]
+- [ ] **Tunnel**: list `/api/tunnel/providers` + Add/Enable/Disable provider dari GUI (backend seam siap).
+- [ ] **CLI Tools**: tabel DB `cliTool` + modal Add/Edit/Delete (saat ini cuma auto-detect).
+- [ ] **OAuth/MCP/api-keys/tags**: tambah tombol Edit.
+> Catatan: backend seam ≠ GUI-CRUD. Owner mau yang KEDUA (truth di GUI). Frontend = index.html (NON-frozen).
+
 ## Sisa (opsional, low-value)
 - Pindahin starter Presets / 3 MCP-default ke DB-seed: kosmetik (nambah sudah via DATA). Skip kecuali diminta.
