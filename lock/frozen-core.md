@@ -26,15 +26,23 @@
 ## CARA EVOLUSI TANPA BUKA FROZEN (prinsip inti)
 Existing stable code = beku. Nambah fitur = **FILE BARU + mekanisme seam** yang udah ada:
 - **Registry init-append**: `tools.Register`, `triggers.Register`/`RegisterDeliverer`,
-  `RegisterSkillProvider`, `RegisterInstinctSelector`, `RegisterGraphProjection`, scanner `Auditors[x]=fn`.
-  → tipe/tool/channel/auditor/proyeksi baru = file `*_<x>.go` baru, `init()` daftar ke registry.
+  `RegisterSkillProvider`, `RegisterInstinctSelector`, `RegisterGraphProjection`, scanner `Auditors[x]=fn`,
+  **`RegisterExtraRoute` (router endpoint HTTP baru — seam `router/routes_ext.go`)**.
+  → tipe/tool/channel/auditor/proyeksi/ENDPOINT baru = file `*_<x>.go` baru, `init()` daftar ke registry.
 - **Switch GUI**: tambah entri di `internal/fwswitch/registry.go` (NON-frozen extension point).
 - **`*_ext.go` sibling**: hook tambahan tanpa sentuh core.
 - **DATA**: persona/skill/instinct/constitution/jadwal/event-type = baris DB/JSON, bukan kode.
 
 ## NON-FROZEN (sengaja — seam, gak boleh dibekuin)
-`internal/fwswitch/registry.go` (switch), `web/tabs/*.js` + `web/static/*` (GUI), `feature_*.go`/
-`routes.go`/`main.go` route-registration, semua file `*_ext.go`, file `*_test.go`.
+`internal/fwswitch/registry.go` (switch), `web/tabs/*.js` + `web/static/*` (GUI),
+**`router/routes_ext.go`** (seam route: `RegisterExtraRoute`), `feature_*.go`, semua file
+`*_ext.go`, file `*_test.go`.
+> KOREKSI 2026-06-26: `routes.go` & `main.go` SEKARANG **FROZEN** (mass-freeze; owner: "semua
+> logic router frozen"). Dulu dok ini bilang non-frozen — itu tak sinkron sama realita. Akar
+> dicabut: ditambah seam **`routes_ext.go`** (NON-frozen) + hook `registerExtraRoutes(mux)` di
+> `registerRoutes` (routes.go). Jadi nambah endpoint TANPA buka frozen → file `handlers_<x>_ext.go`
+> baru + `init(){ RegisterExtraRoute(func(m){ m.HandleFunc(...) }) }`. Bukti: `TestRouteSeamWired`.
+> Status: **71/71 handler router frozen** (chat_learn, ssrf_guard, pentest, brain_wing ikut).
 
 ## KALAU BENERAN HARUS UBAH FILE FROZEN (mis. migrasi schema baru)
 Arsitektur cacat = idealnya kasih seam. Kalau terpaksa: ikut CARAFREEZE.MD —

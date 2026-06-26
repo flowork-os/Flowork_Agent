@@ -1,16 +1,9 @@
-// === LOCKED FILE (soft) === Status: STABLE — owner-approved 2026-06-21 (3E/D13 + AI-IN-AGENT). LOCKED ≠ FREEZE (boleh diedit dgn izin owner + re-lock + changelog).
-package main
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Tab GUI: Chat (auto-capture belajar) → dok lock/gui/Chat.md  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
-// handlers_chat_learn.go — Phase 3E / D13 AUTO-CAPTURE (owner-approved 2026-06-21).
-//
-// Tangkap pengalaman model KUAT yg lewat router (termasuk dari VS Code / claude-cli) ke
-// tabel `recordings` (recorder.Save) → loop-belajar agent (DigestRecordings) distil →
-// shadow → promote-on-repetisi. INPUT TAP D13 ("guru dateng-pergi, brain gak lupa").
-//
-// KONTROL via GUI (owner 2026-06-21: "kebenaran di GUI, BUKAN env" — env dihapus biar gak
-// bingung): toggle on/off di GUI router (POST /api/learn/capture-toggle) → persist kv
-// 'learn:autocapture' → runtime var (hot-path-safe, pola SAMA mitm capture). Default OFF.
-// Skip model lokal (flowork-brain). Async. LOCAL only (no mesh).
+package main
 
 import (
 	"context"
@@ -28,17 +21,15 @@ import (
 
 var (
 	learnAutoRecordMu sync.RWMutex
-	learnAutoRecord   bool // runtime state, di-load boot + di-set toggle GUI
+	learnAutoRecord   bool
 )
 
-// learnAutoCaptureEnabled — gate hot-path. SUMBER TUNGGAL = GUI toggle (kv), no env.
 func learnAutoCaptureEnabled() bool {
 	learnAutoRecordMu.RLock()
 	defer learnAutoRecordMu.RUnlock()
 	return learnAutoRecord
 }
 
-// loadLearnCaptureState — load toggle dari kv saat boot (survive restart).
 func loadLearnCaptureState() {
 	d, err := store.Open()
 	if err != nil {
@@ -52,7 +43,6 @@ func loadLearnCaptureState() {
 	}
 }
 
-// learnCaptureToggleHandler — POST {enabled:bool} → toggle auto-capture (GUI). Persist kv.
 func learnCaptureToggleHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		writeJSON(w, http.StatusOK, map[string]any{"enabled": learnAutoCaptureEnabled()})
@@ -80,7 +70,6 @@ func learnCaptureToggleHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "enabled": body.Enabled})
 }
 
-// captureLearningRecording — rekam 1 completion model kuat ke recordings (async, best-effort).
 func captureLearningRecording(resp *router.OpenAIResponse, req router.OpenAIRequest, r *http.Request) {
 	if !learnAutoCaptureEnabled() || resp == nil || len(resp.Choices) == 0 {
 		return
@@ -95,7 +84,7 @@ func captureLearningRecording(resp *router.OpenAIResponse, req router.OpenAIRequ
 	}
 	if strings.Contains(strings.ToLower(model), "flowork") {
 		log.Printf("learnRecord: skip model lokal %s (cuma experience model KUAT yg di-capture)", model)
-		return // skip model lokal (flowork-brain) — cuma experience model kuat
+		return
 	}
 	agent := detectLearnClient(r.UserAgent())
 	safego.GoLabel("learnRecord", func() {
@@ -113,7 +102,6 @@ func captureLearningRecording(resp *router.OpenAIResponse, req router.OpenAIRequ
 	})
 }
 
-// detectLearnClient — label sumber dari User-Agent (buat filter/audit).
 func detectLearnClient(ua string) string {
 	u := strings.ToLower(ua)
 	switch {

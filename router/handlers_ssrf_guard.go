@@ -1,12 +1,7 @@
-// SSRF guard for operator-configured outbound URLs (MCP HTTP gateway, media
-// provider base URLs). Unlike internal/safeurl (which the /v1/web/fetch proxy
-// uses to block ALL private space), this guard intentionally ALLOWS loopback
-// and private/LAN addresses — running a local MCP or media server on
-// 127.0.0.1 / 192.168.x is a legitimate use case for this single-user tool.
-// It blocks ONLY link-local space (169.254.0.0/16 + fe80::/10), which is the
-// cloud-metadata credential-exfiltration vector (169.254.169.254, fd00:ec2::254
-// is link-local-mapped via IMDS). That cuts the dangerous SSRF target without
-// breaking local-server functionality.
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Keamanan SSRF (shared MCP/Media outbound) → dok lock/gui/MCP Servers.md  ⚠️ FROZEN — jangan edit.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -18,10 +13,6 @@ import (
 	"strings"
 )
 
-// blockMetadataURL resolves raw and rejects it if any resolved IP is link-local
-// (cloud-metadata range). Empty input returns ("", nil) so callers that already
-// special-case an empty URL keep their existing behaviour. On success it returns
-// the normalized URL string.
 func blockMetadataURL(ctx context.Context, raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {

@@ -37,9 +37,20 @@ Header tiap file frozen idealnya nunjuk ke dok tab-nya. Sebagian handler **dipak
 | handlers_settings_sub.go, handlers_backup.go | Settings |
 | handlers_recordings.go | Console Log |
 | handlers_gaps.go | Endpoint |
-| routes.go | (registrasi semua route) |
+| handlers_chat_learn.go | Chat (auto-capture belajar; switch = toggle GUI /api/learn/capture-toggle) |
+| handlers_ssrf_guard.go | (shared keamanan: MCP/Media outbound URL guard) |
+| handlers_skills_crud.go, handlers_skills_invoke.go, handlers_skillpack.go, handlers_skillregistry.go, handlers_brain_skills.go | Skills |
+| handlers_brain*.go, handlers_brain_wing.go, handlers_pentest.go, dreamgraph_autosync.go | Brain |
+| handlers_mesh*.go, handlers_llm_policy.go | Mesh & Policy Console |
+| routes.go | (registrasi rute inti — FROZEN) |
+| routes_ext.go | (SEAM evolusi rute — NON-frozen: RegisterExtraRoute) |
 
 ## Catatan QC (2026-06-26)
-24 tab lolos QC GUI beneran (render + uji aksi round-trip, headless Chrome) — 0 bug, 0 data palsu.
-Penanda jujur yang ditemukan (bukan bug): `proxyPoolTestHandler` masih stub ("live egress test
-Phase 3"). Rekam QC penuh: `lock/qc-gui-24tab.md`.
+**27 tab** (24 awal + Skills, Brain, Mesh & Policy Console) lolos QC GUI beneran (render + uji aksi
+round-trip / API live) — 0 bug, 0 data palsu. Penanda jujur (bukan bug): `proxyPoolTestHandler`
+stub egress Phase 3; `/api/mesh/discover` stub mDNS Phase 2; dream-cycle legacy disabled (dead-code
+di balik flag, jalur aktif `/api/brain/graph/sync` sehat). Rekam QC: `lock/qc-gui-24tab.md`.
+
+**Evolusi rute (seam baru):** `routes.go` FROZEN + memanggil `registerExtraRoutes(mux)`. Nambah
+endpoint TANPA buka frozen → file `handlers_<x>_ext.go` baru + `init(){ RegisterExtraRoute(...) }`
+(seam `routes_ext.go`, NON-frozen). Terbukti via `TestRouteSeamWired`. **71/71 handler router FROZEN.**

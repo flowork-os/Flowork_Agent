@@ -1,7 +1,7 @@
 // Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
 // Tab GUI (multi-tab): peta dok di lock/gui/README.md  ⚠️ FROZEN — jangan edit file ini.
-// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
-// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
+// Nambah endpoint TANPA buka frozen: pakai SEAM routes_ext.go (RegisterExtraRoute)
+// + SWITCH internal/fwswitch/registry.go. Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -19,6 +19,7 @@ func registerRoutes(mux *http.ServeMux) {
 	registerManagementRoutes(mux)
 	registerInfraRoutes(mux)
 	registerAuthRoutes(mux)
+	registerExtraRoutes(mux)
 }
 
 func registerStaticAndHealth(mux *http.ServeMux) {

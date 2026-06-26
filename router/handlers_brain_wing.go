@@ -1,5 +1,7 @@
-// handlers_brain_wing.go — enumerate drawer per WING (corpus → sumber topik
-// distilasi scanner). Read-only, paginated. File baru (views handler LOCKED).
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// Tab GUI: Brain (wing / Knowledge Graph) → dok lock/gui/Brain.md  ⚠️ FROZEN — jangan edit file ini.
+// Nambah/ubah fitur TANPA buka frozen: pakai SEAM non-frozen + SWITCH
+// (internal/fwswitch/registry.go). Pola lengkap: lock/frozen-core.md
 
 package main
 
@@ -11,7 +13,6 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-// brainWingHandler — GET /api/brain/wing?wing=exploitdb&limit=N&offset=M
 func brainWingHandler(w http.ResponseWriter, r *http.Request) {
 	wing := r.URL.Query().Get("wing")
 
@@ -162,7 +163,7 @@ func brainWingHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		
+
 		nRows, err := db.QueryContext(r.Context(), "SELECT id, label, type, properties FROM cognitive_nodes")
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
