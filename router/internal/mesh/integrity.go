@@ -43,13 +43,14 @@ func computeFromAnchor() {
 		coreClean, coreRoot, coreCheckedCnt = true, "", 0
 		return
 	}
-	clean := true
 	var hashes []string
 	for _, path := range tier2AnchorFiles {
 		data, rerr := os.ReadFile(path)
 		if rerr != nil {
-			clean = false
-			continue
+			// Source absen (binary portable/img, cwd beda) → tak bisa verifikasi → FAIL-OPEN.
+			// Integritas packaged = tanggung jawab OS verity + rilis ber-tanda-tangan.
+			coreClean, coreRoot, coreCheckedCnt = true, "", 0
+			return
 		}
 		sum := sha256.Sum256(data)
 		hashes = append(hashes, hex.EncodeToString(sum[:]))
@@ -58,7 +59,7 @@ func computeFromAnchor() {
 	root := sha256.Sum256([]byte(strings.Join(hashes, "\n")))
 	got := hex.EncodeToString(root[:])
 	coreRoot, coreCheckedCnt = got, len(hashes)
-	coreClean = clean && got == tier2AnchorRoot
+	coreClean = got == tier2AnchorRoot
 }
 
 func computeIntegrity() {
@@ -70,6 +71,7 @@ func computeIntegrity() {
 	defer f.Close()
 
 	clean := true
+	present := 0
 	var hashes []string
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
@@ -84,22 +86,24 @@ func computeIntegrity() {
 		}
 		data, rerr := os.ReadFile(path)
 		if rerr != nil {
-			clean = false
+			// File absen (packaged/cwd beda) → skip, JANGAN vonis tampered. Cuma verifikasi yg ADA.
 			continue
 		}
+		present++
 		sum := sha256.Sum256(data)
 		if hex.EncodeToString(sum[:]) != want {
 			clean = false
 		}
 		hashes = append(hashes, want)
 	}
-	if len(hashes) == 0 {
+	if present == 0 {
+		// Tak ada source untuk diverifikasi (packaged) → FAIL-OPEN; andalkan OS verity-sign.
 		coreClean, coreRoot, coreCheckedCnt = true, "", 0
 		return
 	}
 	sort.Strings(hashes)
 	root := sha256.Sum256([]byte(strings.Join(hashes, "\n")))
-	coreClean, coreRoot, coreCheckedCnt = clean, hex.EncodeToString(root[:]), len(hashes)
+	coreClean, coreRoot, coreCheckedCnt = clean, hex.EncodeToString(root[:]), present
 }
 
 func CoreClean() bool { integrityOnce.Do(computeIntegrity); return coreClean }

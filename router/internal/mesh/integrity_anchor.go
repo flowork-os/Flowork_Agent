@@ -40,4 +40,4 @@ var tier2AnchorFiles = []string{
 }
 
 // di-set setelah integrity.go final (lihat build-step). Kosong = anchor mati (fail-open).
-const tier2AnchorRoot = "fdc6720122a435db3517233afd718e1e69e5a71619dd002535bfa42c38e5401b"
+const tier2AnchorRoot = "6d354b6352f7b92ded10a18069a39edd7bee695d777c194f38af02a0120c5e6b"
