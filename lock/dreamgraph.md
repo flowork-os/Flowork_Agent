@@ -60,6 +60,10 @@ File-file ini = **orchestration/extension seam + switch-protected**, SENGAJA non
   GUI, bukan edit kode. Logika inti graph (`SyncGraphToRAG`) ada di `dream_cycle.go` (soft-lock).
 Alasan: prinsip "freeze CORE, biarin seam" → switch sudah cukup lindungi dari AI lain ngerusak.
 
-## SISA (belum, sengaja ditunda — lihat opus_roadmap.md)
-- MEMORY via dream-cycle rebuild (real extractor + safe digest) = HIGH-RISK data-loss → butuh sesi
-  owner-attended (alasan: blast-radius memori permanen). Instincts ✅ + Knowledge-hub ✅ DONE.
+## MEMORY (6th source) — temuan 2026-06-26
+Tabel `memories` router = KOSONG (router gak simpan memory episodik by-design). Memory episodik =
+AGENT-side (`interactions`, 1200 row) dan **SUDAH ke-graph** di CGM agent (#cognitive) via dream-cycle
+aktif: 424 node memory-derived (concept/fact/person/event/trait/preference/memory). Jadi rebuild
+dream-cycle LLM (data-loss-prone) = MUBAZIR (jalan di tabel kosong) + BAHAYA → TIDAK dibangun.
+Router DreamGraph = 5 sumber router-scoped (constitution/persona/skill/instinct/knowledge); memory
+lengkap di CGM agent. 6 sumber komplit lintas dua graph. Instincts ✅ + Knowledge-hub ✅ DONE.
