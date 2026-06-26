@@ -39,7 +39,7 @@ func All() []Tool {
 	join := func(parts ...string) string {
 		return filepath.Join(append([]string{home}, parts...)...)
 	}
-	return []Tool{
+	return append([]Tool{
 		{
 			ID:           "claude",
 			DisplayName:  "Claude Code (Anthropic CLI)",
@@ -181,7 +181,7 @@ func All() []Tool {
 			EnvKeys:      []string{"mitmUrl", "interceptHosts"},
 			Notes:        "MITM only; no on-disk tool config — flow_router proxies traffic for Antigravity inline.",
 		},
-	}
+	}, extraCLITools...)
 }
 
 func Get(id string) *Tool {
