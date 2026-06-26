@@ -749,6 +749,7 @@ async function openSettingModal(root, a) {
       <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
         <button class="ag-btn" id="cf-skills-add" type="button">${esc(t('menu.tab.agents.skills_add'))}</button>
         <button class="ag-btn" id="cf-skills-browse-router" type="button" data-agent-id="${escAttr(a.id)}">${esc(t('menu.tab.agents.skills_browse_router'))}</button>
+        <button class="ag-btn" id="cf-skills-sync-router" type="button" data-agent-id="${escAttr(a.id)}" title="Re-pull skill yang dari Router Catalog (edit di router → ikut update). Skill central.">🔄 Sync from Router</button>
       </div>
     </section>
 
@@ -877,6 +878,29 @@ async function openSettingModal(root, a) {
       });
       renderSkills();
     });
+  };
+
+  // Skill Central: re-pull skill yang ID-nya ADA di Router Catalog → instructions di-update ke
+  // versi router TERBARU (edit di router → agent ikut, tanpa re-import manual). Skill lokal (gak
+  // ada di router) di-skip. Pencet Save buat persist. (Jalur AMAN: GUI + endpoint proxy yg ada.)
+  const syncBtn = host.querySelector('#cf-skills-sync-router');
+  if (syncBtn) syncBtn.onclick = async () => {
+    syncBtn.disabled = true; const orig = syncBtn.textContent; syncBtn.textContent = '⏳ Sync…';
+    let updated = 0, skipped = 0;
+    for (const sk of skills) {
+      const name = (sk.id || '').trim();
+      if (!name) { skipped++; continue; }
+      try {
+        const r = await (await fetch(`/api/agents/router-skills/get?id=${encodeURIComponent(a.id)}&name=${encodeURIComponent(name)}`)).json();
+        if (r && !r.error && (r.body || r.description)) {
+          const fresh = r.body || r.description || '';
+          if (fresh && fresh !== sk.instructions) { sk.instructions = fresh; updated++; }
+        } else { skipped++; }
+      } catch (_) { skipped++; }
+    }
+    renderSkills();
+    syncBtn.disabled = false; syncBtn.textContent = orig;
+    alert(`Sync from Router: ${updated} skill di-update ke versi terbaru, ${skipped} di-skip (skill lokal). Pencet Save buat simpan.`);
   };
 
   // Credential list — KEY → value, dengan reveal toggle.
