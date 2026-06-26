@@ -61,3 +61,15 @@
 ## KONDISI AKHIR
 Router :2402 + agent :1987 sehat. DreamGraph 325 node. CGM 1256 node / 0 orphan. TestKernelFreeze
 PASS. base = update terbaru; **public = utuh (rollback)**.
+
+## 🧪 VERIFIKASI RULE-9 (jalur telegram /api/chat, bahasa-manusia) — memory via graph
+- Test-1 (episodik: "kita ngerjain apa belakangan?") → mr-flow `tool_call: interaction_recall` →
+  recall obrolan asli (Pebisnis-vs-AI-Magang, RTX4060/GLM-5, strategi monetisasi). BENAR (episodik=mentah).
+- Test-2 (self-knowledge: "telusurin peta pengetahuan, kemampuan & aturan diri lo") → mr-flow
+  `tool_call: graph_recall args={"query":"identitas, kemampuan, aturan, doktrin, persona, mr.flow"}`
+  → AKSES GRAPH terbukti. 
+- KESIMPULAN: mr-flow route bener — episodik→interaction_recall, self-knowledge/relasi→graph_recall.
+- Konstitusi SUDAH benar di tempatnya: **AOLA-002_NAVIGASI_KEBENARAN** ("Fakta Valid ada di
+  brain_search/`graph_recall`") + **AOLA-004_SIKLUS_KOGNITIF** ("`graph_recall` utk konteks memori").
+  Ada di LIVE DB + SEED (`doctrine_seed.json`) → install-baru dapet. TIDAK perlu edit (sudah ada +
+  verified). Edit konstitusi sakral tanpa perlu = langgar paling-stabil.
