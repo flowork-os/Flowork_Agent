@@ -53,10 +53,13 @@
 `FLOWORK_DREAMGRAPH_AUTOSYNC`, `_SYNC_MIN`, `_INSTINCTS`, `_KNOWLEDGE`, `FLOWORK_CGM_CODEMAP`,
 `FLOWORK_CGM_ORPHAN_BACKFILL`. (Default aman; tunable dari tab "🎛️ Switch Fitur".)
 
-## ⏭️ SISA (di `opus_roadmap.md`)
-- Skill Central reference-model PENUH (butuh buka skill-core + kernel/runtime FROZEN — sesi fokus).
-- M3 enrich→brain (keblokir enrich model lokal lambat + cross-boundary).
-- M4 auto-enrich on-code-change (hook self-evolve sensitif).
+## ⏭️ PARKED / FUTURE (butuh sesi owner-attended fokus, bukan kerjaan harian)
+- **Skill Central reference-model PENUH**: agent simpan REF, resolve live + version/hash + GUI link-vs-copy.
+  Resiko TINGGI: nyentuh `kernelhost.go`/`mr-flow/main.go` (paling sakral) + skill-handler router (frozen).
+  Sekarang: propagasi manual via tombol "Sync from Router" (cukup buat keseharian). `lock/skill-central.md`.
+- **CodeMap M4 auto-enrich on-code-change**: trigger enrich otomatis pas kode berubah. M1 (content-hash)
+  udah jadi fondasi. Akar = hook self-evolve write-path (core sensitif). Aman-alternatif: job terjadwal.
+- (M3 enrich→brain_search: SUPERSEDED oleh #2 enrich→GRAPH — self-awareness udah via `graph_recall`.)
 
 ## KONDISI AKHIR
 Router :2402 + agent :1987 sehat. DreamGraph 325 node. CGM 1256 node / 0 orphan. TestKernelFreeze
