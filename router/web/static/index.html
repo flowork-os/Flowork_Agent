@@ -1372,7 +1372,7 @@ done &lt; my_knowledge.jsonl</pre>
             <h3 class="font-bold">LocalAI Runtime <span class="text-xs text-slate-500">Section 25 · llama.cpp</span></h3>
           </div>
           <div class="flex gap-2 mb-3 flex-wrap">
-            <input id="mc-localai-model" placeholder="model_name" class="px-3 py-1.5 bg-slate-800/70 border border-slate-600/50 rounded text-sm w-40 focus:outline-none focus:border-purple-500">
+            <input id="mc-localai-model" value="flowork-brain" placeholder="flowork-brain" class="px-3 py-1.5 bg-slate-800/70 border border-slate-600/50 rounded text-sm w-40 focus:outline-none focus:border-purple-500">
             <input id="mc-localai-path" placeholder="gguf_path (optional)" class="flex-1 px-3 py-1.5 bg-slate-800/70 border border-slate-600/50 rounded text-sm focus:outline-none focus:border-purple-500">
           </div>
           <div class="flex gap-2 mb-3">
@@ -6609,7 +6609,8 @@ done &lt; my_knowledge.jsonl</pre>
 
       // Section 25 — LocalAI
       const la = await mcGet('/api/localai/models');
-      document.getElementById('mc-localai-models').innerHTML = (la.items || []).map(m =>
+      // saring baris demo-seed basi (checksum placeholder 'sha256:abcd') — kita pake flowork-brain
+      document.getElementById('mc-localai-models').innerHTML = (la.items || []).filter(m => m.checksum !== 'sha256:abcd').map(m =>
         `<div class="flex items-center justify-between text-xs px-2 py-1.5 bg-slate-800/30 rounded">
            <span><strong class="text-slate-200">${mcEsc(m.model_name)}</strong> <span class="text-slate-500 font-mono">${(m.size_bytes/1e9).toFixed(2)}GB</span></span>
            <span class="text-xs px-2 py-0.5 rounded ${m.loaded?'bg-emerald-500/15 text-emerald-300':'bg-slate-700/50 text-slate-400'}">${m.loaded?'loaded':'idle'}</span>
