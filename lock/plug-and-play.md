@@ -44,12 +44,8 @@ registry FROZEN (immutable, masuk root-hash integrity); extension = sibling/DATA
 ⚠️ sebagian: mcp (add/del, no edit), api-keys (create/revoke), tags (create/del, no edit), oauth-imports (store/revoke, no edit).
 ❌ BELUM GUI-CRUD (owner sorot): **cli-tools** (read-only auto-detect), **tunnel** (cuma enable/disable cloudflare+tailscale — backend `/api/tunnel/providers` ADA, GUI belum), **mesh-console** (belum ada UI approve antrian + switch share/approve).
 
-## ROADMAP GUI-CRUD (yang owner mau)
-- [ ] **Mesh console**: panel share/approve (state switch) + antrian pending knowledge + tombol Approve/Reject (`/api/mesh/knowledge/pending|approve|reject`). [Switch on/off sudah di tab "Switch Fitur" fwswitch.]
-- [ ] **Tunnel**: list `/api/tunnel/providers` + Add/Enable/Disable provider dari GUI (backend seam siap).
-- [ ] **CLI Tools**: tabel DB `cliTool` + modal Add/Edit/Delete (saat ini cuma auto-detect).
-- [ ] **OAuth/MCP/api-keys/tags**: tambah tombol Edit.
-> Catatan: backend seam ≠ GUI-CRUD. Owner mau yang KEDUA (truth di GUI). Frontend = index.html (NON-frozen).
+> Catatan: backend seam ≠ GUI-CRUD. Truth ada di GUI → target = tombol Add/Edit/Delete di layar.
+> Frontend = `router/web/static/index.html` (NON-frozen). Roadmap kerjaan = `~/Documents/opus_roadmap.md` (luar repo).
 
 ## Sisa (opsional, low-value)
 - Pindahin starter Presets / 3 MCP-default ke DB-seed: kosmetik (nambah sudah via DATA). Skip kecuali diminta.
