@@ -118,7 +118,8 @@ func runOnFile(path string, res *RunResult, auditors map[string]AuditFunc, maxBy
 	lines := strings.Split(content, "\n")
 	for _, f := range auditors {
 		for _, fd := range f(path, content) {
-
+			// Suppression: skip temuan di baris ber-marker `// scanner:ignore`
+			// (atau `nosec`) di baris itu sendiri atau baris tepat di atasnya.
 			if suppressedAt(lines, fd.LineNumber) {
 				continue
 			}
@@ -127,6 +128,7 @@ func runOnFile(path string, res *RunResult, auditors map[string]AuditFunc, maxBy
 	}
 }
 
+// marker suppression. Standar industri (mirip gosec #nosec / nolint).
 func suppressedAt(lines []string, ln int) bool {
 	has := func(i int) bool {
 		if i < 1 || i > len(lines) {
