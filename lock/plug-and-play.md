@@ -1,42 +1,39 @@
-# Plug-and-Play Audit — fitur eksternal yang BELUM/SUDAH copot-pasang
+# Plug-and-Play Audit — fitur eksternal copot-pasang
 
 > Owner: Aola Sahidin (Mr.Dev) · floworkos.com. Prinsip: fitur EKSTERNAL wajib DATA/SEAM (tambah &
-> share-mesh tanpa buka frozen). Hardcode di frozen = cacat. Arsitektur: lock/ARSITEKTUR.md.
+> share-mesh tanpa buka frozen). Arsitektur: lock/ARSITEKTUR.md. Cara bikin seam: flowork-secrets/CARAFREEZE.MD.
 
-## Status (audit 2026-06-27)
-| Fitur | Status | Cara nambah sekarang | Aksi |
-|---|---|---|---|
-| Models / alias / custom | ✅ | DB (`/api/models/custom`,`/alias`, provider `CfgModels`) | — |
-| Provider (koneksi) | ✅ | DB ProviderConnection (GUI) | — |
-| Provider protokol/dialect | ✅ | sibling translator/{request,response} + `translator.Register` | — |
-| Provider media (embed/img/tts/stt) | ✅ | sibling providers/<kat> + `Register` | — |
-| Executors (cursor/codex/kiro/…) | ✅ | sibling internal/executors + `Register` | — |
-| Combos | ✅ | DB (`/api/combos`, UpsertCombo) | — |
-| MCP servers (custom) | ✅ | DB `mcpServer` + `mcpcatalog.Register` | — |
-| Skills | ✅ | DB + registry pull/publish | — |
-| Sensors/webhook | ✅ | ENV token + webhook generic | — |
-| Auth (oidc/local/apikey) | 🔒 CORE | config `authMode` + frozen handler | biar frozen (security inti, bukan plugin) |
-| MCP default catalog | ⚠️ | 3 default hardcode (custom via API OK) | minor: pindah default ke DB seed |
-| Presets | ⚠️ | `store.Presets` statis di kode (frozen) | minor: combos (DB) sudah jadi versi dinamis |
-| **CLI Tools** | ⚠️ | `clitools/registry.go` `All()` hardcode (frozen) | **seam: DB `cliTool` merge + sibling Register** |
-| **Cloaking** | ⚠️ | decoy list + suffix/version hardcode (`internal/router/cloaking.go` frozen) | **seam: profil cloaking ke DB/switch** |
-| **Proxy Pools (deploy)** | ❌ | 3 handler hardcode per-provider (`handlers_proxy_deploy.go` frozen) | **seam: RegisterProxyDeployTemplate + sibling per-target** |
-| **Tunnel** | ❌ | tailscale+cloudflared hardcode (`handlers_tunnel.go` frozen) | **seam: RegisterTunnelProvider + sibling per-provider** |
+## Status (2026-06-27 — semua jalur EKSTERNAL plug-and-play)
+| Fitur | Status | Nambah item BARU |
+|---|---|---|
+| Models / alias / custom | ✅ | DB (`/api/models/custom`,`/alias`, provider CfgModels) |
+| Provider (koneksi) | ✅ | DB ProviderConnection (GUI) |
+| Provider protokol/dialect | ✅ | sibling translator/{request,response} + `translator.Register` |
+| Provider media (embed/img/tts/stt) | ✅ | sibling providers/<kat> + `Register` (STT: fixed via providers_register_ext.go) |
+| Executors | ✅ | sibling internal/executors + `Register` |
+| Combos | ✅ | DB (`/api/combos`) |
+| Skills | ✅ | DB + registry pull/publish |
+| Sensors/webhook | ✅ | ENV token + webhook generic |
+| **Tunnel** | ✅ NEW | sibling `tunnel_<x>_ext.go` + `RegisterTunnelProvider` → /api/tunnel/providers |
+| **Proxy deploy** | ✅ NEW | sibling `proxy_<x>_ext.go` + `RegisterProxyDeployTarget` → /api/proxy-pools/deploy/<x> |
+| **CLI Tools** | ✅ NEW | sibling `cli_<x>.go` + `RegisterCLITool` → masuk All()/DetectAll() |
+| **Cloaking** | ✅ NEW | profil via switch `FLOWORK_CLOAK_SUFFIX/VERSION/DECOYS` (GUI fwswitch, call-time) |
+| MCP servers | ✅ | DB `mcpServer` + `mcpcatalog.Register` (3 default bawaan frozen = OK) |
+| Presets | ✅ | versi dinamis = Combos (DB). `store.Presets` = starter bawaan frozen = OK |
+| Auth (oidc/local/apikey) | 🔒 CORE | SENGAJA frozen (security inti, bukan plugin) |
 
-## Yang perlu di-seam (roadmap, urut prioritas)
-1. **Tunnel** ❌ — `RegisterTunnelProvider{Name, Detect, Enable, Disable, Status}` di file frozen baru
-   (registry infra) → provider tailscale/cloudflared jadi sibling file; nambah ngrok/bore = sibling baru.
-2. **Proxy deploy** ❌ — `RegisterProxyDeployTemplate{Name, Script, Steps}` → cloudflare/deno/vercel jadi
-   sibling/DATA; nambah AWS/Netlify = sibling/baris DB.
-3. **CLI Tools** ⚠️ — tabel DB `cliTool` (merge hardcode default + user) → `clitools.All()` append DB.
-4. **Cloaking** ⚠️ — tabel/switch `cloaking_profile` (decoyTools[], suffix, version) → default frozen +
-   override DATA. CATATAN: cloaking = teknik sensitif; profil di DATA biar fleksibel, mesin tetap frozen.
-5. **MCP default / Presets** ⚠️ — pindah seed default ke DB (atau biarkan; custom sudah via DATA).
+## Prinsip yang dipakai (kenapa default bawaan boleh frozen)
+Built-in DEFAULT (cloudflared/tailscale tunnel, cloudflare/deno/vercel proxy, 3 MCP default, preset
+starter) = bagian ENGINE → boleh frozen. Yang WAJIB plug-and-play = **MENAMBAH yang baru** → semua
+sudah via sibling+`Register*` ATAU DATA(DB) ATAU switch. Nol buka frozen utk nambah. Mekanisme
+registry FROZEN (immutable, masuk root-hash integrity); extension = sibling/DATA non-frozen (deletable).
 
-## Pola seam (sama untuk semua ❌/⚠️)
-File frozen BARU = registry infra (`var registry []X` + `RegisterX()` + runner default no-op/builtin).
-Provider/target/profil = sibling non-frozen `<fitur>_<nama>.go` + `init(){ RegisterX(...) }` ATAU baris DB.
-Runner-nya FROZEN (core), tapi extension via sibling/DATA → nol buka frozen. Detail pola: lock/frozen-core.md.
+## Bukti tiap seam (live)
+- Tunnel: `GET /api/tunnel/providers` → tailscale; `TestTunnelRegistry` PASS.
+- Proxy: `GET /api/proxy-pools/deploy-targets` → cloudflare/deno/vercel; `TestProxyDeployRegistry` PASS.
+- CLI: `/api/cli-tools` built-in tetap; `TestRegisterCLITool` PASS (dummy via Register muncul).
+- Cloaking: `TestCloakProfileOverride` PASS (default + env override). Switch di GUI fwswitch.
+- Semua: delete-test (hapus sibling non-frozen → build OK) + integrity tetap clean.
 
-> Catatan: ⚠️/❌ ini fitur EKSTERNAL ke-hardcode di frozen — melanggar prinsip (lock/ARSITEKTUR.md).
-> Belum diimplementasi seam-nya; ini daftar kerja, bukan klaim selesai.
+## Sisa (opsional, low-value)
+- Pindahin starter Presets / 3 MCP-default ke DB-seed: kosmetik (nambah sudah via DATA). Skip kecuali diminta.
