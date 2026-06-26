@@ -553,6 +553,16 @@ func getUpdates(token string, offset int64, timeoutSec int) ([]Update, error) {
 }
 
 func sendMessage(token string, chatID int64, text string) error {
+	// CHUNK (telegram_media.go splitForTelegram, NON-frozen): pesan > limit Telegram (4096) dipotong
+	// jadi beberapa bagian biar GA kepotong. Tiap chunk ≤ limit → rekursi 1x (chunk ga ke-split lagi).
+	if parts := splitForTelegram(text); len(parts) > 1 {
+		for _, p := range parts {
+			if err := sendMessage(token, chatID, p); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 	// CABANG abadi (telegram_media.go, NON-frozen): convert markdown LLM → Telegram HTML biar RAPI
 	// (switch FLOWORK_TG_FORMAT). Mau ubah format? edit telegram_media.go, BUKAN sini.
 	formatted, mode := formatTelegram(text)

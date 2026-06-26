@@ -97,6 +97,68 @@ func formatTelegram(text string) (string, string) {
 	return text, "HTML"
 }
 
+// splitForTelegram — CABANG non-frozen (#chunk 2026-06-26): pesan PANJANG dipotong jadi beberapa
+// bagian biar GA kepotong limit Telegram (4096). Pakai 3500 rune/chunk (margin buat HTML convert).
+// Potong di batas BAGUS: paragraf (\n\n) > baris (\n) > spasi → ga motong tengah kata/kalimat.
+// Switch FLOWORK_TG_CHUNK=0 → matiin (1 pesan, perilaku lama). main.go sendMessage manggil ini.
+func splitForTelegram(text string) []string {
+	const limit = 3500
+	if os.Getenv("FLOWORK_TG_CHUNK") == "0" {
+		return []string{text}
+	}
+	r := []rune(text)
+	if len(r) <= limit {
+		return []string{text}
+	}
+	var out []string
+	start := 0
+	for start < len(r) {
+		if start+limit >= len(r) {
+			out = append(out, strings.TrimRight(string(r[start:]), " \n"))
+			break
+		}
+		end := start + limit
+		brk := -1
+		for i := end - 1; i > start+limit/2; i-- { // 1) paragraf
+			if r[i] == '\n' && i+1 < len(r) && r[i+1] == '\n' {
+				brk = i + 1
+				break
+			}
+		}
+		if brk < 0 { // 2) baris
+			for i := end - 1; i > start+limit/2; i-- {
+				if r[i] == '\n' {
+					brk = i
+					break
+				}
+			}
+		}
+		if brk < 0 { // 3) spasi
+			for i := end - 1; i > start+limit/2; i-- {
+				if r[i] == ' ' {
+					brk = i
+					break
+				}
+			}
+		}
+		if brk < 0 {
+			brk = end // hard-cut (1 kata super panjang)
+		}
+		out = append(out, strings.TrimRight(string(r[start:brk]), " \n"))
+		start = brk
+		for start < len(r) && (r[start] == '\n' || r[start] == ' ') {
+			start++
+		}
+	}
+	res := out[:0]
+	for _, c := range out {
+		if strings.TrimSpace(c) != "" {
+			res = append(res, c)
+		}
+	}
+	return res
+}
+
 // stripMarkdown — buang penanda markdown → teks polos bersih (mode plain).
 func stripMarkdown(text string) string {
 	text = reCodeBlock.ReplaceAllString(text, "$1")
