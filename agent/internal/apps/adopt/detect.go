@@ -53,9 +53,30 @@ func venvBin(name string) string {
 	return filepath.Join(".venv", "bin", name)
 }
 
-// Detect — periksa repoDir, balik Detection. Urutan: python → node → go → rust → unknown.
-// Ga pernah error: yang ga kedeteksi balik Runtime=unknown + notes (owner tentuin manual).
+// DetectorFunc — deteksi 1 runtime custom. Balik (Detection, true) kalau repo cocok.
+type DetectorFunc func(repoDir string) (Detection, bool)
+
+// extraDetectors — SWITCH/seam (POLA A): runtime BARU didaftarin lewat sibling _ext.go tanpa
+// nyentuh file ini (frozen-friendly). Default kosong = perilaku persis built-in. Dicoba DULUAN
+// → bisa override/tambah runtime tanpa unfreeze. (Rule #7: nambah fitur ga buka freeze.)
+var extraDetectors []DetectorFunc
+
+// RegisterDetector — daftarin detektor runtime BARU (Python/Node/Go/Rust udah built-in; ini buat
+// nambah mis. ruby/php/deno/dotnet lewat sibling). Aman: nil di-skip.
+func RegisterDetector(d DetectorFunc) {
+	if d != nil {
+		extraDetectors = append(extraDetectors, d)
+	}
+}
+
+// Detect — periksa repoDir, balik Detection. Coba detektor terdaftar (extra) DULU, lalu built-in:
+// python → node → go → rust → unknown. Ga pernah error: ga kedeteksi balik Runtime=unknown + notes.
 func Detect(repoDir string) Detection {
+	for _, d := range extraDetectors {
+		if det, ok := d(repoDir); ok {
+			return det
+		}
+	}
 	switch {
 	case exists(repoDir, "requirements.txt") || exists(repoDir, "pyproject.toml") || exists(repoDir, "setup.py") || hasPyEntry(repoDir):
 		return detectPython(repoDir)

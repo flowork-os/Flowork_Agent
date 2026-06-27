@@ -104,6 +104,25 @@ func TestDetectUnknown(t *testing.T) {
 	}
 }
 
+// switch: detektor terdaftar (registry) dicoba duluan; non-match fallback ke built-in.
+func TestRegisterDetector(t *testing.T) {
+	old := extraDetectors
+	t.Cleanup(func() { extraDetectors = old })
+	RegisterDetector(func(dir string) (Detection, bool) {
+		if exists(dir, "deno.json") {
+			return Detection{Runtime: "deno", Marker: "deno.json", RunCmd: []string{"deno", "run", "main.ts"}}, true
+		}
+		return Detection{}, false
+	})
+	if got := Detect(mkrepo(t, map[string]string{"deno.json": "{}"})); got.Runtime != "deno" {
+		t.Fatalf("runtime = %s, mau deno (dari registry)", got.Runtime)
+	}
+	// non-match → fallback built-in go.
+	if got := Detect(mkrepo(t, map[string]string{"go.mod": "module x\n"})); got.Runtime != GoLang {
+		t.Fatalf("non-match registry mau fallback go, dapet %s", got.Runtime)
+	}
+}
+
 // prioritas: requirements.txt (python) menang walau ada file lain non-marker.
 func TestDetectPriority(t *testing.T) {
 	dir := mkrepo(t, map[string]string{
