@@ -21,6 +21,11 @@
 //   /api/finance/wallet) — R8 self-finance fase-1: kredensial wallet EVM (address publik +
 //   private key masked di secret store + chain/RPC/currency + hard-limit). Transaksi = fase-2.
 //
+// Update 2026-06-27 (owner-approved): GUI redesign → clean glass-3D full-width pakai
+//   design-system share fw-* (ensureGlass dari /js/glass.js). HANYA markup/CSS yang
+//   berubah — SEMUA endpoint, i18n key, element ID, data-attr, handler, sub-tab switching,
+//   dan logic JS DIPERTAHANKAN apa adanya (ID = load-bearing buat baca/simpan settings).
+//
 // settings.js — halaman Settings GLOBAL (owner-level).
 //
 // Section (sub-tab internal): Akun & Keamanan, API Keys, Notifikasi, YouTube, Wallet.
@@ -32,61 +37,60 @@
 
 import { t } from '/js/i18n.js';
 import { esc, escAttr, fetchJSON, loadStyle } from '../js/utils.js';
+import { ensureGlass } from '/js/glass.js';
 
+// Scoped CSS: ONLY the sub-tab nav pills + a few layout helpers that the shared
+// fw-* kit doesn't cover. No raw hex — CSS variables from the design-system only.
 const CSS = `
-.set-bar { display:flex; gap:4px; margin-bottom:18px; padding:5px; flex-wrap:wrap;
-  background:rgba(15,17,26,0.55); border:1px solid var(--glass-border); border-radius:12px; width:fit-content; max-width:100%; }
-.set-btn { padding:8px 14px; font-size:0.82rem; font-weight:500; border-radius:8px;
+.set-bar { display:flex; gap:6px; margin-bottom:18px; padding:6px; flex-wrap:wrap;
+  background:var(--bg-panel); border:1px solid var(--glass-border); border-radius:14px; width:fit-content; max-width:100%;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05); }
+.set-btn { padding:8px 15px; font-size:.82rem; font-weight:600; border-radius:9px;
   background:transparent; border:1px solid transparent; color:var(--text-muted); cursor:pointer;
   transition:background .15s,color .15s,border-color .15s; }
-.set-btn:hover { background:rgba(139,92,246,0.08); color:#cbd5e1; }
-.set-btn.active { background:linear-gradient(135deg,rgba(139,92,246,0.28),rgba(124,58,237,0.12));
-  color:#c4b5fd; border-color:rgba(139,92,246,0.45); }
-.set-panel { max-width:none; }
-.set-card { background:rgba(15,17,26,0.6); border:1px solid var(--glass-border); border-radius:14px;
-  padding:18px 20px; margin-bottom:16px; }
-.set-card h3 { font-size:0.95rem; margin:0 0 4px; color:#e2e8f0; }
-.set-card .sub { font-size:0.8rem; color:var(--text-muted); margin-bottom:14px; line-height:1.5; }
-.set-row { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; align-items:center; }
-.set-row input, .set-row select { padding:10px 12px; border-radius:8px; background:rgba(30,41,59,0.6);
-  border:1px solid rgba(148,163,184,0.2); color:#e2e8f0; font-size:0.88rem; flex:1; min-width:140px; }
-.set-row input:focus, .set-row select:focus { outline:none; border-color:#a78bfa; }
-.set-btn-primary { padding:10px 16px; background:linear-gradient(135deg,#a78bfa,#7c3aed); color:#fff;
-  border:none; border-radius:8px; font-weight:600; font-size:0.85rem; cursor:pointer; }
-.set-btn-primary:disabled { opacity:.5; cursor:not-allowed; }
-.set-list { list-style:none; padding:0; margin:8px 0 0; }
-.set-list li { display:flex; justify-content:space-between; align-items:center; gap:8px;
-  padding:9px 12px; border:1px solid var(--glass-border); border-radius:8px; margin-bottom:6px;
-  font-size:0.85rem; background:rgba(30,41,59,0.35); }
-.set-list .mono { font-family:monospace; font-size:0.8rem; color:#cbd5e1; word-break:break-all; }
-.set-list .rm { background:none; border:none; color:#fca5a5; cursor:pointer; font-size:0.85rem; }
-.set-msg { margin-top:10px; font-size:0.82rem; min-height:1em; }
-.set-msg.ok { color:#86efac; } .set-msg.err { color:#fca5a5; }
-.set-empty { color:var(--text-muted); font-size:0.82rem; padding:8px 0; }
-.set-tag { font-size:0.7rem; color:#64748b; }
-.set-total { font-size:1.4rem; font-weight:700; color:#86efac; margin:6px 0; }
+.set-btn:hover { background:color-mix(in srgb,var(--accent) 8%, transparent); color:var(--text-main); }
+.set-btn.active { background:color-mix(in srgb,var(--accent) 18%, transparent);
+  color:var(--text-main); border-color:color-mix(in srgb,var(--accent) 45%, transparent); }
+.set-field { display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
+.set-field > label { font-size:.8rem; color:var(--text-muted); }
+.set-hint { font-size:.76rem; color:var(--text-muted); margin:-4px 0 10px; line-height:1.45; }
+.set-msg { margin-top:10px; font-size:.82rem; min-height:1em; color:var(--text-muted); }
+.set-msg.ok { color:var(--text-main); } .set-msg.err { color:#f87171; }
 .set-presets { display:flex; gap:6px; flex-wrap:wrap; margin:2px 0 10px; }
-.set-preset { padding:5px 11px; font-size:0.76rem; border-radius:999px; cursor:pointer;
-  background:rgba(139,92,246,0.10); border:1px solid rgba(139,92,246,0.30); color:#c4b5fd;
-  transition:background .15s,border-color .15s; }
-.set-preset:hover { background:rgba(139,92,246,0.22); border-color:rgba(139,92,246,0.55); }
-.set-preset.set-on { background:rgba(34,197,94,0.14); border-color:rgba(34,197,94,0.4); color:#86efac; }
-.set-hint { font-size:0.74rem; color:var(--text-muted); margin:-4px 0 8px; }
-/* Guided API-key rows: every provider shown with status + how-to + inline edit. */
-.set-list li.set-keyrow { display:block; padding:9px 11px; border:1px solid rgba(148,163,184,0.14);
-  border-radius:9px; margin-bottom:7px; background:rgba(148,163,184,0.04); }
+.set-preset { padding:5px 11px; font-size:.76rem; border-radius:999px; cursor:pointer;
+  background:color-mix(in srgb,var(--accent) 10%, transparent); border:1px solid color-mix(in srgb,var(--accent) 30%, transparent);
+  color:var(--accent); transition:background .15s,border-color .15s; }
+.set-preset:hover { background:color-mix(in srgb,var(--accent) 20%, transparent); border-color:color-mix(in srgb,var(--accent) 55%, transparent); }
+.set-preset.set-on { background:color-mix(in srgb,#34d399 16%, transparent); border-color:color-mix(in srgb,#34d399 45%, transparent); color:#34d399; }
+.set-keyrow { display:block; padding:12px 14px; border:1px solid var(--glass-border); border-radius:12px; margin-bottom:8px;
+  background:linear-gradient(165deg, rgba(255,255,255,.03), rgba(255,255,255,0) 60%), var(--bg-panel); }
 .set-keyhead { display:flex; justify-content:space-between; align-items:center; gap:8px; }
-.set-keyenv { font-size:0.72rem; opacity:0.65; }
-.set-changeme { font-size:0.7rem; font-weight:600; color:#fbbf24; background:rgba(251,191,36,0.12);
-  padding:2px 8px; border-radius:999px; white-space:nowrap; }
-.set-keyhint { font-size:0.74rem; color:var(--text-muted); margin:5px 0 7px; line-height:1.45; }
-.set-keyhint a { color:#a78bfa; text-decoration:none; white-space:nowrap; }
+.set-keyenv { font-size:.72rem; color:var(--text-muted); font-family:ui-monospace,monospace; }
+.set-on-tag { font-size:.72rem; font-family:ui-monospace,monospace; color:#34d399; }
+.set-changeme { font-size:.7rem; font-weight:700; color:#fbbf24; background:color-mix(in srgb,#fbbf24 14%, transparent);
+  padding:2px 9px; border-radius:999px; white-space:nowrap; }
+.set-keyhint { font-size:.74rem; color:var(--text-muted); margin:6px 0 8px; line-height:1.45; }
+.set-keyhint a { color:var(--accent); text-decoration:none; white-space:nowrap; }
 .set-keyhint a:hover { text-decoration:underline; }
-.set-keyact { display:flex; gap:6px; align-items:center; }
+.set-keyact { display:flex; gap:8px; align-items:center; }
 .set-keyin { flex:1; min-width:0; }
-.set-keysave { background:rgba(139,92,246,0.18); border:1px solid rgba(139,92,246,0.4); color:#c4b5fd;
-  border-radius:7px; padding:5px 12px; cursor:pointer; font-size:0.8rem; white-space:nowrap; }
-.set-keysave:hover { background:rgba(139,92,246,0.3); }
+.set-swgroup { margin-top:16px; }
+.set-swcat { font-size:.72rem; text-transform:uppercase; letter-spacing:.04em; color:var(--accent); margin-bottom:6px; font-weight:700; }
+.set-swrow { display:flex; align-items:center; gap:12px; padding:9px 0; border-top:1px solid var(--glass-border); }
+.set-swrow .set-swmeta { flex:1; }
+.set-swrow .set-swlabel { font-size:.86rem; color:var(--text-main); display:flex; align-items:center; gap:8px; }
+.set-swrow .set-swdesc { font-size:.72rem; color:var(--text-muted); margin-top:2px; }
+.set-swrow code { font-family:ui-monospace,monospace; opacity:.65; font-size:.92em; }
+.set-swrow input[type=text] { width:130px; }
+.set-srcbadge { font-size:.66rem; padding:1px 8px; border-radius:999px; font-weight:600; }
+.set-saverow { margin-top:16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+.set-toggle { display:flex; align-items:center; gap:9px; cursor:pointer; font-size:.86rem; color:var(--text-main); margin-bottom:12px; }
+.set-toggle input[type=checkbox] { width:auto; }
+.set-inline { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.set-inline label { font-size:.85rem; color:var(--text-muted); min-width:180px; display:inline-block; }
+.set-inline input[type=number] { width:120px; flex:none; }
+.set-path { font-size:.66rem; color:var(--text-muted); font-family:ui-monospace,monospace; }
+.set-card code { font-family:ui-monospace,monospace; background:color-mix(in srgb,var(--bg-panel) 50%, #000); padding:1px 6px; border-radius:5px; font-size:.86em; }
 `;
 
 // Known integration keys — friendly platform label → env var name. Clicking a
@@ -139,24 +143,30 @@ const SEGMENTS = [
 // evolve-pillars) → dibiarin dormant (nyabut = langgar invariant "ABI cuma tumbuh"). Kelak: integration-registry.
 
 export async function render(mainEl) {
+  ensureGlass();
   loadStyle('settings', CSS);
   const tk = (k) => t('menu.tab.settings.' + k);
   mainEl.innerHTML = `
-    <div class="sgt-header">
-      <h2>⚙️ ${esc(tk('title'))}</h2>
-      <div class="sub" style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">${esc(tk('desc'))}</div>
+    <div class="fw-page">
+      <div class="fw-head">
+        <span class="fw-glyph">⚙️</span>
+        <div>
+          <h2 class="fw-title">${esc(tk('title'))}</h2>
+          <div class="fw-sub">${esc(tk('desc'))}</div>
+        </div>
+      </div>
+      <div class="set-bar" id="setBar">
+        ${SEGMENTS.map(s => `<button class="set-btn" data-key="${escAttr(s.key)}">${esc(s.label())}</button>`).join('')}
+      </div>
+      <div class="set-panel" id="setPanel"></div>
     </div>
-    <div class="set-bar" id="setBar">
-      ${SEGMENTS.map(s => `<button class="set-btn" data-key="${escAttr(s.key)}">${esc(s.label())}</button>`).join('')}
-    </div>
-    <div class="set-panel" id="setPanel"></div>
   `;
   const panel = mainEl.querySelector('#setPanel');
   const btns = mainEl.querySelectorAll('.set-btn');
   async function open(key) {
     const seg = SEGMENTS.find(s => s.key === key) || SEGMENTS[0];
     btns.forEach(b => b.classList.toggle('active', b.getAttribute('data-key') === seg.key));
-    panel.innerHTML = `<div class="set-empty">${esc(t('common.loading_label').replace('{label}', seg.label()))}</div>`;
+    panel.innerHTML = `<div class="fw-empty">${esc(t('common.loading_label').replace('{label}', seg.label()))}</div>`;
     try {
       await seg.render(panel);
     } catch (e) {
@@ -171,18 +181,18 @@ export async function render(mainEl) {
 async function renderAccount(panel) {
   const tk = (k) => t('menu.tab.settings.' + k);
   panel.innerHTML = `
-    <div class="set-card">
-      <h3>${esc(tk('account_h'))}</h3>
-      <div class="sub">${esc(tk('account_sub'))}</div>
-      <div class="set-row"><input type="password" id="pwOld" placeholder="${escAttr(tk('change_pw_old_ph'))}" autocomplete="current-password"></div>
-      <div class="set-row"><input type="password" id="pwNew" placeholder="${escAttr(tk('change_pw_new_ph'))}" autocomplete="new-password"></div>
-      <div class="set-row"><button class="set-btn-primary" id="pwBtn">${esc(tk('change_pw_btn'))}</button></div>
+    <div class="fw-card">
+      <div class="fw-sec">${esc(tk('account_h'))}</div>
+      <div class="fw-desc" style="margin-top:0;margin-bottom:14px">${esc(tk('account_sub'))}</div>
+      <div class="set-field"><input type="password" id="pwOld" placeholder="${escAttr(tk('change_pw_old_ph'))}" autocomplete="current-password"></div>
+      <div class="set-field"><input type="password" id="pwNew" placeholder="${escAttr(tk('change_pw_new_ph'))}" autocomplete="new-password"></div>
+      <button class="fw-btn" id="pwBtn">${esc(tk('change_pw_btn'))}</button>
       <div class="set-msg" id="pwMsg"></div>
     </div>
-    <div class="set-card">
-      <h3>${esc(tk('logout_h'))}</h3>
-      <div class="sub">${esc(tk('logout_sub'))}</div>
-      <button class="set-btn-primary" id="logoutBtn" style="background:linear-gradient(135deg,#ef4444,#b91c1c);">${esc(tk('logout_btn'))}</button>
+    <div class="fw-card">
+      <div class="fw-sec">${esc(tk('logout_h'))}</div>
+      <div class="fw-desc" style="margin-top:0;margin-bottom:14px">${esc(tk('logout_sub'))}</div>
+      <button class="fw-btn danger" id="logoutBtn">${esc(tk('logout_btn'))}</button>
     </div>
   `;
   const msg = panel.querySelector('#pwMsg');
@@ -215,13 +225,13 @@ async function renderAccount(panel) {
 async function renderKeys(panel) {
   const tk = (k) => t('menu.tab.settings.' + k);
   panel.innerHTML = `
-    <div class="set-card">
-      <h3>${esc(tk('keys_h'))}</h3>
-      <div class="sub">${esc(tk('keys_sub'))}</div>
-      <div class="set-row">
-        <input type="text" id="kKey" placeholder="${escAttr(tk('keys_key_ph'))}" list="kKnown">
-        <input type="text" id="kVal" placeholder="${escAttr(tk('keys_val_ph'))}">
-        <button class="set-btn-primary" id="kAdd">${esc(t('common.btn.save'))}</button>
+    <div class="fw-card">
+      <div class="fw-sec">${esc(tk('keys_h'))}</div>
+      <div class="fw-desc" style="margin-top:0;margin-bottom:14px">${esc(tk('keys_sub'))}</div>
+      <div class="set-inline" style="margin-bottom:10px">
+        <input type="text" id="kKey" placeholder="${escAttr(tk('keys_key_ph'))}" list="kKnown" style="flex:1;min-width:160px">
+        <input type="text" id="kVal" placeholder="${escAttr(tk('keys_val_ph'))}" style="flex:1;min-width:160px">
+        <button class="fw-btn" id="kAdd">${esc(t('common.btn.save'))}</button>
       </div>
       <div class="set-hint">${esc(tk('keys_preset_hint'))}</div>
       <div class="set-presets" id="kPresets">
@@ -231,7 +241,7 @@ async function renderKeys(panel) {
         ${KEY_PRESETS.map(p => `<option value="${escAttr(p.key)}">`).join('')}
       </datalist>
       <div class="set-msg" id="kMsg"></div>
-      <ul class="set-list" id="kList"></ul>
+      <ul class="set-list" id="kList" style="list-style:none;padding:0;margin:10px 0 0"></ul>
     </div>
   `;
   const list = panel.querySelector('#kList');
@@ -259,19 +269,19 @@ async function renderKeys(panel) {
     const rowFor = (p) => {
       const isSet = savedMap.has(p.key);
       const status = isSet
-        ? `<span class="set-tag mono set-on">${esc(savedMap.get(p.key))}</span>`
+        ? `<span class="set-on-tag">${esc(savedMap.get(p.key))}</span>`
         : `<span class="set-changeme">change me</span>`;
       return `
         <li class="set-keyrow">
           <div class="set-keyhead">
-            <span><b>${esc(p.label || p.key)}</b> <span class="mono set-keyenv">${esc(p.key)}</span></span>
+            <span><b>${esc(p.label || p.key)}</b> <span class="set-keyenv">${esc(p.key)}</span></span>
             ${status}
           </div>
           ${p.hint ? `<div class="set-keyhint">${esc(p.hint)}${p.url ? ` <a href="${escAttr(p.url)}" target="_blank" rel="noopener">How to get →</a>` : ''}</div>` : ''}
           <div class="set-keyact">
             <input type="text" class="set-keyin" data-key="${escAttr(p.key)}" placeholder="${escAttr(isSet ? 'leave blank to keep' : 'paste token / change me')}">
-            <button class="set-keysave" data-key="${escAttr(p.key)}">${esc(t('common.btn.save'))}</button>
-            ${isSet ? `<button class="rm" data-key="${escAttr(p.key)}">${esc(t('common.btn.delete'))}</button>` : ''}
+            <button class="fw-btn set-keysave" data-key="${escAttr(p.key)}">${esc(t('common.btn.save'))}</button>
+            ${isSet ? `<button class="fw-btn danger rm" data-key="${escAttr(p.key)}">${esc(t('common.btn.delete'))}</button>` : ''}
           </div>
         </li>`;
     };
@@ -322,14 +332,14 @@ async function renderKeys(panel) {
 // Sekarang dari sini → ditulis ~/.flowork/flowork_settings.json (lintas-proses, dibaca router
 // :2402 + host :1987). Presedensi: GUI menang > ENV > default. Sumber tiap switch di-badge.
 async function renderSwitches(panel) {
-  panel.innerHTML = `<div class="set-card"><h3>🎛️ Switch Fitur</h3>
-    <div class="sub">Toggle Flowork behavior — no more manual <code>flowork.local.env</code> edits.
+  panel.innerHTML = `<div class="fw-card"><div class="fw-sec">🎛️ Switch Fitur</div>
+    <div class="fw-desc" style="margin-top:0">Toggle Flowork behavior — no more manual <code>flowork.local.env</code> edits.
     Applies to router &amp; host (live ≤3s). Badge: <b>gui</b>=set here · <b>env</b>=from ENV · <b>default</b>=built-in.</div>
-    <div id="swList" class="sub">Loading…</div></div>`;
+    <div id="swList" class="fw-desc">Loading…</div></div>`;
   const list = panel.querySelector('#swList');
   const badge = (src) => {
-    const c = src === 'gui' ? '#22c55e' : src === 'env' ? '#f59e0b' : '#64748b';
-    return `<span style="font-size:0.66rem;padding:1px 7px;border-radius:999px;background:${c}22;color:${c};border:1px solid ${c}66">${src}</span>`;
+    const c = src === 'gui' ? '#34d399' : src === 'env' ? '#fbbf24' : 'var(--text-muted)';
+    return `<span class="set-srcbadge" style="background:color-mix(in srgb,${c} 16%, transparent);color:${c};border:1px solid color-mix(in srgb,${c} 45%, transparent)">${src}</span>`;
   };
   async function reload() {
     let d;
@@ -338,23 +348,23 @@ async function renderSwitches(panel) {
     const groups = {};
     (d.switches || []).forEach(s => { (groups[s.category] = groups[s.category] || []).push(s); });
     list.innerHTML = Object.keys(groups).map(cat => `
-      <div style="margin-top:14px"><div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);margin-bottom:6px">${esc(cat)}</div>
+      <div class="set-swgroup"><div class="set-swcat">${esc(cat)}</div>
       ${groups[cat].map(s => {
         const boolOn = /^(1|on|true|yes)$/i.test(s.value);
         const ctrl = s.type === 'bool'
           ? `<input type="checkbox" class="sw-in" data-key="${escAttr(s.key)}" data-type="bool" data-orig="${boolOn ? '1' : '0'}" ${boolOn ? 'checked' : ''}>`
-          : `<input type="text" class="sw-in" data-key="${escAttr(s.key)}" data-type="${escAttr(s.type)}" data-orig="${escAttr(s.value)}" value="${escAttr(s.value)}" style="width:120px">`;
-        return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--border,#ffffff14)">
-          <div style="flex:1">
-            <div style="font-size:0.86rem">${esc(s.label)} ${badge(s.source)}</div>
-            <div style="font-size:0.72rem;color:var(--text-muted)">${esc(s.desc)} <code style="opacity:.6">${esc(s.key)}</code></div>
+          : `<input type="text" class="sw-in" data-key="${escAttr(s.key)}" data-type="${escAttr(s.type)}" data-orig="${escAttr(s.value)}" value="${escAttr(s.value)}">`;
+        return `<div class="set-swrow">
+          <div class="set-swmeta">
+            <div class="set-swlabel">${esc(s.label)} ${badge(s.source)}</div>
+            <div class="set-swdesc">${esc(s.desc)} <code>${esc(s.key)}</code></div>
           </div>${ctrl}</div>`;
       }).join('')}</div>`).join('')
-      + `<div style="margin-top:16px;display:flex;gap:10px;align-items:center">
-          <button class="set-btn-primary" id="swSave">Simpan</button>
+      + `<div class="set-saverow">
+          <button class="fw-btn" id="swSave">Simpan</button>
           <span id="swMsg" class="set-msg"></span>
-          <span style="flex:1"></span>
-          <code style="font-size:0.66rem;color:var(--text-muted)">${esc(d.path || '')}</code>
+          <span class="fw-grow"></span>
+          <code class="set-path">${esc(d.path || '')}</code>
         </div>`;
     panel.querySelector('#swSave').addEventListener('click', async () => {
       const msg = panel.querySelector('#swMsg');
@@ -384,18 +394,14 @@ async function renderSwitches(panel) {
 async function renderRouterDefault(panel) {
   const tk = (k) => t('menu.tab.settings.' + k);
   panel.innerHTML = `
-    <div class="set-card">
-      <h3>${esc(tk('router_h'))}</h3>
-      <div class="sub">${esc(tk('router_sub'))}</div>
-      <div class="set-row">
-        <input type="text" id="rdModel" placeholder="${escAttr(tk('router_model_ph'))}">
-      </div>
+    <div class="fw-card">
+      <div class="fw-sec">${esc(tk('router_h'))}</div>
+      <div class="fw-desc" style="margin-top:0;margin-bottom:14px">${esc(tk('router_sub'))}</div>
+      <div class="set-field"><input type="text" id="rdModel" placeholder="${escAttr(tk('router_model_ph'))}"></div>
       <div class="set-hint">${esc(tk('router_model_hint'))}</div>
-      <div class="set-row">
-        <input type="text" id="rdUrl" placeholder="${escAttr(tk('router_url_ph'))}">
-      </div>
+      <div class="set-field"><input type="text" id="rdUrl" placeholder="${escAttr(tk('router_url_ph'))}"></div>
       <div class="set-hint">${esc(tk('router_url_hint'))}</div>
-      <div class="set-row"><button class="set-btn-primary" id="rdSave">${esc(t('common.btn.save'))}</button></div>
+      <button class="fw-btn" id="rdSave">${esc(t('common.btn.save'))}</button>
       <div class="set-msg" id="rdMsg"></div>
     </div>
   `;
@@ -427,27 +433,27 @@ async function renderRouterDefault(panel) {
 // gate (karma+model+re-probe). Manual core-apply tetep STAGE (ga ke-push).
 async function renderEvolvePush(panel) {
   panel.innerHTML = `
-    <div class="set-card">
-      <h3>🧬 Evolution — Auto-Push to GitHub</h3>
-      <div class="sub">When the evolving organism auto-commits the core (AUTO mode + all gates passed), the result is
+    <div class="fw-card">
+      <div class="fw-sec">🧬 Evolution — Auto-Push to GitHub</div>
+      <div class="fw-desc" style="margin-top:0;margin-bottom:14px">When the evolving organism auto-commits the core (AUTO mode + all gates passed), the result is
         pushed to GitHub so Flowork stays immortal even without the owner. The token is stored locally
         (never committed) and never shown again. Manual core-apply stays STAGE (not pushed).</div>
-      <label class="set-row" style="display:flex;align-items:center;gap:8px;cursor:pointer">
-        <input type="checkbox" id="epEnabled" style="width:auto"> <span>Enable auto-push</span>
+      <label class="set-toggle">
+        <input type="checkbox" id="epEnabled"> <span>Enable auto-push</span>
       </label>
-      <div class="set-row">
+      <div class="set-field">
         <input type="password" id="epToken" placeholder="GitHub token (ghp_… / fine-grained)" autocomplete="new-password">
       </div>
       <div class="set-hint" id="epTokenHint"></div>
-      <div class="set-row">
+      <div class="set-field">
         <input type="text" id="epRemote" placeholder="remote (default: origin)">
       </div>
-      <div class="set-row">
+      <div class="set-field">
         <input type="text" id="epBranch" placeholder="branch (blank = repo's active branch)">
       </div>
       <div class="set-hint">⚠️ Push uses HTTPS http.extraHeader (token never written to git config). A fine-grained
         token with minimal scope (contents:write) on just the Flowork repo is recommended — not a full-access token.</div>
-      <div class="set-row"><button class="set-btn-primary" id="epSave">${esc(t('common.btn.save'))}</button></div>
+      <button class="fw-btn" id="epSave">${esc(t('common.btn.save'))}</button>
       <div class="set-msg" id="epMsg"></div>
     </div>
   `;
@@ -490,15 +496,15 @@ async function renderEvolvePush(panel) {
 async function renderNotify(panel) {
   const tk = (k) => t('menu.tab.settings.' + k);
   panel.innerHTML = `
-    <div class="set-card">
-      <h3>${esc(tk('notify_h'))}</h3>
-      <div class="sub">${esc(tk('notify_sub'))}</div>
-      <div class="set-row"><input type="password" id="ntToken" placeholder="${escAttr(tk('notify_token_ph'))}" autocomplete="off"></div>
-      <div class="set-row"><input type="text" id="ntChat" placeholder="${escAttr(tk('notify_chat_ph'))}"></div>
-      <div class="set-tag" style="margin-bottom:10px;">${esc(tk('notify_chat_hint'))}</div>
-      <div class="set-row">
-        <button class="set-btn-primary" id="ntSave">${esc(tk('notify_save'))}</button>
-        <button class="set-btn-primary" id="ntTest" style="background:linear-gradient(135deg,#22c55e,#15803d);">${esc(tk('notify_test'))}</button>
+    <div class="fw-card">
+      <div class="fw-sec">${esc(tk('notify_h'))}</div>
+      <div class="fw-desc" style="margin-top:0;margin-bottom:14px">${esc(tk('notify_sub'))}</div>
+      <div class="set-field"><input type="password" id="ntToken" placeholder="${escAttr(tk('notify_token_ph'))}" autocomplete="off"></div>
+      <div class="set-field"><input type="text" id="ntChat" placeholder="${escAttr(tk('notify_chat_ph'))}"></div>
+      <div class="set-hint">${esc(tk('notify_chat_hint'))}</div>
+      <div class="set-inline">
+        <button class="fw-btn" id="ntSave">${esc(tk('notify_save'))}</button>
+        <button class="fw-btn" id="ntTest">${esc(tk('notify_test'))}</button>
       </div>
       <div class="set-msg" id="ntMsg"></div>
     </div>
@@ -549,31 +555,31 @@ function cleanErr(e) {
 // ke brain), cuma raw interaksi lama di-trim. Trigger by UKURAN, cek tiap 15 menit.
 async function renderCompact(panel) {
   panel.innerHTML = `
-    <div class="set-card">
-      <h3>🧠 Auto-Compact Context (anti-hallucination)</h3>
-      <div class="sub">When an agent's interactions pile up, the AI can hallucinate once the context gets too long. Every 15 minutes,
+    <div class="fw-card">
+      <div class="fw-sec">🧠 Auto-Compact Context (anti-hallucination)</div>
+      <div class="fw-desc" style="margin-top:0;margin-bottom:14px">When an agent's interactions pile up, the AI can hallucinate once the context gets too long. Every 15 minutes,
         agents past the threshold auto: <b>digest experience into the brain</b> (like dreaming) →
         <b>trim</b> old interactions (keep the most recent). Experience is NOT lost — it moves to the brain,
         still recallable. Safe: only what's already in the brain gets trimmed.</div>
-      <label class="set-row" style="display:flex;align-items:center;gap:8px;cursor:pointer">
-        <input type="checkbox" id="cmpEnabled" style="width:auto"> <span>Enable auto-compact</span>
+      <label class="set-toggle">
+        <input type="checkbox" id="cmpEnabled"> <span>Enable auto-compact</span>
       </label>
-      <div class="set-row">
-        <label style="font-size:0.85rem;min-width:180px;display:inline-block">Threshold (interaction count):</label>
-        <input type="number" id="cmpMax" min="20" step="20" style="width:110px">
+      <div class="set-inline" style="margin-bottom:6px">
+        <label>Threshold (interaction count):</label>
+        <input type="number" id="cmpMax" min="20" step="20">
       </div>
       <div class="set-hint">Agents whose non-deleted interactions exceed this number get compacted. Default 400.</div>
-      <div class="set-row">
-        <label style="font-size:0.85rem;min-width:180px;display:inline-block">Keep most recent:</label>
-        <input type="number" id="cmpKeep" min="0" step="10" style="width:110px">
+      <div class="set-inline" style="margin-bottom:6px">
+        <label>Keep most recent:</label>
+        <input type="number" id="cmpKeep" min="0" step="10">
       </div>
       <div class="set-hint">How many of the most RECENT interactions stay intact in context (not trimmed). Default 60.</div>
-      <div class="set-row">
-        <label style="font-size:0.85rem;min-width:180px;display:inline-block">Digest model (optional):</label>
+      <div class="set-inline" style="margin-bottom:6px">
+        <label>Digest model (optional):</label>
         <input type="text" id="cmpModel" placeholder="blank = use the LOCAL model (flowork-brain)" style="flex:1;min-width:240px" autocomplete="off">
       </div>
       <div class="set-hint">Model used to digest experience into the brain on compact (auto, Compact All, or per-agent). <b>Leave blank = use the LOCAL model (flowork-brain)</b> — free &amp; works without a subscription. Enter a capable cloud model for more reliable digests on large context (while a subscription lasts).</div>
-      <div class="set-row"><button class="set-btn-primary" id="cmpSave">${esc(t('common.btn.save'))}</button></div>
+      <button class="fw-btn" id="cmpSave">${esc(t('common.btn.save'))}</button>
       <div class="set-msg" id="cmpMsg"></div>
     </div>
   `;
@@ -610,23 +616,23 @@ async function renderCompact(panel) {
 async function renderFinance(panel) {
   const tk = (k) => t('menu.tab.settings.' + k);
   panel.innerHTML = `
-    <div class="set-card">
-      <h3>${esc(tk('fin_h'))}</h3>
-      <div class="sub">${esc(tk('fin_sub'))}</div>
-      <div class="set-row"><input type="text" id="finAddr" placeholder="${escAttr(tk('fin_addr_ph'))}" autocomplete="off"></div>
-      <div class="set-row"><input type="password" id="finPk" placeholder="${escAttr(tk('fin_pk_ph'))}" autocomplete="off"></div>
-      <div class="set-tag" style="margin-bottom:10px;color:#fbbf24;">${esc(tk('fin_pk_hint'))}</div>
-      <div class="set-row"><input type="text" id="finChain" placeholder="${escAttr(tk('fin_chain_ph'))}"></div>
-      <div class="set-row"><input type="text" id="finRpc" placeholder="${escAttr(tk('fin_rpc_ph'))}"></div>
-      <div class="set-row" style="display:flex;gap:8px;">
+    <div class="fw-card">
+      <div class="fw-sec">${esc(tk('fin_h'))}</div>
+      <div class="fw-desc" style="margin-top:0;margin-bottom:14px">${esc(tk('fin_sub'))}</div>
+      <div class="set-field"><input type="text" id="finAddr" placeholder="${escAttr(tk('fin_addr_ph'))}" autocomplete="off"></div>
+      <div class="set-field"><input type="password" id="finPk" placeholder="${escAttr(tk('fin_pk_ph'))}" autocomplete="off"></div>
+      <div class="set-hint" style="color:#fbbf24">${esc(tk('fin_pk_hint'))}</div>
+      <div class="set-field"><input type="text" id="finChain" placeholder="${escAttr(tk('fin_chain_ph'))}"></div>
+      <div class="set-field"><input type="text" id="finRpc" placeholder="${escAttr(tk('fin_rpc_ph'))}"></div>
+      <div class="set-inline" style="margin-bottom:12px">
         <input type="text" id="finCur" placeholder="${escAttr(tk('fin_cur_ph'))}" style="flex:1">
         <input type="number" id="finLimit" min="0" step="any" placeholder="${escAttr(tk('fin_limit_ph'))}" style="flex:1">
       </div>
-      <div class="set-row"><label style="display:flex;gap:8px;align-items:center;cursor:pointer;font-size:0.86rem"><input type="checkbox" id="finEnabled"> ${esc(tk('fin_enabled'))}</label></div>
-      <div class="set-tag" id="finBalance" style="margin-bottom:10px;"></div>
-      <div class="set-row">
-        <button class="set-btn-primary" id="finSave">${esc(tk('fin_save'))}</button>
-        <button class="set-btn-primary" id="finDelete" style="background:linear-gradient(135deg,#ef4444,#b91c1c);">${esc(tk('fin_delete'))}</button>
+      <label class="set-toggle"><input type="checkbox" id="finEnabled"> ${esc(tk('fin_enabled'))}</label>
+      <div class="set-hint" id="finBalance"></div>
+      <div class="set-inline">
+        <button class="fw-btn" id="finSave">${esc(tk('fin_save'))}</button>
+        <button class="fw-btn danger" id="finDelete">${esc(tk('fin_delete'))}</button>
       </div>
       <div class="set-msg" id="finMsg"></div>
     </div>
@@ -684,23 +690,23 @@ async function renderGuardian(panel) {
   try { s = await fetchJSON('/api/guardian/status'); }
   catch (e) { panel.innerHTML = `<div class="set-msg err">${esc(cleanErr(e))}</div>`; return; }
   const badge = s.safe_mode
-    ? `<span style="color:#ff476f;font-weight:700">⛔ ${esc(tk('grd_safemode'))}</span>`
+    ? `<span style="color:#f87171;font-weight:700">⛔ ${esc(tk('grd_safemode'))}</span>`
     : s.armed
-      ? `<span style="color:#22ff88;font-weight:700">🛡️ ${esc(tk('grd_armed'))}</span>`
-      : `<span style="color:#ffc24d">○ ${esc(tk('grd_disarmed'))}</span>`;
+      ? `<span style="color:#34d399;font-weight:700">🛡️ ${esc(tk('grd_armed'))}</span>`
+      : `<span style="color:#fbbf24">○ ${esc(tk('grd_disarmed'))}</span>`;
   panel.innerHTML = `
-    <div class="set-card">
-      <h3>🛡️ ${esc(tk('grd_title'))}</h3>
-      <div class="sub">${esc(tk('grd_desc'))}</div>
-      <div class="set-row">${badge} &nbsp;·&nbsp; ${esc(tk('grd_protected'))}: <b>${s.protected || 0}</b>${s.sealed_at ? ` &nbsp;·&nbsp; ${esc(tk('grd_sealed'))}: ${esc(s.sealed_at)}` : ''}</div>
-      ${s.armed ? `<div class="set-row" style="font-size:0.8rem">${s.sealed
-        ? `🔒 <span style="color:#22ff88">${esc(tk('grd_seal_os'))}</span> <span style="color:#64748b">(${esc(s.seal_method || '')})</span>`
-        : `🔓 <span style="color:#ffc24d">${esc(tk('grd_seal_detect'))}</span>`}</div>` : ''}
-      <div class="set-row" style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+    <div class="fw-card">
+      <div class="fw-sec">🛡️ ${esc(tk('grd_title'))}</div>
+      <div class="fw-desc" style="margin-top:0;margin-bottom:14px">${esc(tk('grd_desc'))}</div>
+      <div class="fw-row" style="margin-bottom:8px">${badge} &nbsp;·&nbsp; ${esc(tk('grd_protected'))}: <b>${s.protected || 0}</b>${s.sealed_at ? ` &nbsp;·&nbsp; ${esc(tk('grd_sealed'))}: ${esc(s.sealed_at)}` : ''}</div>
+      ${s.armed ? `<div class="fw-row" style="font-size:.8rem;margin-bottom:8px">${s.sealed
+        ? `🔒 <span style="color:#34d399">${esc(tk('grd_seal_os'))}</span> <span style="color:var(--text-muted)">(${esc(s.seal_method || '')})</span>`
+        : `🔓 <span style="color:#fbbf24">${esc(tk('grd_seal_detect'))}</span>`}</div>` : ''}
+      <div class="set-inline" style="margin-top:12px">
         ${s.armed
           ? `<input type="password" id="grdPw" placeholder="${escAttr(tk('grd_pw_ph'))}" autocomplete="current-password" style="flex:1;min-width:160px">
-             <button class="set-btn-primary" id="grdDisarm">${esc(tk('grd_disarm_btn'))}</button>`
-          : `<button class="set-btn-primary" id="grdArm">${esc(tk('grd_arm_btn'))}</button>`}
+             <button class="fw-btn" id="grdDisarm">${esc(tk('grd_disarm_btn'))}</button>`
+          : `<button class="fw-btn" id="grdArm">${esc(tk('grd_arm_btn'))}</button>`}
       </div>
       <div class="set-msg" id="grdMsg"></div>
     </div>`;

@@ -88,4 +88,45 @@ const GLASS_CSS = `
 .gl-sect-t:first-child { margin-top:0; }
 .gl-sect-t .gl-hint { color:var(--text-muted); font-weight:400; font-size:.72rem; }
 .gl-empty { color:#64748b; font-size:.8rem; padding:8px 11px; font-style:italic; }
+
+/* ── DESIGN-SYSTEM "fw-*" : kelas page/card share buat SEMUA tab (clean glass-3D, full-width).
+   Tab tinggal ensureGlass() + pakai kelas ini → konsisten, nano-modular, nol duplikat CSS. ── */
+.fw-page { padding:18px 26px 40px; }
+.fw-head { display:flex; align-items:center; gap:14px; margin-bottom:20px; flex-wrap:wrap; }
+.fw-glyph { font-size:1.8rem; filter:drop-shadow(0 0 12px var(--accent-glow)); }
+.fw-title { margin:0; font-size:1.5rem; font-weight:800; line-height:1.05;
+  background:linear-gradient(90deg,#c4b5fd,#67e8f9 58%,#6ee7b7); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.fw-sub { font-size:.82rem; color:var(--text-muted); margin-top:3px; max-width:96ch; line-height:1.45; }
+.fw-stat { font-size:.74rem; color:var(--text-muted); margin-top:6px; display:flex; align-items:center; gap:7px; }
+.fw-dot { width:7px; height:7px; border-radius:50%; background:#34d399; box-shadow:0 0 8px #34d399; animation:fwblink 1.8s ease-in-out infinite; }
+@keyframes fwblink { 0%,100%{opacity:1} 50%{opacity:.3} }
+.fw-grow { flex:1 1 auto; }
+
+.fw-card { position:relative; border-radius:16px; padding:18px 20px; margin-bottom:14px; transition:transform .2s, border-color .2s, box-shadow .2s;
+  border:1px solid var(--glass-border);
+  background:
+    radial-gradient(circle at 18% 0%, color-mix(in srgb,var(--accent) 9%, transparent), transparent 55%),
+    linear-gradient(165deg, rgba(255,255,255,.045), rgba(255,255,255,0) 52%), var(--bg-panel);
+  box-shadow:0 10px 30px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.06); }
+.fw-card:hover { border-color:var(--glass-border-hover); transform:translateY(-2px); box-shadow:0 18px 42px rgba(0,0,0,.44), inset 0 1px 0 rgba(255,255,255,.09); }
+.fw-sec { font-size:.78rem; font-weight:700; letter-spacing:.03em; color:var(--accent); margin:0 0 12px; }
+.fw-row { display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+.fw-row h3 { margin:0; font-size:1rem; color:var(--text-main); font-weight:700; display:flex; align-items:center; gap:9px; }
+.fw-tag { font-size:.7rem; font-weight:700; letter-spacing:.4px; color:var(--accent); border-radius:999px; padding:2px 10px;
+  border:1px solid color-mix(in srgb,var(--accent) 40%, transparent); background:color-mix(in srgb,var(--accent) 13%, transparent); }
+.fw-id { font-size:.74rem; color:var(--text-muted); font-family:ui-monospace,monospace; }
+.fw-desc { margin-top:11px; font-size:.82rem; color:var(--text-muted); line-height:1.5; }
+.fw-empty { font-size:.85rem; color:var(--text-muted); padding:22px; text-align:center; font-style:italic; }
+.fw-btn { font:inherit; font-size:.76rem; font-weight:700; padding:7px 15px; border-radius:10px; cursor:pointer; transition:filter .15s, transform .1s;
+  color:var(--text-main); border:1px solid var(--glass-border-hover); background:color-mix(in srgb,var(--accent) 13%, transparent); box-shadow:0 4px 12px rgba(0,0,0,.2); }
+.fw-btn:hover { filter:brightness(1.16); transform:translateY(-1px); }
+.fw-btn.danger { color:#f87171; border-color:rgba(248,113,113,.42); background:rgba(248,113,113,.11); }
+.fw-drop { border:1.5px dashed var(--glass-border-hover); border-radius:13px; padding:28px; text-align:center; cursor:pointer;
+  color:var(--text-muted); font-size:.9rem; background:color-mix(in srgb,var(--bg-panel) 60%, transparent); transition:.2s; }
+.fw-drop:hover, .fw-drop.over { background:color-mix(in srgb,var(--accent) 9%, transparent); border-color:var(--accent); color:var(--text-main); }
+.fw-input, .fw-card input[type=text], .fw-card input[type=number], .fw-card input[type=password], .fw-card select, .fw-card textarea {
+  width:100%; box-sizing:border-box; background:var(--bg-panel); border:1px solid var(--glass-border); color:var(--text-main);
+  padding:9px 12px; border-radius:10px; font:inherit; font-size:.85rem; transition:.15s; }
+.fw-input:focus, .fw-card input:focus, .fw-card select:focus, .fw-card textarea:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-glow); }
+.fw-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:14px; }
 `;

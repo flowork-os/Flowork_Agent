@@ -11,8 +11,10 @@
 // SAKLAR self-modify (OFF/STAGE/AUTO) + status gate berlapis + backlog usulan. KRUSIAL:
 // owner pegang penuh. Auto-commit cuma jalan kalau mode=AUTO + karma matang + model cloud
 // kuat (guard anti-LLM-lokal). SEMUA teks lewat i18n (t('evolution.*')) — en+id dict.
+// STYLING: clean glass-3D, full-width — pakai design-system fw-* share (js/glass.js).
 
 import { t } from '/js/i18n.js';
+import { ensureGlass } from '/js/glass.js';
 
 // L: L.someKey → t('evolution.some_key') (camelCase → snake_case, pola codemap).
 const L = new Proxy({}, { get: (_, k) => t('evolution.' + String(k).replace(/[A-Z]/g, (c) => '_' + c.toLowerCase())) });
@@ -20,37 +22,45 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 export async function render(container) {
+  ensureGlass();
   container.innerHTML = `
-    <div style="padding:18px 22px;max-width:920px;color:#e2e8f0">
-      <h2 style="margin:0 0 4px">🧬 ${esc(L.title)}</h2>
-      <p style="color:#94a3b8;margin:0 0 16px;font-size:0.88rem">${esc(L.intro)}</p>
-      <div id="ev-status" style="background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:14px;margin-bottom:14px">⏳ ${esc(L.loading)}</div>
-      <div id="ev-modes" style="display:flex;gap:10px;margin-bottom:8px"></div>
-      <div id="ev-modehint" style="color:#64748b;font-size:0.78rem;margin-bottom:14px"></div>
-      <div style="background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:12px 14px;margin-bottom:20px">
-        <div style="font-weight:600;margin-bottom:4px">${esc(L.scheduleH)}</div>
-        <div style="color:#64748b;font-size:0.78rem;margin-bottom:10px">${esc(L.scheduleHint)}</div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <div class="fw-page">
+      <div class="fw-head">
+        <span class="fw-glyph">🧬</span>
+        <div>
+          <h2 class="fw-title">${esc(L.title)}</h2>
+          <div class="fw-sub">${esc(L.intro)}</div>
+        </div>
+      </div>
+      <div class="fw-card" id="ev-status">⏳ ${esc(L.loading)}</div>
+      <div class="fw-card">
+        <div class="fw-row" id="ev-modes" style="margin-bottom:8px"></div>
+        <div class="fw-desc" id="ev-modehint" style="margin-top:0"></div>
+      </div>
+      <div class="fw-card">
+        <div class="fw-sec">${esc(L.scheduleH)}</div>
+        <div class="fw-desc" style="margin-top:0;margin-bottom:10px">${esc(L.scheduleHint)}</div>
+        <div class="fw-row">
           <label style="font-size:0.85rem">Tiap (menit):</label>
-          <input id="ev-sched-min" type="number" min="0" step="5" placeholder="mis. 30" title="Interval refleksi-diri dalam MENIT. 30 = tiap 30 menit. 0 = OFF." style="width:90px;background:#020617;border:1px solid #334155;border-radius:6px;color:#e2e8f0;padding:5px 8px">
-          <span style="color:#64748b;font-size:0.74rem">menit (0 = OFF)</span>
-          <button id="ev-sched-save" style="background:#334155;color:#fff;border:0;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:0.8rem">${esc(L.scheduleSave)}</button>
-          <button id="ev-sched-run" style="background:#6366f1;color:#fff;border:0;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:0.8rem">${esc(L.scheduleRun)}</button>
-          <span id="ev-sched-last" style="margin-left:auto;color:#475569;font-size:0.74rem"></span>
+          <input id="ev-sched-min" type="number" min="0" step="5" placeholder="mis. 30" title="Interval refleksi-diri dalam MENIT. 30 = tiap 30 menit. 0 = OFF." class="fw-input" style="width:90px">
+          <span class="fw-id">menit (0 = OFF)</span>
+          <button id="ev-sched-save" class="fw-btn">${esc(L.scheduleSave)}</button>
+          <button id="ev-sched-run" class="fw-btn">${esc(L.scheduleRun)}</button>
+          <span class="fw-grow"></span>
+          <span id="ev-sched-last" class="fw-id"></span>
         </div>
       </div>
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <h3 style="margin:0">📋 ${esc(L.backlogH)}</h3>
-        <div style="display:flex;gap:8px">
-          <button id="ev-eval" title="Cek apakah model aktif lolos bar 'strong cloud' (gerbang auto-commit). ~90s." style="background:#1e293b;color:#a5b4fc;border:1px solid #475569;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:0.82rem">🎯 Eval Model</button>
-          <button id="ev-clean" title="${esc(L.cleanTitle)}" style="background:#3f1d1d;color:#fca5a5;border:1px solid #7f1d1d;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:0.82rem">${esc(L.cleanBtn)}</button>
-          <button id="ev-reflect" style="background:#6366f1;color:#fff;border:0;border-radius:8px;padding:8px 14px;cursor:pointer">${esc(L.reflectBtn)}</button>
-        </div>
+      <div class="fw-row" style="margin-bottom:12px">
+        <h3 style="margin:0;font-size:1rem;color:var(--text-main);font-weight:700">📋 ${esc(L.backlogH)}</h3>
+        <span class="fw-grow"></span>
+        <button id="ev-eval" title="Cek apakah model aktif lolos bar 'strong cloud' (gerbang auto-commit). ~90s." class="fw-btn">🎯 Eval Model</button>
+        <button id="ev-clean" title="${esc(L.cleanTitle)}" class="fw-btn danger">${esc(L.cleanBtn)}</button>
+        <button id="ev-reflect" class="fw-btn">${esc(L.reflectBtn)}</button>
       </div>
-      <div id="ev-proposals" style="margin-top:12px">⏳…</div>
+      <div id="ev-proposals">⏳…</div>
       <div id="ev-stages-wrap" style="margin-top:24px;display:none">
-        <h3 style="margin:0 0 4px">${esc(L.stagedH)}</h3>
-        <div id="ev-stages" style="margin-top:8px"></div>
+        <div class="fw-sec">${esc(L.stagedH)}</div>
+        <div id="ev-stages"></div>
       </div>
     </div>`;
 
@@ -78,24 +88,25 @@ export async function render(container) {
       autocommitAllowed = !!allow;
       const ed = (d.edition || 'public') === 'dev';
       statusEl.innerHTML = `
-        <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <span style="background:${ed ? '#3b2410' : '#0c2a3b'};border:1px solid ${ed ? '#b45309' : '#0e7490'};color:${ed ? '#fbbf24' : '#67e8f9'};border-radius:6px;padding:2px 9px;font-size:0.8rem;font-weight:600">${esc(ed ? L.badgeDev : L.badgePublic)}</span>
-          <span style="color:#64748b;font-size:0.78rem">${esc(L.lblScope)}: ${esc(d.scope || '')}</span>
+        <div class="fw-row" style="margin-bottom:10px">
+          <span class="fw-tag">${esc(ed ? L.badgeDev : L.badgePublic)}</span>
+          <span class="fw-id">${esc(L.lblScope)}: ${esc(d.scope || '')}</span>
         </div>
-        <div style="display:flex;gap:24px;flex-wrap:wrap;font-size:0.85rem">
+        <div class="fw-row" style="gap:24px;font-size:0.85rem;color:var(--text-main)">
           <div>${esc(L.lblActiveMode)}: <b style="font-size:1.05rem">${esc((d.mode || 'off').toUpperCase())}</b></div>
-          <div>${esc(L.lblKarmaReady)}: ${yn(k.ready)} <span style="color:#64748b">(${Math.round(k.reflect_ok || 0)}/${k.threshold || 20} ${esc(L.suffixSuccess)})</span></div>
-          <div>${esc(L.lblModelStrong)}: ${yn(m.strong)} <span style="color:#64748b">${esc(m.note || '')}</span></div>
+          <div>${esc(L.lblKarmaReady)}: ${yn(k.ready)} <span class="fw-id">(${Math.round(k.reflect_ok || 0)}/${k.threshold || 20} ${esc(L.suffixSuccess)})</span></div>
+          <div>${esc(L.lblModelStrong)}: ${yn(m.strong)} <span class="fw-id">${esc(m.note || '')}</span></div>
         </div>
-        <div style="margin-top:10px;padding:8px 12px;border-radius:8px;background:${allow ? '#052e16' : '#1e293b'};border:1px solid ${allow ? '#16a34a' : '#334155'}">
-          ${esc(L.lblAutocommit)}: <b style="color:${allow ? '#4ade80' : '#fbbf24'}">${allow ? esc(L.autocommitOn) : esc(L.autocommitLocked)}</b>${allow ? '' : `<span style="color:#94a3b8;font-size:0.8rem">${esc(L.autocommitNeed)}</span>`}
+        <div style="margin-top:10px;padding:8px 12px;border-radius:10px;border:1px solid var(--glass-border);background:var(--bg-panel-hover)">
+          ${esc(L.lblAutocommit)}: <b style="color:${allow ? '#4ade80' : '#fbbf24'}">${allow ? esc(L.autocommitOn) : esc(L.autocommitLocked)}</b>${allow ? '' : `<span class="fw-id"> ${esc(L.autocommitNeed)}</span>`}
         </div>`;
       modesEl.innerHTML = '';
       MODES.forEach((mo) => {
         const active = (d.mode || 'off') === mo.k;
         const b = document.createElement('button');
         b.textContent = mo.label();
-        b.style.cssText = `flex:1;padding:12px;border-radius:10px;cursor:pointer;font-size:0.95rem;border:2px solid ${active ? '#6366f1' : '#334155'};background:${active ? '#1e1b4b' : '#0f172a'};color:#e2e8f0`;
+        b.className = 'fw-btn';
+        b.style.cssText = `flex:1;padding:12px;font-size:0.95rem;${active ? 'border-color:var(--accent);box-shadow:0 0 0 1px var(--accent-glow)' : ''}`;
         b.addEventListener('click', () => setMode(mo.k));
         modesEl.appendChild(b);
       });
@@ -139,7 +150,7 @@ export async function render(container) {
 
   function renderProposals() {
     const items = allProposals;
-    if (!items.length) { propEl.innerHTML = `<div style="color:#64748b">${esc(L.noProposals)}</div>`; return; }
+    if (!items.length) { propEl.innerHTML = `<div class="fw-empty">${esc(L.noProposals)}</div>`; return; }
     const pages = Math.ceil(items.length / PROP_PER_PAGE);
     if (propPage >= pages) propPage = pages - 1;
     if (propPage < 0) propPage = 0;
@@ -153,10 +164,10 @@ export async function render(container) {
         const isCore = isCode || !BEHAVIOR_KINDS.has(kind);
         // MODE GOVERNS WHO ACTS: tombol MANUSIA (Apply/Core-Apply) cuma di STAGE. Di AUTO, Dewan +
         // jadwal yang mutusin & apply (hands-off). Di OFF, read-only.
-        const applyBtn = `<button data-apply-id="${esc(p.id)}" style="background:#16a34a;color:#fff;border:0;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:0.76rem">${esc(L.applyBtn)}</button>`;
-        const coreBtn = `<button data-coreapply-id="${esc(p.id)}" title="Eksekusi coding (evo-coder) → sandbox → test-gate → stage diff buat review" style="background:#b45309;color:#fff;border:0;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:0.76rem">🛠 Core-Apply</button>`;
+        const applyBtn = `<button data-apply-id="${esc(p.id)}" class="fw-btn">${esc(L.applyBtn)}</button>`;
+        const coreBtn = `<button data-coreapply-id="${esc(p.id)}" title="Eksekusi coding (evo-coder) → sandbox → test-gate → stage diff buat review" class="fw-btn">🛠 Core-Apply</button>`;
         const autoNote = `<span style="color:#a78bfa;font-size:0.72rem">${esc(L.autoNote)}</span>`;
-        const offNote = `<span style="color:#64748b;font-size:0.72rem">${esc(L.offNote)}</span>`;
+        const offNote = `<span class="fw-id">${esc(L.offNote)}</span>`;
         let footer = '';
         if (st === 'applied') {
           footer = `<span style="color:#4ade80;font-size:0.74rem">${esc(L.statusAppliedBadge)}</span>`;
@@ -172,7 +183,7 @@ export async function render(container) {
           // sesuai desain (rejected sengaja kesimpan biar owner bisa override kalau classifier salah).
           if (isCore && currentMode === 'stage') {
             footer = `<span style="color:#f87171;font-size:0.72rem;margin-right:6px">⛔ ditolak classifier</span>`
-              + `<button data-coreforce-id="${esc(p.id)}" title="OWNER OVERRIDE: paksa core-apply walau ditolak classifier. Sandbox→test-gate→stage diff tetep jalan." style="background:#9a3412;color:#fff;border:1px solid #fb923c;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:0.76rem">🛠 DEV Core-Apply (override)</button>`;
+              + `<button data-coreforce-id="${esc(p.id)}" title="OWNER OVERRIDE: paksa core-apply walau ditolak classifier. Sandbox→test-gate→stage diff tetep jalan." class="fw-btn danger">🛠 DEV Core-Apply (override)</button>`;
           } else {
             footer = `<span style="color:#f87171;font-size:0.72rem">⛔ ${esc(L.statusRejectedBadge || 'ditolak')}</span>`;
           }
@@ -183,26 +194,27 @@ export async function render(container) {
           else footer = isCore ? coreBtn : applyBtn;
         }
         return `
-        <div style="background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:10px 12px;margin-bottom:8px">
-          <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
-            <span style="background:#1e293b;border-radius:4px;padding:1px 7px;font-size:0.72rem">${esc(p.kind || '?')}</span>
+        <div class="fw-card">
+          <div class="fw-row" style="margin-bottom:4px">
+            <span class="fw-tag">${esc(p.kind || '?')}</span>
             <span style="color:${riskColor[p.risk] || '#94a3b8'};font-size:0.72rem">●${esc(p.risk || '?')}</span>
-            <code style="color:#818cf8;font-size:0.76rem">${esc(p.target_file || '')}</code>
-            <span style="margin-left:auto;color:#475569;font-size:0.7rem">${esc(p.status || '')}</span>
+            <code class="fw-id" style="color:#818cf8">${esc(p.target_file || '')}</code>
+            <span class="fw-grow"></span>
+            <span class="fw-id" style="opacity:.7">${esc(p.status || '')}</span>
           </div>
-          <div style="font-size:0.84rem;color:#cbd5e1;margin-bottom:8px">${esc(p.rationale || '')}</div>
-          <div data-verdict="${esc(p.id)}" style="display:none;font-size:0.78rem;color:#c4b5fd;background:#1e1b3a;border-radius:6px;padding:8px 10px;margin-bottom:8px"></div>
-          <div style="display:flex;justify-content:flex-end;gap:6px;align-items:center">
+          <div class="fw-desc" style="margin-top:0;margin-bottom:8px;color:var(--text-main)">${esc(p.rationale || '')}</div>
+          <div data-verdict="${esc(p.id)}" style="display:none;font-size:0.78rem;color:#c4b5fd;background:var(--bg-panel-hover);border:1px solid var(--glass-border);border-radius:8px;padding:8px 10px;margin-bottom:8px"></div>
+          <div class="fw-row" style="justify-content:flex-end;gap:6px">
             ${footer}
-            ${p.status !== 'applied' ? `<button data-council-id="${esc(p.id)}" title="${esc(L.councilTitle)}" style="background:#6d28d9;color:#fff;border:0;border-radius:6px;padding:5px 11px;cursor:pointer;font-size:0.76rem">${esc(L.councilBtn)}</button>` : ''}
-            <button data-del-id="${esc(p.id)}" title="${esc(L.delTitle)}" style="background:#3f1d1d;color:#f87171;border:1px solid #7f1d1d;border-radius:6px;padding:5px 9px;cursor:pointer;font-size:0.76rem">🗑️</button>
+            ${p.status !== 'applied' ? `<button data-council-id="${esc(p.id)}" title="${esc(L.councilTitle)}" class="fw-btn">${esc(L.councilBtn)}</button>` : ''}
+            <button data-del-id="${esc(p.id)}" title="${esc(L.delTitle)}" class="fw-btn danger">🗑️</button>
           </div>
         </div>`;
     }).join('');
-    const pager = pages > 1 ? `<div style="display:flex;justify-content:center;gap:12px;align-items:center;margin-top:6px">
-      <button data-prop-prev ${propPage === 0 ? 'disabled' : ''} style="background:#1e293b;color:#cbd5e1;border:0;border-radius:6px;padding:5px 13px;cursor:${propPage === 0 ? 'default' : 'pointer'};font-size:0.78rem;${propPage === 0 ? 'opacity:0.4' : ''}">${esc(L.pagerPrev)}</button>
-      <span style="color:#94a3b8;font-size:0.78rem">${esc(L.pagerPage)} ${propPage + 1}/${pages} · ${items.length} ${esc(L.pagerItems)}</span>
-      <button data-prop-next ${propPage >= pages - 1 ? 'disabled' : ''} style="background:#1e293b;color:#cbd5e1;border:0;border-radius:6px;padding:5px 13px;cursor:${propPage >= pages - 1 ? 'default' : 'pointer'};font-size:0.78rem;${propPage >= pages - 1 ? 'opacity:0.4' : ''}">${esc(L.pagerNext)}</button>
+    const pager = pages > 1 ? `<div class="fw-row" style="justify-content:center;gap:12px;margin-top:6px">
+      <button data-prop-prev ${propPage === 0 ? 'disabled' : ''} class="fw-btn" style="${propPage === 0 ? 'opacity:0.4;cursor:default' : ''}">${esc(L.pagerPrev)}</button>
+      <span class="fw-id">${esc(L.pagerPage)} ${propPage + 1}/${pages} · ${items.length} ${esc(L.pagerItems)}</span>
+      <button data-prop-next ${propPage >= pages - 1 ? 'disabled' : ''} class="fw-btn" style="${propPage >= pages - 1 ? 'opacity:0.4;cursor:default' : ''}">${esc(L.pagerNext)}</button>
     </div>` : '';
     propEl.innerHTML = cards + pager;
   }
@@ -316,18 +328,19 @@ export async function render(container) {
         ? `<span style="color:#4ade80;font-size:0.76rem">${esc(L.autoFootOpen)}</span>`
         : `<span style="color:#fbbf24;font-size:0.76rem">${esc(L.autoFootLocked)}</span>`;
       stagesEl.innerHTML = items.map((s) => `
-        <div style="background:#0f172a;border:1px solid #3b2410;border-radius:8px;padding:10px 12px;margin-bottom:10px">
-          <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
-            <code style="color:#fbbf24;font-size:0.78rem">${esc(s.target_file || '')}</code>
-            <span style="color:#64748b;font-size:0.7rem">${esc(L.testGateLabel)}: ✓ ${esc((s.test_output || '').includes('OK') ? 'build+vet OK' : '')}</span>
-            <span style="margin-left:auto;color:#475569;font-size:0.7rem">${esc((s.diff || '').split('\n').length)} lines</span>
+        <div class="fw-card">
+          <div class="fw-row" style="margin-bottom:6px">
+            <code class="fw-id" style="color:#fbbf24">${esc(s.target_file || '')}</code>
+            <span class="fw-id">${esc(L.testGateLabel)}: ✓ ${esc((s.test_output || '').includes('OK') ? 'build+vet OK' : '')}</span>
+            <span class="fw-grow"></span>
+            <span class="fw-id" style="opacity:.7">${esc((s.diff || '').split('\n').length)} lines</span>
           </div>
           <details style="margin-bottom:8px"><summary style="cursor:pointer;color:#818cf8;font-size:0.76rem">${esc(L.viewDiff)}</summary>
-            <pre style="max-height:280px;overflow:auto;background:#020617;border-radius:6px;padding:8px;font-size:0.72rem;color:#cbd5e1;white-space:pre-wrap">${esc(s.diff || '')}</pre></details>
-          <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center">
+            <pre style="max-height:280px;overflow:auto;background:var(--bg-panel-hover);border:1px solid var(--glass-border);border-radius:8px;padding:8px;font-size:0.72rem;color:var(--text-main);white-space:pre-wrap">${esc(s.diff || '')}</pre></details>
+          <div class="fw-row" style="justify-content:flex-end;gap:8px">
             ${manualStage ? `
-            <button data-stage-reject="${esc(s.id)}" style="background:#7f1d1d;color:#fff;border:0;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:0.76rem">${esc(L.rejectBtn)}</button>
-            <button data-stage-approve="${esc(s.id)}" style="background:#16a34a;color:#fff;border:0;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:0.76rem">${esc(L.approveBtn)}</button>` : autoFoot}
+            <button data-stage-reject="${esc(s.id)}" class="fw-btn danger">${esc(L.rejectBtn)}</button>
+            <button data-stage-approve="${esc(s.id)}" class="fw-btn">${esc(L.approveBtn)}</button>` : autoFoot}
           </div>
         </div>`).join('');
     } catch (e) { stagesWrap.style.display = 'block'; stagesEl.innerHTML = `<span style="color:#f87171">❌ ${esc(e.message)}</span>`; }
