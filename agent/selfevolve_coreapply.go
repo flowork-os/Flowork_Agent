@@ -6,6 +6,10 @@
 //   AUTO: re-probe model asli→commit lokal→auto-push (token KV). Self-edit+self-publish core OTONOM
 //   berhasil (b0b37b7 ke local remote). Imun boot-rollback di watchdog (organ independen, survive
 //   walau Flowork mati; jaga ROUTER+agent). Additive-only (papan abadi); edit-existing→STAGE/v2.
+// 2026-06-27 (F3 roadmap-evolusi, owner-directed): + GUARD RUANG-SARAF — usulan kind core-edit
+//   (fix/refactor/doc/test) ditolak di muka via NerveProposalVet (nerve_proposal_ext.go) → arahin
+//   ke switch/data/modul / lapor butuh_tombol. Additive ~5 baris; evolusi mode OFF = nol efek live.
+//   Build/vet/test/freeze PASS. Dok: lock/peta-saraf.md.
 //
 // selfevolve_coreapply.go — R7 SELF-EVOLUTION fase-2b: CORE-APPLY engine (🔴 DEV-only).
 // Owner-approved 2026-06-16 (diskusi panjang: additive-only auto-push + edit-stage + error
@@ -55,6 +59,16 @@ func evolveCoreApplier(host *kernelhost.Host) agentmgr.EvolveCoreApplier {
 				Blocked: true, TargetFile: target,
 				Educational: agentmgr.EvolveEduWarning, Note: detail,
 			}
+		}
+		// ── F3: KUNCI KE RUANG SARAF (peta-saraf.md) ────────────────────────────────
+		// Usulan WAJIB salah satu saluran saraf: SWITCH (saklar GUI) / DATA (skill) / MODUL
+		// (.fwpack). Kind edit-kode-inti (fix/refactor/doc/test) = di LUAR saraf → tolak +
+		// arahin ke saklar/data/modul atau lapor butuh_tombol (F4). Inti beku ga pernah disentuh.
+		if v := NerveProposalVet(p.Kind, target); !v.Allowed {
+			// F4: AI mentok → LAPOR ke antrian owner (bukan bongkar inti). Owner nambah saklar.
+			recordButuhTombol(target, p.Rationale, p.Kind, v.Channel)
+			return blocked("Usulan di LUAR RUANG SARAF (channel=" + v.Channel + "). " + v.Reason +
+				" — pakai saklar/data/modul, atau lapor butuh_tombol ke owner."), nil
 		}
 		if !strings.HasPrefix(target, "NEW:") {
 			return blocked("Proposal ini MENGEDIT/menyentuh file core yang sudah ada (" + target + "). " +

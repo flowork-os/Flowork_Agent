@@ -55,6 +55,7 @@ func TestL7_NearDuplicate(t *testing.T) {
 
 // F2/L8: 1 peer untrusted (karma default) konten baru → FLAG → quarantine (nunggu consensus).
 func TestL8_SinglePeerHeld(t *testing.T) {
+	t.Setenv("FLOWORK_MESH_APPROVE", "auto") // L8 cuma kejangkau di mode auto; manual = L0 owner-queue (diuji terpisah)
 	db := meshTestDB(t)
 	res := ProcessKnowledgePacket(db, pkt("q1", "peerX", "the capital of France is Paris and it is in Europe"))
 	if res.Status != StatusQuarantine {
@@ -64,6 +65,7 @@ func TestL8_SinglePeerHeld(t *testing.T) {
 
 // F2/L8: 2 peer DISTINCT kirim near-same → consensus N-of-M tercapai → PROMOTED.
 func TestL8_QuorumPromotes(t *testing.T) {
+	t.Setenv("FLOWORK_MESH_APPROVE", "auto") // L8 cuma kejangkau di mode auto; manual = L0 owner-queue (diuji terpisah)
 	db := meshTestDB(t)
 	c := "binary search runs in logarithmic time on a sorted array"
 	r1 := ProcessKnowledgePacket(db, pkt("k1", "peer1", c))
@@ -78,6 +80,7 @@ func TestL8_QuorumPromotes(t *testing.T) {
 
 // F2/L8: 1 peer TRUSTED (karma tinggi) → fast-path promote tanpa quorum penuh.
 func TestL8_TrustedFastPath(t *testing.T) {
+	t.Setenv("FLOWORK_MESH_APPROVE", "auto") // L8 cuma kejangkau di mode auto; manual = L0 owner-queue (diuji terpisah)
 	db := meshTestDB(t)
 	_, _ = db.Exec(`INSERT INTO mesh_peer_karma (pubkey_hex, karma) VALUES ('vip', 0.9)`)
 	res := ProcessKnowledgePacket(db, pkt("t1", "vip", "merge sort is a stable divide and conquer sorting algorithm"))
@@ -88,6 +91,7 @@ func TestL8_TrustedFastPath(t *testing.T) {
 
 // Sybil-resist sederhana: 1 peer spam konten sama 2x ≠ consensus (DISTINCT pubkey).
 func TestL8_SamePeerNoSelfQuorum(t *testing.T) {
+	t.Setenv("FLOWORK_MESH_APPROVE", "auto") // L8 cuma kejangkau di mode auto; manual = L0 owner-queue (diuji terpisah)
 	db := meshTestDB(t)
 	c := "http uses tcp on port 80 by default for plaintext web traffic"
 	_ = ProcessKnowledgePacket(db, pkt("s1", "spammer", c))

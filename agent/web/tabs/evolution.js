@@ -62,6 +62,15 @@ export async function render(container) {
         <div class="fw-sec">${esc(L.stagedH)}</div>
         <div id="ev-stages"></div>
       </div>
+      <div class="fw-card" id="ev-butuh-wrap" style="margin-top:24px;display:none">
+        <div class="fw-row" style="margin-bottom:8px">
+          <div class="fw-sec" style="margin:0">${esc(L.butuhH)}</div>
+          <span class="fw-grow"></span>
+          <button id="ev-butuh-clear" class="fw-btn danger">${esc(L.butuhClear)}</button>
+        </div>
+        <div class="fw-desc" style="margin-top:0;margin-bottom:10px">${esc(L.butuhHint)}</div>
+        <div id="ev-butuh"></div>
+      </div>
     </div>`;
 
   const statusEl = container.querySelector('#ev-status');
@@ -445,8 +454,35 @@ export async function render(container) {
     } catch (e) { alert(L.errClean + e.message); cleanBtn.textContent = o; cleanBtn.disabled = false; }
   });
 
+  // F4: antrian "butuh_tombol" — AI mentok (usulan di luar ruang saraf) → lapor ke sini,
+  // BUKAN bongkar inti. Owner baca + nambah saklar (jarang, sadar) + kosongin antrian.
+  async function loadButuhTombol() {
+    const wrap = container.querySelector('#ev-butuh-wrap');
+    const el = container.querySelector('#ev-butuh');
+    if (!wrap || !el) return;
+    try {
+      const d = await (await fetch('/api/evolve/butuh-tombol')).json();
+      const items = d.items || [];
+      if (!items.length) { wrap.style.display = 'none'; return; }
+      wrap.style.display = 'block';
+      el.innerHTML = items.map((b) => `
+        <div style="font-size:0.82rem;color:var(--text-main);background:var(--bg-panel-hover);border:1px solid var(--glass-border);border-radius:8px;padding:8px 10px;margin-bottom:6px">
+          <b>${esc(L.butuhLoc)}:</b> ${esc(b.lokasi || '-')} <span class="fw-id">[${esc(b.kind || '')}→${esc(b.channel || '')}]</span><br>
+          ${esc(b.alasan || '')}<span class="fw-id"> · ${esc((b.created_at || '').slice(0, 16))}</span>
+        </div>`).join('');
+    } catch { wrap.style.display = 'none'; }
+  }
+  const butuhClear = container.querySelector('#ev-butuh-clear');
+  if (butuhClear) butuhClear.addEventListener('click', async () => {
+    butuhClear.disabled = true;
+    try { await fetch('/api/evolve/butuh-tombol', { method: 'DELETE' }); await loadButuhTombol(); }
+    catch (e) { alert(esc(e.message)); }
+    finally { butuhClear.disabled = false; }
+  });
+
   await loadConfig();
   await loadProposals();
   await loadStages();
   await loadSchedule();
+  await loadButuhTombol();
 }

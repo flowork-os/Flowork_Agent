@@ -13,6 +13,9 @@ package main
 
 import (
 	"net/http"
+	"os"
+	"strconv"
+	"strings"
 	"sync"
 
 	"flowork-gui/internal/floworkdb"
@@ -21,10 +24,21 @@ import (
 
 // reap threshold — app dianggap "failing" kalau error-rate > 40% DAN sampel
 // cukup (>=5 run selesai). Interrupted (user cancel) GA dihitung gagal.
-const (
-	reapErrRateThreshold = 0.40
-	reapMinSamples       = 5
-)
+// SWITCH (peta-saraf, default = perilaku lama): owner bisa setel keagresifan vonis Reaper
+// per-fleet tanpa edit kode — FLOWORK_REAP_ERRRATE (0..1) + FLOWORK_REAP_MIN_SAMPLES (>0).
+func reapErrRateThreshold() float64 {
+	if v, err := strconv.ParseFloat(strings.TrimSpace(os.Getenv("FLOWORK_REAP_ERRRATE")), 64); err == nil && v > 0 && v <= 1 {
+		return v
+	}
+	return 0.40
+}
+
+func reapMinSamples() int {
+	if n, err := strconv.Atoi(strings.TrimSpace(os.Getenv("FLOWORK_REAP_MIN_SAMPLES"))); err == nil && n > 0 {
+		return n
+	}
+	return 5
+}
 
 // ReapCandidate — health 1 app + verdict reaper.
 type ReapCandidate struct {
@@ -83,7 +97,7 @@ func reapScan(host *kernelhost.Host, store *floworkdb.Store) ([]ReapCandidate, e
 			switch {
 			case cand.Smoke == "not_loaded":
 				cand.Flagged, cand.Severity, cand.ReasonCode = true, "critical", "broken"
-			case closed >= reapMinSamples && rate > reapErrRateThreshold:
+			case closed >= reapMinSamples() && rate > reapErrRateThreshold():
 				cand.Flagged, cand.Severity, cand.ReasonCode = true, "warn", "failing"
 			}
 			out[i] = cand
