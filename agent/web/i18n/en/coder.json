@@ -127,5 +127,6 @@
   "lc_reap": "Remove",
   "lc_confirm_reject": "Reject & discard this pending capability?",
   "lc_confirm_reap": "Remove this capability? (recorded in Death Letters)",
-  "lc_action_fail": "Failed: "
+  "lc_action_fail": "Failed: ",
+  "lc_close": "Close"
 }

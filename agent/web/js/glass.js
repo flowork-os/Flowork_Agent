@@ -1,0 +1,91 @@
+// Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
+// js/ui/glass.js — KIT UI 3D-GLASS share (nano-module, reusable lintas-tab). Primitive
+// clean+3D ala "Autonomy/Nervous System" + "Threat Radar": tile gradient + inset-shadow +
+// hover-lift, pakai CSS var design-system (--accent/--glass-border/--text-main). NOL hardcode
+// warna mentah — tema light/dark ikut otomatis. Dipake AI Studio + tab lain.
+import { esc, loadStyle } from './utils.js';
+
+// ensureGlass — inject CSS kit sekali (idempotent). Panggil di awal render tab.
+export function ensureGlass() {
+  loadStyle('fw-glass', GLASS_CSS);
+}
+
+// statTile — kartu statistik 3D (angka gede + label). tone = warna aksen (opsional).
+export function statTile(emoji, n, label, tone) {
+  const t = tone ? ` style="--gl-accent:${tone}"` : '';
+  return `<div class="gl-tile"${t}>
+    <div class="gl-tile-n">${n | 0}</div>
+    <div class="gl-tile-l">${esc(emoji)} ${esc(label)}</div>
+  </div>`;
+}
+
+// badge — pil status kecil. tone: 'ok'|'warn'|'bad'|'mute' (atau hex via 4th arg).
+const BADGE_TONE = { ok: '#34d399', warn: '#fbbf24', bad: '#f87171', mute: '#94a3b8' };
+export function badge(text, tone = 'mute') {
+  const c = BADGE_TONE[tone] || tone || BADGE_TONE.mute;
+  return `<span class="gl-badge" style="--gl-bc:${c}">${esc(text)}</span>`;
+}
+
+// glassBtn — tombol kecil ber-aksen (label sudah di-esc oleh caller kalau perlu).
+export function glassBtn(label, tone = 'mute') {
+  const c = BADGE_TONE[tone] || tone || BADGE_TONE.mute;
+  return `<button class="gl-btn" style="--gl-bc:${c}">${esc(label)}</button>`;
+}
+
+// row — baris item dalam panel (flex, glass tipis).
+export function row(inner) {
+  return `<div class="gl-row">${inner}</div>`;
+}
+
+const GLASS_CSS = `
+.gl-tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(96px,1fr)); gap:10px; }
+.gl-tile {
+  position:relative; text-align:center; padding:14px 10px; border-radius:14px;
+  border:1px solid var(--glass-border);
+  background:
+    radial-gradient(circle at 22% 0%, color-mix(in srgb, var(--gl-accent,var(--accent)) 16%, transparent), transparent 60%),
+    linear-gradient(165deg, rgba(255,255,255,.05), rgba(255,255,255,0) 55%),
+    var(--bg-panel);
+  box-shadow:0 6px 18px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.06);
+  transition:transform .2s ease, border-color .2s ease, box-shadow .2s ease;
+}
+.gl-tile:hover { transform:translateY(-3px); border-color:var(--glass-border-hover); box-shadow:0 10px 26px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.08); }
+.gl-tile-n { font-size:1.7rem; font-weight:800; line-height:1; color:var(--text-main); text-shadow:0 2px 10px color-mix(in srgb, var(--gl-accent,var(--accent)) 30%, transparent); }
+.gl-tile-l { font-size:.74rem; color:var(--text-muted); margin-top:6px; }
+
+.gl-badge { padding:2px 9px; border-radius:999px; font-size:.7rem; font-weight:700; letter-spacing:.3px;
+  color:var(--gl-bc); background:color-mix(in srgb, var(--gl-bc) 15%, transparent); border:1px solid color-mix(in srgb, var(--gl-bc) 45%, transparent); }
+.gl-btn { font:inherit; font-size:.74rem; font-weight:700; padding:4px 11px; border-radius:8px; cursor:pointer;
+  color:var(--gl-bc); background:color-mix(in srgb, var(--gl-bc) 12%, transparent); border:1px solid color-mix(in srgb, var(--gl-bc) 40%, transparent);
+  transition:filter .15s, transform .1s; }
+.gl-btn:hover { filter:brightness(1.18); } .gl-btn:active { transform:translateY(1px); }
+
+.gl-row { display:flex; align-items:center; gap:10px; padding:9px 11px; margin-bottom:7px; border-radius:11px;
+  border:1px solid var(--glass-border);
+  background:linear-gradient(165deg, rgba(255,255,255,.04), rgba(255,255,255,0) 60%), var(--bg-panel);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05); transition:border-color .18s, background .18s; }
+.gl-row:hover { border-color:var(--glass-border-hover); }
+
+/* ── Drawer 3D (slide dari kanan) ───────────────────────────────────────── */
+.gl-backdrop { position:fixed; inset:0; background:rgba(2,6,18,.5); backdrop-filter:blur(3px);
+  opacity:0; pointer-events:none; transition:opacity .25s ease; z-index:40; }
+.gl-backdrop.on { opacity:1; pointer-events:auto; }
+.gl-drawer { position:fixed; top:0; right:0; height:100vh; width:min(440px,94vw); z-index:41;
+  display:flex; flex-direction:column;
+  background:linear-gradient(180deg, color-mix(in srgb, var(--bg-panel) 92%, #0b1220), color-mix(in srgb, var(--bg-core) 96%, #000));
+  border-left:1px solid var(--glass-border-hover); box-shadow:-24px 0 60px rgba(0,0,0,.5);
+  transform:translateX(102%); transition:transform .3s cubic-bezier(.4,0,.2,1); }
+.gl-drawer.on { transform:translateX(0); }
+.gl-drawer-head { display:flex; align-items:center; gap:10px; padding:18px 18px 14px; border-bottom:1px solid var(--glass-border); }
+.gl-drawer-head h3 { margin:0; font-size:1rem; color:var(--text-main); font-weight:700; }
+.gl-drawer-body { flex:1; overflow-y:auto; padding:16px 18px; scrollbar-width:none; }
+.gl-drawer-body::-webkit-scrollbar { display:none; }
+.gl-x { margin-left:auto; width:30px; height:30px; border-radius:9px; cursor:pointer; font-size:1rem; line-height:1;
+  color:var(--text-muted); background:var(--bg-panel); border:1px solid var(--glass-border); transition:.15s; }
+.gl-x:hover { color:var(--text-main); border-color:var(--glass-border-hover); }
+
+.gl-sect-t { font-size:.78rem; font-weight:700; color:var(--accent); margin:18px 0 8px; letter-spacing:.02em; }
+.gl-sect-t:first-child { margin-top:0; }
+.gl-sect-t .gl-hint { color:var(--text-muted); font-weight:400; font-size:.72rem; }
+.gl-empty { color:#64748b; font-size:.8rem; padding:8px 11px; font-style:italic; }
+`;

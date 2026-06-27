@@ -127,5 +127,6 @@
   "lc_reap": "Buang",
   "lc_confirm_reject": "Tolak & buang kemampuan pending ini?",
   "lc_confirm_reap": "Buang kemampuan ini? (dicatat di Surat Kematian)",
-  "lc_action_fail": "Gagal: "
+  "lc_action_fail": "Gagal: ",
+  "lc_close": "Tutup"
 }
