@@ -387,6 +387,12 @@ func dispatchSingleModel(ctx context.Context, d *sql.DB, req OpenAIRequest, sett
 	return nil, http.StatusBadGateway, fmt.Errorf("all providers failed; last error: %w", lastErr)
 }
 
+// afterAnthropicResponse — POLA B hook (default no-op). Dipanggil tiap response Anthropic
+// (termasuk 429) dengan header-nya → sibling ratelimit_track_ext.go (non-frozen) override
+// buat baca anthropic-ratelimit-unified-* + simpan utilisasi 5h/7d di 1 STATE SHARE (semua
+// agent lewat sini, nol duplikat). Default no-op = self-sufficient (hapus sibling → aman).
+var afterAnthropicResponse = func(http.Header) {}
+
 func forwardToProvider(ctx context.Context, p *store.ProviderConnection, req OpenAIRequest) (*OpenAIResponse, int, error) {
 
 	acquireDispatchSlot()
@@ -516,7 +522,9 @@ func forwardAnthropic(ctx context.Context, p *store.ProviderConnection, baseURL 
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("anthropic-version", "2023-06-01")
-	httpReq.Header.Set("User-Agent", "claude-cli/1.0.0 (flow_router)")
+	// UA cloak: samain PERSIS sama Claude Code asli (claude-code/<versi>) — BUKAN
+	// 'claude-cli/1.0.0' yg bisa ke-flag tier rate-limit beda. Versi via FLOWORK_CLOAK_VERSION.
+	httpReq.Header.Set("User-Agent", "claude-code/"+claudeVersion())
 	if err := applyAuth(httpReq, p); err != nil {
 		return nil, http.StatusUnauthorized, err
 	}
@@ -526,6 +534,7 @@ func forwardAnthropic(ctx context.Context, p *store.ProviderConnection, baseURL 
 		return nil, http.StatusBadGateway, fmt.Errorf("upstream: %w", err)
 	}
 	defer resp.Body.Close()
+	afterAnthropicResponse(resp.Header) // SADAR-KUOTA: track anthropic-ratelimit-* (incl 429)
 
 	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 16*1024*1024))
 	if resp.StatusCode != http.StatusOK {
