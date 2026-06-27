@@ -344,7 +344,13 @@ func dispatchSingleModel(ctx context.Context, d *sql.DB, req OpenAIRequest, sett
 			safego.GoLabel("logUsage", func() {
 				logUsage(d, keyID, p.ID, req.Model, lr, ls, le, latencyMs)
 			})
-			if status != http.StatusTooManyRequests || attempt >= maxRateLimitRetries() {
+			// AUTO-REM (sadar-kuota): kalau kuota 5-jam langganan udah MEPET (>=95%/surpassed),
+			// JANGAN retry-storm 429 — langsung break → lompat fallback (haiku/lokal). Nge-hammer
+			// tembok yg ga bakal gerak cuma ngabisin window. State dari ratelimit_track_ext.go.
+			if status != http.StatusTooManyRequests || attempt >= maxRateLimitRetries() || SubscriptionNearLimit() {
+				if status == http.StatusTooManyRequests && SubscriptionNearLimit() {
+					log.Printf("flow_router THROTTLE: kuota 5-jam mepet → skip retry %s, lompat fallback", p.Name)
+				}
 				break
 			}
 			wait := backoffDuration(attempt)

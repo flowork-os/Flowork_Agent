@@ -7,6 +7,7 @@
 
 import { ts, loadWargaFromBrain } from './utils.js';
 import { loadI18n, applyI18n, t } from './i18n.js';
+import { initRateLimitBadge } from './ratelimit_badge.js';
 
 // Boot the dictionary BEFORE anything renders. Sidebar/header use
 // data-t / data-tooltip-key attributes that need t() values populated.
@@ -15,6 +16,7 @@ import { loadI18n, applyI18n, t } from './i18n.js';
 await loadI18n('en');
 applyI18n();
 window.dispatchEvent(new Event('flowork:i18n-ready'));
+initRateLimitBadge(); // badge sadar-kuota di header (statusline ala Claude Code)
 
 // Single source of truth = sidebar buttons di index.html.
 // Add tab baru = update ACTIVE_TABS + index.html nav button +
