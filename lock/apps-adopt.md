@@ -21,9 +21,9 @@ clone/copy repo → deteksi runtime → install dep KE FOLDER → tulis manifest
 | `internal/apps/cliadapter/adapter.go` | **CORE** adapter CLI: loop stdio + exec argv (no shell) + placeholder/flags/args_list/json_stdin + resolve program relatif ke workdir + timeout | **LOCKED** (hash+chattr) |
 | `cmd/fw-app-adapter/main.go` | binary core_entry CLI (cwd=folder app) | **LOCKED** (hash+chattr) |
 | `internal/apps/adopt/detect.go` | **CORE** deteksi runtime (python/node/go/rust) + **registry switch** `RegisterDetector` (POLA A: runtime baru via sibling, NOL unfreeze) | **LOCKED** (hash+chattr) |
-| `internal/apps/httpadapter/adapter.go` | **CORE** adapter HTTP (F5): spawn server repo + tunggu port + op→HTTP proxy + `_url`/`_alive` | LOCKED-candidate |
-| `cmd/fw-http-adapter/main.go` | binary core_entry HTTP (web app/API) | LOCKED-candidate |
-| `internal/apps/adopt/scan.go` | **CORE** pre-flight scanner (F6): pola berbahaya (rm-rf/pipe-shell/reverse-shell/SSRF) → `ScanRepo` | LOCKED-candidate |
+| `internal/apps/httpadapter/adapter.go` | **CORE** adapter HTTP (F5): spawn server repo + tunggu port + op→HTTP proxy + `_url`/`_alive` | **LOCKED** (hash+chattr) |
+| `cmd/fw-http-adapter/main.go` | binary core_entry HTTP (web app/API) | **LOCKED** (hash+chattr) |
+| `internal/apps/adopt/scan.go` | **CORE** pre-flight scanner (F6): pola berbahaya (rm-rf/pipe-shell/reverse-shell/SSRF) → `ScanRepo` | **LOCKED** (hash+chattr) |
 | `internal/apps/adopt_ext.go` | orchestration `AdoptRepo`/`AdoptHTTPRepo`/`DetectSource`/`prepareAdopt` (sibling; panggil reloadOne) | non-frozen (growth) |
 | `internal/apps/adopt_fsutil_ext.go` | util fs/json (copyTree, writeJSON) | non-frozen |
 | `feature_app_adopt_ext.go` | SEAM route `/api/apps/adopt` + `/api/apps/detect` (init→RegisterFeature) | non-frozen (deletable) |
@@ -59,6 +59,8 @@ clone/copy repo → deteksi runtime → install dep KE FOLDER → tulis manifest
 ## Verifikasi (litmus LULUS 2026-06-27)
 CLI: `detect`→`adopt` app LIVE · op run (manusia) `LIVE-ADOPT-OK` · mr-flow (bahasa-manusia) "Outputnya: `LIVE-ADOPT-OK`".
 HTTP: E2E spawn `python http.server` → ready → GET proxy 200. Scan: malicious repo (rm-rf) DIBLOK; clean PASS. `TestKernelFreeze` PASS.
+**LITMUS DUNIA-NYATA (2026-06-27):** MoneyPrinterTurbo (github) → adopt contract=http → install 100+ dep (py3.12) →
+`_alive` start Streamlit → UI :8501 HTTP 200. Scanner nangkep Dockerfile `rm-rf` (false-positive standar apt) → owner accept_risk.
 
 ## Build wiring adapter (wajib sebelah flowork-agent, resolve via binPath)
 fw-app-adapter (CLI) + fw-http-adapter (HTTP), KEDUANYA di 3 jalur:
@@ -67,6 +69,6 @@ fw-app-adapter (CLI) + fw-http-adapter (HTTP), KEDUANYA di 3 jalur:
 - ✅ **appliance** (`os/build/build-flowork-os.sh`): build static + install `/usr/local/bin/`.
 
 ## Belum (roadmap)
-- LOCK+freeze httpadapter+fw-http-adapter+scan.go (setelah live-test F5/F6 via mr-flow).
-- F4 GUI panel Adopt (URL→deteksi+scan preview→approve→jalan; iframe `_url` buat web app).
-- F5-MCP (deteksi repo MCP → register MCP client router) — deprioritas.
+- F5-MCP (deteksi repo MCP → register MCP client router) — deprioritas (HTTP udah cukup buat web app).
+- Auto-deteksi kontrak (saran http kalau ada streamlit/fastapi/docker-compose port) — sekarang owner pilih manual.
+- Scanner refine: kurangi false-positive Dockerfile (rm-rf apt-cleanup) tanpa lengah ke yg jahat.
