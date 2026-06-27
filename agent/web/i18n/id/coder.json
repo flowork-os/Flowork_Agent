@@ -128,5 +128,8 @@
   "lc_confirm_reject": "Tolak & buang kemampuan pending ini?",
   "lc_confirm_reap": "Buang kemampuan ini? (dicatat di Surat Kematian)",
   "lc_action_fail": "Gagal: ",
-  "lc_close": "Tutup"
+  "lc_close": "Tutup",
+  "lc_health_ondemand": "Cek kesehatan jalanin smoke-test LLM (pakai token) — sesuai permintaan.",
+  "lc_health_check": "Cek kesehatan",
+  "lc_health_loading": "ngecek…"
 }

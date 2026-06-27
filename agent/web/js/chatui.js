@@ -18,23 +18,36 @@ import { t } from '/js/i18n.js';
 const L = new Proxy({}, { get: (_, k) => t('chatui.' + String(k)) });
 
 const CSS = `
-.cu-wrap { display:grid; grid-template-columns:248px 1fr; gap:16px; height:calc(100vh - 300px); min-height:440px; color:#e2e8f0; }
-.cu-side { display:flex; flex-direction:column; gap:10px; min-height:0; }
-.cu-new { width:100%; padding:9px 14px; border-radius:9px; font:inherit; font-size:0.86rem; font-weight:600; cursor:pointer;
-  border:1px solid transparent; background:linear-gradient(90deg,#7c3aed,#0ea5e9); color:#fff; }
-.cu-new:hover { filter:brightness(1.12); }
+.cu-wrap { display:grid; grid-template-columns:266px 1fr; gap:16px; height:calc(100vh - 300px); min-height:440px; color:#e2e8f0; transition:grid-template-columns .28s cubic-bezier(.4,0,.2,1); }
+.cu-wrap.cu-hide { grid-template-columns:0 1fr; }
+.cu-side { display:flex; flex-direction:column; gap:10px; min-height:0; overflow:hidden; transition:opacity .2s ease; }
+.cu-wrap.cu-hide .cu-side { opacity:0; pointer-events:none; }
+.cu-side-top { display:flex; gap:8px; }
+.cu-new { flex:1; padding:10px 14px; border-radius:12px; font:inherit; font-size:0.86rem; font-weight:700; cursor:pointer;
+  border:1px solid var(--glass-border-hover); background:linear-gradient(165deg,#8b5cf6,#0ea5e9); color:#fff;
+  box-shadow:0 8px 20px rgba(124,58,237,.34), inset 0 1px 0 rgba(255,255,255,.2); transition:transform .12s, filter .15s; }
+.cu-new:hover { filter:brightness(1.13); transform:translateY(-1px); }
+.cu-prune { width:44px; flex-shrink:0; border-radius:12px; font-size:1rem; cursor:pointer; color:var(--text-muted);
+  background:var(--bg-panel); border:1px solid var(--glass-border); box-shadow:0 4px 12px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.05); transition:.15s; }
+.cu-prune:hover { color:var(--text-main); border-color:var(--glass-border-hover); transform:translateY(-1px); }
+.cu-toggle { width:40px; height:40px; flex-shrink:0; border-radius:11px; font-size:1.15rem; cursor:pointer; color:var(--text-muted);
+  background:var(--bg-panel); border:1px solid var(--glass-border); box-shadow:0 4px 12px rgba(0,0,0,.22); transition:.15s; }
+.cu-toggle:hover { color:var(--text-main); border-color:var(--glass-border-hover); }
 .cu-sessions { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:3px; padding-right:2px; }
-.cu-sess { display:flex; align-items:center; gap:6px; padding:8px 10px; border-radius:9px; cursor:pointer; border:1px solid transparent; }
-.cu-sess:hover { background:rgba(15,23,42,0.6); }
-.cu-sess.on { background:rgba(124,58,237,0.16); border-color:rgba(167,139,250,0.4); }
+.cu-sess { display:flex; align-items:center; gap:6px; padding:9px 11px; border-radius:12px; cursor:pointer; border:1px solid var(--glass-border);
+  background:var(--bg-panel); box-shadow:inset 0 1px 0 rgba(255,255,255,.04); transition:transform .12s, border-color .15s, background .15s; }
+.cu-sess:hover { background:var(--bg-panel-hover); border-color:var(--glass-border-hover); transform:translateX(2px); }
+.cu-sess.on { background:linear-gradient(165deg,rgba(124,58,237,.24),rgba(124,58,237,.07)); border-color:var(--glass-border-hover); box-shadow:0 6px 16px rgba(124,58,237,.26); }
 .cu-sess-t { flex:1; min-width:0; font-size:0.85rem; color:#cbd5e1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .cu-sess-act { display:flex; gap:1px; opacity:0; transition:opacity .15s; }
 .cu-sess:hover .cu-sess-act { opacity:1; }
 .cu-sess-act button { background:transparent; border:none; color:#64748b; cursor:pointer; font-size:0.78rem; padding:2px 5px; border-radius:5px; }
 .cu-sess-act button:hover { color:#e2e8f0; background:rgba(148,163,184,0.15); }
-.cu-main { display:flex; flex-direction:column; min-height:0; background:rgba(15,23,42,0.4);
-  border:1px solid rgba(148,163,184,0.16); border-radius:14px; overflow:hidden; }
-.cu-bar { display:flex; gap:10px; padding:12px 14px; border-bottom:1px solid rgba(148,163,184,0.16); flex-wrap:wrap; }
+.cu-main { display:flex; flex-direction:column; min-height:0;
+  background:linear-gradient(180deg, rgba(22,25,43,.55), rgba(13,15,26,.5));
+  border:1px solid var(--glass-border); border-radius:18px; overflow:hidden;
+  box-shadow:0 22px 60px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.06); }
+.cu-bar { display:flex; gap:10px; align-items:center; padding:12px 14px; border-bottom:1px solid var(--glass-border); flex-wrap:wrap; }
 .cu-sel { background:rgba(2,6,18,0.55); border:1px solid rgba(148,163,184,0.2); border-radius:9px; color:#e2e8f0; padding:9px 12px; font:inherit; font-size:0.9rem; }
 .cu-sel:focus { outline:none; border-color:#a78bfa; }
 .cu-target { flex:1; min-width:180px; }
@@ -48,8 +61,8 @@ const CSS = `
   border:1px solid transparent; background:linear-gradient(90deg,#7c3aed,#0ea5e9); color:#fff; }
 .cu-send:hover { filter:brightness(1.12); } .cu-send:disabled { opacity:.5; cursor:default; }
 .cu-bubble { max-width:90%; padding:11px 14px; border-radius:13px; font-size:0.9rem; line-height:1.55; word-wrap:break-word; }
-.cu-bubble.me { align-self:flex-end; background:linear-gradient(90deg,#7c3aed,#0ea5e9); color:#fff; border-bottom-right-radius:4px; white-space:pre-wrap; }
-.cu-bubble.them { align-self:flex-start; background:rgba(15,23,42,0.85); border:1px solid rgba(148,163,184,0.2); color:#e2e8f0; border-bottom-left-radius:4px; }
+.cu-bubble.me { align-self:flex-end; background:linear-gradient(135deg,#8b5cf6,#0ea5e9); color:#fff; border-bottom-right-radius:4px; white-space:pre-wrap; box-shadow:0 8px 22px rgba(124,58,237,.34), inset 0 1px 0 rgba(255,255,255,.18); }
+.cu-bubble.them { align-self:flex-start; background:linear-gradient(165deg,rgba(30,34,56,.92),rgba(15,18,30,.88)); border:1px solid var(--glass-border); color:#e2e8f0; border-bottom-left-radius:4px; box-shadow:0 8px 22px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.05); }
 .cu-bubble.them h2,.cu-bubble.them h3,.cu-bubble.them h4 { margin:.5em 0 .3em; color:#c4b5fd; line-height:1.25; }
 .cu-bubble.them h2 { font-size:1.05rem; } .cu-bubble.them h3 { font-size:0.97rem; } .cu-bubble.them h4 { font-size:0.9rem; }
 .cu-bubble.them hr { border:none; border-top:1px solid rgba(148,163,184,0.2); margin:.7em 0; }
@@ -113,12 +126,15 @@ export function renderChatUI(host) {
   host.innerHTML = `
     <div class="cu-wrap">
       <aside class="cu-side">
-        <button class="cu-new">+ ${esc(L.new)}</button>
-        <button class="cu-prune" title="${escAttr(L.prune_title)}" style="margin-top:4px;font-size:.74rem;padding:5px 9px;border-radius:7px;border:1px solid #ffffff1f;background:#ffffff0d;color:#94a3b8;cursor:pointer">${esc(L.prune)}</button>
+        <div class="cu-side-top">
+          <button class="cu-new">+ ${esc(L.new)}</button>
+          <button class="cu-prune" title="${escAttr(L.prune_title)}">🧹</button>
+        </div>
         <div class="cu-sessions"><div class="cu-empty">${esc(L.loading)}</div></div>
       </aside>
       <section class="cu-main">
         <div class="cu-bar">
+          <button class="cu-toggle" title="${escAttr(L.new)}">☰</button>
           <select class="cu-sel cu-target"></select>
         </div>
         <div class="cu-log"><div class="cu-empty cu-intro">${esc(L.pick)}</div></div>
@@ -230,6 +246,8 @@ export function renderChatUI(host) {
   }
 
   $('.cu-new').addEventListener('click', newChat);
+  // toggle hide/show history sidebar (kayak side-bar collapsible).
+  $('.cu-toggle').addEventListener('click', () => $('.cu-wrap').classList.toggle('cu-hide'));
   $('.cu-prune').addEventListener('click', async () => {
     if (!confirm(L.prune_confirm)) return;
     try {

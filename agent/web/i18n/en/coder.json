@@ -128,5 +128,8 @@
   "lc_confirm_reject": "Reject & discard this pending capability?",
   "lc_confirm_reap": "Remove this capability? (recorded in Death Letters)",
   "lc_action_fail": "Failed: ",
-  "lc_close": "Close"
+  "lc_close": "Close",
+  "lc_health_ondemand": "Health check runs LLM smoke-tests (uses tokens) — on demand.",
+  "lc_health_check": "Check health",
+  "lc_health_loading": "checking…"
 }
