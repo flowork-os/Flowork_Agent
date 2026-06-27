@@ -1,6 +1,7 @@
-// engine_scan_ext.go — SEAM (non-frozen). Tool `engine_scan`: scan KODE INTI Flowork (engine
-// FLowork_os: agent/router/os) buat bug/security. BEDA FUNGSI dari `code_scan` (frozen, scope
-// workspace agent) DAN dari `codemap_*` (peta struktur). Ini AUDIT bug di engine sendiri.
+// engine_scan_ext.go — FROZEN (chattr +i + hash KERNEL_FREEZE.md). 📄 Dok: lock/threat-radar.md.
+// Tool `engine_scan`: scan KODE INTI Flowork (engine FLowork_os: agent/router/os) buat bug/security.
+// BEDA FUNGSI dari `code_scan` (frozen, scope workspace agent) DAN dari `codemap_*` (peta struktur).
+// Ini AUDIT bug di engine sendiri.
 //
 // ⚠️ GATE owner-class: cap = "exec:git" (mr-flow PUNYA; worker browse/fb-* TIDAK). Sengaja —
 // kalau pakai cap lebar (fs:read), worker lain pas cari job-nya bisa NYASAR scan engine-root
