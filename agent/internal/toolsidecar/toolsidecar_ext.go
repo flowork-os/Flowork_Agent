@@ -1,20 +1,16 @@
-// toolsidecar_ext.go — CABANG/SWITCH (NON-frozen) buat KEBIJAKAN toolsidecar.go yg FROZEN.
+// toolsidecar_ext.go — TITIK OVERRIDE (NON-frozen, BISA DIHAPUS) buat kebijakan toolsidecar.go (frozen).
 //
-// ⭐ JALAN PINTAS: mau ubah kebijakan keamanan tool buatan-agent (denylist import) atau nambah
-// kebijakan baru TANPA buka `toolsidecar.go` (frozen brain-core)? EDIT DI SINI. File ini sengaja
-// dibiarin non-frozen — itu yg bikin engine sidecar tetap "abadi" tapi kebijakannya bisa berevolusi.
+// ⭐ JALAN PINTAS: mau ubah kebijakan keamanan tool buatan-agent (denylist import) TANPA buka
+// `toolsidecar.go` (frozen brain-core)? OVERRIDE DI SINI lewat init() — JANGAN edit toolsidecar_seam.go.
+// File ini sengaja non-frozen biar kebijakan bisa berevolusi. Hapus file ini → balik ke DEFAULT BEKU
+// (toolsidecar_seam.go) yg aman — inti ga patah (delete-test §6.4 lulus).
 //
-// Kenapa import-policy yang dicabangin: ini bagian yg PALING mungkin berubah seiring waktu —
-//   - mau izinin import yg dulu ditolak (mis. `math/rand`)? buang dari daftar.
-//   - mau tutup vektor eskalasi baru? tambah ke daftar.
+//   - mau izinin import yg dulu ditolak (mis. `math/rand`)? override: buang dari daftar.
+//   - mau tutup vektor eskalasi baru? override: tambah ke daftar.
 //   - nanti ada sandbox-OS (seccomp) → denylist ini bisa dilonggarin (lihat lock/tools.md §guardrail).
 //
-// Arsitektur + alasan lengkap: lock/tools.md. Owner: Mr.Dev · github.com/flowork-os/Flowork-OS
-package toolsidecar
-
-// dangerImports — denylist vektor eskalasi native yg DITOLAK pas `tool_create` (Fase 1, sebelum
-// sandbox-OS ada). Heuristik substring, BUKAN sandbox beneran; lapis aman utama = scope PRIVAT +
-// Dewan-review sebelum shared (lock/tools.md §guardrail). `CreateTool` di toolsidecar.go baca var ini.
+// Contoh override (uncomment + sesuaikan):
+//   func init() { dangerImports = []string{"os/exec", "syscall", "unsafe", "plugin"} }
 //
-// SWITCH: tambah/buang entri di sini buat ngatur kebijakan — JANGAN sentuh toolsidecar.go.
-var dangerImports = []string{"os/exec", "syscall", "unsafe", "plugin", "net/http/cgi", "runtime/debug"}
+// Default aman ada di toolsidecar_seam.go (BEKU). Arsitektur: lock/tools.md. Owner: Mr.Dev.
+package toolsidecar
