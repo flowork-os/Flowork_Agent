@@ -103,6 +103,20 @@ func TestFlagsStyle(t *testing.T) {
 	}
 }
 
+func TestArgsListStyle(t *testing.T) {
+	// arg_style=args_list → elemen args["args"] di-append apa adanya (bungkus CLI).
+	dir := writeCfg(t, Config{
+		Ops: map[string]OpSpec{
+			"run": {Cmd: []string{"echo", "yt-dlp"}, ArgStyle: "args_list"},
+		},
+	})
+	resps := runOps(t, dir, `{"op":"run","args":{"args":["https://x.test/v","-f","mp4"]}}`)
+	got := resultField(t, resps[0], "stdout").(string)
+	if !strings.Contains(got, "https://x.test/v") || !strings.Contains(got, "-f") || !strings.Contains(got, "mp4") {
+		t.Fatalf("stdout = %q, mau berisi argumen list", got)
+	}
+}
+
 func TestUnknownOp(t *testing.T) {
 	dir := writeCfg(t, Config{Ops: map[string]OpSpec{"x": {Cmd: []string{"echo"}}}})
 	resps := runOps(t, dir, `{"op":"nope","args":{}}`)

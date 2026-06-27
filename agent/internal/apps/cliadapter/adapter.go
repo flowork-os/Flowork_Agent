@@ -35,6 +35,7 @@ const defaultTimeout = 120 * time.Second
 // Placeholder {key} di argv selalu disubstitusi dari args. arg_style nentuin sisa args:
 //   - "placeholder" (default): cuma substitusi {key}, sisanya diabaikan.
 //   - "flags": tiap key yang BUKAN placeholder di-append sbg "--key value".
+//   - "args_list": elemen array args["args"] di-append apa adanya (bungkus CLI: yt-dlp <url> -f mp4).
 //   - "json_stdin": seluruh args di-marshal JSON → dikirim ke stdin command.
 //   - "none": args diabaikan total.
 type OpSpec struct {
@@ -145,6 +146,12 @@ func execOp(baseDir string, cfg *Config, spec OpSpec, args map[string]any) (map[
 				continue
 			}
 			argv = append(argv, "--"+k, toStr(v))
+		}
+	case "args_list":
+		if lst, ok := args["args"].([]any); ok {
+			for _, e := range lst {
+				argv = append(argv, toStr(e))
+			}
 		}
 	case "json_stdin":
 		stdinData, _ = json.Marshal(args)
