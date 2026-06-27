@@ -78,8 +78,8 @@ File inti: `internal/taskflow/taskflow.go` (core) + `internal/taskflow/taskflow_
 Alur `RunCategoryTask(ctx, host, sharedDir, cat, input, runID, rec)`:
 
 1. **Validasi**: crew kosong / synth kosong / input kosong → error cepat.
-2. **CABANG hook** (`extRunCategory`, NON-frozen): kalau ada `ExecStrategy` terdaftar yang KLAIM
-   kategori → dia ambil-alih (mode parallel/debate/dst). nil → lanjut default sequential. (§6)
+2. **CABANG hook** (`extRunCategory`, di `taskflow_seam.go` FROZEN; registrasi via `taskflow_ext.go` non-frozen):
+   kalau ada `ExecStrategy` terdaftar yang KLAIM kategori → dia ambil-alih (mode parallel/debate/dst). nil → lanjut default sequential. (§6)
 3. **Fan-out**: tiap anggota crew di-invoke **berurutan** (`invokeWorker`). Tiap worker nulis
    output ke file `<shared>/<agent>/job/run-<runID>__<agent>.md`. Engine COPY file tiap worker
    ke dir job synthesizer (karena shared workspace itu PER-AGENT, ga otomatis kebaca lintas-agent).
@@ -170,17 +170,23 @@ Bukti live: probe "upload konten ke facebook" → mr-flow jawab "nyalain crew fa
 Realisasi perintah owner: *"kasih cabang file/switch biar file frozen ngak akan pernah dibuka lagi"*.
 Tiap file frozen punya pasangan `*_ext.go` NON-frozen. File frozen cuma MANGGIL fungsi di ext.
 
-### 6.1 `internal/groupsapi/groupsapi_ext.go` (NON-frozen)
-- `slashPushEnabled() bool` — saklar push slash Telegram. **DEFAULT MATI** (awareness-only).
+### 6.1 `internal/groupsapi/groupsapi_seam.go` (FROZEN, mekanisme) + `groupsapi_ext.go` (NON-frozen, registrasi)
+> Seam-split 2026-06-27 (delete-test §6.4 self-sufficiency): MEKANISME + switch-reader pindah ke
+> `groupsapi_seam.go` BEKU; `groupsapi_ext.go` tetep non-frozen buat REGISTRASI hook (init).
+- `slashPushEnabled() bool` (di seam) — saklar push slash Telegram. **DEFAULT MATI** (awareness-only).
   `orchestrator.go` (frozen) manggil ini; pas mati → push KOSONG (menu Telegram tetep bersih).
   **Idupin slash lagi: env `FLOWORK_GROUP_SLASH=1`** — tanpa unfreeze.
-- `RegisterGroupSyncHook(fn)` — target sync masa depan (menu Discord/WhatsApp, registry, metrik)
-  daftar di sini. `SyncToOrchestrator` (frozen) manggil `runGroupSyncHooks(parts)` tiap sync.
+- `RegisterGroupSyncHook(fn)` (mekanisme di seam) — target sync masa depan (menu Discord/WhatsApp,
+  registry, metrik) DAFTAR via `init(){ RegisterGroupSyncHook(fn) }` di `groupsapi_ext.go` / sibling baru.
+  `SyncToOrchestrator` (frozen) manggil `runGroupSyncHooks(parts)` tiap sync.
 
-### 6.2 `internal/taskflow/taskflow_ext.go` (NON-frozen)
-- `RegisterExecStrategy(fn)` — mode eksekusi crew baru (parallel/debate/vote/dll). `RunCategoryTask`
+### 6.2 `internal/taskflow/taskflow_seam.go` (FROZEN, mekanisme) + `taskflow_ext.go` (NON-frozen, registrasi)
+> Seam-split 2026-06-27 (delete-test §6.4): dispatcher `ExecStrategy`/`RegisterExecStrategy`/`extRunCategory`
+> pindah ke `taskflow_seam.go` BEKU; `taskflow_ext.go` tetep non-frozen buat DAFTAR strategi (init).
+- `RegisterExecStrategy(fn)` (mekanisme di seam) — mode eksekusi crew baru (parallel/debate/vote/dll). `RunCategoryTask`
   (frozen) manggil `extRunCategory(...)` di awal: strategi yang KLAIM kategori (balik non-nil) ambil
   alih; nil → default sequential (yang udah kebukti gate saham). Strategi panic ≠ ngerusak (recover).
+  Tambah strategi: `init(){ RegisterExecStrategy(fn) }` di `taskflow_ext.go` / file sibling baru.
 
 ### 6.3 Yang udah plug-and-play (ga butuh hook, murni DATA)
 - **Group/squad baru** = data (Category + agent anggota). Ga ada code per-group.
@@ -228,7 +234,8 @@ Tiap file frozen punya pasangan `*_ext.go` NON-frozen. File frozen cuma MANGGIL 
 |---|---|---|
 | `internal/taskflow/taskflow.go` | CORE executor (fan-out→synth+retask) | **FREEZE** |
 | `internal/taskflow/taskflow_retask.go` | invokeWorker/invokeSynth/parseRetask | **FREEZE** |
-| `internal/taskflow/taskflow_ext.go` | CABANG: RegisterExecStrategy | NON-frozen |
+| `internal/taskflow/taskflow_seam.go` | MEKANISME: ExecStrategy + RegisterExecStrategy + extRunCategory | **FREEZE** |
+| `internal/taskflow/taskflow_ext.go` | REGISTRASI strategi (init→RegisterExecStrategy) | NON-frozen |
 | `internal/tools/builtins/taskflow_tools.go` | tool `task_list`/`task_run` | **FREEZE** |
 | `internal/groupsapi/groupsapi.go` | CRUD group (list/config/create/delete) | **FREEZE** |
 | `internal/groupsapi/orchestrator.go` | SyncToOrchestrator (roster + slash gate) | **FREEZE** |
@@ -237,7 +244,8 @@ Tiap file frozen punya pasangan `*_ext.go` NON-frozen. File frozen cuma MANGGIL 
 | `internal/groupsapi/seed.go` | writeGroupSeed / SeedFromJSON (group.json) | **FREEZE** |
 | `internal/groupsapi/reset.go` | ResetHandler (restore dari repo) | **FREEZE** |
 | `internal/groupsapi/telegram_commands.go` | syncTelegramCommands (setMyCommands) | **FREEZE** |
-| `internal/groupsapi/groupsapi_ext.go` | CABANG: slash switch + sync hook | NON-frozen |
+| `internal/groupsapi/groupsapi_seam.go` | MEKANISME: slashPushEnabled/effectiveOrchestratorID + GroupSyncHook | **FREEZE** |
+| `internal/groupsapi/groupsapi_ext.go` | REGISTRASI hook sync (init→RegisterGroupSyncHook) | NON-frozen |
 
 Catatan: `tool_specs.go` (expose task_list/task_run) + persona mr-flow (kv) = **enabler routing**,
 TAPI bukan file group-core → tetap header-lock (BUKAN hash-frozen), karena tool-exposure & persona

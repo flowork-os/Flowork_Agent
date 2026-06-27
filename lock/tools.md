@@ -212,8 +212,12 @@ Kalau kebutuhan lo ada di tabel → kerjain di kolom tengah, SELESAI, ga usah un
 `internal/tools/registry.go` · `sandbox.go` · `sandbox_v3.go` · `interceptors.go` — registry inti + sandbox
 capability-gate. (Lihat KERNEL_FREEZE.md "SHA256 manifest".)
 
+### 🔒 Seam-split (2026-06-27, self-sufficiency delete-test §6.4)
+- `internal/toolsidecar/toolsidecar_seam.go` — DEFAULT BEKU `dangerImports` (papan POLA-B; override di `_ext`).
+- `internal/tools/dynamic.go` — `RegisterDynamic`/`Unregister` (API registry runtime; dipanggil mcphub/toolsidecar frozen). _(chattr +i = langkah owner; soft-freeze KERNEL_FREEZE udah jalan.)_
+
 ### ✏️ NON-frozen by-design (CABANG/SWITCH + evolutif) — JANGAN di-freeze
-- `internal/toolsidecar/toolsidecar_ext.go` — CABANG kebijakan import.
+- `internal/toolsidecar/toolsidecar_ext.go` — CABANG OVERRIDE kebijakan import (default `dangerImports` skrg di `toolsidecar_seam.go` FROZEN; timpa via `init()`).
 - `internal/agentdb/edu_errors_ext.go` — CABANG konten edu-error (override DO-UPDATE; di-seed `provision_dna.go`).
 - `internal/agentmgr/tool_specs.go` — daftar expose tool (tumbuh; agentmgr by-doctrine non-frozen).
 - `internal/agentmgr/tool_subscriptions.go` — `localSuggest` + subscription (subsistem lebih luas).
