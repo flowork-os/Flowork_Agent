@@ -16,5 +16,10 @@
   "send": "KIRIM",
   "thinking": "tim lagi kerja…",
   "fail": "chat gagal: ",
-  "loading": "memuat…"
+  "loading": "memuat…",
+  "prune": "🧹 Bersihkan kosong",
+  "prune_title": "Hapus semua chat kosong (yang ada isinya aman)",
+  "prune_confirm": "Hapus SEMUA chat kosong (tanpa pesan)? Chat yang ada isinya aman.",
+  "prune_done": "Beres: {deleted} chat kosong dihapus, {kept} disimpan.",
+  "prune_fail": "Gagal: "
 }

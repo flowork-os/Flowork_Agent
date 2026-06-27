@@ -114,7 +114,7 @@ export function renderChatUI(host) {
     <div class="cu-wrap">
       <aside class="cu-side">
         <button class="cu-new">+ ${esc(L.new)}</button>
-        <button class="cu-prune" title="Hapus semua chat kosong (yang ada isinya aman)" style="margin-top:4px;font-size:.74rem;padding:5px 9px;border-radius:7px;border:1px solid #ffffff1f;background:#ffffff0d;color:#94a3b8;cursor:pointer">🧹 Bersihkan kosong</button>
+        <button class="cu-prune" title="${escAttr(L.prune_title)}" style="margin-top:4px;font-size:.74rem;padding:5px 9px;border-radius:7px;border:1px solid #ffffff1f;background:#ffffff0d;color:#94a3b8;cursor:pointer">${esc(L.prune)}</button>
         <div class="cu-sessions"><div class="cu-empty">${esc(L.loading)}</div></div>
       </aside>
       <section class="cu-main">
@@ -231,13 +231,13 @@ export function renderChatUI(host) {
 
   $('.cu-new').addEventListener('click', newChat);
   $('.cu-prune').addEventListener('click', async () => {
-    if (!confirm('Hapus SEMUA chat kosong (tanpa pesan)? Chat yang ada isinya aman.')) return;
+    if (!confirm(L.prune_confirm)) return;
     try {
       const r = await fetchJSON('/api/chat/sessions/prune', { method: 'POST' });
       if (S.sessionId && !S.sessions.find((x) => x.id === S.sessionId)) S.sessionId = null;
       await loadSessions();
-      alert(`Beres: ${r.deleted || 0} chat kosong dihapus, ${r.kept || 0} disimpan.`);
-    } catch (e) { alert('Gagal: ' + (e.message || e)); }
+      alert(L.prune_done.replace('{deleted}', r.deleted || 0).replace('{kept}', r.kept || 0));
+    } catch (e) { alert(L.prune_fail + (e.message || e)); }
   });
   $('.cu-target').addEventListener('change', saveMeta);
   $('.cu-send').addEventListener('click', send);

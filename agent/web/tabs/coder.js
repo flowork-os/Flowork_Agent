@@ -19,10 +19,7 @@ export async function render(mainEl) {
         <div>
           <h1 style="margin:0;font-size:1.55rem;line-height:1.1;font-weight:700;background:linear-gradient(90deg,#c4b5fd,#67e8f9 58%,#6ee7b7);-webkit-background-clip:text;background-clip:text;color:transparent">${esc(T('title'))}</h1>
           <div style="font-size:0.86rem;color:#94a3b8;margin-top:3px;max-width:80ch;line-height:1.5">${esc(T('sub'))}</div>
-          <div style="font-size:0.78rem;color:#67e8f9;margin-top:5px;max-width:80ch;line-height:1.45">
-            🏭 <b>PABRIK KEMAMPUAN</b> — di sini AI <b>BIKIN + PERIKSA + KELOLA</b> kemampuan baru (tool/agent/app).
-            Beda sama <b>mr-flow</b> (tab Chat) yang <b>KERJAIN tugas</b> pakai kemampuan yang udah ada.
-          </div>
+          <div style="font-size:0.78rem;color:#67e8f9;margin-top:5px;max-width:80ch;line-height:1.45">${esc(T('factory_note'))}</div>
         </div>
       </div>
     </section>

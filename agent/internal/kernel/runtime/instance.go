@@ -78,10 +78,20 @@ func (i *Instance) SetWorkspaces(workspaceDir, sharedDir string) {
 //   argsJSON   — request JSON bytes ready-to-send
 //
 // Return: JSON response bytes (sudah trim trailing newline dari println).
-func (i *Instance) Call(ctx context.Context, funcName string, argsJSON []byte) ([]byte, error) {
+func (i *Instance) Call(ctx context.Context, funcName string, argsJSON []byte) (result []byte, retErr error) {
 	if i.compiled == nil {
 		return nil, fmt.Errorf("instance %q closed", i.ID)
 	}
+	// PANIC-ISOLATION (akar server-crash): WASM engine (wazevo) bisa panic di kondisi
+	// pinggir — mis. race poll_oneoff pas daemon long-poll ngebut waktu network down
+	// (mod.Sys nil di pollOneoffFn). 1 panic plugin TIDAK BOLEH matiin SELURUH agent.
+	// recover → ubah jadi error biasa (caller udah handle err), server tetap hidup.
+	defer func() {
+		if r := recover(); r != nil {
+			retErr = fmt.Errorf("plugin call %q panicked (WASM engine): %v", funcName, r)
+			fmt.Fprintf(os.Stderr, "[kernel] RECOVERED panic: plugin %q func %q: %v\n", i.ID, funcName, r)
+		}
+	}()
 	callCtx := WithGuestPluginID(ctx, i.ID)
 
 	var stdout, stderr bytes.Buffer

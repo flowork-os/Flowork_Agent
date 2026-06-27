@@ -281,11 +281,15 @@ func isPublicPath(r *http.Request) bool {
 		return r.Method == http.MethodPost && isLocalRequest(r)
 	case "/api/reaper/candidates":
 		return r.Method == http.MethodGet && isLocalRequest(r)
+	case "/api/studio/deathletters":
+		// AI STUDIO siklus-hidup: surat kematian (read-only) — loopback owner-local,
+		// same trust model as /api/reaper/candidates + /api/coder/pending.
+		return r.Method == http.MethodGet && isLocalRequest(r)
 	case "/api/chat":
 		// Channel HTTP/CLI ke mr-flow (roadmap Channels) — loopback-only owner-local.
 		return r.Method == http.MethodPost && isLocalRequest(r)
 	case "/api/chat/sessions", "/api/chat/sessions/rename", "/api/chat/sessions/delete",
-		"/api/chat/sessions/meta", "/api/chat/sessions/messages", "/api/chat/send":
+		"/api/chat/sessions/meta", "/api/chat/sessions/messages", "/api/chat/sessions/prune", "/api/chat/send":
 		// CHATGPT-STYLE CHAT TAB (Group): persistent sessions + full-context chat with a
 		// group or the Architect. Owner-local, loopback-only (server binds 127.0.0.1;
 		// behind isLocalRequest + the cross-site-browser cut above). Same trust model as

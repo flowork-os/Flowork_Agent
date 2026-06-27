@@ -16,5 +16,10 @@
   "send": "SEND",
   "thinking": "the team is working…",
   "fail": "chat failed: ",
-  "loading": "loading…"
+  "loading": "loading…",
+  "prune": "🧹 Clear empty",
+  "prune_title": "Delete all empty chats (chats with content are safe)",
+  "prune_confirm": "Delete ALL empty chats (no messages)? Chats with content are safe.",
+  "prune_done": "Done: {deleted} empty chats deleted, {kept} kept.",
+  "prune_fail": "Failed: "
 }
