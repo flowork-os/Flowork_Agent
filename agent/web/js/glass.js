@@ -67,10 +67,11 @@ const GLASS_CSS = `
 .gl-row:hover { border-color:var(--glass-border-hover); }
 
 /* ── Drawer 3D (slide dari kanan) ───────────────────────────────────────── */
-.gl-backdrop { position:fixed; inset:0; background:rgba(2,6,18,.5); backdrop-filter:blur(3px);
+/* offset di bawah header app (z-index:50) biar GA tumpang-tindih sama topbar. */
+.gl-backdrop { position:fixed; inset:58px 0 0 0; background:rgba(2,6,18,.5); backdrop-filter:blur(3px);
   opacity:0; pointer-events:none; transition:opacity .25s ease; z-index:40; }
 .gl-backdrop.on { opacity:1; pointer-events:auto; }
-.gl-drawer { position:fixed; top:0; right:0; height:100vh; width:min(440px,94vw); z-index:41;
+.gl-drawer { position:fixed; top:58px; right:0; height:calc(100vh - 58px); width:min(440px,94vw); z-index:41;
   display:flex; flex-direction:column;
   background:linear-gradient(180deg, color-mix(in srgb, var(--bg-panel) 92%, #0b1220), color-mix(in srgb, var(--bg-core) 96%, #000));
   border-left:1px solid var(--glass-border-hover); box-shadow:-24px 0 60px rgba(0,0,0,.5);
