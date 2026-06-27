@@ -258,7 +258,10 @@ func (m *Manager) AdoptHTTPRepo(ctx context.Context, source, id string, hc HTTPC
 		_ = os.RemoveAll(target)
 		return res, e
 	}
-	ops := []Op{{Name: "_url", GUI: true, Tool: false, Description: "URL UI app " + appID + " (buka di tab)"}}
+	ops := []Op{
+		{Name: "_alive", GUI: true, Tool: false, Mutates: true, Description: "Nyalakan server " + appID + " (start + tunggu port ready)"},
+		{Name: "_url", GUI: true, Tool: false, Description: "URL UI app " + appID + " (buka di tab)"},
+	}
 	for opName, spec := range hc.Ops {
 		ops = append(ops, Op{
 			Name: opName, Tool: true, GUI: false, Mutates: true,

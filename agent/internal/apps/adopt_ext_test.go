@@ -185,16 +185,19 @@ func TestAdoptHTTPRepo(t *testing.T) {
 	mraw, _ := os.ReadFile(filepath.Join(base, "manifest.json"))
 	var man Manifest
 	_ = json.Unmarshal(mraw, &man)
-	var hasURL, hasTool bool
+	var hasURL, hasAlive, hasTool bool
 	for _, o := range man.Operations {
 		if o.Name == "_url" && o.GUI {
 			hasURL = true
+		}
+		if o.Name == "_alive" && o.GUI {
+			hasAlive = true
 		}
 		if o.Name == "create_video" && o.Tool {
 			hasTool = true
 		}
 	}
-	if !hasURL || !hasTool {
-		t.Fatalf("manifest ops ga lengkap (_url gui + create_video tool): %+v", man.Operations)
+	if !hasURL || !hasAlive || !hasTool {
+		t.Fatalf("manifest ops ga lengkap (_url + _alive gui + create_video tool): %+v", man.Operations)
 	}
 }
