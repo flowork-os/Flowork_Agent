@@ -39,7 +39,13 @@ pre-flight + tier-isolasi per-OS = roadmap F6.
 HTTP `detect`→`adopt` → app LIVE · `/api/apps/op run` (manusia) → `LIVE-ADOPT-OK` · mr-flow (bahasa-manusia) →
 "Outputnya: `LIVE-ADOPT-OK`". E2E deterministik (adopt repo Go → build → InvokeOp + args) PASS. `TestKernelFreeze` PASS.
 
+## Build wiring fw-app-adapter (wajib sebelah flowork-agent, resolve via adapterBinPath)
+- ✅ **portable** (`os/portable/make-portable.sh`): build per-OS + copy ke install bin + chmod.
+- ✅ **appliance** (`os/build/build-flowork-os.sh`): build static + install `/usr/local/bin/fw-app-adapter`.
+- ⏳ **dev** (`agent/start.sh`): DITUNDA — start.sh ada WIP owner. Edit yg perlu (idempotent, sebelah build flowork-gui):
+  `( cd "$ROOT" && CGO_ENABLED=0 go build -o "$ROOT/bin/fw-app-adapter" ./cmd/fw-app-adapter )`.
+  (Sementara: dev jalan krn binary udah di-build manual ke agent/bin/.)
+
 ## Belum (roadmap)
-- Wiring `start.sh`: build `fw-app-adapter` (idempotent, sebelah build flowork-gui). **Belum** (start.sh ada WIP owner).
 - `chattr +i` 3 file LOCKED (OS-immutable layer-2) — butuh sudo dev.
 - F4 GUI panel Adopt · F5 kontrak HTTP+MCP · F6 scanner+tier-isolasi.
