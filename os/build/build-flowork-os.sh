@@ -76,6 +76,10 @@ build_static "$AGENT_SRC"  flowork-agent
 ( cd "$AGENT_SRC" && GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
 	go build -tags netgo -ldflags '-s -w' -o "$OUT/fw-app-adapter" ./cmd/fw-app-adapter ) || die "go build fw-app-adapter failed"
 file "$OUT/fw-app-adapter" | grep -q 'statically linked' || die "fw-app-adapter is not static"
+# fw-http-adapter — core_entry app SERVER (kontrak HTTP). Sebelah flowork-agent di rootfs.
+( cd "$AGENT_SRC" && GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+	go build -tags netgo -ldflags '-s -w' -o "$OUT/fw-http-adapter" ./cmd/fw-http-adapter ) || die "go build fw-http-adapter failed"
+file "$OUT/fw-http-adapter" | grep -q 'statically linked' || die "fw-http-adapter is not static"
 
 # Router: embed the SOVEREIGN seed (local Ollama default) if available, so a fresh appliance
 # routes LLM calls to the local Qwen model (//go:embed is compile-time → swap the seed in a
@@ -111,9 +115,10 @@ mkdir -p "$ROOTFS/dev" "$ROOTFS/proc" "$ROOTFS/sys" "$ROOTFS/run" "$ROOTFS/tmp" 
 # --- STEP 3: overlay + binaries + agent seed ---------------------------------
 log "STEP 3/5  applying overlay, binaries, agent definitions"
 cp -a "$OVERLAY/." "$ROOTFS/"
-install -Dm0755 "$OUT/flowork-agent"  "$ROOTFS/usr/local/bin/flowork-agent"
-install -Dm0755 "$OUT/fw-app-adapter" "$ROOTFS/usr/local/bin/fw-app-adapter"
-install -Dm0755 "$OUT/flowork-router" "$ROOTFS/usr/local/bin/flowork-router"
+install -Dm0755 "$OUT/flowork-agent"   "$ROOTFS/usr/local/bin/flowork-agent"
+install -Dm0755 "$OUT/fw-app-adapter"  "$ROOTFS/usr/local/bin/fw-app-adapter"
+install -Dm0755 "$OUT/fw-http-adapter" "$ROOTFS/usr/local/bin/fw-http-adapter"
+install -Dm0755 "$OUT/flowork-router"  "$ROOTFS/usr/local/bin/flowork-router"
 chmod 0755 "$ROOTFS"/etc/init.d/flowork-* "$ROOTFS"/usr/local/bin/flowork-* 2>/dev/null || true
 
 # Seed agent definitions as a read-only TEMPLATE. The flowork-data service copies these

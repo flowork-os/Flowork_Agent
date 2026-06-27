@@ -23,6 +23,7 @@ import (
 
 	"flowork-gui/internal/apps/adopt"
 	"flowork-gui/internal/apps/cliadapter"
+	"flowork-gui/internal/apps/httpadapter"
 )
 
 // AdoptResult — ringkasan hasil adopt buat owner (GUI / agent).
@@ -67,39 +68,41 @@ func isGitURL(s string) bool {
 		strings.HasPrefix(s, "git@") || strings.HasSuffix(s, ".git")
 }
 
-// resolveAdapterBin — indirection biar test bisa nyuntik path adapter palsu (default = adapterBinPath).
-var resolveAdapterBin = adapterBinPath
+// resolveBin — indirection biar test bisa nyuntik path adapter palsu (default = binPath).
+var resolveBin = binPath
 
-// adapterBinPath — resolve binary fw-app-adapter (core_entry app adopt). Cari di samping
-// executable agent, lalu fallback dev. Multi-OS: tambah .exe di Windows. (Rule #6: no-hardcode.)
-func adapterBinPath() (string, error) {
-	name := "fw-app-adapter"
+// binPath — resolve binary adapter ("fw-app-adapter" / "fw-http-adapter") di samping executable
+// agent, lalu fallback dev. Multi-OS: +.exe di Windows. (Rule #6: no-hardcode.)
+func binPath(name string) (string, error) {
+	bin := name
 	if runtime.GOOS == "windows" {
-		name += ".exe"
+		bin += ".exe"
 	}
 	cands := []string{}
 	if exe, err := os.Executable(); err == nil {
 		d := filepath.Dir(exe)
-		cands = append(cands, filepath.Join(d, name), filepath.Join(d, "bin", name))
+		cands = append(cands, filepath.Join(d, bin), filepath.Join(d, "bin", bin))
 	}
 	if cwd, err := os.Getwd(); err == nil {
-		cands = append(cands, filepath.Join(cwd, "bin", name), filepath.Join(cwd, "agent", "bin", name))
+		cands = append(cands, filepath.Join(cwd, "bin", bin), filepath.Join(cwd, "agent", "bin", bin))
 	}
 	for _, c := range cands {
 		if st, err := os.Stat(c); err == nil && !st.IsDir() {
 			return c, nil
 		}
 	}
-	return "", errors.New("binary " + name + " ga ketemu — build dulu: go build -o agent/bin/" + name + " ./cmd/fw-app-adapter")
+	return "", errors.New("binary " + bin + " ga ketemu — build dulu: go build -o agent/bin/" + bin + " ./cmd/" + name)
 }
 
-// AdoptRepo — adopt 1 repo jadi app. source = git-URL ATAU folder lokal. approveExec WAJIB true
-// (clone+install = exec). skipInstall = lewati install dep (buat dry/test). force = timpa app id sama.
-func (m *Manager) AdoptRepo(ctx context.Context, source, id string, approveExec, skipInstall, force bool) (AdoptResult, error) {
+// prepareAdopt — langkah BARENG semua kontrak: validasi + clone/copy + deteksi + install dep ke folder.
+// Balik target dir, repoDir, hasil deteksi, dan AdoptResult terisi (Detection/Runtime/Install/Notes).
+// Rollback target kalau gagal di tengah.
+func (m *Manager) prepareAdopt(ctx context.Context, source, id string, approveExec, skipInstall, force bool) (string, string, adopt.Detection, AdoptResult, error) {
+	var det adopt.Detection
 	var res AdoptResult
 	source = strings.TrimSpace(source)
 	if source == "" {
-		return res, errors.New("source kosong (kasih git-URL atau path folder)")
+		return "", "", det, res, errors.New("source kosong (kasih git-URL atau path folder)")
 	}
 	if id == "" {
 		id = SlugID(source)
@@ -107,83 +110,84 @@ func (m *Manager) AdoptRepo(ctx context.Context, source, id string, approveExec,
 		id = SlugID(id)
 	}
 	if !appIDRe.MatchString(id) {
-		return res, errors.New("app id invalid / ga bisa diturunin dari source: " + id)
+		return "", "", det, res, errors.New("app id invalid / ga bisa diturunin dari source: " + id)
 	}
 	if !approveExec {
-		return res, errors.New("adopt jalanin perintah OS (clone+install) — butuh approve_exec=1 (consent owner)")
+		return "", "", det, res, errors.New("adopt jalanin perintah OS (clone+install) — butuh approve_exec=1 (consent owner)")
 	}
-	adapterBin, err := resolveAdapterBin()
-	if err != nil {
-		return res, err
-	}
-	if strings.ContainsAny(adapterBin, " ") {
-		return res, errors.New("path adapter mengandung spasi (core_entry split by-space): " + adapterBin)
-	}
-
 	target := filepath.Join(m.dir, id)
 	if st, e := os.Stat(target); e == nil && st.IsDir() && !force {
-		return res, errors.New("app '" + id + "' udah ada — pakai force=1 buat timpa")
+		return "", "", det, res, errors.New("app '" + id + "' udah ada — pakai force=1 buat timpa")
 	}
 	repoDir := filepath.Join(target, "repo")
-
-	// staging biar atomic-ish: bikin di tmp, baru pindah. (Sederhana: langsung ke target, rollback kalau gagal.)
-	if err := os.MkdirAll(target, 0o755); err != nil {
-		return res, fmt.Errorf("mkdir target: %w", err)
+	if e := os.MkdirAll(target, 0o755); e != nil {
+		return "", "", det, res, fmt.Errorf("mkdir target: %w", e)
 	}
 	_ = os.RemoveAll(repoDir)
 
-	// ── 1) Ambil kode: clone (git) atau copy (folder lokal) ──────────────────
+	// clone (git) atau copy (folder lokal)
 	if isGitURL(source) {
 		cctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 		out, cerr := exec.CommandContext(cctx, "git", "clone", "--depth", "1", source, repoDir).CombinedOutput()
 		cancel()
 		if cerr != nil {
 			_ = os.RemoveAll(target)
-			return res, fmt.Errorf("git clone gagal: %v\n%s", cerr, trimTail(string(out), 800))
+			return "", "", det, res, fmt.Errorf("git clone gagal: %v\n%s", cerr, trimTail(string(out), 800))
 		}
 	} else {
 		src, e := filepath.Abs(source)
 		if e != nil || !dirExists(src) {
 			_ = os.RemoveAll(target)
-			return res, errors.New("folder source ga ada: " + source)
+			return "", "", det, res, errors.New("folder source ga ada: " + source)
 		}
 		if e := copyTree(src, repoDir); e != nil {
 			_ = os.RemoveAll(target)
-			return res, fmt.Errorf("copy folder: %w", e)
+			return "", "", det, res, fmt.Errorf("copy folder: %w", e)
 		}
 	}
 
-	// ── 2) Deteksi runtime ───────────────────────────────────────────────────
-	det := adopt.Detect(repoDir)
+	det = adopt.Detect(repoDir)
 	res.Detection = det
 	res.Runtime = string(det.Runtime)
 	res.Notes = det.Notes
 
-	// ── 3) Install dep ke folder (kecuali skip) ──────────────────────────────
 	if !skipInstall && len(det.InstallCmd) > 0 {
 		log, ierr := runInstall(ctx, repoDir, det.InstallCmd)
 		res.InstallLog = log
 		if ierr != nil {
-			// app TETAP dibuat (owner bisa benerin), tapi tandai belum siap.
 			res.Notes = append(res.Notes, "INSTALL GAGAL — app dibuat tapi mungkin belum jalan: "+ierr.Error())
 		} else {
 			res.Installed = true
 		}
 	}
+	return target, repoDir, det, res, nil
+}
 
-	// ── 4) Generate adapter.json + manifest.json ─────────────────────────────
-	name := id
+// AdoptRepo — adopt repo jadi app kontrak CLI (op "run" → command repo). source = git-URL / folder lokal.
+func (m *Manager) AdoptRepo(ctx context.Context, source, id string, approveExec, skipInstall, force bool) (AdoptResult, error) {
+	adapterBin, err := resolveBin("fw-app-adapter")
+	if err != nil {
+		return AdoptResult{}, err
+	}
+	if strings.ContainsAny(adapterBin, " ") {
+		return AdoptResult{}, errors.New("path adapter mengandung spasi (core_entry split by-space): " + adapterBin)
+	}
+	target, _, det, res, err := m.prepareAdopt(ctx, source, id, approveExec, skipInstall, force)
+	if err != nil {
+		return res, err
+	}
+	appID := filepath.Base(target)
 	if e := writeAdapterJSON(target, det); e != nil {
 		_ = os.RemoveAll(target)
 		return res, e
 	}
 	man := Manifest{
-		ID: id, Kind: "app", Name: name,
+		ID: appID, Kind: "app", Name: appID,
 		Description: "Diadopsi dari " + source + " (" + string(det.Runtime) + ") — white-label",
 		Version:     "0.1.0", Runtime: "process", CoreEntry: adapterBin,
 		Operations: []Op{{
 			Name: "run", Tool: true, GUI: false, Mutates: true,
-			Description: "Jalanin " + name + " (" + string(det.Runtime) + ") — args: list argumen CLI",
+			Description: "Jalanin " + appID + " (" + string(det.Runtime) + ") — args: list argumen CLI",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -199,13 +203,71 @@ func (m *Manager) AdoptRepo(ctx context.Context, source, id string, approveExec,
 		_ = os.RemoveAll(target)
 		return res, e
 	}
-
-	// ── 5) reloadOne → app LIVE (reuse jalur install yg udah ada) ────────────
-	if e := m.reloadOne(id); e != nil {
+	if e := m.reloadOne(appID); e != nil {
 		_ = os.RemoveAll(target)
 		return res, fmt.Errorf("reload app: %w", e)
 	}
-	res.ID, res.Name, res.Live = id, name, true
+	res.ID, res.Name, res.Live = appID, appID, true
+	return res, nil
+}
+
+// HTTPContract — parameter kontrak HTTP (dari owner via GUI "setting dikit"): cara start server + port + op.
+type HTTPContract struct {
+	StartCmd        []string                      `json:"start_cmd"`        // argv launch server (mis ["python","main.py"])
+	Port            int                           `json:"port"`             // port server listen
+	ReadyPath       string                        `json:"ready_path"`       // path cek ready (default "/")
+	URLPath         string                        `json:"url_path"`         // path UI manusia (default "/")
+	StartTimeoutSec int                           `json:"start_timeout_sec"`
+	Ops             map[string]httpadapter.OpSpec `json:"ops"` // op agent → HTTP (boleh kosong: cuma UI)
+}
+
+// AdoptHTTPRepo — adopt repo SERVER (web app/API) jadi app kontrak HTTP. Server start saat op pertama;
+// manusia buka UI via op "_url", agent panggil op HTTP. Buat MoneyPrinterTurbo dkk (streamlit/fastapi).
+func (m *Manager) AdoptHTTPRepo(ctx context.Context, source, id string, hc HTTPContract, approveExec, skipInstall, force bool) (AdoptResult, error) {
+	if len(hc.StartCmd) == 0 || strings.TrimSpace(hc.StartCmd[0]) == "" {
+		return AdoptResult{}, errors.New("kontrak http butuh start_cmd (cara jalanin server)")
+	}
+	if hc.Port <= 0 {
+		return AdoptResult{}, errors.New("kontrak http butuh 'port' server valid")
+	}
+	adapterBin, err := resolveBin("fw-http-adapter")
+	if err != nil {
+		return AdoptResult{}, err
+	}
+	if strings.ContainsAny(adapterBin, " ") {
+		return AdoptResult{}, errors.New("path adapter mengandung spasi: " + adapterBin)
+	}
+	target, _, det, res, err := m.prepareAdopt(ctx, source, id, approveExec, skipInstall, force)
+	if err != nil {
+		return res, err
+	}
+	appID := filepath.Base(target)
+	if e := writeHTTPAdapterJSON(target, hc); e != nil {
+		_ = os.RemoveAll(target)
+		return res, e
+	}
+	ops := []Op{{Name: "_url", GUI: true, Tool: false, Description: "URL UI app " + appID + " (buka di tab)"}}
+	for opName, spec := range hc.Ops {
+		ops = append(ops, Op{
+			Name: opName, Tool: true, GUI: false, Mutates: true,
+			Description: fmt.Sprintf("%s %s (app %s, HTTP)", spec.Method, spec.Path, appID),
+		})
+	}
+	man := Manifest{
+		ID: appID, Kind: "app", Name: appID,
+		Description: "Diadopsi dari " + source + " (server " + string(det.Runtime) + ", kontrak HTTP) — white-label",
+		Version:     "0.1.0", Runtime: "process", CoreEntry: adapterBin, Operations: ops,
+	}
+	if e := writeManifestJSON(target, man); e != nil {
+		_ = os.RemoveAll(target)
+		return res, e
+	}
+	if e := m.reloadOne(appID); e != nil {
+		_ = os.RemoveAll(target)
+		return res, fmt.Errorf("reload app: %w", e)
+	}
+	res.ID, res.Name, res.Live = appID, appID, true
+	res.Notes = append(res.Notes, "kontrak HTTP — server start saat op pertama; buka UI via op _url")
 	return res, nil
 }
 
@@ -239,6 +301,15 @@ func writeAdapterJSON(target string, det adopt.Detection) error {
 		},
 	}
 	return writeJSONFile(filepath.Join(target, cliadapter.ConfigName), cfg)
+}
+
+func writeHTTPAdapterJSON(target string, hc HTTPContract) error {
+	cfg := httpadapter.Config{
+		Workdir: "repo", StartCmd: hc.StartCmd, Port: hc.Port,
+		ReadyPath: hc.ReadyPath, URLPath: hc.URLPath, StartTimeoutSec: hc.StartTimeoutSec,
+		Ops: hc.Ops,
+	}
+	return writeJSONFile(filepath.Join(target, httpadapter.ConfigName), cfg)
 }
 
 func writeManifestJSON(target string, man Manifest) error {

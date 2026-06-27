@@ -98,20 +98,23 @@ if [ "$NEED_BUILD" = "1" ]; then
   c_ok "Build OK ($(stat -c%s "$BIN") bytes)"
 fi
 
-# ── fw-app-adapter (repo→app sidecar core_entry) ───────────────────────────
-# Build adapter generik biar fitur adopt (clone repo→app) jalan. Wajib sebelah flowork-gui
-# biar adapterBinPath() nemu (lihat lock/apps-adopt.md). Idempotent (rebuild kalau missing /
-# source baru), non-fatal — gagal cuma matiin adopt, sisanya jalan.
-ADAPTER_BIN="$ROOT/bin/fw-app-adapter"
-if [ -d "$ROOT/cmd/fw-app-adapter" ] && command -v go >/dev/null 2>&1; then
-  if [ ! -f "$ADAPTER_BIN" ] || [ -n "$(find "$ROOT/cmd/fw-app-adapter" "$ROOT/internal/apps/cliadapter" -name '*.go' -newer "$ADAPTER_BIN" 2>/dev/null | head -1)" ]; then
-    c_info "Build fw-app-adapter (repo→app)…"
-    if ( cd "$ROOT" && CGO_ENABLED=0 go build -o "$ADAPTER_BIN" ./cmd/fw-app-adapter ); then
-      c_ok "fw-app-adapter OK ($(stat -c%s "$ADAPTER_BIN") bytes)"
-    else
-      c_warn "fw-app-adapter build gagal — fitur adopt mati sampai ini ke-build"
+# ── adapter binaries (repo→app: kontrak CLI + HTTP) ────────────────────────
+# core_entry app hasil-adopt. Wajib sebelah flowork-gui biar adapterBinPath() nemu (lihat
+# lock/apps-adopt.md). Idempotent (rebuild kalau missing / source baru), non-fatal — gagal cuma
+# matiin adopt, sisanya jalan. fw-app-adapter=CLI, fw-http-adapter=server (streamlit/fastapi/dll).
+if command -v go >/dev/null 2>&1; then
+  for AD in fw-app-adapter:cliadapter fw-http-adapter:httpadapter; do
+    name="${AD%%:*}"; pkg="${AD##*:}"; bin="$ROOT/bin/$name"
+    [ -d "$ROOT/cmd/$name" ] || continue
+    if [ ! -f "$bin" ] || [ -n "$(find "$ROOT/cmd/$name" "$ROOT/internal/apps/$pkg" -name '*.go' -newer "$bin" 2>/dev/null | head -1)" ]; then
+      c_info "Build $name (repo→app)…"
+      if ( cd "$ROOT" && CGO_ENABLED=0 go build -o "$bin" "./cmd/$name" ); then
+        c_ok "$name OK ($(stat -c%s "$bin") bytes)"
+      else
+        c_warn "$name build gagal — fitur adopt mati sampai ini ke-build"
+      fi
     fi
-  fi
+  done
 fi
 
 # ── GROUP template wasm ───────────────────────────────────────────────────

@@ -8,19 +8,22 @@ import (
 	"testing"
 
 	"flowork-gui/internal/apps/cliadapter"
+	"flowork-gui/internal/apps/httpadapter"
 )
 
 // fakeAdapter — bikin file adapter palsu + arahin resolver ke situ (test ga butuh binary asli).
 func fakeAdapter(t *testing.T) {
 	t.Helper()
 	dir := t.TempDir()
-	bin := filepath.Join(dir, "fw-app-adapter")
-	if err := os.WriteFile(bin, []byte("#!/bin/sh\n"), 0o755); err != nil {
-		t.Fatal(err)
+	old := resolveBin
+	resolveBin = func(name string) (string, error) {
+		bin := filepath.Join(dir, name)
+		if err := os.WriteFile(bin, []byte("#!/bin/sh\n"), 0o755); err != nil {
+			return "", err
+		}
+		return bin, nil
 	}
-	old := resolveAdapterBin
-	resolveAdapterBin = func() (string, error) { return bin, nil }
-	t.Cleanup(func() { resolveAdapterBin = old })
+	t.Cleanup(func() { resolveBin = old })
 }
 
 func TestSlugID(t *testing.T) {
@@ -114,5 +117,62 @@ func TestAdoptRejectExisting(t *testing.T) {
 	}
 	if _, err := m.AdoptRepo(context.Background(), src, "dup", true, true, true /*force*/); err != nil {
 		t.Fatalf("adopt force mestinya sukses: %v", err)
+	}
+}
+
+func TestAdoptHTTPRepo(t *testing.T) {
+	fakeAdapter(t)
+	srcDir := t.TempDir()
+	// repo server python (skip install).
+	if err := os.WriteFile(filepath.Join(srcDir, "main.py"), []byte("print('server')\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	appsDir := t.TempDir()
+	m := NewManager(appsDir)
+
+	hc := HTTPContract{
+		StartCmd: []string{"python", "main.py"}, Port: 8080, ReadyPath: "/docs", URLPath: "/",
+		Ops: map[string]httpadapter.OpSpec{"create_video": {Method: "POST", Path: "/api/v1/videos", Body: "json"}},
+	}
+	res, err := m.AdoptHTTPRepo(context.Background(), srcDir, "mpt", hc, true, true /*skipInstall*/, false)
+	if err != nil {
+		t.Fatalf("AdoptHTTPRepo: %v", err)
+	}
+	if !res.Live || res.ID != "mpt" {
+		t.Fatalf("hasil ga sesuai: %+v", res)
+	}
+	if _, ok := m.Get("mpt"); !ok {
+		t.Fatal("app 'mpt' ga ke-register")
+	}
+	base := filepath.Join(appsDir, "mpt")
+
+	// httpadapter.json valid + start_cmd + port + op.
+	raw, _ := os.ReadFile(filepath.Join(base, httpadapter.ConfigName))
+	var cfg httpadapter.Config
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		t.Fatalf("httpadapter.json invalid: %v", err)
+	}
+	if cfg.Port != 8080 || len(cfg.StartCmd) != 2 || cfg.Workdir != "repo" {
+		t.Fatalf("config ga sesuai: %+v", cfg)
+	}
+	if op, ok := cfg.Ops["create_video"]; !ok || op.Method != "POST" {
+		t.Fatalf("op create_video ga bener: %+v", cfg.Ops)
+	}
+
+	// manifest: op _url (gui) + create_video (tool).
+	mraw, _ := os.ReadFile(filepath.Join(base, "manifest.json"))
+	var man Manifest
+	_ = json.Unmarshal(mraw, &man)
+	var hasURL, hasTool bool
+	for _, o := range man.Operations {
+		if o.Name == "_url" && o.GUI {
+			hasURL = true
+		}
+		if o.Name == "create_video" && o.Tool {
+			hasTool = true
+		}
+	}
+	if !hasURL || !hasTool {
+		t.Fatalf("manifest ops ga lengkap (_url gui + create_video tool): %+v", man.Operations)
 	}
 }
