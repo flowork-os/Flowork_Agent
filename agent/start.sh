@@ -98,6 +98,22 @@ if [ "$NEED_BUILD" = "1" ]; then
   c_ok "Build OK ($(stat -c%s "$BIN") bytes)"
 fi
 
+# ── fw-app-adapter (repo→app sidecar core_entry) ───────────────────────────
+# Build adapter generik biar fitur adopt (clone repo→app) jalan. Wajib sebelah flowork-gui
+# biar adapterBinPath() nemu (lihat lock/apps-adopt.md). Idempotent (rebuild kalau missing /
+# source baru), non-fatal — gagal cuma matiin adopt, sisanya jalan.
+ADAPTER_BIN="$ROOT/bin/fw-app-adapter"
+if [ -d "$ROOT/cmd/fw-app-adapter" ] && command -v go >/dev/null 2>&1; then
+  if [ ! -f "$ADAPTER_BIN" ] || [ -n "$(find "$ROOT/cmd/fw-app-adapter" "$ROOT/internal/apps/cliadapter" -name '*.go' -newer "$ADAPTER_BIN" 2>/dev/null | head -1)" ]; then
+    c_info "Build fw-app-adapter (repo→app)…"
+    if ( cd "$ROOT" && CGO_ENABLED=0 go build -o "$ADAPTER_BIN" ./cmd/fw-app-adapter ); then
+      c_ok "fw-app-adapter OK ($(stat -c%s "$ADAPTER_BIN") bytes)"
+    else
+      c_warn "fw-app-adapter build gagal — fitur adopt mati sampai ini ke-build"
+    fi
+  fi
+fi
+
 # ── GROUP template wasm ───────────────────────────────────────────────────
 # /api/groups/create copies templates/group-template/agent.wasm to spawn a new
 # group. Every agent wasm is gitignored (built from source, not committed), so a
@@ -216,28 +232,4 @@ c_info "URL : http://$ADDR"
 c_info "Log : $LOG_FILE"
 c_info "PID : $PID_FILE"
 
-# ── YouTube watcher (auto-start: survive restart) ─────────────────────────
-# Nyala kalau akun tersambung (YT_REFRESH_TOKEN ada di floworkdb) + watcher
-# ga di-disable di GUI. Anti-dobel: skip kalau proses python yt_watch.py udah
-# jalan. Config (creds/toggle/inbox/privacy) dibaca watcher dari floworkdb.
-WATCH_SCRIPT="$ROOT/.scratch/yt_watch.py"
-if [ -f "$WATCH_SCRIPT" ] && command -v python3 >/dev/null 2>&1; then
-  YT_RT=$(python3 -c "import sqlite3,os
-try:
- c=sqlite3.connect(os.path.expanduser('~/.flowork/flowork.db'),timeout=3)
- r=c.execute(\"SELECT v FROM secrets WHERE k='YT_REFRESH_TOKEN'\").fetchone();print(r[0] if r else '')
-except Exception: print('')" 2>/dev/null)
-  YT_EN=$(python3 -c "import sqlite3,os
-try:
- c=sqlite3.connect(os.path.expanduser('~/.flowork/flowork.db'),timeout=3)
- r=c.execute(\"SELECT v FROM kv WHERE k='yt_watcher_enabled'\").fetchone();print(r[0] if r else '1')
-except Exception: print('1')" 2>/dev/null)
-  if [ -n "$YT_RT" ] && [ "$YT_EN" != "0" ]; then
-    if ! ps -eo comm,args | awk '$1 ~ /python/ && /yt_watch\.py/' | grep -q .; then
-      setsid python3 "$WATCH_SCRIPT" >> "$ROOT/.scratch/yt_watch.log" 2>&1 < /dev/null &
-      c_ok "YouTube watcher started (auto)"
-    else
-      c_info "YouTube watcher sudah jalan"
-    fi
-  fi
-fi
+# YouTube watcher DICABUT akar 2026-06-27 (owner: basi). Integrasi kelak via integration-registry.
