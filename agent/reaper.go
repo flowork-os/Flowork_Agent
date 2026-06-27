@@ -118,7 +118,7 @@ func reaperReapHandler(store *floworkdb.Store) http.HandlerFunc {
 			tfWriteJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "POST only"})
 			return
 		}
-		body, status := uninstallCategoryCore(store, r.URL.Query().Get("category"))
+		body, status := uninstallCategoryCore(store, r.URL.Query().Get("category"), "reaped (owner-approved: low-karma/broken)")
 		if status == 0 {
 			body["reaped"] = r.URL.Query().Get("category")
 		}

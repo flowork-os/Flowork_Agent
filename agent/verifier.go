@@ -25,25 +25,9 @@ import (
 	"time"
 )
 
-// VerifyCheck — 1 hasil cek. Status: "pass" | "warn" | "fail".
-type VerifyCheck struct {
-	Name     string `json:"name"`
-	Status   string `json:"status"`   // pass | warn | fail
-	Severity string `json:"severity"` // info | medium | high | critical
-	Detail   string `json:"detail"`
-}
-
-// VerifyVerdict — keputusan akhir. Status:
-//
-//	"approved"      → semua pass, aman go-live.
-//	"review"        → ada warn (caps bahaya / quality) → butuh mata owner.
-//	"blocked"       → ada fail (struktur rusak / pola berbahaya) → JANGAN deploy.
-type VerifyVerdict struct {
-	Status  string        `json:"status"`
-	Score   int           `json:"score"` // 0-100 (100 = bersih)
-	Checks  []VerifyCheck `json:"checks"`
-	Summary string        `json:"summary"`
-}
+// VerifyCheck / VerifyVerdict / finalizeVerdict PINDAH ke studio_gate.go (FROZEN) — jadi
+// gerbang per-jenis stabil & self-sufficient. File ini (NON-frozen) = jalur AGENT yang kaya
+// (manifest+persona+wasm) + LLM-judge; di-pasang ke gate lewat init() di bawah (POLA B).
 
 // dangerSyscallRe — pola syscall/command berbahaya (adaptasi HPG legacy
 // kernel/safety/host_protection.go). Defense-in-depth: scan field manifest +
@@ -182,36 +166,10 @@ func scanRedFlags(zr *zip.Reader, manRaw []byte) []string {
 	return flags
 }
 
-// finalizeVerdict — hitung status + score dari checks.
-//
-//	ada fail → blocked. ada warn → review. else → approved.
-//	score = 100 - (fail*40 + warn*15), clamp ke [0,100].
-func finalizeVerdict(checks []VerifyCheck) VerifyVerdict {
-	fails, warns := 0, 0
-	for _, c := range checks {
-		switch c.Status {
-		case "fail":
-			fails++
-		case "warn":
-			warns++
-		}
-	}
-	score := 100 - (fails*40 + warns*15)
-	if score < 0 {
-		score = 0
-	}
-	status := "approved"
-	summary := "pack clean — safe to go live"
-	switch {
-	case fails > 0:
-		status = "blocked"
-		summary = "pack BLOCKED — failing checks (structure/dangerous patterns), do NOT deploy"
-	case warns > 0:
-		status = "review"
-		summary = "pack needs owner REVIEW — warnings (dangerous caps / quality)"
-	}
-	return VerifyVerdict{Status: status, Score: score, Checks: checks, Summary: summary}
-}
+// init — POLA B: pasang jalur AGENT yang kaya (verifyPackStatic) ke gerbang frozen
+// (studio_gate.go) lewat var verifyAgentPack. Hapus file ini → gate fallback ke default
+// AMAN minimal, build tetap 0 (self-sufficient). finalizeVerdict skarang di studio_gate.go.
+func init() { verifyAgentPack = verifyPackStatic }
 
 // JudgeVerdict — hasil LLM-judge adversarial (layer SEMANTIK di atas cek deterministik).
 type JudgeVerdict struct {

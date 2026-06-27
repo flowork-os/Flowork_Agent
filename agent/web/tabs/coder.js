@@ -7,6 +7,7 @@
 import { esc } from '../js/utils.js';
 import { t } from '/js/i18n.js';
 import { renderChatUI } from '/js/chatui.js';
+import { renderLifecycle } from './studio_lifecycle.js';
 
 const T = (k) => t('coder.' + k);
 
@@ -14,13 +15,19 @@ export async function render(mainEl) {
   mainEl.innerHTML = `
     <section style="padding:20px 26px 4px;color:#e2e8f0">
       <div style="display:flex;align-items:center;gap:13px">
-        <span style="font-size:1.7rem;filter:drop-shadow(0 0 10px rgba(167,139,250,.5))">🧬</span>
+        <span style="font-size:1.7rem;filter:drop-shadow(0 0 10px rgba(167,139,250,.5))">🏭</span>
         <div>
           <h1 style="margin:0;font-size:1.55rem;line-height:1.1;font-weight:700;background:linear-gradient(90deg,#c4b5fd,#67e8f9 58%,#6ee7b7);-webkit-background-clip:text;background-clip:text;color:transparent">${esc(T('title'))}</h1>
           <div style="font-size:0.86rem;color:#94a3b8;margin-top:3px;max-width:80ch;line-height:1.5">${esc(T('sub'))}</div>
+          <div style="font-size:0.78rem;color:#67e8f9;margin-top:5px;max-width:80ch;line-height:1.45">
+            🏭 <b>PABRIK KEMAMPUAN</b> — di sini AI <b>BIKIN + PERIKSA + KELOLA</b> kemampuan baru (tool/agent/app).
+            Beda sama <b>mr-flow</b> (tab Chat) yang <b>KERJAIN tugas</b> pakai kemampuan yang udah ada.
+          </div>
         </div>
       </div>
     </section>
+    <div id="studioLifecycle" style="padding:6px 26px 0"></div>
     <div id="aiStudioChat" style="padding:14px 26px 26px"></div>`;
   renderChatUI(mainEl.querySelector('#aiStudioChat'));
+  renderLifecycle(mainEl.querySelector('#studioLifecycle')); // F3 panel Siklus Hidup (async, ga blok chat)
 }

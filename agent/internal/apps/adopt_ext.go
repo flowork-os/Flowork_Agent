@@ -158,7 +158,21 @@ func (m *Manager) prepareAdopt(ctx context.Context, source, id string, approveEx
 
 	// pre-flight scan (F6): pola berbahaya di kode repo. Critical → BLOCK (rollback) kecuali owner
 	// accept sadar (acceptRisk). Install dep BELUM jalan → kode jahat ga ke-eksekusi pas diblok.
+	//
+	// GERBANG STUDIO per-jenis (ROADMAP_AI_STUDIO F4): repo-adopt diperiksa CARA repo —
+	// adopt.ScanRepo, scanner pola-jahat YANG SAMA dipakai verifyAppPack/verifyGenericPack
+	// di gerbang plugin. Satu sumber kebenaran pola berbahaya, beda jalur input (folder vs
+	// zip). Verdict di-log biar tiap adopt keliatan lewat gerbang Studio.
 	res.Scan = adopt.ScanRepo(repoDir)
+	gateVerdict := "approved"
+	if res.Scan.Warn > 0 {
+		gateVerdict = "review"
+	}
+	if res.Scan.Critical > 0 {
+		gateVerdict = "blocked"
+	}
+	fmt.Fprintf(os.Stderr, "[ai-studio gate] repo-adopt id=%q verdict=%s critical=%d warn=%d scanned=%d accept_risk=%v\n",
+		id, gateVerdict, res.Scan.Critical, res.Scan.Warn, res.Scan.Scanned, acceptRisk)
 	if res.Scan.Critical > 0 && !acceptRisk {
 		_ = os.RemoveAll(target)
 		return "", "", det, res, fmt.Errorf("pre-flight scan nemu %d pola BERBAHAYA (critical) di repo — adopt DIBLOKIR. Cek scan.findings; kalau lo yakin aman, ulang dengan accept_risk=1", res.Scan.Critical)

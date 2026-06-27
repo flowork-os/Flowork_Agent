@@ -66,7 +66,9 @@ func agentsUsedByOthers(store *floworkdb.Store, exceptID string) map[string]bool
 // dipake kategori lain (shared-aware). Dipakai HTTP uninstall handler DAN REAPER
 // (apoptosis) — satu jalur, no duplikasi (catatan keras: reuse pipeline).
 // Balik (body, httpStatus). status 0 = sukses.
-func uninstallCategoryCore(store *floworkdb.Store, catID string) (map[string]any, int) {
+// reason = kenapa dibuang (reap broken/failing · manual uninstall owner) → ikut ke
+// DEATH-LETTER (F3 Siklus Hidup) biar yang lain ga manggil yang udah mati.
+func uninstallCategoryCore(store *floworkdb.Store, catID, reason string) (map[string]any, int) {
 	if !pluginIDRe.MatchString(catID) {
 		return map[string]any{"error": "category invalid"}, http.StatusBadRequest
 	}
@@ -97,6 +99,8 @@ func uninstallCategoryCore(store *floworkdb.Store, catID string) (map[string]any
 		_ = os.RemoveAll(filepath.Join(loader.AgentsDir(), aid+".fwagent"))
 		removed = append(removed, aid)
 	}
+	// DEATH-LETTER (F3): catat kematian — best-effort, ga nggagalin pembuangan.
+	recordDeathLetter(catID, "category", cat.Name, reason, removed)
 	return map[string]any{
 		"ok":                 true,
 		"category":           catID,
@@ -111,7 +115,7 @@ func pluginUninstallHandler(store *floworkdb.Store) http.HandlerFunc {
 			tfWriteJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "POST only"})
 			return
 		}
-		body, status := uninstallCategoryCore(store, r.URL.Query().Get("category"))
+		body, status := uninstallCategoryCore(store, r.URL.Query().Get("category"), "manual uninstall (owner)")
 		tfWriteJSON(w, status, body)
 	}
 }

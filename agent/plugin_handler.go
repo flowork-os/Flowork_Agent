@@ -161,7 +161,10 @@ func workerAgentIDs(workers []floworkdb.TaskAgent) []string {
 
 // installPluginPack — CORE install (dipakai HTTP handler + watcher drop-folder).
 // approveCaps=true → lewatin consent gate (owner-trusted, mis. drop-folder).
-func installPluginPack(host *kernelhost.Host, store *floworkdb.Store, raw []byte, approveCaps bool) pluginInstallResult {
+// overrideBlocked=true → owner override SADAR atas verdict VERIFIER "blocked" (pola
+// jahat/struktur rusak). approveCaps (izin caps bahaya) ≠ overrideBlocked (paksa pola
+// jahat) — 2 gerbang BEDA, sengaja dipisah biar ga kecampur.
+func installPluginPack(host *kernelhost.Host, store *floworkdb.Store, raw []byte, approveCaps, overrideBlocked bool) pluginInstallResult {
 	bad := func(code int, b map[string]any) pluginInstallResult { return pluginInstallResult{code, b} }
 	sum := sha256.Sum256(raw) // checksum integritas pack (Phase 6.3)
 	checksum := hex.EncodeToString(sum[:])
@@ -194,6 +197,21 @@ func installPluginPack(host *kernelhost.Host, store *floworkdb.Store, raw []byte
 		Kind string `json:"kind"`
 	}
 	_ = json.Unmarshal(manRaw, &kindPeek)
+
+	// GERBANG WAJIB (ROADMAP_AI_STUDIO F2): SEMUA kemampuan baru — owner-pasang ·
+	// mr-flow · self-evolution (architect) · drop-folder — lewat 1 pemeriksa PER-JENIS
+	// di sini. verdict "blocked" (pola jahat / struktur rusak) → TOLAK, kecuali owner
+	// override SADAR. Ini choke-point tunggal: nutup app (dulu ga pernah diverify) +
+	// direct-install (dulu cuma advisory) sekaligus.
+	if v := verifyCapability(kindPeek.Kind, raw); v.Status == "blocked" && !overrideBlocked {
+		return bad(http.StatusForbidden, map[string]any{
+			"error":   "VERIFIER blokir pack ini (pola berbahaya/struktur rusak) — periksa findings; owner override SADAR buat paksa",
+			"blocked": true,
+			"verify":  v,
+			"kind":    kindPeek.Kind,
+		})
+	}
+
 	switch kindPeek.Kind {
 	case "tool":
 		b, s := installToolPack(host, raw)
@@ -386,7 +404,8 @@ func pluginInstallHandler(host *kernelhost.Host, store *floworkdb.Store) http.Ha
 			tfWriteJSON(w, http.StatusBadRequest, map[string]any{"error": "read: " + err.Error()})
 			return
 		}
-		res := installPluginPack(host, store, raw, r.URL.Query().Get("approve_caps") == "1")
+		res := installPluginPack(host, store, raw,
+			r.URL.Query().Get("approve_caps") == "1", r.URL.Query().Get("override") == "1")
 		tfWriteJSON(w, res.status, res.body)
 	}
 }

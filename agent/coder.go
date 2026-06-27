@@ -428,8 +428,10 @@ func coderApproveHandler(host *kernelhost.Host, store *floworkdb.Store, groups *
 		if r.URL.Query().Get("override") == "1" {
 			fmt.Fprintf(os.Stderr, "[coder] owner OVERRIDE: installing pack %q despite a blocked verdict\n", id)
 		}
-		// owner approve = trusted → approve caps (gerbang manusia udah lewat).
-		res := installPluginPack(host, store, raw, true)
+		// owner approve = trusted → approve caps (gerbang manusia udah lewat). override
+		// blocked di-thread dari ?override=1 (pre-check di atas + choke-point di
+		// installPluginPack = 1 keputusan sadar, ga double-tolak).
+		res := installPluginPack(host, store, raw, true, r.URL.Query().Get("override") == "1")
 		if res.status != 0 {
 			tfWriteJSON(w, res.status, res.body)
 			return

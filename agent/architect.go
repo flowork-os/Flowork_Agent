@@ -569,7 +569,10 @@ func architectBuildFromPlan(_ context.Context, host *kernelhost.Host, store *flo
 	if aerr != nil {
 		return nil, fmt.Errorf("assemble team: %w", aerr)
 	}
-	if res := installPluginPack(host, store, pack, true); res.status != 0 {
+	// Self-evolution (architect bikin tim) WAJIB lewat gerbang VERIFIER yang SAMA
+	// (ROADMAP_AI_STUDIO F4): blocked = pola jahat → ga dipasang (override=false, AI ga
+	// boleh paksa pola jahat ke dirinya sendiri).
+	if res := installPluginPack(host, store, pack, true, false); res.status != 0 {
 		return nil, fmt.Errorf("install team failed: %v", res.body)
 	}
 	// Wire the coordinator group (folder + roster + orchestrator sync). Live now.

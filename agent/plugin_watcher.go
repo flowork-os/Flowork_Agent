@@ -59,7 +59,9 @@ func startPluginDropWatcher(host *kernelhost.Host, store *floworkdb.Store) {
 					continue
 				}
 				// owner naruh sendiri = trusted → auto-approve caps (tapi di-log).
-				res := installPluginPack(host, store, raw, true)
+				// TAPI verdict VERIFIER "blocked" (pola jahat) TETAP dihormati (override=false)
+				// — drop-folder bukan izin paksa pola jahat (ROADMAP_AI_STUDIO F2 gerbang wajib).
+				res := installPluginPack(host, store, raw, true, false)
 				dst := done
 				if res.status != 0 {
 					dst = failed
