@@ -84,3 +84,4 @@ tools/*/*
 !tools/*/*.sum
 !tools/*/*.md
 super_scrit.md
+os/lockbox/

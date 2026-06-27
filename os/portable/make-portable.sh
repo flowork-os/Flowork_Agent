@@ -45,6 +45,15 @@ if [ -x "$REPO/agent/scripts/build-all-agents.sh" ]; then
 	"$REPO/agent/scripts/build-all-agents.sh" "$REPO/agent" || echo "[portable] WARN: sebagian agent wasm gagal"
 fi
 
+# Sidecar TOOLS binary (tools/<name>/<name>) — GITIGNORED, SAMA KELAS wasm: WAJIB di-build di
+# pipeline biar fresh-checkout/portable ga "tool mati" (5 builtin sidecar tool ga ke-register).
+# build-tools.sh = build terisolasi per-tool (GOWORK=off, own go.mod). Acuan: os/builder/bacaduluini.md.
+# (Multi-OS: tiap target butuh binary OS-nya; ini host-build. Cross-OS per-target = TODO lanjut.)
+if [ -x "$REPO/tools/build-tools.sh" ]; then
+	echo "[portable] build sidecar tools (anti 'dev jalan, portable mati')…"
+	bash "$REPO/tools/build-tools.sh" || echo "[portable] WARN: sebagian sidecar tool gagal build"
+fi
+
 build windows amd64 windows .exe
 build linux   amd64 linux
 build darwin  amd64 macos-intel
@@ -56,17 +65,23 @@ build darwin  arm64 macos-apple
 # This keeps the build clean while still making `bin`, `models`, and `apps` available.
 SIDECAR_ENABLED="${FLOWORK_PORTABLE_SIDECAR:-1}"
 if [ "$SIDECAR_ENABLED" != "0" ]; then
-    echo "[portable] copying sidecar assets (bin/models/apps)"
+    echo "[portable] copying sidecar assets (sinkron flowork-secrets/sidecar.md)"
     mkdir -p "$OUT/sidecar"
-    if [ -d "$REPO/router/bin" ]; then
-        cp -a "$REPO/router/bin" "$OUT/sidecar/"
-    fi
-    if [ -d "$REPO/router/models" ]; then
-        cp -a "$REPO/router/models" "$OUT/sidecar/"
-    fi
-    if [ -d "$REPO/agent/apps" ]; then
-        cp -a "$REPO/agent/apps" "$OUT/sidecar/"
-    fi
+    # Daftar SIDECAR (repo-relatif) — SUMBER KANONIK: flowork-secrets/sidecar.md.
+    # Basename di-flatten ke $OUT/sidecar/ (launcher yg mapping balik ke agent/ atau router/).
+    # agent/agents AMAN di sini: wasm-nya udah ke-build build-all-agents.sh (di atas) sebelum copy.
+    # Kalau sidecar.md diubah → update daftar ini juga (jaga sinkron).
+    for rel in \
+        router/bin router/models router/brain router/skills \
+        agent/apps agent/templates agent/agents agent/workspace agent/media/youtube \
+        tools docs; do
+        if [ -e "$REPO/$rel" ]; then
+            echo "[portable]   + $rel"
+            cp -a "$REPO/$rel" "$OUT/sidecar/"
+        else
+            echo "[portable]   skip (ga ada): $rel"
+        fi
+    done
 fi
 
 # ── DEV/Full data-seed ───────────────────────────────────────────────────────

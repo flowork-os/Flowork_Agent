@@ -131,6 +131,11 @@ if [ -d "$AGENT_SRC/agents" ]; then
 		log "  building all agent + template wasm (wasip1)…"
 		"$AGENT_SRC/scripts/build-all-agents.sh" "$AGENT_SRC" 2>&1 | sed 's/^/    /' || warn "  sebagian agent wasm gagal"
 	fi
+	# Sidecar TOOLS binary — GITIGNORED, sama kelas wasm: build dulu biar img ga "tool mati".
+	if [ -x "$AGENT_SRC/../tools/build-tools.sh" ]; then
+		log "  building sidecar tools (wasip1-style isolated)…"
+		bash "$AGENT_SRC/../tools/build-tools.sh" 2>&1 | sed 's/^/    /' || warn "  sebagian sidecar tool gagal"
+	fi
 	mkdir -p "$ROOTFS/usr/share/flowork/agents-seed"
 	cp -a "$AGENT_SRC/agents/." "$ROOTFS/usr/share/flowork/agents-seed/"
 	cp -a "$AGENT_SRC/templates" "$ROOTFS/usr/share/flowork/" 2>/dev/null || true   # template wasm buat AI Studio bikin agent baru

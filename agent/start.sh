@@ -126,6 +126,14 @@ if [ -x "$ROOT/scripts/build-all-agents.sh" ]; then
   "$ROOT/scripts/build-all-agents.sh" "$ROOT" || c_warn "sebagian agent wasm gagal ke-build"
 fi
 
+# Sidecar TOOLS binary (tools/<name>/<name>) — GITIGNORED, SAMA KELAS wasm: WAJIB build dulu biar
+# fresh-checkout ga "tool mati" (5 builtin sidecar tool ga ke-register). Isolated per-tool (GOWORK=off).
+# Acuan: os/builder/bacaduluini.md.
+if [ -x "$ROOT/../tools/build-tools.sh" ]; then
+  c_info "Build sidecar tools…"
+  bash "$ROOT/../tools/build-tools.sh" || c_warn "sebagian sidecar tool gagal ke-build"
+fi
+
 # ── GROUP template wasm ───────────────────────────────────────────────────
 # (Ditangani build-all-agents.sh di atas; blok ini fallback idempotent — skip kalau udah fresh.)
 GROUP_TPL="$ROOT/templates/group-template"
