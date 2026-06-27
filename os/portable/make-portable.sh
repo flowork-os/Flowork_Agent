@@ -76,8 +76,23 @@ if [ "$SIDECAR_ENABLED" != "0" ]; then
         agent/apps agent/templates agent/agents agent/workspace agent/media/youtube \
         tools docs; do
         if [ -e "$REPO/$rel" ]; then
-            echo "[portable]   + $rel"
-            cp -a "$REPO/$rel" "$OUT/sidecar/"
+            if [ "$rel" = "router/brain" ]; then
+                # Brain = DB LIVE (pengalaman hidup user) → snapshot KONSISTEN via brain-export.sh
+                # (anti WAL-poison: cp -a mentah bawa -wal/-shm → SQLite replay state basi di tujuan).
+                # READ-ONLY ke brain asli. Skip *.sqlite mentah + WAL + backup OLD.
+                echo "[portable]   + router/brain (snapshot konsisten, anti-poison)"
+                mkdir -p "$OUT/sidecar/brain"
+                if [ -f "$REPO/router/brain/flowork-brain.sqlite" ] && [ -x "$REPO/os/brain-export.sh" ]; then
+                    bash "$REPO/os/brain-export.sh" "$REPO/router/brain/flowork-brain.sqlite" \
+                         "$OUT/sidecar/brain/flowork-brain.sqlite" || echo "[portable]   WARN: brain-export gagal"
+                fi
+                find "$REPO/router/brain" -maxdepth 1 -type f \
+                     ! -name '*.sqlite' ! -name '*.sqlite-*' ! -iname '*OLD*' \
+                     -exec cp -a {} "$OUT/sidecar/brain/" \; 2>/dev/null || true
+            else
+                echo "[portable]   + $rel"
+                cp -a "$REPO/$rel" "$OUT/sidecar/"
+            fi
         else
             echo "[portable]   skip (ga ada): $rel"
         fi
