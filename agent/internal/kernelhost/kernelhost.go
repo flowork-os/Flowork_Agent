@@ -90,6 +90,13 @@ type Host struct {
 	// diverifikasi: reader fresh tetap liat tulisan store cached. Di-close
 	// semua saat Host.Close().
 	storeCache sync.Map
+
+	// bootCancels — CancelFunc per agent buat daemon `boot` (fix: reload-leak).
+	// Tanpa ini, tiap reload Unload TIDAK cancel boot Call yg lagi blocking →
+	// goroutine + instance wazero bocor → numpuk → OOM/crash pas reload churn.
+	// bootMu DEDICATED (bukan h.mu) → anti-deadlock dgn Unload/Runtime.mu.
+	bootMu      sync.Mutex
+	bootCancels map[string]context.CancelFunc
 }
 
 // cachedStore — buka state.db sekali per agent lalu reuse. agentdb.Store
@@ -273,10 +280,11 @@ func Boot(ctx context.Context) (*Host, error) {
 	// closure-capture h (callback baru jalan saat agent invoke RPC — sampai
 	// situ h sudah fully populated).
 	h := &Host{
-		Runtime:   rt,
-		Broker:    br,
-		AgentsDir: agentsDir,
-		SharedDir: sharedDir,
+		Runtime:     rt,
+		Broker:      br,
+		AgentsDir:   agentsDir,
+		SharedDir:   sharedDir,
+		bootCancels: map[string]context.CancelFunc{},
 	}
 	if err := rt.Bootstrap(ctx, br.IsApproved, rt.Get, h.logInteraction, h.logDecision, h.karmaUpdate, h.dispatchSlash); err != nil {
 		return nil, fmt.Errorf("runtime bootstrap: %w", err)
@@ -414,9 +422,16 @@ func (h *Host) AutoBootDaemons(ctx context.Context) {
 			continue
 		}
 		inst := l.Instance
+		// fix reload-leak: cancel daemon lama (anti-double-boot) + ctx cancellable
+		// per-agent yg disimpen, biar Unload bisa hentiin boot Call (ga bocor goroutine).
+		h.cancelBoot(id)
+		bootCtx, cancel := context.WithCancel(ctx)
+		h.bootMu.Lock()
+		h.bootCancels[id] = cancel
+		h.bootMu.Unlock()
 		go func() {
 			log.Printf("kernel: daemon-boot %s", id)
-			_, err := inst.Call(ctx, "boot", []byte("{}"))
+			_, err := inst.Call(bootCtx, "boot", []byte("{}"))
 			if err != nil {
 				log.Printf("kernel: daemon-boot %s exited: %v", id, err)
 			} else {
@@ -424,6 +439,17 @@ func (h *Host) AutoBootDaemons(ctx context.Context) {
 			}
 		}()
 	}
+}
+
+// cancelBoot — hentiin daemon `boot` goroutine buat agent id (fix reload-leak).
+// Idempotent + pakai bootMu dedicated (anti-deadlock dgn h.mu / Runtime.mu).
+func (h *Host) cancelBoot(id string) {
+	h.bootMu.Lock()
+	if c := h.bootCancels[id]; c != nil {
+		c()
+		delete(h.bootCancels, id)
+	}
+	h.bootMu.Unlock()
 }
 
 // callOnLoad invokes a module's optional on_load entry (§8.A: init / register /
@@ -629,6 +655,7 @@ func (h *Host) handleAgentChange(ctx context.Context, ch loader.Change) {
 	switch ch.Kind {
 	case loader.ChangeRemoved:
 		h.callOnStop(ctx, ch.AgentID) // §8.A: let the module write its death-letter first
+		h.cancelBoot(ch.AgentID)      // fix reload-leak: hentiin daemon boot SEBELUM unload
 		_ = h.Runtime.Unload(ctx, ch.AgentID)
 		h.Broker.Revoke(ch.AgentID)
 		h.mu.Lock()
@@ -672,6 +699,7 @@ func (h *Host) handleAgentChange(ctx context.Context, ch loader.Change) {
 			return
 		}
 		h.callOnStop(ctx, m.ID) // §8.A: death-letter before the old instance is replaced
+		h.cancelBoot(m.ID)      // fix reload-leak: hentiin daemon boot lama SEBELUM unload+reload
 		_ = h.Runtime.Unload(ctx, m.ID)
 		effCaps := filterPrivilegedCaps(m.ID, m.CapabilitiesRequired)
 		h.Broker.Approve(m.ID, effCaps)
