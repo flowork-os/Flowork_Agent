@@ -172,11 +172,17 @@ func (webFetchTool) Run(ctx context.Context, args map[string]any) (tools.Result,
 	}
 
 	ctype := resp.Header.Get("Content-Type")
+	bodyStr := string(bodyBytes)
+	// CONTEK CLAUDE WebFetch: HTML → teks BERSIH (bukan HTML mentah yg bikin LLM keflood/muntah
+	// → error). Reuse stripTags (web_research.go, sepaket). Non-HTML (json/text) = apa adanya.
+	if strings.Contains(strings.ToLower(ctype), "html") {
+		bodyStr = stripTags(bodyStr)
+	}
 	return tools.Result{Output: map[string]any{
 		"url":          u.String(),
 		"status":       resp.StatusCode,
 		"content_type": ctype,
-		"body":         string(bodyBytes),
+		"body":         bodyStr,
 		"truncated":    truncated,
 		"size_bytes":   len(bodyBytes),
 	}}, nil
