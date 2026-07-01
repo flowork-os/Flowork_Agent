@@ -296,16 +296,22 @@ func buildAnthropicToolBody(req OpenAIRequest) ([]byte, error) {
 	}
 	cacheOn := promptCacheEnabled()
 	if len(sysParts) > 0 {
-		sysText := strings.Join(sysParts, "\n\n")
 		if cacheOn {
-			// System prompt (persona/konstitusi/tool-doktrin) = bagian STATIS paling
-			// gede & sama tiap turn → breakpoint cache di sini = hemat paling banyak.
-			body["system"] = []map[string]any{{
-				"type": "text", "text": sysText,
-				"cache_control": map[string]any{"type": "ephemeral"},
-			}}
+			// DYNAMIC BOUNDARY: system block PERTAMA = persona STABIL (Tier1+2, mr-flow
+			// pecah di marker) → cache_control cuma di situ. Sisanya (volatile Tier3/recall
+			// + enrichment) fresh. Enrichment masuk SETELAH stabil (injectSystem cache-on)
+			// → prefix stabil ga batal → cache_read gede lintas-turn.
+			blocks := make([]map[string]any, 0, len(sysParts))
+			for i, p := range sysParts {
+				blk := map[string]any{"type": "text", "text": p}
+				if i == 0 {
+					blk["cache_control"] = map[string]any{"type": "ephemeral"}
+				}
+				blocks = append(blocks, blk)
+			}
+			body["system"] = blocks
 		} else {
-			body["system"] = sysText
+			body["system"] = strings.Join(sysParts, "\n\n")
 		}
 	}
 	msgs := mergeConsecutiveAnthropic(messages)

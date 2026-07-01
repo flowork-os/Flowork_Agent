@@ -762,7 +762,22 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn, notifyChatID 
 	// Bangun messages: system + history (history SUDAH termasuk pesan user
 	// terakhir; kalau kosong fallback ke userText). msgs pakai any biar muat
 	// tool_calls + tool result.
-	msgs := []any{map[string]any{"role": "system", "content": sys}}
+	// CACHE BOUNDARY: pecah system jadi STABIL (persona/rules/skill) + VOLATILE
+	// (waktu/memory/recall) di marker → jalur Claude cache blok stabil (prefix gede
+	// ke-reuse lintas-turn). Marker di-strip. Ga ketemu (mis. ke-truncate) = fallback 1 msg.
+	var msgs []any
+	bi := strings.Index(sys, cacheBoundaryMark)
+	if bi >= 0 && promptCacheOn() {
+		stable := strings.TrimRight(sys[:bi], "\n")
+		volatile := strings.TrimLeft(sys[bi+len(cacheBoundaryMark):], "\n")
+		msgs = append(msgs, map[string]any{"role": "system", "content": stable})
+		if strings.TrimSpace(volatile) != "" {
+			msgs = append(msgs, map[string]any{"role": "system", "content": volatile})
+		}
+	} else {
+		// cache OFF / marker ilang → 1 system message (perilaku lama, byte-identik).
+		msgs = append(msgs, map[string]any{"role": "system", "content": strings.ReplaceAll(sys, cacheBoundaryMark, "")})
+	}
 	if len(history) > 0 {
 		for _, t := range history {
 			msgs = append(msgs, map[string]any{"role": t.Role, "content": t.Content})
@@ -1226,6 +1241,19 @@ func fetchAutoRecall(userText string) string {
 //
 // Volatile sengaja di BAWAH (paling deket pesan = paling salient). Tiap tier
 // di-budget biar total ga blow up.
+// cacheBoundaryMark memisah system STABIL (Tier1+2: persona/rules/skill) dari
+// VOLATILE (Tier3: waktu/crew/memory + recall + activeTask). Router jalur Claude
+// pecah di sini → blok stabil di-cache (prefix gede ke-reuse). Di-STRIP sebelum
+// kirim ke model (control-char, ga bakal nabrak konten). Ga ketemu = fallback 1 msg.
+const cacheBoundaryMark = "\x00__FW_CACHE_BOUNDARY__\x00"
+
+// promptCacheOn — switch GUI FLOWORK_PROMPT_CACHE (default ON). Nyetir apakah system
+// dipecah stabil/volatile (buat cache prefix Claude). OFF = 1 system message (lama).
+func promptCacheOn() bool {
+	v := strings.TrimSpace(strings.ToLower(os.Getenv("FLOWORK_PROMPT_CACHE")))
+	return v != "0" && v != "false" && v != "off"
+}
+
 func buildSystemPrompt(cfg agentConfig) string {
 	var b strings.Builder
 
@@ -1293,6 +1321,9 @@ func buildSystemPrompt(cfg agentConfig) string {
 	}
 
 	// ===== TIER 3 — VOLATILE =====
+	// Marker batas cache: SEMUA di ATAS = stabil (persona/rules/skill), di BAWAH =
+	// volatile (waktu/memory/recall). Jalur Claude cache blok stabil (di-strip, ga ke model).
+	b.WriteString(cacheBoundaryMark)
 	b.WriteString("\n=== TIER 3 · SEKARANG (volatile) ===\n")
 	fmt.Fprintf(&b, "[WAKTU_UTC: %s]\n", nowISO())
 	fmt.Fprintf(&b, "[MODEL: %s]\n", cfg.Router.Model)

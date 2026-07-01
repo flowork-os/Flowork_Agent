@@ -52,6 +52,38 @@ func TestPromptCacheBreakpoints(t *testing.T) {
 	}
 }
 
+// TestPromptCacheFirstBlockOnly — DYNAMIC BOUNDARY: kalau ada >1 system message
+// (stabil + volatile), cache_control cuma di blok PERTAMA (persona stabil); sisanya
+// fresh. Ini yang bikin persona ke-cache tanpa volatile mbatalin prefix.
+func TestPromptCacheFirstBlockOnly(t *testing.T) {
+	os.Unsetenv("FLOWORK_PROMPT_CACHE") // ON
+	req := OpenAIRequest{
+		Model:     "claude-sonnet-4",
+		MaxTokens: 100,
+		Messages: []OpenAIMessage{
+			{Role: "system", Content: "PERSONA STABIL (tier1+2)"},
+			{Role: "system", Content: "VOLATILE: waktu + recall"},
+			{Role: "user", Content: "halo"},
+		},
+	}
+	raw, err := buildAnthropicToolBody(req)
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	var body map[string]any
+	_ = json.Unmarshal(raw, &body)
+	sysArr, ok := body["system"].([]any)
+	if !ok || len(sysArr) != 2 {
+		t.Fatalf("expected 2 system blocks, got %T len=%d", body["system"], len(sysArr))
+	}
+	if sysArr[0].(map[string]any)["cache_control"] == nil {
+		t.Fatalf("first (stable) block must have cache_control")
+	}
+	if sysArr[1].(map[string]any)["cache_control"] != nil {
+		t.Fatalf("second (volatile) block must NOT have cache_control")
+	}
+}
+
 func TestPromptCacheOff(t *testing.T) {
 	os.Setenv("FLOWORK_PROMPT_CACHE", "off")
 	defer os.Unsetenv("FLOWORK_PROMPT_CACHE")

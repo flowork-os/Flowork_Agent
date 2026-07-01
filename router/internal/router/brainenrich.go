@@ -226,10 +226,13 @@ func injectSystem(msgs []OpenAIMessage, content, mode string) []OpenAIMessage {
 		return msgs
 	}
 	sys := OpenAIMessage{Role: "system", Content: content}
-	if modeOrDefault(mode) == "brain" {
+	// CACHE BOUNDARY: pas prompt-cache ON, enrichment WAJIB masuk SETELAH blok system
+	// stabil (persona) biar prefix stabil bisa di-cache Anthropic (prepend = prefix
+	// batal tiap turn). Prepend (mode brain) cuma dipakai pas cache OFF (perilaku lama).
+	if modeOrDefault(mode) == "brain" && !promptCacheEnabled() {
 		return append([]OpenAIMessage{sys}, msgs...)
 	}
-	// augment: find end of leading system block
+	// augment / cache-on: find end of leading system block
 	insertAt := 0
 	for insertAt < len(msgs) && msgs[insertAt].Role == "system" {
 		insertAt++
