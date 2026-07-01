@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"flowork-gui/internal/shellsec"
 	"flowork-gui/internal/tools"
 )
 
@@ -85,6 +86,12 @@ func (bashTool) Run(ctx context.Context, args map[string]any) (tools.Result, err
 		if strings.Contains(lower, strings.ToLower(p)) {
 			return tools.Result{}, fmt.Errorf("shell: blocked dangerous pattern %q", p)
 		}
+	}
+	// AKAR fix: deteksi terstruktur (normalisasi whitespace + flag-order/ejaan
+	// independent) → nangkep bypass yang lolos substring di atas (`rm  -rf  /`,
+	// `rm --recursive --force /`). ZERO false-positive (path relatif tetap boleh).
+	if bad, why := shellsec.Dangerous(cmd); bad {
+		return tools.Result{}, fmt.Errorf("shell: blocked dangerous command (%s)", why)
 	}
 
 	shared := tools.FromSharedDir(ctx)

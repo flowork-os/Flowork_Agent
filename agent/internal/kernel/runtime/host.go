@@ -47,6 +47,8 @@ import (
 	"strings"
 	"time"
 
+	"flowork-gui/internal/shellsec"
+
 	"github.com/tetratelabs/wazero/api"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 )
@@ -776,6 +778,11 @@ func (st *hostState) execRun(ctx context.Context, m api.Module, reqPtr, reqLen, 
 		if strings.Contains(joined, p) {
 			return writeJSONOrCrop(m, outPtr, outMax, errorJSON("exec blocked: dangerous pattern "+p))
 		}
+	}
+	// AKAR fix: classifier terstruktur (normalisasi + flag-order/ejaan independent)
+	// nangkep bypass yang lolos substring di atas. Defence-in-depth, ZERO false-positive.
+	if bad, why := shellsec.Dangerous(req.Binary + " " + strings.Join(req.Args, " ")); bad {
+		return writeJSONOrCrop(m, outPtr, outMax, errorJSON("exec blocked: "+why))
 	}
 
 	// Cross-OS shell resolution: kalau plugin ngirim "bash" / "sh", host
