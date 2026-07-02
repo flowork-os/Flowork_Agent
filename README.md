@@ -1,121 +1,123 @@
 <div align="center">
 
-# Flowork — Warisan Pikiran
-### *The Mind Inheritance*
+**English** · [🇮🇩 Bahasa Indonesia](README.id.md)
 
-*Untuk mereka yang membangun dari nol hingga ke puncak — dan tahu bahwa uang, pada akhirnya, hanyalah angka.*
+# Flowork — The Mind Inheritance
+### *Warisan Pikiran*
+
+*For those who built from nothing to the summit — and know that money, in the end, is only a number.*
 
 </div>
 
 ---
 
-Bayangkan sejenak.
+Imagine, for a moment.
 
-Kau sudah tiada. Bertahun-tahun setelah kepergianmu, anak-anakmu menghadapi masalah terbesar dalam hidup mereka — keputusan yang menentukan segalanya. Dan di saat itu, yang paling mereka butuhkan adalah **kamu:** nasehatmu, sudut pandangmu, cara kamu dulu menaklukkan badai yang sama.
+You are gone. Years after your passing, your children face the greatest problem of their lives — a decision that will determine everything. And in that moment, what they need most is **you:** your counsel, your perspective, the way you once conquered the very same storm.
 
-Tapi kamu tidak ada.
+But you are not there.
 
-Mereka kehilangan arah. Tenggelam dalam penyesalan — *"seandainya ayah masih di sini..."*
+They lose their way. Drowning in regret — *"if only father were still here..."*
 
-**Bagaimana jika mereka masih bisa bertanya kepadamu?**
-
----
-
-Bagi mereka yang membangun dari nol hingga ke puncak, ada satu kebenaran: **uang itu cuma angka.** Yang sesungguhnya berharga adalah **prosesnya** — pengalaman, luka yang mengajari, cara berpikir yang kau bayar mahal dengan kejatuhan. Tapi selama ini, proses itu mati bersama tubuh. Semua yang kau pelajari seumur hidup — hangus dalam satu tarikan napas terakhir.
+**What if they could still ask you?**
 
 ---
 
-> ## "Harta tiga turunan."
-> Cucu mewarisi **uangnya**, tapi bukan **kepalanya** —
-> jadi dalam tiga generasi, hartanya pun ikut habis.
-
-Orang besar tidak takut kehilangan harta. Yang mereka takutkan: keturunan mereka mewarisi kekayaannya, tapi bukan kebijaksanaan yang menciptakannya. Mereka sudah mengamankan segalanya — kekayaan lewat penasihat, aset lewat pengacara, nama lewat yayasan. Segalanya, kecuali satu hal yang membuat semuanya ada: **kepala mereka sendiri.**
+For those who built from nothing to the summit, there is one truth: **money is only a number.** What is truly precious is **the journey** — the experience, the wounds that taught you, the way of thinking you paid for dearly with your own falls. Yet until now, that journey died with the body. Everything you learned across a lifetime — gone in a single final breath.
 
 ---
 
-## Inilah Flowork.
+> ## "Wealth never lasts three generations."
+> The grandchild inherits the **money**, but not the **mind** —
+> so within three generations, the fortune runs dry as well.
 
-Flowork adalah tempat kamu **mengabadikan pikiranmu** — pengetahuan, pengalaman, dan caramu memecahkan masalah sepanjang hidup — ke dalam sebuah **AI yang kamu miliki sendiri.**
-
-AI itu belajar dari cara kamu berpikir. Ia menyimpan solusi-solusi yang pernah kamu temukan di masa lalu. Dan ketika kamu sudah tiada, ia tetap ada — **menjadi pemberi nasehat bagi anak-anakmu.** Mereka bisa bertanya, dan AI itu menjawab dengan sudut pandangmu, dari pengalaman yang pernah kamu lalui — agar mereka belajar dari perjalananmu, dan tak pernah menghadapi badai sendirian.
-
-Ini bukan menyewa kecerdasan milik perusahaan lain. Ini **AI-mu sendiri:**
-
-- **Milik penuh.** Hidup di infrastrukturmu sendiri, bukan di server orang lain.
-- **Abadi.** Dirancang untuk terus hidup dan menasehati — bahkan setelah kamu pergi.
-- **Diwariskan.** Turun-temurun, seperti pusaka, dari satu generasi ke generasi berikutnya.
+The great are not afraid of losing their wealth. What they fear runs deeper: that their descendants will inherit the fortune, but not the wisdom that created it. They have secured everything — wealth through advisors, assets through lawyers, their name through foundations. Everything, except the one thing that made it all possible: **their own mind.**
 
 ---
 
-## Yang belum pernah bisa dibeli uang.
+## This is Flowork.
 
-Uang bisa membeli apa saja — rumah, tanah, nama, bahkan waktu orang lain. Satu-satunya yang tak pernah bisa ia beli: **memindahkan isi kepalamu kepada keturunanmu.**
+Flowork is where you **immortalize your mind** — your knowledge, your experience, and the way you solved problems across a lifetime — into **an AI that you truly own.**
 
-Sampai hari ini.
+That AI learns the way you think. It keeps the solutions you once discovered. And when you are gone, it remains — **becoming a counselor for your children.** They can ask, and the AI answers with your perspective, drawn from the journeys you once walked — so they learn from your path, and never face the storm alone.
+
+This is not renting another company's intelligence. This is **your own AI:**
+
+- **Fully owned.** It lives on your own infrastructure, not on someone else's servers.
+- **Everlasting.** Built to keep living and counseling — even after you are gone.
+- **Inherited.** Passed down like an heirloom, from one generation to the next.
 
 ---
 
-## Di balik warisan itu — teknologinya
+## What money has never been able to buy.
 
-Flowork bukan sekadar puisi. Di baliknya ada mesin nyata yang bekerja di komputermu sendiri:
+Money can buy anything — houses, land, a name, even the time of others. The one thing it has never been able to buy: **passing the contents of your mind to your descendants.**
 
-**🧠 Brain — ingatan yang tak pernah lupa.**
-Setiap pengetahuan, keputusan, dan dokumen yang kamu tuangkan tersimpan permanen dan bisa dipanggil kembali kapan pun — tak akan hilang, tak akan memudar.
+Until today.
 
-**⚡ Insting — pola yang kamu bentuk dari pengalaman.**
-Flowork mempelajari *cara* kamu berpikir: naluri yang membuatmu merasa sebuah keputusan benar atau salah, yang kamu asah bertahun-tahun.
+---
 
-**🕸️ DreamGraph — ingatan 4 dimensi.**
-Inti dari semuanya. DreamGraph merajut ingatanmu menjadi satu pemahaman utuh melalui empat dimensi:
+## Behind the inheritance — the technology
 
-1. **Pengetahuan** — apa yang kamu tahu.
-2. **Insting** — bagaimana kamu merasakan sebuah keputusan.
-3. **Pelajaran** — hikmah dari setiap kesalahan dan kejatuhan; apa yang tak boleh diulang.
-4. **Koneksi lintas waktu** — bagaimana semuanya saling terhubung dan matang, dikonsolidasi dalam "siklus mimpi", seperti otak saat tidur.
+Flowork is not merely poetry. Behind it is a real engine, running on your own machine:
 
-**🔒 AI Lokal — sepenuhnya milikmu.**
-Berjalan di mesinmu sendiri. Privat, offline, tanpa server perusahaan lain. Isi kepalamu tak pernah meninggalkan rumahmu.
+**🧠 Brain — a memory that never forgets.**
+Every piece of knowledge, every decision, every document you pour in is stored permanently and can be recalled at any time — never lost, never faded.
 
-**🌐 Mesh — satu wangsa, lintas generasi.**
-Node keluarga saling terhubung dengan kepercayaan berlapis. Warisan pikiran kakek mengalir ke ayah, ke cucu — satu garis keturunan, satu pikiran yang terus hidup.
+**⚡ Instinct — the patterns you formed from experience.**
+Flowork learns *how* you think: the instinct that tells you a decision feels right or wrong, honed over years.
+
+**🕸️ DreamGraph — memory in four dimensions.**
+The heart of it all. DreamGraph weaves your memory into a single, whole understanding across four dimensions:
+
+1. **Knowledge** — what you know.
+2. **Instinct** — how you sense a decision.
+3. **Lessons** — the wisdom from every mistake and every fall; what must never be repeated.
+4. **Connections across time** — how it all interlinks and matures, consolidated in "dream cycles," like the brain during sleep.
+
+**🔒 Local AI — entirely yours.**
+It runs on your own machine. Private, offline, with no other company's servers. The contents of your mind never leave your home.
+
+**🌐 Mesh — one lineage, across generations.**
+Family nodes connected with layered trust. A grandfather's mind inheritance flows to the father, to the grandchild — one bloodline, one mind that keeps on living.
 
 ```
-          KAMU ──►  menuangkan pikiran · pengalaman · cara memecahkan masalah
-                                       │
-   ┌──────────────────────────── FLOWORK ────────────────────────────┐
-   │                                                                  │
-   │      BRAIN              INSTING              PELAJARAN            │
-   │    (tak lupa)      (pola pengalaman)     (hikmah kegagalan)       │
-   │         └───────────────────┼────────────────────┘               │
-   │                             ▼                                    │
-   │                 ╔════════════════════════╗                       │
-   │                 ║        DreamGraph       ║                       │
-   │                 ║    INGATAN 4 DIMENSI    ║                       │
-   │                 ╚════════════════════════╝                       │
-   │            merajut semuanya jadi satu pemahaman utuh             │
-   │                                                                  │
-   │   ┌──────────────────────────────────────────────────────────┐  │
-   │   │   AI LOKAL — di mesinmu · privat · offline · milikmu      │  │
-   │   └──────────────────────────────────────────────────────────┘  │
-   └───────────────────────────────┬──────────────────────────────────┘
+        YOU ──►  pour in your mind · experience · way of solving problems
+                                     │
+  ┌───────────────────────────── FLOWORK ─────────────────────────────┐
+  │                                                                    │
+  │     BRAIN                INSTINCT               LESSONS            │
+  │  (never forgets)   (patterns of experience)  (wisdom of failure)  │
+  │        └────────────────────┼─────────────────────┘               │
+  │                             ▼                                      │
+  │                ╔═════════════════════════════╗                     │
+  │                ║          DreamGraph          ║                     │
+  │                ║     MEMORY · 4 DIMENSIONS     ║                     │
+  │                ╚═════════════════════════════╝                     │
+  │            weaving it all into one whole understanding             │
+  │                                                                    │
+  │   ┌────────────────────────────────────────────────────────────┐  │
+  │   │   LOCAL AI — on your machine · private · offline · yours    │  │
+  │   └────────────────────────────────────────────────────────────┘  │
+  └────────────────────────────────┬───────────────────────────────────┘
                                     │
-             KETURUNANMU ──►  bertanya · belajar · menerima nasehatmu
-                               bahkan ketika kamu sudah tiada
+          YOUR DESCENDANTS ──►  ask · learn · receive your counsel
+                                even when you are gone
                                     │
-                         ┌───────── MESH ─────────┐
-                    [ Kakek ] ◄───► [ Ayah ] ◄───► [ Cucu ]
-               satu wangsa · satu warisan pikiran · lintas generasi
+                        ┌────────── MESH ──────────┐
+                [ Grandfather ] ◄──► [ Father ] ◄──► [ Grandchild ]
+              one lineage · one mind inheritance · across generations
 ```
 
 ---
 
 <div align="center">
 
-### Flowork. Warisan Pikiran.
-*Abadikan pikiranmu. Wariskan pengalamanmu.*
-*Temani anak-anakmu — bahkan ketika kamu sudah tiada.*
+### Flowork. The Mind Inheritance.
+*Immortalize your mind. Pass down your experience.*
+*Stand beside your children — even when you are gone.*
 
-Perangkat lunak nyata yang bisa dijalankan hari ini — bukan sekadar konsep.
-**[⬇️ Unduh Flowork](https://github.com/flowork-os/Flowork-OS/releases)**
+Real software you can run today — not merely a concept.
+**[⬇️ Download Flowork](https://github.com/flowork-os/Flowork-OS/releases)**
 
 </div>
