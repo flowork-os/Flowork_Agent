@@ -30,6 +30,11 @@ B64="$(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)"
 # "repo-name remote-name" — repo SEO yang di-mirror.
 MIRRORS=("Flowork_Agent agent-mirror" "flowork_Router router-mirror")
 
+# File VISION KHUSUS Flowork-OS (pitch Alibaba) yg JANGAN ikut ke mirror — biar identitas
+# tiap repo bersih (mirror = backup kode + README SEO-nya sendiri, BUKAN ketularan pitch OS).
+# README.md mirror udah di-overlay dari os/mirror-readme; sisanya (id + hero) di-strip.
+OS_ONLY_FILES=(README.id.md hero.png)
+
 for entry in "${MIRRORS[@]}"; do
 	set -- $entry; repo="$1"; remote="$2"
 	git remote get-url "$remote" >/dev/null 2>&1 || {
@@ -39,6 +44,7 @@ for entry in "${MIRRORS[@]}"; do
 	git worktree remove --force "$wt" 2>/dev/null || true
 	git branch -D "$br" 2>/dev/null || true
 	git worktree add -q -b "$br" "$wt" HEAD
+	for f in "${OS_ONLY_FILES[@]}"; do rm -f "$wt/$f"; done   # buang aset vision Flowork-OS
 	[ -d "$ov" ] && cp -a "$ov/." "$wt/"   # overlay README+aset repo (SEO)
 	git -C "$wt" add -A
 	git -C "$wt" commit -q -m "chore: mirror monorepo into $repo (keep README+assets for SEO)" || true
