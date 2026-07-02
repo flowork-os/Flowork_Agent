@@ -39,6 +39,12 @@ var (
 
 var errAntigravityNoToken = errors.New("antigravity: belum ada token ke-capture (jalanin app Antigravity sekali lewat MITM)")
 
+// antigravityTokenProvider — SEAM: diisi antigravity_oauth_ext.go (init) buat
+// pull token OAuth auto-refresh. nil = jalur OAuth ga kepasang → header hook
+// fallback ke OAuth record. Decoupling ini yg bikin delete-test lolos (hapus
+// OAuth connector → core tetep build).
+var antigravityTokenProvider func() (string, error)
+
 func antigravityCaptureEnabled() bool {
 	v := strings.TrimSpace(os.Getenv("FLOWORK_ANTIGRAVITY_CAPTURE"))
 	return v == "" || v == "1" || strings.EqualFold(v, "true") // default ON
@@ -142,9 +148,19 @@ func loadAntigravityModels(d *sql.DB) []string {
 
 func ensureAntigravityProvider(d *sql.DB, tok string) {
 	existing, _ := store.GetProvider(d, antigravityProviderID)
-	// Model = hasil CONTEK dari traffic (anti-hardcode). Belum ada capture →
-	// kosong (provider ga match apa2 sampai app jalan) — itu by-design.
+	// Model: (1) hasil CONTEK dari traffic MITM kalau ada; (2) fallback jalur OAuth
+	// = switch GUI FLOWORK_ANTIGRAVITY_MODELS (data editable owner, bukan hardcode
+	// logic). Kosong dua-duanya → provider ga match (by-design sampai ada sumber).
 	captured := loadAntigravityModels(d)
+	if len(captured) == 0 {
+		if env := strings.TrimSpace(os.Getenv("FLOWORK_ANTIGRAVITY_MODELS")); env != "" {
+			for _, m := range strings.Split(env, ",") {
+				if m = strings.TrimSpace(m); m != "" {
+					captured = append(captured, m)
+				}
+			}
+		}
+	}
 	models := make([]any, 0, len(captured))
 	for _, m := range captured {
 		models = append(models, m)
@@ -188,7 +204,7 @@ func antigravityInjectHeaders(base map[string]string, p *store.ProviderConnectio
 	for k, v := range base {
 		out[k] = v
 	}
-	// Header client asli hasil capture.
+	// Header client asli hasil capture MITM (kalau ada — jalur lama).
 	var v string
 	if e := d.QueryRow(`SELECT v FROM kv WHERE k = ?`, antigravityHeadersKV).Scan(&v); e == nil && v != "" {
 		var captured map[string]string
@@ -199,8 +215,18 @@ func antigravityInjectHeaders(base map[string]string, p *store.ProviderConnectio
 				}
 			}
 		}
+	} else {
+		// Jalur OAuth (MITM mentok DoH): pakai header kontrak API Antigravity.
+		out["User-Agent"] = "antigravity"
+		out["X-Goog-Api-Client"] = "google-cloud-sdk vscode_cloudshelleditor/0.1"
 	}
-	// Bearer terfresh (OAuth record menang atas apiKey provider yg mungkin basi).
+	// Token: OAuth auto-refresh (seam, kalau kepasang) menang; fallback OAuth record.
+	if antigravityTokenProvider != nil {
+		if tok, e := antigravityTokenProvider(); e == nil && tok != "" {
+			out["Authorization"] = "Bearer " + tok
+			return out
+		}
+	}
 	if rec, e := store.GetOAuthToken(d, "antigravity"); e == nil && rec != nil && rec.AccessToken != "" {
 		out["Authorization"] = "Bearer " + rec.AccessToken
 	}

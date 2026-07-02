@@ -854,6 +854,19 @@ done &lt; my_knowledge.jsonl</pre>
         <div id="claudeLoginMsg" class="text-xs mt-2"></div>
       </div>
 
+      <!-- Antigravity (Google) OAuth login — browser flow (localhost:51121 callback). Robust vs MITM
+           (app pakai DNS-over-HTTPS). client_id via switch FLOWORK_ANTIGRAVITY_CLIENT_ID; secret
+           di-extract dari binary app. mr-flow bisa pakai gemini-3 tanpa nabrak Claude. -->
+      <h3 class="font-semibold text-emerald-300 mt-6 mb-2 text-sm" data-i18n="lbl.antigravityLogin">🚀 Login to Antigravity / Google (Gemini)</h3>
+      <div class="glass p-3 mb-3 text-sm">
+        <p class="text-xs text-slate-400 mb-2" data-i18n="desc.antigravityLogin">Connect Antigravity (Google) supaya mr-flow bisa pakai Gemini via cloud-code — biar ga nabrak kuota Claude. Buka login Google, izinin, otomatis balik. Butuh app Antigravity ke-install (secret di-baca dari situ).</p>
+        <div class="flex items-center gap-2 flex-wrap">
+          <button class="btn-primary" onclick="antigravityLoginStart()" data-i18n="btn.antigravityLoginStart">Login with Google</button>
+          <span id="antigravityStatus" class="text-xs text-slate-400"></span>
+        </div>
+        <div id="antigravityLoginMsg" class="text-xs mt-2"></div>
+      </div>
+
       <h3 class="font-semibold text-purple-300 mt-6 mb-2 text-sm" data-i18n="lbl.deviceLogin">Device login (browserless)</h3>
       <div class="glass p-3 mb-3 text-sm">
         <div class="flex items-center gap-2 flex-wrap">
@@ -4638,6 +4651,45 @@ done &lt; my_knowledge.jsonl</pre>
         toast('Claude login complete');
         loadOauthStored();
       } catch (e) { msg.className = 'text-xs mt-2 text-red-400'; msg.textContent = 'Login error: ' + escapeHtml(e.message); }
+    }
+    // Antigravity (Google) OAuth — buka login, callback otomatis ke :51121 (ga perlu paste code).
+    async function antigravityLoginStart() {
+      const msg = document.getElementById('antigravityLoginMsg');
+      msg.className = 'text-xs mt-2 text-slate-400'; msg.textContent = 'Membuka login Google…';
+      try {
+        const r = await fetch('/api/oauth/antigravity/start');
+        const j = await r.json();
+        if (!r.ok) { msg.className = 'text-xs mt-2 text-red-400'; msg.textContent = 'Gagal: ' + escapeHtml(j.error || ('HTTP ' + r.status)); return; }
+        window.open(j.authUrl, '_blank', 'noopener');
+        msg.className = 'text-xs mt-2 text-slate-400';
+        msg.innerHTML = 'Halaman login Google kebuka. Kalau ga, <a class="underline text-emerald-300" href="' + escapeHtml(j.authUrl) + '" target="_blank" rel="noopener noreferrer">buka di sini</a>. Setelah izinin, otomatis balik — status ke-refresh.';
+        // Poll status sampai connected (max ~2 menit).
+        let tries = 0;
+        const iv = setInterval(async () => {
+          tries++;
+          try {
+            const s = await (await fetch('/api/oauth/antigravity/status')).json();
+            if (s.connected) {
+              clearInterval(iv);
+              msg.className = 'text-xs mt-2 text-green-400';
+              msg.textContent = '✓ Antigravity connected' + (s.project ? ' (project ' + escapeHtml(s.project) + ')' : '') + '. mr-flow bisa pakai Gemini sekarang.';
+              toast('Antigravity connected');
+              antigravityRefreshStatus();
+            }
+          } catch (_) {}
+          if (tries > 60) clearInterval(iv);
+        }, 2000);
+      } catch (e) { msg.className = 'text-xs mt-2 text-red-400'; msg.textContent = 'Error: ' + escapeHtml(e.message); }
+    }
+    async function antigravityRefreshStatus() {
+      const el = document.getElementById('antigravityStatus');
+      if (!el) return;
+      try {
+        const s = await (await fetch('/api/oauth/antigravity/status')).json();
+        if (s.connected) { el.textContent = '● connected'; el.className = 'text-xs text-green-400'; }
+        else if (!s.appDetected) { el.textContent = '○ app Antigravity ga ke-detect'; el.className = 'text-xs text-amber-400'; }
+        else { el.textContent = '○ belum login'; el.className = 'text-xs text-slate-400'; }
+      } catch (_) {}
     }
     async function revokeOauthToken(provider) {
       const ok = await uiConfirm({ title: t('confirm.revokeOauth'), body: t('confirm.revokeOauthBody').replace('{name}', provider), dangerous: true });
