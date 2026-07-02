@@ -12,7 +12,18 @@ REPO="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO"
 
 SECRETS="${FLOWORK_SECRETS:-$HOME/Documents/flowork-secrets}"
-TOKEN="${FLOWORK_GH_TOKEN:-$(grep -oE 'gh[ps]_[A-Za-z0-9]{36,}' "$SECRETS/GITHUB_ACCOUNT.MD" 2>/dev/null | head -1)}"
+# Pilih token yg punya akses PUSH (bukan asal head -1 — file punya token read-only juga).
+_pick_push_token() {
+	local f="$SECRETS/GITHUB_ACCOUNT.MD" t
+	for t in $(grep -oE 'gh[ps]_[A-Za-z0-9]{36,}' "$f" 2>/dev/null); do
+		if curl -s -m 8 -H "Authorization: Bearer $t" \
+			https://api.github.com/repos/flowork-os/Flowork-OS 2>/dev/null | grep -q '"push": *true'; then
+			printf '%s' "$t"; return 0
+		fi
+	done
+	grep -oE 'gh[ps]_[A-Za-z0-9]{36,}' "$f" 2>/dev/null | head -1
+}
+TOKEN="${FLOWORK_GH_TOKEN:-$(_pick_push_token)}"
 [ -n "$TOKEN" ] || { echo "no GitHub token (set FLOWORK_GH_TOKEN)"; exit 1; }
 B64="$(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)"
 
