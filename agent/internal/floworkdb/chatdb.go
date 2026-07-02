@@ -77,7 +77,7 @@ func (s *Store) CreateChatSession(cs ChatSession) error {
 	if cs.Title == "" {
 		cs.Title = "New chat"
 	}
-	if cs.Mode != "group" {
+	if cs.Mode != "group" && cs.Mode != "agent" {
 		cs.Mode = "architect"
 	}
 	_, err := s.db.Exec(

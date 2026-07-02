@@ -48,6 +48,21 @@ Bug: foto via Telegram → "error status 400" / model halu (token bengkak 23k). 
    pasang image block. Verified: "KUCING ORANYE 77" kebaca bener, token 23474→1303.
 Freeze: telegram_media.go (mr-flow wasm) + dispatcher.go + dispatcher_stream.go re-hash + re-freeze.
 
+## AI STUDIO — chat langsung ke mr-flow (2026-07-02, verified live)
+Owner minta: bisa ngobrol sama mr-flow LEWAT AI Studio (Chat tab), kirim doc+image,
++ indikator "lagi mikir" biar berasa hidup.
+- **Dropdown target** (`chatui.js`): + opsi "🤖 Mr.Flow" (`agent:mr-flow`) di samping
+  Architect + tiap group. barValues → mode `agent`. chatdb `CreateChatSession` izinin mode "agent".
+- **Backend** (`chat_sessions.go`): mode `agent` → `InvokeAgentMessage(targetID, ...)` (agent
+  pegang memori sendiri → kirim pesan TERAKHIR aja, bukan replay). Verified: mr-flow jawab via AI Studio.
+- **Image ke mr-flow**: agent intake TEXT-ONLY → `describeImagesForAgent` vision-describe dulu
+  via router (pola Telegram) → tempel deskripsi ke teks → mr-flow "liat". Verified: KUCING ORANYE 77 kebaca.
+- **Doc**: tombol 📎 (`chatui.js`) baca file teks client-side → tempel isi ke pesan (universal, semua target).
+- **Indikator "lagi mikir"**: pending bubble = nama target + typing dots + timer detik live
+  (`cu-think`/`cu-elapsed`). Verified via screenshot render.
+- File (semua soft-lock, editable): `chatui.js` (embedded → rebuild binari) · `chat_sessions.go` ·
+  `internal/floworkdb/chatdb.go`.
+
 ## Batas yang disengaja (bukan bug)
 - Mode GROUP text-only: gambar ditandai teks `[📷 user melampirkan gambar]`
   (`buildGroupTranscript`) — vision penuh = jalur architect.

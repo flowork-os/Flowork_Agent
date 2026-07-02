@@ -72,6 +72,14 @@ const CSS = `
 .cu-send { padding:9px 16px; border-radius:9px; font:inherit; font-size:0.84rem; font-weight:600; cursor:pointer;
   border:1px solid transparent; background:linear-gradient(90deg,#7c3aed,#0ea5e9); color:#fff; }
 .cu-send:hover { filter:brightness(1.12); } .cu-send:disabled { opacity:.5; cursor:default; }
+.cu-attach-btn { flex-shrink:0; width:40px; border-radius:9px; font-size:1.05rem; cursor:pointer; color:var(--text-muted);
+  background:rgba(2,6,18,0.55); border:1px solid rgba(148,163,184,0.2); transition:.15s; }
+.cu-attach-btn:hover { color:#a78bfa; border-color:#a78bfa; }
+.cu-attach-btn:disabled { opacity:.5; cursor:default; }
+/* indikator "lagi mikir" — biar berasa hidup */
+.cu-think { display:inline-flex; align-items:center; gap:8px; color:#c4b5fd; font-size:0.86rem; }
+.cu-think .cu-typing span { background:#a78bfa; }
+.cu-think .cu-elapsed { color:#7c8aa5; font-variant-numeric:tabular-nums; font-size:0.8rem; }
 .cu-bubble { max-width:90%; padding:11px 14px; border-radius:13px; font-size:0.9rem; line-height:1.55; word-wrap:break-word; }
 .cu-bubble.me { align-self:flex-end; background:linear-gradient(135deg,#8b5cf6,#0ea5e9); color:#fff; border-bottom-right-radius:4px; white-space:pre-wrap; box-shadow:0 8px 22px rgba(124,58,237,.34), inset 0 1px 0 rgba(255,255,255,.18); }
 .cu-bubble.them { align-self:flex-start; background:linear-gradient(165deg,rgba(30,34,56,.92),rgba(15,18,30,.88)); border:1px solid var(--glass-border); color:#e2e8f0; border-bottom-left-radius:4px; box-shadow:0 8px 22px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.05); }
@@ -152,6 +160,8 @@ export function renderChatUI(host) {
         <div class="cu-log"><div class="cu-empty cu-intro">${esc(L.pick)}</div></div>
         <div class="cu-attach"></div>
         <div class="cu-input-row">
+          <button class="cu-attach-btn" title="Lampirkan gambar / dokumen">📎</button>
+          <input type="file" class="cu-file" multiple accept="image/*,.txt,.md,.markdown,.json,.csv,.log,.yaml,.yml,.go,.py,.js,.ts,.sh,.html,.css,.xml,.ini,.toml,.sql,.rs,.java,.c,.cpp" hidden>
           <textarea class="cu-input" rows="2" placeholder="${escAttr(L.input_ph)}"></textarea>
           <button class="cu-send">${esc(L.send)}</button>
         </div>
@@ -159,14 +169,15 @@ export function renderChatUI(host) {
     </div>`;
 
   S.pendingImages = []; // lampiran gambar (data URL) yang nunggu dikirim (multimodal paste)
+  S.pendingDocs = [];   // lampiran dokumen teks {name, content} yang nunggu dikirim
   const $ = (sel) => host.querySelector(sel);
-  const CU_MAX_IMG = 4;
+  const CU_MAX_IMG = 4, CU_MAX_DOC = 4, CU_MAX_DOC_CHARS = 40000;
   // userHTML — bubble user: teks (escaped) + thumbnail lampiran (data URL aman di-embed).
   const userHTML = (text, imgs) => esc(text || '')
     + ((imgs || []).map((u) => `<img class="cu-img" src="${escAttr(u)}" alt="lampiran">`).join(''));
   function renderAttach() {
     const row = $('.cu-attach'); row.innerHTML = '';
-    row.classList.toggle('has', S.pendingImages.length > 0);
+    row.classList.toggle('has', S.pendingImages.length > 0 || S.pendingDocs.length > 0);
     S.pendingImages.forEach((u, i) => {
       const chip = document.createElement('div'); chip.className = 'cu-chip';
       const img = document.createElement('img'); img.src = u; chip.appendChild(img);
@@ -174,6 +185,28 @@ export function renderChatUI(host) {
       x.addEventListener('click', () => { S.pendingImages.splice(i, 1); renderAttach(); });
       chip.appendChild(x); row.appendChild(chip);
     });
+    S.pendingDocs.forEach((d, i) => {
+      const chip = document.createElement('div'); chip.className = 'cu-chip cu-docchip';
+      chip.title = d.name;
+      chip.innerHTML = `<span style="font-size:0.62rem;padding:4px;line-height:1.15;word-break:break-all;color:#c4b5fd">📄 ${esc(d.name).slice(0, 22)}</span>`;
+      const x = document.createElement('button'); x.type = 'button'; x.textContent = '×'; x.title = 'hapus';
+      x.addEventListener('click', () => { S.pendingDocs.splice(i, 1); renderAttach(); });
+      chip.appendChild(x); row.appendChild(chip);
+    });
+  }
+  // addFiles — dari picker (📎) atau paste: gambar → pendingImages, teks → pendingDocs.
+  function addFiles(files) {
+    for (const f of files) {
+      if (f.type && f.type.startsWith('image/')) { addImageFiles([f]); continue; }
+      if (S.pendingDocs.length >= CU_MAX_DOC) { alert(`Maks ${CU_MAX_DOC} dokumen`); return; }
+      const rd = new FileReader();
+      rd.onload = () => {
+        let c = String(rd.result || '');
+        if (c.length > CU_MAX_DOC_CHARS) c = c.slice(0, CU_MAX_DOC_CHARS) + '\n…(dipotong, dokumen panjang)';
+        S.pendingDocs.push({ name: f.name || 'dokumen.txt', content: c }); renderAttach();
+      };
+      rd.readAsText(f);
+    }
   }
   function addImageFiles(files) {
     for (const f of files) {
@@ -188,8 +221,15 @@ export function renderChatUI(host) {
     const target = $('.cu-target').value;
     // model dropdown DIHAPUS (owner 2026-06-21: "model sudah ada di agent") → model:'' = backend
     // pakai model PER-TARGET (ai-studio buat architect, model group buat group), bukan pilihan global.
+    if (target.startsWith('agent:')) return { mode: 'agent', target_id: target.slice(6), model: '' };
     if (target.startsWith('group:')) return { mode: 'group', target_id: target.slice(6), model: '' };
     return { mode: 'architect', target_id: '', model: '' };
+  };
+  // targetLabel — nama enak dibaca buat indikator "lagi mikir".
+  const targetLabel = () => {
+    const t = $('.cu-target');
+    const o = t.options[t.selectedIndex];
+    return o ? o.textContent.replace(/^[^A-Za-z0-9]+/, '').trim() || 'Asisten' : 'Asisten';
   };
   const bubble = (cls, html) => {
     const log = $('.cu-log'); const intro = log.querySelector('.cu-intro'); if (intro) intro.remove();
@@ -199,7 +239,9 @@ export function renderChatUI(host) {
 
   async function loadGroups() {
     try { const d = await fetchJSON('/api/groups'); S.groups = d.groups || []; } catch { S.groups = []; }
+    // Target: Architect (AI Studio) + Mr.Flow (agent owner, chat langsung) + tiap group/tim.
     $('.cu-target').innerHTML = `<option value="architect">${esc(L.target_architect)}</option>`
+      + `<option value="agent:mr-flow">🤖 Mr.Flow</option>`
       + S.groups.map((g) => `<option value="group:${escAttr(g.id)}">${esc(L.target_group_prefix)}${esc(g.display_name || g.id)}</option>`).join('');
   }
   async function loadSessions() {
@@ -235,15 +277,17 @@ export function renderChatUI(host) {
   async function open(id) {
     S.sessionId = id;
     const sess = S.sessions.find((s) => s.id === id);
-    $('.cu-target').value = sess && sess.mode === 'group' ? 'group:' + sess.target_id : 'architect';
+    $('.cu-target').value = sess && sess.mode === 'group' ? 'group:' + sess.target_id
+      : sess && sess.mode === 'agent' ? 'agent:' + sess.target_id : 'architect';
     const log = $('.cu-log'); log.innerHTML = `<div class="cu-empty">${esc(L.loading)}</div>`;
     try {
       const d = await fetchJSON(`/api/chat/sessions/messages?id=${encodeURIComponent(id)}`);
       const msgs = d.messages || [];
       log.innerHTML = '';
       if (!msgs.length) {
-        const intro = sess && sess.mode === 'group' ? L.intro_group : L.intro_architect;
-        log.innerHTML = `<div class="cu-empty cu-intro">${esc(intro)}</div>`;
+        const intro = sess && sess.mode === 'agent' ? `Ngobrol langsung sama ${esc(targetLabel())} — bisa kirim teks, gambar (Ctrl+V / 📎), atau dokumen.`
+          : sess && sess.mode === 'group' ? L.intro_group : L.intro_architect;
+        log.innerHTML = `<div class="cu-empty cu-intro">${intro}</div>`;
       } else {
         for (const m of msgs) bubble(m.role === 'user' ? 'me' : 'them', m.role === 'user' ? userHTML(m.content, m.images) : mdLite(m.content));
       }
@@ -252,20 +296,29 @@ export function renderChatUI(host) {
   }
   async function send() {
     if (!S.sessionId) { await newChat(); if (!S.sessionId) return; }
-    const input = $('.cu-input'); const text = input.value.trim();
+    const input = $('.cu-input'); let text = input.value.trim();
     const images = S.pendingImages.slice();
-    if (!text && !images.length) return;
+    const docs = S.pendingDocs.slice();
+    if (!text && !images.length && !docs.length) return;
+    // Dokumen teks → tempel isinya ke pesan (biar agent/architect bisa baca).
+    let sendText = text;
+    for (const d of docs) sendText += `\n\n[📄 ${d.name}]\n${d.content}`;
     input.value = '';
-    S.pendingImages = []; renderAttach();
-    bubble('me', userHTML(text, images));
+    S.pendingImages = []; S.pendingDocs = []; renderAttach();
+    bubble('me', userHTML(text + (docs.length ? '\n' + docs.map((d) => '📄 ' + d.name).join('\n') : ''), images));
     const btn = $('.cu-send'); btn.disabled = true; input.disabled = true;
-    const pending = bubble('them pending', `<span class="cu-typing"><span></span><span></span><span></span></span>`);
+    // Indikator "lagi mikir" — nama target + timer detik (berasa hidup).
+    const who = targetLabel();
+    const pending = bubble('them pending', `<span class="cu-think"><span class="cu-typing"><span></span><span></span><span></span></span><span>${esc(who)} lagi mikir…</span><span class="cu-elapsed">0s</span></span>`);
+    const t0 = Date.now();
+    const tick = setInterval(() => { const el = pending.querySelector('.cu-elapsed'); if (el) el.textContent = Math.round((Date.now() - t0) / 1000) + 's'; }, 1000);
     try {
-      const r = await fetchJSON('/api/chat/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: S.sessionId, text, images }) });
+      const r = await fetchJSON('/api/chat/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: S.sessionId, text: sendText, images }) });
+      clearInterval(tick);
       pending.classList.remove('pending');
       typeReveal(pending, r.reply || r.error || '(no reply)');
       loadSessions();
-    } catch (e) { pending.classList.remove('pending'); pending.style.color = '#f87171'; pending.textContent = L.fail + (e.message || e); }
+    } catch (e) { clearInterval(tick); pending.classList.remove('pending'); pending.style.color = '#f87171'; pending.textContent = L.fail + (e.message || e); }
     finally { btn.disabled = false; input.disabled = false; input.focus(); }
   }
   async function saveMeta() {
@@ -301,6 +354,9 @@ export function renderChatUI(host) {
   $('.cu-target').addEventListener('change', saveMeta);
   $('.cu-send').addEventListener('click', send);
   $('.cu-input').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
+  // Attach 📎 — buka file picker (gambar + dokumen teks).
+  $('.cu-attach-btn').addEventListener('click', () => $('.cu-file').click());
+  $('.cu-file').addEventListener('change', (e) => { addFiles(e.target.files); e.target.value = ''; });
   // Multimodal paste: Ctrl+V screenshot/gambar dari clipboard → chip preview → ikut kekirim.
   $('.cu-input').addEventListener('paste', (e) => {
     const items = (e.clipboardData && e.clipboardData.items) || [];

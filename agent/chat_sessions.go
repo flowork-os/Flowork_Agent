@@ -253,7 +253,22 @@ func chatSendHandler(host *kernelhost.Host, store *floworkdb.Store, groups *grou
 		defer cancel()
 
 		var reply string
-		if sess.Mode == "group" && strings.TrimSpace(sess.TargetID) != "" {
+		if sess.Mode == "agent" && strings.TrimSpace(sess.TargetID) != "" {
+			// Chat LANGSUNG ke 1 agent (mis. mr-flow) via AI Studio. Agent pegang
+			// memorinya sendiri → kirim pesan TERAKHIR aja (bukan replay full history).
+			// Gambar: vision-describe dulu (pola Telegram) → agent "liat" lewat teks.
+			last := history[len(history)-1]
+			msgText := last.Content
+			if len(last.Images) > 0 {
+				msgText = describeImagesForAgent(ctx, last.Content, last.Images)
+			}
+			raw, ierr := host.InvokeAgentMessage(ctx, sess.TargetID, msgText, "cli:owner")
+			if ierr != nil {
+				tfWriteJSON(w, http.StatusInternalServerError, map[string]any{"error": ierr.Error()})
+				return
+			}
+			reply = extractReply(raw)
+		} else if sess.Mode == "group" && strings.TrimSpace(sess.TargetID) != "" {
 			raw, ierr := host.InvokeAgentMessage(ctx, sess.TargetID, buildGroupTranscript(history), "cli:owner")
 			if ierr != nil {
 				tfWriteJSON(w, http.StatusInternalServerError, map[string]any{"error": ierr.Error()})
@@ -276,6 +291,33 @@ func chatSendHandler(host *kernelhost.Host, store *floworkdb.Store, groups *grou
 		}
 		tfWriteJSON(w, 0, map[string]any{"reply": reply})
 	}
+}
+
+// describeImagesForAgent — agent (mr-flow dkk) intake TEXT-ONLY. Biar bisa "liat"
+// gambar dari AI Studio: vision-describe dulu via router (content-block string →
+// routing fix bikin image block), tempel deskripsinya ke teks (pola Telegram
+// visionDescribe). Gagal → note graceful, ga pernah bikin send gagal.
+func describeImagesForAgent(ctx context.Context, text string, images []string) string {
+	q := "Owner ngirim gambar"
+	if strings.TrimSpace(text) != "" {
+		q += " sama pesan: \"" + text + "\""
+	}
+	q += ". Deskripsikan detail tapi ringkas apa yang lo LIHAT di gambar (bahasa Indonesia santai)."
+	messages := []map[string]any{{"role": "user", "content": visionContent(q, images)}}
+	vctx, cancel := context.WithTimeout(ctx, 120*time.Second)
+	defer cancel()
+	desc := ""
+	if res, err := routerChatSafe(vctx, aiStudioModel(), messages, nil, 1024); err == nil {
+		desc = strings.TrimSpace(res.Content)
+	}
+	if desc == "" {
+		desc = "(gambar diterima tapi vision ga kebaca — minta owner jelasin via teks)"
+	}
+	out := strings.TrimSpace(text)
+	if out != "" {
+		out += "\n"
+	}
+	return out + "[📷 gambar dari owner — yang gw LIHAT: " + desc + "]"
 }
 
 // extractReply — pull the human text from an agent's raw emit ({"reply":...} or raw).
