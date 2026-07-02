@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync/atomic"
 
 	"github.com/flowork-os/flowork_Router/internal/cloudcode"
 	"github.com/flowork-os/flowork_Router/internal/store"
@@ -79,14 +80,20 @@ func (a *antigravityExecutor) body(ctx context.Context, p *store.ProviderConnect
 			}
 		}
 	}
+	// Spec Antigravity (opencode-antigravity-auth ANTIGRAVITY_API_SPEC.md): body
+	// WAJIB bawa userAgent + requestId (tanpa itu cloudcode-pa balik 404 routing).
 	wrap := map[string]any{
-		"project": project,
-		"model":   req.Model,
-		"request": map[string]any{"contents": contents},
+		"project":   project,
+		"model":     req.Model,
+		"request":   map[string]any{"contents": contents},
+		"userAgent": "antigravity",
+		"requestId": fmt.Sprintf("flowork-%d", atomic.AddUint64(&antigravityReqSeq, 1)),
 	}
 	b, _ := json.Marshal(wrap)
 	return b
 }
+
+var antigravityReqSeq uint64
 
 func (a *antigravityExecutor) Stream(ctx context.Context, p *store.ProviderConnection, req Request, w http.ResponseWriter, flusher http.Flusher) (Usage, int, error) {
 	httpReq, err := BuildRequest(ctx, http.MethodPost, a.endpoint(p, true), a.body(ctx, p, req), a.headers(p, true))
@@ -102,5 +109,68 @@ func (a *antigravityExecutor) NonStream(ctx context.Context, p *store.ProviderCo
 	if err != nil {
 		return nil, Usage{}, 0, fmt.Errorf("build req: %w", err)
 	}
-	return DoNonStream(httpReq)
+	body, u, st, err := DoNonStream(httpReq)
+	if err != nil || st < 200 || st >= 300 {
+		return body, u, st, err
+	}
+	// AKAR "(no choices)": cloudcode-pa balik {"response":{"candidates":[{content:
+	// {parts:[{text}]}}]}} (Gemini nested). Terjemah ke OpenAI {choices:[{message}]}
+	// biar dispatcher (unmarshal OpenAIResponse) dapet isinya.
+	if oai := antigravityRespToOpenAI(body, req.Model); oai != nil {
+		return oai, u, st, nil
+	}
+	return body, u, st, err
+}
+
+// antigravityRespToOpenAI — konversi respons cloudcode-pa (Gemini nested) → OpenAI.
+// nil kalau ga bisa parse (biar fallback ke body asli).
+func antigravityRespToOpenAI(body []byte, model string) []byte {
+	var parsed struct {
+		Response struct {
+			Candidates []struct {
+				Content struct {
+					Parts []struct {
+						Text string `json:"text"`
+					} `json:"parts"`
+				} `json:"content"`
+				FinishReason string `json:"finishReason"`
+			} `json:"candidates"`
+			UsageMetadata struct {
+				PromptTokenCount     int `json:"promptTokenCount"`
+				CandidatesTokenCount int `json:"candidatesTokenCount"`
+				TotalTokenCount      int `json:"totalTokenCount"`
+			} `json:"usageMetadata"`
+		} `json:"response"`
+	}
+	if json.Unmarshal(body, &parsed) != nil || len(parsed.Response.Candidates) == 0 {
+		return nil
+	}
+	var text string
+	for _, pt := range parsed.Response.Candidates[0].Content.Parts {
+		text += pt.Text
+	}
+	finish := "stop"
+	switch parsed.Response.Candidates[0].FinishReason {
+	case "MAX_TOKENS":
+		finish = "length"
+	case "SAFETY":
+		finish = "content_filter"
+	}
+	out := map[string]any{
+		"id":      "chatcmpl-antigravity",
+		"object":  "chat.completion",
+		"model":   model,
+		"choices": []map[string]any{{
+			"index":         0,
+			"message":       map[string]any{"role": "assistant", "content": text},
+			"finish_reason": finish,
+		}},
+		"usage": map[string]any{
+			"prompt_tokens":     parsed.Response.UsageMetadata.PromptTokenCount,
+			"completion_tokens": parsed.Response.UsageMetadata.CandidatesTokenCount,
+			"total_tokens":      parsed.Response.UsageMetadata.TotalTokenCount,
+		},
+	}
+	b, _ := json.Marshal(out)
+	return b
 }

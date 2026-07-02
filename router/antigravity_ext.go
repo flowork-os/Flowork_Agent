@@ -30,8 +30,9 @@ const (
 	antigravityProviderID = "antigravity-auto"
 	antigravityHeadersKV  = "antigravity:headers"
 	antigravityModelsKV   = "antigravity:models" // set model hasil CONTEK dari traffic app (anti-hardcode)
-	// default model (nama ASLI dari app owner) — OVERRIDABLE via switch FLOWORK_ANTIGRAVITY_MODELS.
-	defaultAntigravityModels = "gemini-3.1-pro-high,gemini-3.1-pro-low,gemini-3.5-flash-high,gemini-3.5-flash-low"
+	// default model (nama VALID hasil verifikasi live — cuma -low yg 200, -high 400/404)
+	// OVERRIDABLE via switch FLOWORK_ANTIGRAVITY_MODELS.
+	defaultAntigravityModels = "gemini-3.1-pro-low,gemini-3.5-flash-low"
 )
 
 var (
@@ -180,6 +181,10 @@ func ensureAntigravityProvider(d *sql.DB, tok string) {
 			store.CfgAPIKey:  tok,
 			store.CfgModels:  models,
 			store.CfgBaseURL: "https://cloudcode-pa.googleapis.com",
+			// AKAR 404: tanpa format, dispatcher jatuh ke proxy generik (kirim
+			// format OpenAI ke cloudcode-pa = 404). format="antigravity" → pakai
+			// executor antigravity (wrapper /v1internal: + body project/model/request).
+			store.CfgFormat: "antigravity",
 		},
 	}
 	// AKAR tokens=0: executor body baca projectId dari provider.Data. OAuth flow

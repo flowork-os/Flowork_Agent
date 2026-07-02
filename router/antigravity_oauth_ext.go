@@ -77,13 +77,14 @@ func AntigravityOAuthStatusHandler(w http.ResponseWriter, r *http.Request) {
 	rec, _ := store.GetOAuthToken(d, "antigravity")
 	connected := rec != nil && rec.AccessToken != ""
 	_, _, cfgErr := extractOAuthConfig()
-	writeJSON(w, http.StatusOK, map[string]any{
+	resp := map[string]any{
 		"connected":      connected,
 		"project":        kvGet(d, antigravityProjectKV),
 		"hasRefresh":     kvGet(d, antigravityRefreshKV) != "",
 		"appDetected":    cfgErr == nil,
 		"appDetectError": errStr(cfgErr),
-	})
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func errStr(e error) string {
@@ -92,6 +93,7 @@ func errStr(e error) string {
 	}
 	return e.Error()
 }
+
 
 var antigravityScopes = []string{
 	"https://www.googleapis.com/auth/cloud-platform",
