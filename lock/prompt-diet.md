@@ -57,13 +57,28 @@ head 600 char + arahan pakai `{"force":true}` buat isi penuh. Anti-jebakan: stub
 (hasil lama bisa udah ke-prune dari context mr-flow) + TTL + invalidasi mtime. Cache in-memory
 per-proses, per-agent. Unit test 5/5 (`file_dedup_ext_test.go`). Delete-test PASS.
 
-## ANALISIS CACHE LINTAS-TURN (biar AI penerus ga ngulang riset — 2026-07-02)
-"Volatile-ke-ekor" (gaya system-reminder Claude Code) TIDAK banyak nolong cache Flowork:
-history mr-flow di-rebuild dari DB TANPA suntikan router → prefix turn lalu ga pernah match
-turn berikutnya, di posisi manapun suntikan ditaruh. Dalam-turn udah ke-cache (system dibangun
-sekali per turn). Read-hit lintas-turn mentok di breakpoint `sysParts[0]` (persona stabil) —
-udah jalan. Upgrade beneran = breakpoint ke-4 di akhir system + tier-3 keluar dari system
-(butuh unlock translator `tools.go` + koordinasi mr-flow main.go) → keputusan owner.
+## F-E BREAKPOINT KE-4 — CACHE LINTAS-TURN (IMPLEMENTED 2026-07-02, owner-approved)
+Akar lama: Tier-3 volatile mr-flow dikirim sbg system ke-2 → duduk ANTARA persona stabil
+dan history di prefix cache → tiap turn prefix putus di situ → history ga pernah READ-hit.
+
+Fix (2 file frozen di-unlock seizin owner → edit → re-hash → re-freeze):
+1. **mr-flow `main.go`**: switch `FLOWORK_TIER3_TAIL` (GUI, default ON) — volatile Tier-3
+   (waktu/memory/recall/tugas-aktif) dikirim sbg **pesan user TERAKHIR** (header
+   `=== KONTEKS SISTEM OTOMATIS ===`), BUKAN system ke-2 → system 100% stabil + history
+   dari DB byte-identik lintas-turn. OFF → perilaku lama persis. Forward env ke guest
+   WASM via sibling `agent/envfwd_tier3_ext.go` (papan RegisterEnvForward, deletable).
+2. **translator `tools.go`**: `markPrevMessageCache` — cache_control di block terakhir
+   pesan KEDUA-terakhir = akhir prefix history STABIL (pesan terakhir = muatan volatile).
+   Total breakpoint = 4 (max Anthropic): tools + system(persona) + prev-message + last-message.
+
+Mekanika read-hit turn N+1: prefix [tools ✓, system ✓, u1..a(N-1) ✓ (bp prev-message
+turn N)] KE-BACA dari cache; cuma [uN bersih + jawaban + ekor volatile baru] yang ditulis.
+**Terukur** (claude-haiku, 2 turn bentuk mr-flow): turn-1 `read=0 create=6714` →
+turn-2 `read=5876 create=866`. Live mr-flow: jam/memori/tool normal (D18-ctx utuh).
+Catatan: turn yang kena `compressHistory` / suntikan router (enrichment fires) tetap
+re-write history turn itu — by design (selective enrichment ngurangin frekuensinya).
+Gemini nerima 2 pesan user beruntun (dites live); antigravity/openai path cuek sama
+cache_control (cache implisit Gemini jalan sendiri).
 
 ## STATUS FREEZE
 `brainenrich.go` / `dispatcher.go` / `dispatcher_stream.go` / `file.go` / `v9_extras.go`

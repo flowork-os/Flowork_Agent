@@ -802,13 +802,21 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn, notifyChatID 
 	// (waktu/memory/recall) di marker → jalur Claude cache blok stabil (prefix gede
 	// ke-reuse lintas-turn). Marker di-strip. Ga ketemu (mis. ke-truncate) = fallback 1 msg.
 	var msgs []any
+	volatileTail := "" // F-E bp-4 (owner 2026-07-02): Tier-3 volatile keluar dari system → ekor messages
 	bi := strings.Index(sys, cacheBoundaryMark)
 	if bi >= 0 && promptCacheOn() {
 		stable := strings.TrimRight(sys[:bi], "\n")
 		volatile := strings.TrimLeft(sys[bi+len(cacheBoundaryMark):], "\n")
 		msgs = append(msgs, map[string]any{"role": "system", "content": stable})
 		if strings.TrimSpace(volatile) != "" {
-			msgs = append(msgs, map[string]any{"role": "system", "content": volatile})
+			if tier3ToTail() {
+				// system jadi 100% STABIL + history bersih → breakpoint ke-4 router
+				// (tools.go markPrevMessageCache) read-hit lintas-turn. Volatile turun
+				// ke pesan user terakhir (paling salient, doktrin bottom-salient tetap).
+				volatileTail = volatile
+			} else {
+				msgs = append(msgs, map[string]any{"role": "system", "content": volatile})
+			}
 		}
 	} else {
 		// cache OFF / marker ilang → 1 system message (perilaku lama, byte-identik).
@@ -820,6 +828,9 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn, notifyChatID 
 		}
 	} else {
 		msgs = append(msgs, map[string]any{"role": "user", "content": userText})
+	}
+	if volatileTail != "" {
+		msgs = append(msgs, map[string]any{"role": "user", "content": tier3TailHeader + volatileTail})
 	}
 	// Fase 1 phase-2: context compression — kalau history kepanjangan (~50%
 	// window), ringkas blok TENGAH jadi 1 ringkasan via aux LLM, sisain HEAD +
@@ -1290,6 +1301,19 @@ func promptCacheOn() bool {
 	v := strings.TrimSpace(strings.ToLower(os.Getenv("FLOWORK_PROMPT_CACHE")))
 	return v != "0" && v != "false" && v != "off"
 }
+
+// tier3ToTail — switch FLOWORK_TIER3_TAIL (default ON): Tier-3 volatile ditaruh sbg
+// pesan user TERAKHIR (bukan system ke-2) → system 100% stabil + history bersih →
+// breakpoint ke-4 router (tools.go markPrevMessageCache) bikin history mr-flow
+// READ-hit lintas-turn (F-E, owner-approved 2026-07-02). OFF → perilaku lama
+// (volatile = system ke-2). 📄 Dok: lock/prompt-diet.md §ANALISIS CACHE LINTAS-TURN.
+func tier3ToTail() bool {
+	v := strings.TrimSpace(strings.ToLower(os.Getenv("FLOWORK_TIER3_TAIL")))
+	return v != "0" && v != "false" && v != "off"
+}
+
+// tier3TailHeader — penanda blok konteks-otomatis di ekor messages (BUKAN ucapan user).
+const tier3TailHeader = "=== KONTEKS SISTEM OTOMATIS (Tier-3 volatile — BUKAN ucapan user; jangan dibales langsung, pakai sbg grounding) ===\n"
 
 func buildSystemPrompt(cfg agentConfig) string {
 	var b strings.Builder

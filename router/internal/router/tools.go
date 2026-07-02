@@ -330,6 +330,8 @@ func buildAnthropicToolBody(req OpenAIRequest) ([]byte, error) {
 	msgs := mergeConsecutiveAnthropic(messages)
 	if cacheOn {
 		markLastBlockCache(msgs) // cache prefix percakapan (history) inkremental tiap turn
+		// F-E breakpoint ke-4 (owner-approved 2026-07-02): akhir prefix history STABIL.
+		markPrevMessageCache(msgs)
 	}
 	body["messages"] = msgs
 
@@ -424,6 +426,26 @@ func markLastBlockCache(msgs []map[string]any) {
 	}
 	blocks[len(blocks)-1]["cache_control"] = map[string]any{"type": "ephemeral"}
 	last["content"] = blocks
+}
+
+// markPrevMessageCache — ⭐ F-E BREAKPOINT KE-4 (owner-approved 2026-07-02): cache_control
+// di block terakhir pesan KEDUA-terakhir = akhir prefix history STABIL. Pesan TERAKHIR
+// bawa muatan volatile (Tier-3 mr-flow di ekor / pesan user baru) yang beda tiap turn —
+// breakpoint di pesan sebelumnya bikin turn berikut (history di-rebuild byte-identik
+// dari DB) READ-hit sampe sini: persona+history KE-BACA dari cache, bukan dibayar
+// cache-write ulang. Total breakpoint: tools 1 + system 1 + messages 2 = 4 (max
+// Anthropic). Konteks riset: lock/prompt-diet.md §ANALISIS CACHE LINTAS-TURN.
+func markPrevMessageCache(msgs []map[string]any) {
+	if len(msgs) < 2 {
+		return
+	}
+	prev := msgs[len(msgs)-2]
+	blocks := anthropicBlocks(prev["content"])
+	if len(blocks) == 0 {
+		return
+	}
+	blocks[len(blocks)-1]["cache_control"] = map[string]any{"type": "ephemeral"}
+	prev["content"] = blocks
 }
 
 func convertToolChoice(raw json.RawMessage) map[string]any {
