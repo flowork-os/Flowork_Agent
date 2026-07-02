@@ -120,6 +120,16 @@ Fetch same-origin (cookie auth). Web di-`go:embed` → rebuild biar ke-serve. Ow
 - [x] **Tool `worklog`** (`internal/tools/builtins/worklog_tool.go`, NON-frozen): MANDOR baca papan dari DALAM agent (tanpa auth) via hook `WorklogScanHook` (di-wire feature_worklog.go, pegang Host).
 - [x] **Skeleton agent MANDOR** (`mandor_seed.go` + `feature_mandor.go`, NON-frozen): seed via `seedUtilityAgent` (persona supervisor, model haiku GUI-overridable). GATED switch `FLOWORK_MANDOR` (default OFF) → ga dibikin dormant + ke-reap sebelum operasional.
 - [ ] **Operasional MANDOR** (nyusul): subscribe tool `worklog` + agent-invoke ke mandor · rule trigger `idle→mandor` (DATA) · reconcile + rem (ada kerja/token/owner-ga-aktif/cooldown) · rebuild+restart+validasi · baru flip `FLOWORK_MANDOR=on`.
+- [x] **F-C WAKE-PUSH mandor by-EVENT (2026-07-02, verified live)** — `feature_wake_mandor.go`
+  (sibling non-frozen, deletable; delete-test PASS). Worker selesai via tool `agent_command`
+  → mandor langsung dibangunin: wrap seam `builtins.InvokeAgentFunc` (var Pola B di
+  `agent_command.go` FROZEN — NOL unlock) pas PhaseSeed → sukses → `Engine.RunNow` semua rule
+  `worklog-pending` enabled. Guard: debounce 60s (klaim slot CUMA kalau ada rule layak),
+  anti self-loop (rule target == worker di-skip). Switch GUI `FLOWORK_WAKE_MANDOR` (default ON).
+  Seed rule `worklog-mandor` (type worklog-pending, target mandor, idempotent, gate FLOWORK_MANDOR);
+  rule live di-insert 2026-07-02. Poll `worklog-pending` TETAP jalan = jaring pengaman task nyangkut.
+  Bukti: worker `app-judge` kelar → log `wake-mandor: … RunNow rule worklog-mandor (run 183)` →
+  mandor rekonsiliasi papan (status ok). Unit test debounce+filter PASS.
 - [ ] Re-dispatch nyangkut: wire `internal/zombie/detector.go`.
 - [ ] (opsional) panel VISUAL papan kerja di frontend live.
 - [ ] Freeze cluster worklog (feature/tool/pkg/seed) SETELAH Mandor operasional + teruji.
