@@ -1,0 +1,17 @@
+# SIDECAR MANIFEST (kanonik, IN-REPO) — dir runtime yang dibawa portable & img.
+# Dibaca make-portable.sh + build-flowork-os.sh (JANGAN hardcode list lagi — sync di sini).
+# Path RELATIF dari root repo (multi-OS, no-hardcode). HANYA aset runtime/PUBLIK.
+# RAHASIA (credential/key/token) JANGAN PERNAH masuk sini.
+# (Dulu sumber di flowork-secrets/sidecar.md pakai path absolut → drift + ga ada di CI. Dipindah ke sini.)
+router/bin
+router/models
+router/brain
+router/skills
+agent/apps
+agent/templates
+agent/agents
+agent/workspace
+agent/media/youtube
+agent/doc
+tools
+docs

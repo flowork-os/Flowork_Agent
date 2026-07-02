@@ -65,16 +65,18 @@ build darwin  arm64 macos-apple
 # This keeps the build clean while still making `bin`, `models`, and `apps` available.
 SIDECAR_ENABLED="${FLOWORK_PORTABLE_SIDECAR:-1}"
 if [ "$SIDECAR_ENABLED" != "0" ]; then
-    echo "[portable] copying sidecar assets (sinkron flowork-secrets/sidecar.md)"
+    # Daftar SIDECAR = MANIFEST KANONIK IN-REPO os/sidecar.list (repo-relatif, ga hardcode lagi
+    # → make-portable & build-flowork-os baca sumber yg SAMA, anti-drift). Fallback ke list lama
+    # kalau file ilang (robust). basename di-flatten ke $OUT/sidecar/ (launcher mapping balik).
+    SIDECAR_LIST="$OS_DIR/sidecar.list"
+    if [ -f "$SIDECAR_LIST" ]; then
+        SIDECAR_RELS="$(grep -vE '^\s*#|^\s*$' "$SIDECAR_LIST")"
+    else
+        SIDECAR_RELS="router/bin router/models router/brain router/skills agent/apps agent/templates agent/agents agent/workspace agent/media/youtube agent/doc tools docs"
+    fi
+    echo "[portable] copying sidecar assets (manifest: os/sidecar.list)"
     mkdir -p "$OUT/sidecar"
-    # Daftar SIDECAR (repo-relatif) — SUMBER KANONIK: flowork-secrets/sidecar.md.
-    # Basename di-flatten ke $OUT/sidecar/ (launcher yg mapping balik ke agent/ atau router/).
-    # agent/agents AMAN di sini: wasm-nya udah ke-build build-all-agents.sh (di atas) sebelum copy.
-    # Kalau sidecar.md diubah → update daftar ini juga (jaga sinkron).
-    for rel in \
-        router/bin router/models router/brain router/skills \
-        agent/apps agent/templates agent/agents agent/workspace agent/media/youtube \
-        agent/doc tools docs; do
+    for rel in $SIDECAR_RELS; do
         if [ -e "$REPO/$rel" ]; then
             if [ "$rel" = "router/brain" ]; then
                 # Brain = DB LIVE (pengalaman hidup user) → snapshot KONSISTEN via brain-export.sh

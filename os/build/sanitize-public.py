@@ -20,7 +20,7 @@ PLACEHOLDER = "change_this_token"
 SECRET_KEY = re.compile(
     r"(api[_-]?key|secret|password|passwd|token|cookie|credential|client[_-]?secret|"
     r"private[_-]?key|access[_-]?key|auth(oriz(ation|e))?|bearer|x_auth_token|x_ct0|"
-    r"bot[_-]?token|chat[_-]?id|.*_key)$",
+    r"bot[_-]?token|chat[_-]?id|refresh[_-]?token|oauth|.*[_-]?key|.*[kK]ey)$",
     re.IGNORECASE,
 )
 
@@ -34,6 +34,11 @@ SECRET_PATTERNS = [
     re.compile(r"AKIA[0-9A-Z]{16}"),                  # aws access key id
     re.compile(r"eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}"),  # jwt
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
+    # Google / Gemini / Antigravity OAuth (audit 2026-07-02): provider aktif Antigravity pakai
+    # OAuth Google → tutup celah kalau creds-nya kelak masuk file yg di-sanitize.
+    re.compile(r"AIza[0-9A-Za-z_\-]{35}"),            # google api key (gemini/maps)
+    re.compile(r"ya29\.[0-9A-Za-z_\-]{20,}"),         # google oauth access token
+    re.compile(r"1//[0-9A-Za-z_\-]{20,}"),            # google oauth refresh token
 ]
 
 

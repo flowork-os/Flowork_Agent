@@ -139,7 +139,24 @@ if [ -d "$AGENT_SRC/agents" ]; then
 	mkdir -p "$ROOTFS/usr/share/flowork/agents-seed"
 	cp -a "$AGENT_SRC/agents/." "$ROOTFS/usr/share/flowork/agents-seed/"
 	cp -a "$AGENT_SRC/templates" "$ROOTFS/usr/share/flowork/" 2>/dev/null || true   # template wasm buat AI Studio bikin agent baru
-	log "  seeded $(find "$ROOTFS/usr/share/flowork/agents-seed" -maxdepth 1 -type d | wc -l) agent dirs + templates"
+	# FIX (audit 2026-07-02): dulu img BUILD sidecar tools tapi GA di-copy → appliance ship 0 tool
+	# ("dev jalan, img mati" — bug sama yg portable udah dibenerin). Copy tools ke /usr/local/lib/
+	# flowork/tools + init.d set FLOWORK_TOOLS_DIR (toolsidecar.ToolsDir baca env itu duluan).
+	if [ -d "$AGENT_SRC/../tools" ]; then
+		install -d "$ROOTFS/usr/local/lib/flowork/tools"
+		cp -a "$AGENT_SRC/../tools/." "$ROOTFS/usr/local/lib/flowork/tools/" 2>/dev/null || true
+		log "  installed sidecar tools → /usr/local/lib/flowork/tools (FLOWORK_TOOLS_DIR)"
+	fi
+	# FIX (audit 2026-07-02): dir sidecar runtime yg dulu KELEWAT di img (portable udah bawa):
+	# apps (dual-use app bawaan) → apps-seed (di-seed ke .flowork/apps first-boot spt agents);
+	# doc (handbook — AI penerus ga linglung) + router skills → /usr/share/flowork (read-only).
+	if [ -d "$AGENT_SRC/apps" ]; then
+		mkdir -p "$ROOTFS/usr/share/flowork/apps-seed"
+		cp -a "$AGENT_SRC/apps/." "$ROOTFS/usr/share/flowork/apps-seed/" 2>/dev/null || true
+	fi
+	cp -a "$AGENT_SRC/doc" "$ROOTFS/usr/share/flowork/" 2>/dev/null || true
+	[ -d "$ROUTER_SRC/skills" ] && cp -a "$ROUTER_SRC/skills" "$ROOTFS/usr/share/flowork/" 2>/dev/null || true
+	log "  seeded $(find "$ROOTFS/usr/share/flowork/agents-seed" -maxdepth 1 -type d | wc -l) agent dirs + templates + tools + apps/doc/skills"
 fi
 
 # DEV-builder only: bake the owner's live state (flowork.db + config) so a DEV stick boots

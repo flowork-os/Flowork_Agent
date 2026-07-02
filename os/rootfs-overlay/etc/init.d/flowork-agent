@@ -13,7 +13,9 @@ error_log="/var/log/flowork-agent.log"
 # FLOWORK_GUARDIAN_AUTO=0: a freshly-built appliance binary must not auto-arm the guardian — its
 # 5-min sentinel would false-positive into SAFE-MODE (exec/install blocked). Owner arms on the
 # final device with `flowork --arm` (OS-seals a real baseline). Detection stays available, opt-in.
-start_stop_daemon_args="--env HOME=/root --env FLOWORK_HOME=/root --env FLOWORK_GUARDIAN_AUTO=0"
+# FLOWORK_TOOLS_DIR: sidecar tools di-install ke /usr/local/lib/flowork/tools (build-flowork-os.sh).
+# Tanpa ini toolsidecar.ToolsDir() ga nemu (agent di /usr/local/bin) → 0 tool ke-register.
+start_stop_daemon_args="--env HOME=/root --env FLOWORK_HOME=/root --env FLOWORK_GUARDIAN_AUTO=0 --env FLOWORK_TOOLS_DIR=/usr/local/lib/flowork/tools"
 
 depend() {
 	need localmount loopback

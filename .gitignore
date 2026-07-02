@@ -87,3 +87,4 @@ super_scrit.md
 os/lockbox/
 agent/flowork-*.desktop
 router/Flow-Router-*.desktop
+__pycache__/

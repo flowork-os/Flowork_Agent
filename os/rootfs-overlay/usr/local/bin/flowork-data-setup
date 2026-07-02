@@ -42,6 +42,7 @@ KEY=/etc/flowork/data.key
 MNT=/mnt/flowork-data
 NAME=floworkdata
 SEED=/usr/share/flowork/agents-seed
+APPS_SEED=/usr/share/flowork/apps-seed   # app bawaan (dual-use) → .flowork/apps first-boot (spt agents)
 # DEV-builder only: a baked owner state snapshot (flowork.db + kv) to pre-load on first boot.
 # PUBLIC builds ship this empty/absent, so a public stick starts with a clean database.
 STATE_SEED=/usr/share/flowork/state-seed
@@ -55,6 +56,12 @@ seed_into() { # $1 = target .flowork dir
 		mkdir -p "$1/agents"
 		cp -a "$SEED/." "$1/agents/" 2>/dev/null || true
 		log "seeded agent definitions into $1/agents"
+	fi
+	# App bawaan (dual-use) → .flowork/apps first-boot (only-if-absent, spt agents). FIX audit 2026-07-02.
+	if [ -d "$APPS_SEED" ] && [ ! -d "$1/apps" ]; then
+		mkdir -p "$1/apps"
+		cp -a "$APPS_SEED/." "$1/apps/" 2>/dev/null || true
+		log "seeded bundled apps into $1/apps"
 	fi
 	# DEV/owner image: pre-load the owner's baked state (flowork.db + agents + config). Three cases,
 	# keyed by the seed-version stamp (VERSION + DB hash) baked next to the snapshot:
