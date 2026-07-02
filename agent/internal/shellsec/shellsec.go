@@ -8,9 +8,19 @@
 package shellsec
 
 import (
+	"os"
 	"regexp"
 	"strings"
 )
+
+// strictOn — switch GUI FLOWORK_SHELL_STRICT (default ON). Escape-hatch: kalau classifier
+// terstruktur ini kegedean (false-positive tak terduga bikin kerjaan owner ke-blok), set 0/off
+// di GUI → classifier ini OFF, tapi deny-list substring lama di call-site TETEP jalan (ga
+// ilang proteksi total). Default ON = proteksi penuh.
+func strictOn() bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv("FLOWORK_SHELL_STRICT")))
+	return v != "0" && v != "false" && v != "off"
+}
 
 var (
 	wsRe     = regexp.MustCompile(`\s+`)
@@ -32,6 +42,9 @@ var dangerNorm = []string{
 // Dangerous — true + alasan kalau perintah JELAS destruktif. Aman dipanggil bareng
 // deny-list lama (additive). cmd = raw command string.
 func Dangerous(cmd string) (bool, string) {
+	if !strictOn() {
+		return false, "" // escape-hatch OFF → serahkan ke deny-list substring lama (call-site)
+	}
 	norm := strings.ToLower(wsRe.ReplaceAllString(strings.TrimSpace(cmd), " "))
 	if norm == "" {
 		return false, ""
