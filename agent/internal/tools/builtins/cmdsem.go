@@ -27,7 +27,39 @@ var readOnlyProg = map[string]bool{
 	"awk": true, "sed": true, "diff": true, "cmp": true, "basename": true, "dirname": true,
 	"realpath": true, "readlink": true, "tree": true, "less": true, "more": true, "tac": true,
 	"sha256sum": true, "md5sum": true, "test": true, "true": true, "false": true, "stty": true,
-	"git": true, // git is mostly read in agent use; mutations still go through the cap gate
+	// git SENGAJA ga di sini — read-only-nya per-SUBCOMMAND (gitReadOnly): dulu
+	// `git` diborongin read-only → `git push`/`commit` lolos exempt read-only di
+	// gerbang approval (F-B), padahal push = aksi destruktif yang wajib di-gate.
+}
+
+// gitReadSub — subcommand git yang murni baca (aman auto-allow).
+var gitReadSub = map[string]bool{
+	"status": true, "log": true, "diff": true, "show": true, "rev-parse": true,
+	"ls-files": true, "ls-remote": true, "ls-tree": true, "describe": true,
+	"blame": true, "shortlog": true, "reflog": true, "cat-file": true,
+}
+
+// gitReadOnly — true kalau command `git ...` provably cuma baca. Konservatif:
+// branch/remote/tag cuma read kalau SEMUA arg sisanya flag (`git branch -a`
+// = list → read; `git branch fitur-x` = bikin branch → mutasi). Ragu = mutasi.
+func gitReadOnly(toks []string) bool {
+	if len(toks) < 2 {
+		return false
+	}
+	sub := strings.ToLower(toks[1])
+	if gitReadSub[sub] {
+		return true
+	}
+	switch sub {
+	case "branch", "remote", "tag":
+		for _, a := range toks[2:] {
+			if !strings.HasPrefix(a, "-") {
+				return false
+			}
+		}
+		return true
+	}
+	return false
 }
 
 var ifsRe = regexp.MustCompile(`\$\{?IFS\}?`)
@@ -244,8 +276,12 @@ func classifyCommand(raw string) (bool, string, bool) {
 			continue
 		}
 		prog := baseName(toks[0])
-		if !readOnlyProg[prog] || strings.Contains(seg, ">") {
-			readOnly = false // unknown program, or a write redirect
+		progRO := readOnlyProg[prog]
+		if prog == "git" {
+			progRO = gitReadOnly(toks) // per-subcommand (push/commit = mutasi)
+		}
+		if !progRO || strings.Contains(seg, ">") {
+			readOnly = false // unknown program, a mutating git, or a write redirect
 		}
 		if blocked, reason := dangerous(prog, toks[1:], seg); blocked {
 			return true, reason, false

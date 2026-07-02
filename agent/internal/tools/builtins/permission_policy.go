@@ -7,7 +7,14 @@
 // sets tools.ExtraGatePolicy); do NOT unlock sandbox_v3.go.
 package builtins
 
-import "flowork-gui/internal/tools"
+import (
+	"context"
+	"fmt"
+	"os"
+	"strings"
+
+	"flowork-gui/internal/tools"
+)
 
 // readOnlyTools — tools whose EVERY invocation only reads/observes (no state change,
 // no irreversible action). Conservative: anything not listed is treated as mutating.
@@ -40,4 +47,78 @@ func init() {
 		}
 		return readOnlyTools[name]
 	}
+	tools.ExtraGatePolicy = approvalGatePolicy
+	tools.RegisterInterceptor(approvalModePerAgent{})
+}
+
+// ── F-B: gerbang approval interaktif (mode ala Claude Code) ─────────────────
+//
+// Mode GLOBAL via switch GUI FLOWORK_APPROVAL_MODE (fwswitch → os.Setenv host,
+// live). requiresApproval (sandbox_v3, frozen) udah exempt read-only + gate
+// sensitive-args/tools DULUAN; policy ini nambah lapisan mode di atasnya:
+//
+//	default     — tanya (approval queue) SEBELUM aksi destruktif: shell yang
+//	              MUTASI, termasuk `git push`/`commit` (cmdsem sadar-subcommand).
+//	              File-tool workspace TIDAK di-gate (udah disandbox per-agent).
+//	acceptEdits — alias default di Flowork (edit file emang udah auto-allow).
+//	plan        — SEMUA call non-read-only butuh approval owner (read-only tetap jalan).
+//	bypass      — tanpa gerbang ekstra (perilaku lama; protector/caps/ARM tetap aktif).
+//
+// system_power SENGAJA ga diurus di sini — udah punya gerbang sendiri
+// (cap exec:power + ARM switch + FLOWORK_POWER_REQUIRE_APPROVAL).
+// Approval yang di-enqueue diputus owner via GUI/endpoint:
+// GET /api/agents/protector/approval/queue · POST .../approve_pending · .../reject_pending
+// (approved match by tool+args_hash, berlaku 1 jam).
+func approvalMode() string {
+	switch m := strings.ToLower(strings.TrimSpace(os.Getenv("FLOWORK_APPROVAL_MODE"))); m {
+	case "plan", "acceptedits", "bypass":
+		return m
+	default:
+		return "default"
+	}
+}
+
+func approvalGatePolicy(name string, args map[string]any) bool {
+	switch approvalMode() {
+	case "bypass":
+		return false
+	case "plan":
+		// read-only udah di-exempt duluan di requiresApproval → sisanya = mutasi.
+		return true
+	default: // "default" / "acceptedits": gate aksi destruktif (shell mutasi + git push)
+		if name != "bash" && name != "shell" {
+			return false
+		}
+		cmd, _ := args["command"].(string)
+		blocked, _, ro := classifyCommand(cmd)
+		// blocked bakal ditolak classifier-nya sendiri — jangan buang klik owner.
+		return !blocked && !ro
+	}
+}
+
+// approvalModePerAgent — mode per-agent via config agent (kv `approval_mode`,
+// diedit dari panel Agent Brain GUI). HANYA bisa MEMPERKETAT (nilai "plan" =
+// agent read-only); relaksasi per-agent SENGAJA ga ada (downgrade keamanan
+// per-agent = celah). Interceptor jalan di SandboxRunV2 → ctx punya store.
+type approvalModePerAgent struct{}
+
+func (approvalModePerAgent) Name() string { return "approval-mode-agent" }
+
+func (approvalModePerAgent) Before(ctx context.Context, t tools.Tool, args map[string]any) error {
+	store, ok := tools.FromStore(ctx)
+	if !ok {
+		return nil
+	}
+	cfg, err := store.Load()
+	if err != nil {
+		return nil
+	}
+	mode, _ := cfg["approval_mode"].(string)
+	if !strings.EqualFold(strings.TrimSpace(mode), "plan") {
+		return nil
+	}
+	if tools.ReadOnlyClassifier != nil && tools.ReadOnlyClassifier(t.Name(), args) {
+		return nil
+	}
+	return fmt.Errorf("[PETUNJUK, bukan salahmu] agent ini lagi MODE PLAN (read-only) — aksi yang MENGUBAH ditahan, ini aturan dari owner. Susun rencana + laporkan hasil analisamu; kalau eksekusi beneran perlu, minta owner ubah approval_mode agent ini di GUI")
 }

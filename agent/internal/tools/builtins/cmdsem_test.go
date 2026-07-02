@@ -68,3 +68,53 @@ func TestClassifyCommand_ReadOnly(t *testing.T) {
 		}
 	}
 }
+
+// F-B: git sadar-subcommand — push/commit BUKAN read-only (dulu `git` diborongin
+// read-only → lolos exempt di gerbang approval), subcommand baca tetap read-only.
+func TestClassifyCommand_GitSubcommand(t *testing.T) {
+	ro := []string{
+		"git status", "git log --oneline -5", "git diff HEAD~1", "git show abc123",
+		"git branch -a", "git remote -v", "git rev-parse HEAD", "git ls-files",
+	}
+	for _, c := range ro {
+		if _, _, isRO := classifyCommand(c); !isRO {
+			t.Errorf("expected READ-ONLY for %q", c)
+		}
+	}
+	mut := []string{
+		"git push origin main", "git commit -m x", "git add .", "git reset --hard",
+		"git checkout -b fitur", "git branch fitur-baru", "git tag v1.0",
+		"git remote add evil https://x", "git pull", "git rebase main", "git stash",
+	}
+	for _, c := range mut {
+		if _, _, isRO := classifyCommand(c); isRO {
+			t.Errorf("expected MUTATING for %q", c)
+		}
+	}
+}
+
+// F-B: approvalGatePolicy per mode (env langsung — fwswitch Setenv host-side).
+func TestApprovalGatePolicy_Modes(t *testing.T) {
+	set := func(m string) { t.Setenv("FLOWORK_APPROVAL_MODE", m) }
+
+	set("bypass")
+	if approvalGatePolicy("bash", map[string]any{"command": "git push origin main"}) {
+		t.Error("bypass: harusnya TIDAK gate apa pun")
+	}
+
+	set("default")
+	if !approvalGatePolicy("bash", map[string]any{"command": "git push origin main"}) {
+		t.Error("default: git push harus masuk gerbang approval")
+	}
+	if approvalGatePolicy("bash", map[string]any{"command": "git status"}) {
+		t.Error("default: git status (read-only) harus lolos tanpa approval")
+	}
+	if approvalGatePolicy("file_write", map[string]any{"path": "x.txt"}) {
+		t.Error("default: edit file workspace harus auto-allow (acceptEdits semantics)")
+	}
+
+	set("plan")
+	if !approvalGatePolicy("file_write", map[string]any{"path": "x.txt"}) {
+		t.Error("plan: SEMUA mutasi harus masuk gerbang approval")
+	}
+}
