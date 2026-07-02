@@ -1,5 +1,8 @@
 // Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
-// enrich_selective_ext.go — sibling NON-frozen (Rule 7): ENRICHMENT SELEKTIF (roadmap F-A1).
+// ⚠️ FROZEN 2026-07-02 (owner) — jangan edit. STABIL + live-tested. 📄 Dok: lock/prompt-diet.md
+// Evolusi TANPA buka file ini: (a) atur switch GUI FLOWORK_ENRICH_MINSCORE, ATAU
+// (b) bikin sibling _ext BARU yang wrap seam `enrichRetrieve` lagi (composable).
+// enrich_selective_ext.go — ENRICHMENT SELEKTIF (roadmap F-A1).
 //
 // AKAR yang dicabut: maybeEnrichBrain (frozen) pakai brain.SemanticRetrieve yang
 // MENORMALISASI skor ke hit teratas → hit #1 selalu 1.0 walau query-nya ga nyambung

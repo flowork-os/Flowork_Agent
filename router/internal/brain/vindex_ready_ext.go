@@ -1,8 +1,8 @@
 // Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
-// vindex_ready_ext.go — sibling NON-frozen (Rule 7): expose kesiapan index vektor
-// semantic ke luar package, buat seam enrichment-selektif di router. Ga nyentuh
-// frozen semantic.go / semantic_threshold_ext.go. Dihapus = seam fallback perilaku
-// lama (fail-open), inti tetep jalan.
+// ⚠️ FROZEN 2026-07-02 (owner) — jangan edit. Helper 1-fungsi, stabil. 📄 Dok: lock/prompt-diet.md
+// vindex_ready_ext.go — expose kesiapan index vektor semantic ke luar package,
+// buat seam enrichment-selektif di router. Ga nyentuh frozen semantic.go /
+// semantic_threshold_ext.go.
 
 package brain
 

@@ -1,5 +1,8 @@
 // Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
-// file_dedup_ext.go — sibling NON-frozen (Rule 7): DEDUP FILE-READ (gape1 §C, "Tinggi TPM").
+// ⚠️ FROZEN 2026-07-02 (owner) — jangan edit. STABIL + live-tested (stub 2ms). 📄 Dok: lock/prompt-diet.md
+// Evolusi TANPA buka file ini: (a) switch GUI FLOWORK_FILE_DEDUP, ATAU
+// (b) sibling _ext BARU yang override seam `fileReadDedup` lagi (POLA B).
+// file_dedup_ext.go — DEDUP FILE-READ (gape1 §C, "Tinggi TPM").
 //
 // AKAR: agent sering baca-ulang file yang SAMA & GA berubah (verifikasi berulang) →
 // isi utuh dikirim ulang ke LLM tiap kali = kuota TPM kebuang buat data duplikat.

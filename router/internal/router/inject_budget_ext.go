@@ -1,5 +1,8 @@
 // Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
-// inject_budget_ext.go — sibling NON-frozen (Rule 7): BUDGET AGREGAT SYSTEM-INJECT (roadmap F-A3).
+// ⚠️ FROZEN 2026-07-02 (owner) — jangan edit. STABIL + unit-tested. 📄 Dok: lock/prompt-diet.md
+// Evolusi TANPA buka file ini: (a) atur switch GUI FLOWORK_INJECT_BUDGET, ATAU
+// (b) bikin sibling _ext BARU yang wrap seam `applyInjectShaper` lagi (chain composable).
+// inject_budget_ext.go — BUDGET AGREGAT SYSTEM-INJECT (roadmap F-A3).
 //
 // AKAR: tiap injector (knowledge/skill/insting/antibodi) punya cap SENDIRI, tapi ga ada
 // yang ngejumlahin TOTAL-nya → worst-case semua nyuntik bareng = prompt bengkak ("muntah").

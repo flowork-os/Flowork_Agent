@@ -1,5 +1,8 @@
 // Flowork OS — Dev: Aola Sahidin — github.com/flowork-os/Flowork-OS · floworkos.com
-// tools_sticky_ext.go — sibling NON-frozen (Rule 7): STICKY-UNION daftar tool (anti cache-sabotage).
+// ⚠️ FROZEN 2026-07-02 (owner) — jangan edit. STABIL + live-proven (union 15 tool stabil). 📄 Dok: lock/prompt-diet.md
+// Evolusi TANPA buka file ini: (a) switch GUI FLOWORK_TOOLS_STICKY / FLOWORK_DYNAMIC_TOOLS*,
+// (b) sibling _ext BARU yang wrap seam `applyInjectShaper` lagi (chain composable).
+// tools_sticky_ext.go — STICKY-UNION daftar tool (anti cache-sabotage).
 //
 // AKAR yang dicabut: maybeFilterTools (intent-gated #9, frozen) mangkas tool per-QUERY —
 // isi + URUTAN daftar tool BEDA tiap turn. Cache Anthropic hash prefix urutan

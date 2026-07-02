@@ -66,10 +66,16 @@ udah jalan. Upgrade beneran = breakpoint ke-4 di akhir system + tier-3 keluar da
 (butuh unlock translator `tools.go` + koordinasi mr-flow main.go) → keputusan owner.
 
 ## STATUS FREEZE
-`brainenrich.go` / `dispatcher.go` / `dispatcher_stream.go` di-unlock (FD LOCKBOX) → seam →
-re-hash `KERNEL_FREEZE.md` → `chattr +i` lagi. `TestKernelFreeze` PASS · gembok verified
-("Operation not permitted") · delete-test 4 sibling → build exit 0 · unit test
-`inject_budget_ext_test.go` PASS · full `go test ./...` router PASS.
+`brainenrich.go` / `dispatcher.go` / `dispatcher_stream.go` / `file.go` / `v9_extras.go`
+di-unlock (FD LOCKBOX) → seam/fix → re-hash `KERNEL_FREEZE.md` → `chattr +i` lagi.
+**Update 2026-07-02 (perintah owner): 5 file EXT implementasi ikut DIBEKUKAN** setelah
+terbukti stabil + live-tested: `enrich_selective_ext.go`, `inject_budget_ext.go`,
+`tools_sticky_ext.go`, `vindex_ready_ext.go`, `file_dedup_ext.go`.
+JALUR EVOLUSI (tanpa buka file beku manapun): (a) switch GUI (fwswitch registry —
+NON-frozen extension point), (b) sibling `_ext` BARU yang wrap/override seam yang sama —
+`applyInjectShaper` & `enrichRetrieve` & `fileReadDedup` semuanya composable chain.
+`TestKernelFreeze` PASS · gembok verified ("Operation not permitted") · delete-test PASS ·
+unit test PASS · full `go test ./...` agent & router PASS.
 
 ## BUKTI LIVE (Rule 9, bahasa manusia)
 mr-flow "coba liatin isi folder utama proyek" → tool jalan, jawab jujur, no muntah/loop.
