@@ -56,8 +56,21 @@ func DetectAll() []ImportStatus {
 			out = append(out, f(home))
 		}()
 	}
+	// SEAM FILTER (non-frozen ngisi): rapihin daftar (mis. sembunyiin CLI untested
+	// not-found). nil = apa adanya. Panic ext ke-recover.
+	if DetectFilter != nil {
+		func() {
+			defer func() { _ = recover() }()
+			if f := DetectFilter(out); f != nil {
+				out = f
+			}
+		}()
+	}
 	return out
 }
+
+// DetectFilter — SEAM post-filter daftar import. Diisi file NON-frozen (imports_antigravity.go).
+var DetectFilter func([]ImportStatus) []ImportStatus
 
 func detectClaude(home string) ImportStatus {
 	p := filepath.Join(home, ".claude", ".credentials.json")

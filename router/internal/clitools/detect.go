@@ -79,8 +79,21 @@ func DetectAll() []Status {
 		}
 		out[i] = *s
 	}
+	// SEAM FILTER (non-frozen ngisi): rapihin daftar (sembunyiin CLI untested
+	// not-installed). nil = apa adanya. Panic ext ke-recover.
+	if DetectFilter != nil {
+		func() {
+			defer func() { _ = recover() }()
+			if f := DetectFilter(out); f != nil {
+				out = f
+			}
+		}()
+	}
 	return out
 }
+
+// DetectFilter — SEAM post-filter daftar CLI-tool. Diisi file NON-frozen (detect_filter_ext.go).
+var DetectFilter func([]Status) []Status
 
 func WriteEnv(toolID string, env map[string]any) (map[string]any, error) {
 	t := Get(toolID)

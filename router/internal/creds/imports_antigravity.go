@@ -1,7 +1,9 @@
-// imports_antigravity.go — SIBLING ext (deletable, NON-frozen): colok detektor
-// OAuth import Antigravity + Gemini CLI ke papan RegisterDetector (imports.go).
-// Muncul otomatis di dropdown OAuth Imports GUI (DetectAll). Plug-and-play:
-// hapus file → CLI-nya ilang dari daftar, core utuh. 📄 Dok: lock/antigravity.md
+// imports_antigravity.go — SIBLING ext (⚠️ FROZEN 2026-07-02 seizin owner —
+// behavior stabil dikunci). 📄 Dok: lock/connect-prune.md
+// Colok detektor OAuth import Antigravity ke papan RegisterDetector (imports.go) +
+// isi DetectFilter (sembunyiin import untested not-found). Switch env
+// FLOWORK_IMPORT_PRUNE=0 → tampilin semua (ubah behavior TANPA buka gembok).
+// Re-enable gemini-cli / detektor lain = perubahan struktural → butuh unlock.
 package creds
 
 import (
@@ -11,8 +13,27 @@ import (
 
 func init() {
 	RegisterDetector(detectAntigravity)
-	RegisterDetector(detectGeminiCLI)
+	// gemini-cli DIHAPUS (owner: CLI untested — ga punya buat dites). Balik: uncomment.
+	// RegisterDetector(detectGeminiCLI)
+
+	// FILTER (owner 2026-07-02): OAuth Imports cuma nampilin yg FOUND (proven) —
+	// sembunyiin CLI untested not-found (codex/cursor/gitlab-duo/dll). Switch env
+	// FLOWORK_IMPORT_PRUNE=0 → tampilin semua. Plug-and-play (hapus file → filter ilang).
+	DetectFilter = func(in []ImportStatus) []ImportStatus {
+		if v := os.Getenv("FLOWORK_IMPORT_PRUNE"); v == "0" || v == "false" {
+			return in
+		}
+		out := make([]ImportStatus, 0, len(in))
+		for _, s := range in {
+			if s.Found {
+				out = append(out, s)
+			}
+		}
+		return out
+	}
 }
+
+var _ = detectGeminiCLI // simpen fungsi (dipakai lagi kalau owner mau)
 
 // detectAntigravity — app Antigravity ke-detect via folder config-nya. Token
 // di-AUTO-CAPTURE lewat MITM (bukan file), jadi 'found' = app-nya kepasang.

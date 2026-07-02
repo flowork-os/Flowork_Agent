@@ -1,8 +1,9 @@
-// presets_filter_ext.go — SIBLING ext (deletable, NON-frozen): rapihin daftar
-// preset "Connect Provider" (owner 2026-07-02: "sisain Antigravity + Claude + API,
-// CLI lain ga bisa dites"). Sembunyiin preset CLI-login yg owner ga punya buat
-// dites; tambah preset Antigravity (login lewat tab OAuth Imports).
-// Switch FLOWORK_PRESET_PRUNE=0 → tampilin semua lagi. 📄 lock/antigravity.md
+// presets_filter_ext.go — SIBLING ext (⚠️ FROZEN 2026-07-02 seizin owner —
+// behavior stabil dikunci). 📄 Dok: lock/connect-prune.md
+// Rapihin daftar preset "Connect Provider" (owner: "sisain Antigravity + Claude +
+// API, CLI lain ga bisa dites"). Sembunyiin preset CLI-login yg owner ga punya buat
+// dites; tambah preset Antigravity (AuthType subscription — login OAuth Imports).
+// Switch FLOWORK_PRESET_PRUNE=0 → tampilin semua (ubah behavior TANPA buka gembok).
 package main
 
 import (
@@ -37,7 +38,10 @@ func init() {
 			Icon:        "🚀",
 			Description: "Gemini 3.1 Pro via Google cloud-code (Antigravity). Login: tab OAuth Imports → 'Login with Google'. Butuh app Antigravity ke-install.",
 			Provider:    "antigravity",
-			AuthType:    "api_key",
+			// subscription: login OAuth (tab OAuth Imports), NO API key diketik —
+			// biar muncul di filter "Subscription" (sekelas Claude Pro/Max) & form
+			// connect ga salah minta key. Token asli di-auto-capture backend.
+			AuthType:    store.AuthTypeSubscription,
 			Format:      "antigravity",
 			BaseURL:     "https://cloudcode-pa.googleapis.com",
 			Priority:    5,
