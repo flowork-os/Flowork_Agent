@@ -29,14 +29,34 @@ type ImportStatus struct {
 	Error     string `json:"error,omitempty"`
 }
 
+// extraDetectors — PAPAN COLOKAN (Pola A, Rule #7): detektor OAuth import baru
+// (antigravity + CLI lain) dicolok dari file NON-frozen via RegisterDetector →
+// file beku ini GA perlu dibuka lagi tiap nambah CLI. Plug-and-play: hapus
+// sibling → CLI-nya ilang dari daftar, core utuh. Panic ext di-recover.
+var extraDetectors []func(home string) ImportStatus
+
+// RegisterDetector — colok 1 detektor kredensial CLI. Dipanggil init() sibling.
+func RegisterDetector(f func(home string) ImportStatus) {
+	if f != nil {
+		extraDetectors = append(extraDetectors, f)
+	}
+}
+
 func DetectAll() []ImportStatus {
 	home, _ := os.UserHomeDir()
-	return []ImportStatus{
+	out := []ImportStatus{
 		detectClaude(home),
 		detectCodex(home),
 		detectCursor(home),
 		detectGitlabDuo(home),
 	}
+	for _, f := range extraDetectors {
+		func() {
+			defer func() { _ = recover() }() // ext rusak ≠ daftar mati
+			out = append(out, f(home))
+		}()
+	}
+	return out
 }
 
 func detectClaude(home string) ImportStatus {

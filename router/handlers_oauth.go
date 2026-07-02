@@ -222,6 +222,18 @@ func oauthAutoImportHandler(w http.ResponseWriter, _ *http.Request, provider str
 	})
 }
 
+// extraTokenLoaders — PAPAN COLOKAN (Rule #7): loader token CLI baru (antigravity
+// dll) dicolok dari NON-frozen via RegisterTokenLoader → file beku ga perlu dibuka
+// tiap nambah CLI. Plug-and-play.
+var extraTokenLoaders = map[string]func() (string, error){}
+
+// RegisterTokenLoader — colok loader token buat provider (lowercase). init() sibling.
+func RegisterTokenLoader(provider string, f func() (string, error)) {
+	if f != nil && provider != "" {
+		extraTokenLoaders[strings.ToLower(provider)] = f
+	}
+}
+
 func loadDetectedToken(provider string) (string, error) {
 	switch strings.ToLower(provider) {
 	case "codex", "openai", "codex-cli":
@@ -235,6 +247,9 @@ func loadDetectedToken(provider string) (string, error) {
 		}
 		return c.ClaudeAiOauth.AccessToken, nil
 	default:
+		if f, ok := extraTokenLoaders[strings.ToLower(provider)]; ok {
+			return f()
+		}
 		return "", fmt.Errorf("no auto-parser for %s", provider)
 	}
 }

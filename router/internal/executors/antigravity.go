@@ -17,6 +17,13 @@ import (
 
 func init() { Register(&antigravityExecutor{}) }
 
+// AntigravityHeaderHook — SEAM (Pola B, non-frozen ngisi): override/augment header
+// yg dikirim ke Google cloudcode-pa dengan header client ASLI hasil capture MITM
+// (User-Agent/X-Client-Version/dll) + Bearer terfresh. Default nil → pakai header
+// hardcoded (perilaku lama). Plug-and-play: hapus pengisi non-frozen → balik default.
+// 📄 Dok: FLowork_os/lock/antigravity.md
+var AntigravityHeaderHook func(base map[string]string, p *store.ProviderConnection) map[string]string
+
 type antigravityExecutor struct{}
 
 func (a *antigravityExecutor) Name() string { return "antigravity" }
@@ -50,6 +57,11 @@ func (a *antigravityExecutor) headers(p *store.ProviderConnection, stream bool) 
 		h["Accept"] = "text/event-stream"
 	} else {
 		h["Accept"] = "application/json"
+	}
+	if AntigravityHeaderHook != nil {
+		if out := AntigravityHeaderHook(h, p); out != nil {
+			return out
+		}
 	}
 	return h
 }
