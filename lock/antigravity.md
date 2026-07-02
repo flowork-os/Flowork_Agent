@@ -41,3 +41,21 @@ FROM providerConnections WHERE id='antigravity-auto';"` → isActive=1.
 build/vet/test (creds+executors+main)/TestKernelFreeze/delete-test hijau. Unit:
 header-inject (captured menang + Bearer fresh + provider auto), capture-OFF→nil.
 Test ISOLASI DB (TestMain FLOW_ROUTER_DATA temp) — DB router asli ga kesampah.
+
+## UPDATE 2026-07-02 — LIVE via OAuth (MITM mentok DoH, ganti OAuth login)
+Cara final (bukan MITM — app pakai DNS-over-HTTPS, 9router #1356):
+- `router/antigravity_oauth_ext.go` (non-frozen): OAuth 2.0 PKCE login. Endpoint
+  `/api/oauth/antigravity/start` (auth URL + listener :51121) · `/status`. Token +
+  refresh + project (loadCodeAssist) di DB. Auto-refresh. GUI tombol "Login with
+  Google" di OAuth Imports (di bawah Claude).
+- ANTI-HARDCODE: client_secret di-extract runtime dari binary `language_server`;
+  client_id switch `FLOWORK_ANTIGRAVITY_CLIENT_ID` (default resmi); model switch
+  `FLOWORK_ANTIGRAVITY_MODELS`.
+- Executor (FROZEN, re-hash): body +userAgent +requestId (wajib, tanpa=400);
+  NonStream translate respons Gemini nested {response:{candidates}} → OpenAI
+  {choices}. Provider Data.format='antigravity' (WAJIB, tanpa=proxy generik=404).
+- **Model VALID (verified live): `gemini-3.1-pro-low`, `gemini-3.5-flash-low`**
+  (-high/-preview → 400/404). mr-flow di-pin `gemini-3.1-pro-low`.
+- VERIFIED: `dispatch model=gemini-3.1-pro-low → provider=Antigravity tokens=4309+`.
+  Claude TIDAK disentuh (tetap OK). Provider `antigravity-auto` (1, konsolidasi).
+- Setup ulang (device baru): login app Antigravity → GUI "Login with Google" → done.
