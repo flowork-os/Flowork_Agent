@@ -97,6 +97,12 @@ func TestClassifyCommand_GitSubcommand(t *testing.T) {
 func TestApprovalGatePolicy_Modes(t *testing.T) {
 	set := func(m string) { t.Setenv("FLOWORK_APPROVAL_MODE", m) }
 
+	// FALLBACK (switch kosong) = bypass — Flowork bebas evolusi mandiri (owner 2026-07-02).
+	set("")
+	if approvalGatePolicy("bash", map[string]any{"command": "git push origin main"}) {
+		t.Error("fallback kosong: harus bypass (otonomi jalan, gerbang interaktif opt-in)")
+	}
+
 	set("bypass")
 	if approvalGatePolicy("bash", map[string]any{"command": "git push origin main"}) {
 		t.Error("bypass: harusnya TIDAK gate apa pun")

@@ -19,13 +19,14 @@ F-B v1 = NGISI colokan yang udah disiapin (semua NON-frozen, deletable):
 - `internal/fwswitch/registry.go` — switch GUI `FLOWORK_APPROVAL_MODE` (string, default
   `default`, kategori Security / Approval). Live tanpa restart (policy baca os.Getenv host-side).
 
-## Mode (global, switch GUI)
+## Mode (global, switch GUI) — DEFAULT = `bypass` (owner 2026-07-02: "Flowork sebebas
+## mungkin, mandiri termasuk keamanan" → evolusi ga nunggu manusia; gerbang interaktif OPT-IN)
 | Mode | Perilaku |
 |---|---|
+| `bypass` | (DEFAULT) Tanpa gerbang interaktif. Keamanan MANDIRI tetap aktif: protector baseline immutable, cmdsem structural block, caps, sandbox workspace, ARM power. |
 | `default` | Aksi DESTRUKTIF (shell mutasi, termasuk git push/commit) → antrian approval. Read-only + file-tool workspace auto-allow. |
 | `acceptEdits` | Alias `default` (edit file workspace emang udah auto-allow di Flowork). |
 | `plan` | SEMUA non-read-only → antrian approval. |
-| `bypass` | Tanpa gerbang ekstra (protector/caps/ARM tetap aktif). |
 
 `system_power` TIDAK diurus di sini — udah punya gerbang sendiri (cap `exec:power` + ARM +
 `FLOWORK_POWER_REQUIRE_APPROVAL`).

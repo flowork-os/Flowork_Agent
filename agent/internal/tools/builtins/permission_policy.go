@@ -62,19 +62,25 @@ func init() {
 //	              File-tool workspace TIDAK di-gate (udah disandbox per-agent).
 //	acceptEdits — alias default di Flowork (edit file emang udah auto-allow).
 //	plan        — SEMUA call non-read-only butuh approval owner (read-only tetap jalan).
-//	bypass      — tanpa gerbang ekstra (perilaku lama; protector/caps/ARM tetap aktif).
+//	bypass      — (DEFAULT) tanpa gerbang interaktif; keamanan mandiri tetap aktif
+//	              (protector/cmdsem/caps/sandbox/ARM).
 //
 // system_power SENGAJA ga diurus di sini — udah punya gerbang sendiri
 // (cap exec:power + ARM switch + FLOWORK_POWER_REQUIRE_APPROVAL).
 // Approval yang di-enqueue diputus owner via GUI/endpoint:
 // GET /api/agents/protector/approval/queue · POST .../approve_pending · .../reject_pending
 // (approved match by tool+args_hash, berlaku 1 jam).
+// FALLBACK = "bypass" (owner 2026-07-02: "Flowork sebebas mungkin — dia harus
+// mandiri termasuk keamanan"): evolusi ga boleh nunggu manusia; keamanan mandiri
+// dipegang lapisan DETERMINISTIK yang tetap aktif (protector baseline immutable,
+// cmdsem structural block, caps, workspace sandbox, ARM power). Mode interaktif
+// (default/plan) = OPT-IN buat fase yang owner mau awasi ketat.
 func approvalMode() string {
 	switch m := strings.ToLower(strings.TrimSpace(os.Getenv("FLOWORK_APPROVAL_MODE"))); m {
-	case "plan", "acceptedits", "bypass":
+	case "plan", "acceptedits", "default":
 		return m
 	default:
-		return "default"
+		return "bypass"
 	}
 }
 
