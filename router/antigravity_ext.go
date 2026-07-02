@@ -29,12 +29,8 @@ import (
 const (
 	antigravityProviderID = "antigravity-auto"
 	antigravityHeadersKV  = "antigravity:headers"
+	antigravityModelsKV   = "antigravity:models" // set model hasil CONTEK dari traffic app (anti-hardcode)
 )
-
-// Model default yg di-advertise provider auto (plug-and-play: tambah di GUI/DB
-// kapan pun). Spesifik — SENGAJA bukan glob "gemini-*" biar ga hijack provider
-// gemini lain (vertex/gemini_cli). mr-flow pin ke "gemini-3".
-var antigravityModels = []any{"gemini-3", "gemini-3-pro", "gemini-3-flash", "gemini-2.5-pro", "gemini-2.5-flash"}
 
 var (
 	antigravityLastTokMu sync.Mutex
@@ -69,9 +65,9 @@ func loadAntigravityToken() (string, error) {
 	return rec.AccessToken, nil
 }
 
-// persistAntigravityCreds — dipanggil handler MITM tiap app manggil. Idempotent,
-// throttle: cuma tulis kalau token berubah (app refresh berkala).
-func persistAntigravityCreds(auth string, clientHeaders map[string]string) {
+// persistAntigravityCreds — dipanggil handler MITM tiap app manggil. Idempotent.
+// ANTI-HARDCODE: token, header, DAN model semuanya di-CONTEK dari traffic app.
+func persistAntigravityCreds(auth string, clientHeaders map[string]string, model string) {
 	if !antigravityCaptureEnabled() {
 		return
 	}
@@ -79,18 +75,22 @@ func persistAntigravityCreds(auth string, clientHeaders map[string]string) {
 	if tok == "" {
 		return
 	}
-	antigravityLastTokMu.Lock()
-	changed := tok != antigravityLastTok
-	antigravityLastTok = tok
-	antigravityLastTokMu.Unlock()
-	if !changed {
-		return // token sama → skip tulis DB (hemat I/O)
-	}
-
 	d, err := store.Open()
 	if err != nil {
 		return
 	}
+	// Model baru ke-contek → akumulasi ke set (walau token sama). Provider
+	// dapet daftar model REAL yg app-nya pakai, bukan tebakan kode.
+	modelsChanged := accumulateAntigravityModel(d, model)
+
+	antigravityLastTokMu.Lock()
+	tokChanged := tok != antigravityLastTok
+	antigravityLastTok = tok
+	antigravityLastTokMu.Unlock()
+	if !tokChanged && !modelsChanged {
+		return // ga ada yg baru → skip tulis DB (hemat I/O)
+	}
+
 	// 1) Simpan token (OAuth record) — sumber kebenaran token terfresh.
 	_ = store.UpsertOAuthToken(d, &store.OAuthTokenRecord{
 		Provider: "antigravity", AccessToken: tok, TokenType: "Bearer", Scope: "mitm-capture",
@@ -103,13 +103,52 @@ func persistAntigravityCreds(auth string, clientHeaders map[string]string) {
 				antigravityHeadersKV, string(b))
 		}
 	}
-	// 3) Auto-provision provider connection (kalau belum ada) → mr-flow bisa
-	//    pilih gemini-3 lewat antigravity. Update apiKey tiap capture (fresh).
+	// 3) Auto-provision provider (models = hasil contek, bukan hardcode).
 	ensureAntigravityProvider(d, tok)
+}
+
+// accumulateAntigravityModel — tambah model yg ke-contek ke set KV (dedup).
+// Return true kalau ada model BARU. Anti-hardcode: daftar model tumbuh dari
+// traffic app asli.
+func accumulateAntigravityModel(d *sql.DB, model string) bool {
+	model = strings.TrimSpace(model)
+	if model == "" {
+		return false
+	}
+	set := loadAntigravityModels(d)
+	for _, m := range set {
+		if m == model {
+			return false
+		}
+	}
+	set = append(set, model)
+	if b, e := json.Marshal(set); e == nil {
+		_, _ = d.Exec(`INSERT INTO kv (k, v, updatedAt) VALUES (?, ?, datetime('now'))
+			ON CONFLICT(k) DO UPDATE SET v=excluded.v, updatedAt=excluded.updatedAt`,
+			antigravityModelsKV, string(b))
+	}
+	return true
+}
+
+func loadAntigravityModels(d *sql.DB) []string {
+	var v string
+	if e := d.QueryRow(`SELECT v FROM kv WHERE k = ?`, antigravityModelsKV).Scan(&v); e != nil || v == "" {
+		return nil
+	}
+	var set []string
+	_ = json.Unmarshal([]byte(v), &set)
+	return set
 }
 
 func ensureAntigravityProvider(d *sql.DB, tok string) {
 	existing, _ := store.GetProvider(d, antigravityProviderID)
+	// Model = hasil CONTEK dari traffic (anti-hardcode). Belum ada capture →
+	// kosong (provider ga match apa2 sampai app jalan) — itu by-design.
+	captured := loadAntigravityModels(d)
+	models := make([]any, 0, len(captured))
+	for _, m := range captured {
+		models = append(models, m)
+	}
 	p := &store.ProviderConnection{
 		ID:       antigravityProviderID,
 		Provider: "antigravity",
@@ -118,8 +157,8 @@ func ensureAntigravityProvider(d *sql.DB, tok string) {
 		Priority: 5,
 		IsActive: true,
 		Data: map[string]any{
-			store.CfgAPIKey: tok,
-			store.CfgModels: antigravityModels,
+			store.CfgAPIKey:  tok,
+			store.CfgModels:  models,
 			store.CfgBaseURL: "https://cloudcode-pa.googleapis.com",
 		},
 	}
@@ -128,9 +167,9 @@ func ensureAntigravityProvider(d *sql.DB, tok string) {
 		if pid, ok := existing.Data["projectId"]; ok {
 			p.Data["projectId"] = pid
 		}
-		if m, ok := existing.Data[store.CfgModels].([]any); ok && len(m) > 0 {
-			p.Data[store.CfgModels] = m // hormati daftar model yg diedit owner di GUI
-		}
+		// CATATAN: model SENGAJA ga di-clobber dari existing — sumber kebenaran =
+		// set hasil-contek (antigravity:models) yg tumbuh dari traffic (anti-hardcode).
+		// Owner mau kunci model manual? edit KV antigravity:models langsung.
 	}
 	_ = store.UpsertProvider(d, p)
 }

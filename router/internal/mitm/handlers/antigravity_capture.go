@@ -9,11 +9,17 @@
 // 📄 Dok: FLowork_os/lock/antigravity.md
 package handlers
 
-import "net/http"
+import (
+	"bytes"
+	"encoding/json"
+	"io"
+	"net/http"
+)
 
 // AntigravityCaptureHook — SEAM: di-set router main (non-frozen) buat persist
-// token+header. Default nil = ga nangkep apa-apa (aman).
-var AntigravityCaptureHook func(auth string, clientHeaders map[string]string)
+// token+header+model. Default nil = ga nangkep apa-apa (aman). ANTI-HARDCODE:
+// model di-CONTEK dari body request app (bukan dipatok di kode).
+var AntigravityCaptureHook func(auth string, clientHeaders map[string]string, model string)
 
 // antigravityCaptureHeaders — header client yg dicontek dari app asli (buat
 // dipakai executor pas manggil Google, biar lolos validasi client Google).
@@ -35,7 +41,22 @@ func (antigravityCaptureHandler) Handle(w http.ResponseWriter, r *http.Request) 
 					hdr[k] = v
 				}
 			}
-			AntigravityCaptureHook(auth, hdr)
+			// CONTEK model dari body (anti-hardcode). Body dibaca lalu DIKEMBALIIN
+			// utuh biar reroute tetep jalan normal.
+			model := ""
+			if r.Body != nil {
+				if raw, err := io.ReadAll(io.LimitReader(r.Body, 8<<20)); err == nil {
+					_ = r.Body.Close()
+					r.Body = io.NopCloser(bytes.NewReader(raw))
+					var probe struct {
+						Model string `json:"model"`
+					}
+					if json.Unmarshal(raw, &probe) == nil {
+						model = probe.Model
+					}
+				}
+			}
+			AntigravityCaptureHook(auth, hdr, model)
 		}
 	}
 	rerouteToRouter(w, r, "/v1/chat/completions")
