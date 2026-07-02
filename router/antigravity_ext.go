@@ -30,6 +30,8 @@ const (
 	antigravityProviderID = "antigravity-auto"
 	antigravityHeadersKV  = "antigravity:headers"
 	antigravityModelsKV   = "antigravity:models" // set model hasil CONTEK dari traffic app (anti-hardcode)
+	// default model (nama ASLI dari app owner) — OVERRIDABLE via switch FLOWORK_ANTIGRAVITY_MODELS.
+	defaultAntigravityModels = "gemini-3.1-pro-high,gemini-3.1-pro-low,gemini-3.5-flash-high,gemini-3.5-flash-low"
 )
 
 var (
@@ -153,11 +155,13 @@ func ensureAntigravityProvider(d *sql.DB, tok string) {
 	// logic). Kosong dua-duanya → provider ga match (by-design sampai ada sumber).
 	captured := loadAntigravityModels(d)
 	if len(captured) == 0 {
-		if env := strings.TrimSpace(os.Getenv("FLOWORK_ANTIGRAVITY_MODELS")); env != "" {
-			for _, m := range strings.Split(env, ",") {
-				if m = strings.TrimSpace(m); m != "" {
-					captured = append(captured, m)
-				}
+		src := strings.TrimSpace(os.Getenv("FLOWORK_ANTIGRAVITY_MODELS"))
+		if src == "" {
+			src = defaultAntigravityModels // default OVERRIDABLE via switch (bukan lock)
+		}
+		for _, m := range strings.Split(src, ",") {
+			if m = strings.TrimSpace(m); m != "" {
+				captured = append(captured, m)
 			}
 		}
 	}
@@ -178,10 +182,17 @@ func ensureAntigravityProvider(d *sql.DB, tok string) {
 			store.CfgBaseURL: "https://cloudcode-pa.googleapis.com",
 		},
 	}
+	// AKAR tokens=0: executor body baca projectId dari provider.Data. OAuth flow
+	// simpen project di KV → salin ke sini biar request ke Google bawa project.
+	if proj := kvGet(d, antigravityProjectKV); proj != "" {
+		p.Data["projectId"] = proj
+	}
 	if existing != nil {
-		// Pertahankan projectId / setting manual owner kalau ada.
-		if pid, ok := existing.Data["projectId"]; ok {
-			p.Data["projectId"] = pid
+		// Pertahankan projectId manual owner kalau KV kosong.
+		if _, has := p.Data["projectId"]; !has {
+			if pid, ok := existing.Data["projectId"]; ok {
+				p.Data["projectId"] = pid
+			}
 		}
 		// CATATAN: model SENGAJA ga di-clobber dari existing — sumber kebenaran =
 		// set hasil-contek (antigravity:models) yg tumbuh dari traffic (anti-hardcode).
