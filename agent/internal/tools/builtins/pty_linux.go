@@ -1,6 +1,6 @@
 //go:build linux
 
-// pty_linux.go — SIBLING ext (deletable, NON-frozen): buka /dev/ptmx + start proses
+// pty_linux.go — SIBLING ext (⚠️ FROZEN 2026-07-02 seizin owner — stabil+live): buka /dev/ptmx + start proses
 // di bawah PTY (Linux). Pakai golang.org/x/sys/unix (udah dep transitif — NOL modul
 // baru). Bagian platform-spesifik dari pty_session.go. 📄 Dok: lock/pty-exec.md
 package builtins

@@ -1,4 +1,4 @@
-// pty_session.go — SIBLING ext (deletable, NON-frozen): exec INTERAKTIF lewat PTY
+// pty_session.go — SIBLING ext (⚠️ FROZEN 2026-07-02 seizin owner — stabil+live): exec INTERAKTIF lewat PTY
 // (roadmap "buka lock": PTY buat exec interaktif). Agent bisa jalanin program yang
 // butuh terminal (REPL python/sqlite, prompt interaktif) — start sesi, kirim input,
 // baca output, tutup. Plug-and-play: init() self-register (NOL sentuh builtins.go).

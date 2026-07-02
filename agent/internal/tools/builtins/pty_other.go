@@ -1,6 +1,6 @@
 //go:build !linux
 
-// pty_other.go — SIBLING ext (deletable, NON-frozen): stub PTY buat OS non-Linux.
+// pty_other.go — SIBLING ext (⚠️ FROZEN 2026-07-02 seizin owner — stabil+live): stub PTY buat OS non-Linux.
 // exec interaktif via /dev/ptmx cuma di Linux; OS lain balikin error jelas (tool
 // tetep ke-register kalau FLOWORK_PTY=1, tapi start-nya gagal sopan). 📄 lock/pty-exec.md
 package builtins

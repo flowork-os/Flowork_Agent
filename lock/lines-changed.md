@@ -19,7 +19,7 @@ aktivitas di GUI (kayak +X/−Y Claude Code). Roadmap GUI "Cost lines-changed".
   aktivitas; bukan billing. notebook_edit SENGAJA ga dihitung (JSON per-cell, bukan LOC).
 
 ## Freeze
-NON-frozen (deletable sibling + feature). Hapus file → metrik ilang, core utuh.
+FROZEN 2026-07-02 (seizin owner, stabil+live). Behavior stabil dikunci; hapus file butuh unlock.
 
 ## QC
 build agent hijau · vet hijau · unit test (LCS diff 6 kasus akurat, akumulasi

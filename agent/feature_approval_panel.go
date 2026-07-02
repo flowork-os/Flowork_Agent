@@ -1,4 +1,4 @@
-// feature_approval_panel.go — SIBLING feature (deletable, NON-frozen): endpoint
+// feature_approval_panel.go — SIBLING feature (⚠️ FROZEN 2026-07-02 seizin owner — stabil+live): endpoint
 // AGREGAT antrian approval PENDING lintas-agent → GUI panel (tab Autonomy) cukup 1
 // call (bukan iterate per-agent dari browser). Pola sama feature_approval_notify
 // (AgentIDs + OpenAgentStore + skip no-table). Approve/reject tetep lewat endpoint

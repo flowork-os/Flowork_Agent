@@ -29,7 +29,7 @@ lintas-file. Roadmap "buka lock".
 
 ## Switch / freeze
 - `FLOWORK_LSP` (default OFF) + `FLOWORK_GOPLS_BIN` (override path). Nambah bahasa lain
-  (pyright/tsserver) = tool sibling baru pola sama. Status: NON-frozen (deletable).
+  (pyright/tsserver) = tool sibling baru pola sama. Status: FROZEN 2026-07-02 (seizin owner).
 
 ## QC
 build agent+router hijau · vet hijau · unit test LAWAN gopls beneran (hover info tipe,

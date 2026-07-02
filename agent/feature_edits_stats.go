@@ -1,4 +1,4 @@
-// feature_edits_stats.go — SIBLING feature (deletable, NON-frozen): endpoint
+// feature_edits_stats.go — SIBLING feature (⚠️ FROZEN 2026-07-02 seizin owner — stabil+live): endpoint
 // /api/edits/stats → baris-diubah (added/removed) per-sesi hasil interceptor
 // lines-changed (internal/tools/builtins/lines_changed_ext.go). Buat kartu "cost"
 // lines-changed di GUI. Self-register PhaseRoute. 📄 Dok: lock/lines-changed.md

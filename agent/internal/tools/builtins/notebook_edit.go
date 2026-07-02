@@ -1,4 +1,4 @@
-// notebook_edit.go — SIBLING ext (deletable, NON-frozen): tool `notebook_edit` buat
+// notebook_edit.go — SIBLING ext (⚠️ FROZEN 2026-07-02 seizin owner — stabil+live): tool `notebook_edit` buat
 // ngedit Jupyter .ipynb PER-CELL (roadmap "buka lock": tool edit .ipynb per-cell).
 // Plug-and-play: init() self-register ke papan tools.Register (NOL sentuh builtins.go
 // frozen). Hapus file → tool ilang, core utuh. 📄 Dok: lock/notebook-edit.md

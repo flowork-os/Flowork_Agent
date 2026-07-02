@@ -1,4 +1,4 @@
-// lines_changed_ext.go — SIBLING ext (deletable, NON-frozen): lacak BARIS DIUBAH
+// lines_changed_ext.go — SIBLING ext (⚠️ FROZEN 2026-07-02 seizin owner — stabil+live): lacak BARIS DIUBAH
 // (added/removed) tiap agent ngedit file (file_write/edit) — buat metrik "cost"
 // lines-changed per-sesi (roadmap GUI). Pola interceptor sama kayak file_checkpoint
 // (Before, best-effort, NOL sentuh frozen). Akumulasi in-memory per-agent (reset tiap

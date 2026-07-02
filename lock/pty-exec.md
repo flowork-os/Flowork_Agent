@@ -30,7 +30,7 @@ start sesi, ketik input, baca output berkelanjutan, tutup. Roadmap "buka lock".
 - `pty_close(session_id)` → {closed, final_output}. WAJIB tutup sesi yg ga dipake.
 
 ## Switch / freeze
-- `FLOWORK_PTY` (default OFF). Status file: NON-frozen (deletable) — bekuin pas teruji live.
+- `FLOWORK_PTY` (default OFF). Status file: FROZEN 2026-07-02 (seizin owner, teruji live).
 
 ## QC
 build agent+router (linux) + cross-build windows (stub) hijau · vet hijau · unit test

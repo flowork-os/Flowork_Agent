@@ -25,7 +25,7 @@ insert cell, delete cell) tanpa nulis-ulang seluruh file. Roadmap "buka lock".
 ## Switch / freeze
 - Ga ada switch env (tool murni; ada/nggak = ada/nggak file). Nambah kapabilitas
   notebook lain = tool sibling baru.
-- Status: NON-frozen (deletable) — bekuin pas udah teruji lewat pemakaian agent live.
+- Status: FROZEN 2026-07-02 (seizin owner, stabil+live). Tool baru = sibling baru (ga usah unlock).
 
 ## QC
 build agent hijau · vet hijau · unit test (replace-reset-outputs + keep-nbformat-meta,

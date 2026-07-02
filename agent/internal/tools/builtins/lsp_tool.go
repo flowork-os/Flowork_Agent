@@ -1,4 +1,4 @@
-// lsp_tool.go — SIBLING ext (deletable, NON-frozen): kecerdasan kode SEMANTIK lewat
+// lsp_tool.go — SIBLING ext (⚠️ FROZEN 2026-07-02 seizin owner — stabil+live): kecerdasan kode SEMANTIK lewat
 // Language Server Protocol (gopls). "Level berikutnya" dari codemap statis: definition,
 // references, hover (tipe/dok asli, lintas-file, presisi). Roadmap "buka lock".
 //
