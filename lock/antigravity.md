@@ -24,6 +24,18 @@ core router UTUH. Semua lewat seam; Claude TIDAK disentuh.
 ## Switch
 - `FLOWORK_MODEL_REMAP` (lihat model-deprecat) — beda fitur.
 - `FLOWORK_ANTIGRAVITY_CAPTURE` (default ON) — matiin capture → executor pakai header default.
+- `FLOWORK_ANTIGRAVITY_EMPTY_OK` (default OFF) — ON = teruskan response kosong apa
+  adanya (perilaku lama). OFF = response tanpa teks → executor return error → fallback.
+
+## AKAR "AI ngebalikin jawaban kosong" (fix 2026-07-02)
+gemini-3.x-pro (thinking) di jalur tool-heavy (mr-flow) kadang balik candidate TANPA
+teks: part cuma `{thoughtSignature}` + `finishReason=MALFORMED_FUNCTION_CALL` — nyoba
+tool-call tapi malformed (executor GA forward `functionDeclarations`, model improvisasi).
+Dulu diteruskan sbg 200 → user liat "jawaban kosong". Fix di `antigravity.go` NonStream:
+teks kosong = GAGAL → return error (502) → dispatcher FALLBACK ke provider berikut (mis.
+gemini-3.5-flash-low / Claude) yg jawabnya bener. `antigravityRespToOpenAI` skrg balikin
+`(json, text, rawFinish)` biar caller bisa deteksi kosong. Verified live: mr-flow bahasa
+manusia "apa rencana selanjutnya?" → jawaban penuh (bukan kosong). Switch balik: EMPTY_OK=1.
 
 ## Model
 Provider auto advertise: `gemini-3, gemini-3-pro, gemini-3-flash, gemini-2.5-pro,

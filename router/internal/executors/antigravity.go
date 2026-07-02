@@ -9,7 +9,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"os"
+	"strings"
 	"sync/atomic"
 
 	"github.com/flowork-os/flowork_Router/internal/cloudcode"
@@ -116,15 +119,35 @@ func (a *antigravityExecutor) NonStream(ctx context.Context, p *store.ProviderCo
 	// AKAR "(no choices)": cloudcode-pa balik {"response":{"candidates":[{content:
 	// {parts:[{text}]}}]}} (Gemini nested). Terjemah ke OpenAI {choices:[{message}]}
 	// biar dispatcher (unmarshal OpenAIResponse) dapet isinya.
-	if oai := antigravityRespToOpenAI(body, req.Model); oai != nil {
-		return oai, u, st, nil
+	oai, text, finish := antigravityRespToOpenAI(body, req.Model)
+	if oai == nil {
+		return body, u, st, err
 	}
-	return body, u, st, err
+	// AKAR "AI ngebalikin jawaban kosong" (owner via Telegram): gemini-3.x-pro
+	// (thinking) di jalur tool-heavy kadang balik TANPA teks — part cuma
+	// {thoughtSignature} + finishReason=MALFORMED_FUNCTION_CALL (nyoba tool-call
+	// tapi malformed, tanpa functionDeclarations). Dulu diteruskan sbg 200 → user
+	// liat kosong. Sekarang: teks kosong = GAGAL → return error biar dispatcher
+	// FALLBACK ke provider berikut (mis. Claude) yg handle tool bener = balik stabil.
+	// Switch balik ke perilaku lama: FLOWORK_ANTIGRAVITY_EMPTY_OK=1.
+	if text == "" && !antigravityEmptyOK() {
+		log.Printf("flow_router antigravity: empty content (finish=%s) → fallback provider berikut", finish)
+		return body, u, http.StatusBadGateway, fmt.Errorf("antigravity empty content (finish=%s)", finish)
+	}
+	return oai, u, st, nil
+}
+
+// antigravityEmptyOK — switch balik perilaku lama (teruskan response kosong apa
+// adanya, ga fallback). Default OFF = kosong → fallback ke provider berikut.
+func antigravityEmptyOK() bool {
+	v := strings.TrimSpace(os.Getenv("FLOWORK_ANTIGRAVITY_EMPTY_OK"))
+	return v == "1" || strings.EqualFold(v, "true")
 }
 
 // antigravityRespToOpenAI — konversi respons cloudcode-pa (Gemini nested) → OpenAI.
-// nil kalau ga bisa parse (biar fallback ke body asli).
-func antigravityRespToOpenAI(body []byte, model string) []byte {
+// Balikin (json, text-jawaban, rawFinishReason). json=nil kalau ga bisa parse
+// (biar caller fallback ke body asli). text="" = response tanpa jawaban.
+func antigravityRespToOpenAI(body []byte, model string) ([]byte, string, string) {
 	var parsed struct {
 		Response struct {
 			Candidates []struct {
@@ -143,14 +166,15 @@ func antigravityRespToOpenAI(body []byte, model string) []byte {
 		} `json:"response"`
 	}
 	if json.Unmarshal(body, &parsed) != nil || len(parsed.Response.Candidates) == 0 {
-		return nil
+		return nil, "", ""
 	}
 	var text string
 	for _, pt := range parsed.Response.Candidates[0].Content.Parts {
 		text += pt.Text
 	}
+	rawFinish := parsed.Response.Candidates[0].FinishReason
 	finish := "stop"
-	switch parsed.Response.Candidates[0].FinishReason {
+	switch rawFinish {
 	case "MAX_TOKENS":
 		finish = "length"
 	case "SAFETY":
@@ -172,5 +196,5 @@ func antigravityRespToOpenAI(body []byte, model string) []byte {
 		},
 	}
 	b, _ := json.Marshal(out)
-	return b
+	return b, text, rawFinish
 }
