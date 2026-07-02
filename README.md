@@ -3,7 +3,6 @@
 **English** · [🇮🇩 Bahasa Indonesia](README.id.md)
 
 # Flowork — The Mind Inheritance
-### *Warisan Pikiran*
 
 *For those who built from nothing to the summit — and know that money, in the end, is only a number.*
 
