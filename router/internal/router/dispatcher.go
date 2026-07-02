@@ -507,7 +507,10 @@ func forwardOpenAICompat(ctx context.Context, p *store.ProviderConnection, baseU
 }
 
 func forwardAnthropic(ctx context.Context, p *store.ProviderConnection, baseURL string, req OpenAIRequest) (*OpenAIResponse, int, error) {
-	if hasToolContext(req) {
+	// Vision (content-block bergambar) WAJIB lewat jalur with-tools — cuma itu yg bisa
+	// bikin image block (AnthropicMessage.Content string ga muat gambar). hasVisionContent
+	// di vision_route_ext.go (non-frozen). Fix "vision Telegram halu/token bengkak".
+	if hasToolContext(req) || hasVisionContent(req) {
 		return forwardAnthropicWithTools(ctx, p, baseURL, req)
 	}
 

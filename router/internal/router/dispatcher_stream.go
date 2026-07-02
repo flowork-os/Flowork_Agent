@@ -208,7 +208,9 @@ func streamFromProvider(ctx context.Context, p *store.ProviderConnection, req Op
 	}
 	switch format {
 	case "anthropic":
-		if hasToolContext(req) {
+		// Vision (content-block bergambar) → jalur with-tools (satu-satunya yg bikin
+		// image block). hasVisionContent di vision_route_ext.go (non-frozen).
+		if hasToolContext(req) || hasVisionContent(req) {
 			return streamAnthropicWithTools(ctx, p, baseURL, req, w, flusher)
 		}
 		return streamAnthropic(ctx, p, baseURL, req, w, flusher)

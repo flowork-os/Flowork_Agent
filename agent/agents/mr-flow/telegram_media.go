@@ -375,13 +375,19 @@ func visionDescribe(img []byte, mime, caption string) (string, error) {
 	if caption != "" {
 		q = "Owner kirim foto dgn caption: \"" + caption + "\". Lihat fotonya, tanggapi sesuai caption + deskripsikan yg lo lihat."
 	}
+	// KONVENSI FLOWORK (fix 2026-07-02): content WAJIB STRING — router OpenAIMessage.Content
+	// itu `string`, jadi array native GAGAL unmarshal → HTTP 400 (bug "vision Telegram 400").
+	// Content-block dikirim sbg JSON STRING (di-decode router: preprocess_content + visionblocks
+	// → seam vision anthropic/gemini). SAMA persis kayak jalur GUI Chat (chat_vision.go).
+	blocks := []map[string]any{
+		{"type": "text", "text": q},
+		{"type": "image_url", "image_url": map[string]any{"url": dataURI}},
+	}
+	blocksJSON, _ := json.Marshal(blocks)
 	payload := map[string]any{
 		"model": defaultModel,
 		"messages": []any{
-			map[string]any{"role": "user", "content": []any{
-				map[string]any{"type": "text", "text": q},
-				map[string]any{"type": "image_url", "image_url": map[string]any{"url": dataURI}},
-			}},
+			map[string]any{"role": "user", "content": string(blocksJSON)},
 		},
 	}
 	body, _ := json.Marshal(payload)

@@ -35,6 +35,19 @@ history multi-turn ✓, GUI render ✓). Feature files NON-FROZEN (deletable).
   `internal/visionblocks/`, `agent/chat_vision.go` + pemakainya) → seam nil → aman
   (delete-test router PASS 2026-07-02).
 
+## FIX 2026-07-02 (Telegram vision + jalur no-tools)
+Bug: foto via Telegram → "error status 400" / model halu (token bengkak 23k). DUA akar:
+1. **telegram_media.go** (`visionDescribe`) kirim `content` sbg ARRAY native → router
+   `OpenAIMessage.Content` itu `string` → gagal unmarshal → HTTP 400. Fix: kirim
+   content-block sbg JSON STRING (konvensi visionblocks, sama kayak GUI chat_vision.go).
+2. **Jalur anthropic NO-TOOLS** (`forwardAnthropic`/`streamAnthropic`) pakai
+   `AnthropicMessage.Content string` → ga bisa bikin image block → vision cuma jalan
+   kalau kebetulan ada tool (GUI architect). Telegram no-tools → base64 nyasar jadi TEKS
+   → model halu. Fix: gate frozen nambah `|| hasVisionContent(req)` (deteksi di
+   `vision_route_ext.go` non-frozen) → request vision di-route ke jalur with-tools yg
+   pasang image block. Verified: "KUCING ORANYE 77" kebaca bener, token 23474→1303.
+Freeze: telegram_media.go (mr-flow wasm) + dispatcher.go + dispatcher_stream.go re-hash + re-freeze.
+
 ## Batas yang disengaja (bukan bug)
 - Mode GROUP text-only: gambar ditandai teks `[📷 user melampirkan gambar]`
   (`buildGroupTranscript`) — vision penuh = jalur architect.
