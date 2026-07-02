@@ -1,7 +1,7 @@
 {
   "title": "📋 Progress Kode",
-  "sub": "Git log untuk melacak perubahan langsung yang dilakukan oleh AI atau Ayah.",
-  "running": "Running git log…",
+  "sub": "Log aktivitas perubahan langsung yang dilakukan oleh AI atau pemilik.",
+  "running": "Memuat aktivitas…",
   "none": "Tidak ada progress terdeteksi.",
   "recent": "100 Commit Terakhir",
   "col_time": "Waktu",

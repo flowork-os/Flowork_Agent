@@ -1260,9 +1260,14 @@ done &lt; my_knowledge.jsonl</pre>
           <span class="text-slate-300" data-i18n="lbl.captureBodies">Capture full bodies</span>
         </label>
       </div>
-      <div class="glass p-3">
-        <div id="consoleLogTable" class="overflow-x-auto">
-          <div class="text-slate-500 text-center py-4 text-sm">Loading...</div>
+      <div class="term-console">
+        <div class="term-bar">
+          <span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span>
+          <span style="margin-left:8px">flowork@router:~/console-log</span>
+          <span class="cursor">▍</span>
+        </div>
+        <div id="consoleLogTable" class="term-scroll">
+          <div class="term-empty">Loading...</div>
         </div>
       </div>
       <div id="mitmCapturedWrap" class="glass p-3 mt-4 hidden">
@@ -4447,36 +4452,39 @@ done &lt; my_knowledge.jsonl</pre>
         const r = await fetch(`/api/console-log?limit=${limit}${status?'&status='+encodeURIComponent(status):''}`);
         const j = await r.json();
         const items = j.data || [];
+        const atBottom = wrap.scrollTop + wrap.clientHeight >= wrap.scrollHeight - 24;
         if (items.length === 0) {
-          wrap.innerHTML = '<div class="text-slate-500 text-center py-8 text-sm">No requests dispatched yet. Send one via curl/Cursor to see the live log.</div>';
+          wrap.innerHTML = '<div class="term-empty">No requests dispatched yet. Send one via curl/Cursor to see the live log.</div>';
           return;
         }
-        wrap.innerHTML = `<table class="w-full text-xs">
-          <thead><tr class="text-slate-400 border-b border-purple-900/30">
-            <th class="text-left py-2 px-2">Time</th>
-            <th class="text-left py-2 px-2">Provider</th>
-            <th class="text-left py-2 px-2">Model</th>
-            <th class="text-right py-2 px-2">Status</th>
-            <th class="text-right py-2 px-2">Tokens</th>
-            <th class="text-right py-2 px-2">Cost</th>
-            <th class="text-right py-2 px-2">Latency</th>
+        wrap.innerHTML = `<table>
+          <thead><tr>
+            <th class="text-left">Time</th>
+            <th class="text-left">Provider</th>
+            <th class="text-left">Model</th>
+            <th class="text-right">Status</th>
+            <th class="text-right">Tokens</th>
+            <th class="text-right">Cost</th>
+            <th class="text-right">Latency</th>
           </tr></thead>
           <tbody>${items.map(e => `
-            <tr class="border-b border-slate-800/40 hover:bg-purple-900/5">
-              <td class="py-1.5 px-2 text-slate-400 font-mono">${formatTs(e.ts)}</td>
-              <td class="py-1.5 px-2 text-slate-300 truncate max-w-[140px]" title="${escapeHtml(e.providerName || e.providerId)}">${escapeHtml(e.providerName || shortProvider(e.providerId))}</td>
-              <td class="py-1.5 px-2 text-purple-300 font-mono">${escapeHtml(e.model)}</td>
-              <td class="py-1.5 px-2 text-right">
-                ${e.statusCode === 200 ? '<span class="text-green-400">200</span>' : '<span class="text-red-400">'+e.statusCode+'</span>'}
+            <tr>
+              <td class="t-time">${formatTs(e.ts)}</td>
+              <td class="t-prov truncate max-w-[140px]" title="${escapeHtml(e.providerName || e.providerId)}">${escapeHtml(e.providerName || shortProvider(e.providerId))}</td>
+              <td class="t-model">${escapeHtml(e.model)}</td>
+              <td class="text-right">
+                ${e.statusCode === 200 ? '<span class="t-ok">200</span>' : '<span class="t-err">'+e.statusCode+'</span>'}
               </td>
-              <td class="py-1.5 px-2 text-right text-slate-300">${e.totalTokens || 0}</td>
-              <td class="py-1.5 px-2 text-right text-slate-400">${e.costUsd > 0 ? '$'+e.costUsd.toFixed(5) : '—'}</td>
-              <td class="py-1.5 px-2 text-right text-slate-400">${e.latencyMs}ms</td>
+              <td class="text-right t-prov">${e.totalTokens || 0}</td>
+              <td class="text-right t-dim">${e.costUsd > 0 ? '$'+e.costUsd.toFixed(5) : '—'}</td>
+              <td class="text-right t-dim">${e.latencyMs}ms</td>
             </tr>
           `).join('')}</tbody>
         </table>`;
+        // keep the terminal pinned to the newest line when the user is already at the bottom
+        if (atBottom) wrap.scrollTop = wrap.scrollHeight;
       } catch (e) {
-        wrap.innerHTML = '<div class="text-red-400 text-center py-4 text-sm">Error: ' + escapeHtml(e.message) + '</div>';
+        wrap.innerHTML = '<div class="term-empty t-err">Error: ' + escapeHtml(e.message) + '</div>';
       }
     }
 
@@ -6948,6 +6956,37 @@ done &lt; my_knowledge.jsonl</pre>
     .fw-drawer-spin { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #94a3b8; }
     .fw-drawer-spin.hide { display: none; }
     @media (max-width: 720px) { .fw-drawer { width: 100vw; } }
+
+    /* ── Console Log — terminal/hacker theme + self-scroll ── */
+    .term-console { position: relative; background: #050806; border: 1px solid rgba(0,255,120,.22);
+      border-radius: 10px; box-shadow: inset 0 0 40px rgba(0,255,120,.05), 0 0 0 1px rgba(0,0,0,.4);
+      font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace; overflow: hidden; }
+    .term-console::before { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 2;
+      background: repeating-linear-gradient(180deg, rgba(0,255,120,.035) 0, rgba(0,255,120,.035) 1px, transparent 2px, transparent 4px); }
+    .term-console .term-bar { display: flex; align-items: center; gap: 7px; padding: 6px 11px;
+      background: linear-gradient(180deg,#07120a,#040804); border-bottom: 1px solid rgba(0,255,120,.18);
+      color: #4ade80; font-size: .72rem; letter-spacing: .04em; position: relative; z-index: 3; }
+    .term-console .term-bar .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+    .term-console .term-bar .d1 { background:#ff5f56; } .term-console .term-bar .d2 { background:#ffbd2e; } .term-console .term-bar .d3 { background:#27c93f; }
+    .term-console .term-bar .cursor { margin-left: auto; color:#27ff85; animation: term-blink 1.1s steps(1) infinite; }
+    @keyframes term-blink { 50% { opacity: 0; } }
+    .term-scroll { max-height: 58vh; overflow-y: auto; overflow-x: auto; padding: 4px 0; position: relative; z-index: 1; }
+    .term-scroll table { width: 100%; font-size: .72rem; color: #86efac; border-collapse: collapse; }
+    .term-scroll thead tr { position: sticky; top: 0; z-index: 2; background: #061007; }
+    .term-scroll thead th { color: #34d399; text-transform: uppercase; letter-spacing: .05em; font-size: .64rem;
+      padding: 7px 10px; border-bottom: 1px solid rgba(0,255,120,.25); }
+    .term-scroll tbody td { padding: 5px 10px; border-bottom: 1px solid rgba(0,255,120,.07); }
+    .term-scroll tbody tr:hover { background: rgba(0,255,120,.06); }
+    .term-scroll .t-time { color: #22d3a7; } .term-scroll .t-model { color: #7CFC00; } .term-scroll .t-prov { color: #a7f3d0; }
+    .term-scroll .t-ok { color: #27ff85; text-shadow: 0 0 6px rgba(39,255,133,.5); }
+    .term-scroll .t-err { color: #ff5f56; text-shadow: 0 0 6px rgba(255,95,86,.5); }
+    .term-scroll .t-dim { color: #4b8f6d; }
+    .term-scroll::-webkit-scrollbar { width: 9px; height: 9px; }
+    .term-scroll::-webkit-scrollbar-track { background: #020402; }
+    .term-scroll::-webkit-scrollbar-thumb { background: rgba(0,255,120,.35); border-radius: 4px; border: 2px solid #020402; }
+    .term-scroll::-webkit-scrollbar-thumb:hover { background: rgba(0,255,120,.6); }
+    .term-scroll { scrollbar-color: rgba(0,255,120,.35) #020402; scrollbar-width: thin; }
+    .term-empty { color:#4b8f6d; text-align:center; padding: 28px 8px; font-size:.75rem; }
   </style>
   <div id="agentBackdrop" class="fw-drawer-backdrop"></div>
   <aside id="agentDrawer" class="fw-drawer" aria-hidden="true">

@@ -865,3 +865,45 @@ code {
 /* MD Image Styles */
 .md-img { max-width: 100%; height: auto; border-radius: 8px; margin: 16px 0; border: 1px solid var(--glass-border); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
 .md-img + .md-img { margin-top: 0; }
+
+/* ── Code Progress (#commits) — terminal/hacker theme + self-scroll ──────────
+   Scoped by #commits id so it overrides glass.js .fw-row/.fw-id defaults without
+   touching the LOCKED tabs/commits.js. Owner req: scroll mandiri + teks jalan ala hacker. */
+#commits {
+  max-height: calc(100vh - 260px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin-top: 6px;
+  padding: 10px 12px;
+  background: #050806;
+  border: 1px solid rgba(0,255,120,0.22);
+  border-radius: 10px;
+  box-shadow: inset 0 0 40px rgba(0,255,120,0.05);
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  position: relative;
+}
+#commits .fw-row {
+  color: #86efac;
+  border-bottom: 1px solid rgba(0,255,120,0.08);
+  padding: 5px 2px;
+  font-size: 0.8rem;
+  opacity: 0;
+  animation: commits-line-in 0.32s ease forwards;
+}
+/* staggered "printing" cascade — feels like lines streaming into a terminal */
+#commits .fw-row:nth-child(1){animation-delay:.00s}  #commits .fw-row:nth-child(2){animation-delay:.03s}
+#commits .fw-row:nth-child(3){animation-delay:.06s}  #commits .fw-row:nth-child(4){animation-delay:.09s}
+#commits .fw-row:nth-child(5){animation-delay:.12s}  #commits .fw-row:nth-child(6){animation-delay:.15s}
+#commits .fw-row:nth-child(7){animation-delay:.18s}  #commits .fw-row:nth-child(8){animation-delay:.21s}
+#commits .fw-row:nth-child(9){animation-delay:.24s}  #commits .fw-row:nth-child(n+10){animation-delay:.27s}
+@keyframes commits-line-in { from { opacity:0; transform: translateX(-6px); } to { opacity:1; transform:none; } }
+#commits .fw-id  { color: #22d3a7; }
+#commits .fw-tag { color: #34d399; background: rgba(0,255,120,0.08); border-color: rgba(0,255,120,0.25); }
+#commits .fw-desc { color: #7CFC00; }
+#commits .fw-row::before { content: "> "; color: #27ff85; opacity: .7; }
+#commits .fw-empty { color: #4b8f6d; font-family: 'JetBrains Mono', ui-monospace, monospace; }
+#commits::-webkit-scrollbar { width: 9px; }
+#commits::-webkit-scrollbar-track { background: #020402; }
+#commits::-webkit-scrollbar-thumb { background: rgba(0,255,120,0.35); border-radius: 4px; border: 2px solid #020402; }
+#commits::-webkit-scrollbar-thumb:hover { background: rgba(0,255,120,0.6); }
+#commits { scrollbar-color: rgba(0,255,120,0.35) #020402; scrollbar-width: thin; }

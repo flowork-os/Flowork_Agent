@@ -1,7 +1,7 @@
 {
   "title": "📋 Code Progress",
-  "sub": "Git log to track direct changes made by the AI or the owner.",
-  "running": "Running git log…",
+  "sub": "Activity log tracking direct changes made by the AI or the owner.",
+  "running": "Loading activity…",
   "none": "No progress detected.",
   "recent": "Latest 100 commits",
   "col_time": "Time",
