@@ -260,6 +260,19 @@ function styles() {
       .ag-card.failed { opacity: 0.7; }
       .ag-card.off { opacity: 0.55; filter: grayscale(0.55); }
       .ag-card.off .ag-avatar-ring { animation: none; opacity: 0.2; }
+      /* mr-flow = flagship/unique agent → 4× hero card (spans 2 cols × 2 rows) */
+      .ag-card.ag-flagship { grid-column: span 2; grid-row: span 2; min-height: 336px;
+                         padding: 30px 32px;
+                         background: linear-gradient(160deg, rgba(76,29,149,0.55), rgba(15,23,42,0.97));
+                         border-color: var(--accent, rgba(124,58,237,0.55)); }
+      .ag-card.ag-flagship::before { opacity: 0.5; }
+      .ag-card.ag-flagship .ag-card-name { font-size: 1.9rem; line-height: 1.15; }
+      .ag-card.ag-flagship .ag-card-id   { font-size: 0.95rem; }
+      .ag-card.ag-flagship .ag-card-head { gap: 18px; }
+      .ag-card.ag-flagship::after { content: '★ FLAGSHIP'; position: absolute; top: 16px; right: 18px;
+                                font-size: 0.64rem; font-weight: 700; letter-spacing: 0.14em;
+                                color: var(--accent, #c4b5fd); opacity: 0.85; }
+      @media (max-width: 720px) { .ag-card.ag-flagship { grid-column: span 1; grid-row: span 1; min-height: 0; } }
 
       /* Switch enable/disable */
       .ag-switch { position: relative; display: inline-block;
@@ -465,6 +478,8 @@ async function refreshList(root) {
   try {
     const data = await fetchJSON(API_LIST);
     const items = (data.plugins || data.agents || []).filter((x) => x.id);
+    // mr-flow = the flagship/unique agent → always pinned first (rendered as a 4× hero card).
+    items.sort((a, b) => (a.id === 'mr-flow' ? -1 : b.id === 'mr-flow' ? 1 : 0));
     root.querySelector('#ag-stat-total').textContent = items.length;
     root.querySelector('#ag-stat-ready').textContent = items.filter((x) => x.state === 'ready').length;
     if (!items.length) {
@@ -490,10 +505,10 @@ function renderCard(a) {
     ? `<span class="ag-cap">+${(a.capabilities_required.length - 4)}</span>` : '';
   const statusLabel = !enabled ? t('menu.tab.agents.card_disabled') : (a.state || '?');
   return `
-    <article class="ag-card ${stateCls}" data-id="${escAttr(a.id)}"
+    <article class="ag-card ${stateCls}${a.id === 'mr-flow' ? ' ag-flagship' : ''}" data-id="${escAttr(a.id)}"
              style="--accent:${palette[0]}66">
       <div class="ag-card-head">
-        ${avatarHTML(a.id, 56)}
+        ${avatarHTML(a.id, a.id === 'mr-flow' ? 104 : 56)}
         <div>
           <h4 class="ag-card-name">${esc(a.display_name || a.id)}</h4>
           <div class="ag-card-id">@${esc(a.id)} · v${esc(a.version || '?')}</div>
