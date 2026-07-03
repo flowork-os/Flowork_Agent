@@ -6,7 +6,7 @@
 // Reason: Main app entrypoint. Audit pass — route via #hash, localStorage for last tab, dynamic import dengan Date.now() cache buster..
 
 import { ts, loadWargaFromBrain } from './utils.js';
-import { loadI18n, applyI18n, t } from './i18n.js';
+import { loadI18n, applyI18n, t, loadDomain } from './i18n.js';
 import { initRateLimitBadge } from './ratelimit_badge.js';
 
 // Boot the dictionary BEFORE anything renders. Sidebar/header use
@@ -184,6 +184,37 @@ window.addEventListener('hashchange', () => {
     navigateTo(top);
   }
 });
+
+// ── GUI EXTENSION SEAM (2026-07-03) — stop-kontak tab GUI. Tab ekstensi dari registry backend
+// (/api/gui/tabs-ext) di-APPEND ke builtin: builtin nav (index.html BEKU) + app.js builtin ga
+// disentuh. Tab baru = sibling gui_tab_<x>_ext.go (RegisterGUITab) + tabs/<x>.js + i18n json →
+// NOL edit file beku. Registry kosong / fetch gagal → builtin doang (app tetep jalan). Hapus
+// sibling → tab ilang, GUI utuh (delete-test). loadTab() udah dinamis, jadi tab ekstensi kemuat.
+(async function initExtTabs() {
+  let ext = [];
+  try {
+    const r = await fetch('/api/gui/tabs-ext', { cache: 'no-store' });
+    if (r.ok) { const j = await r.json(); ext = Array.isArray(j.tabs) ? j.tabs : []; }
+  } catch { return; }
+  const nav = document.getElementById('nav');
+  if (!nav) return;
+  for (const et of ext) {
+    if (!et || !et.name || ACTIVE_TABS.has(et.name)) continue;
+    if (et.i18n_domain) { try { await loadDomain(et.i18n_domain); } catch {} }
+    ACTIVE_TABS.add(et.name);
+    const btn = document.createElement('button');
+    btn.dataset.tab = et.name;
+    btn.textContent = et.icon ? et.icon + ' ' : '';
+    const span = document.createElement('span');
+    span.textContent = et.label_key ? t(et.label_key) : (et.label || et.name);
+    btn.appendChild(span);
+    btn.onclick = () => {
+      const isSame = btn.dataset.tab === currentTab;
+      navigateTo(btn.dataset.tab, { sub: isSame ? undefined : '' });
+    };
+    nav.appendChild(btn);
+  }
+})();
 
 // Synchronous boot — module scripts are deferred so the DOM exists. We don't
 // need DOMContentLoaded; using it caused a confusing race where the listener

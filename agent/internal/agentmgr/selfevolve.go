@@ -682,28 +682,63 @@ const guideThemeCap = 2
 // dari prefix repo, biar core proposals beda-file gak salah-collapse).
 func evolveGuideTheme(targetFile, kind string) string {
 	t := strings.ToLower(strings.TrimSpace(targetFile))
-	if strings.HasPrefix(t, "new:") {
-		t = strings.TrimPrefix(t, "new:")
-		for _, sep := range []string{"-", "_", " ", ":"} {
-			if i := strings.Index(t, sep); i > 0 {
-				t = t[:i]
-			}
-		}
-		return t
-	}
+	t = strings.TrimPrefix(t, "new:")
 	if i := strings.LastIndexAny(t, "/"); i >= 0 {
-		t = t[i+1:]
+		t = t[i+1:] // basename buat path core
 	}
 	t = strings.TrimSuffix(t, ".go")
-	if t == "" {
+	// FIX theme-collapse (2026-07-03): dulu ambil KATA PERTAMA → 'reflection-*'/'scheduled-*'/
+	// 'refleksi-*'/'warfare-reflection' dianggap tema BEDA walau semantik sama → collapse LOLOS cap.
+	// Sekarang: STEM 5-huruf dari kata TERPANJANG (paling bermakna). reflection/refleksi/reflective
+	// → 'refle' → dup morfologis ketauan. Netral (no hardcode cluster), nangkep varian imbuhan/bahasa.
+	longest := ""
+	for _, w := range strings.FieldsFunc(t, func(r rune) bool {
+		return !(r >= 'a' && r <= 'z') && !(r >= '0' && r <= '9')
+	}) {
+		if len(w) > len(longest) {
+			longest = w
+		}
+	}
+	if longest == "" {
 		return strings.ToLower(strings.TrimSpace(kind))
 	}
-	return t
+	if len(longest) > 5 {
+		longest = longest[:5]
+	}
+	return longest
 }
 
 // evolveBacklogCap — batas usulan AKTIF (proposed/staged/approved) sebelum reflect berhenti
 // nambah (anti-numpuk + hemat token). ~1.5 halaman GUI (8/hal). Owner clear/Dewan kurangin → ngisi lagi.
 const evolveBacklogCap = 12
+
+// buildFrictionContext — SARAF IDE (cabut akar "engine mandul"): rangkum FRIKSI NYATA jadi konteks
+// proposer. Evolusi harus DIGERAKIN KEBUTUHAN, bukan refleksi hampa atas peta-kode (codemap_semantic
+// mr-flow sering kosong/salah-kabel → dulu bikin reflect error tiap cycle → NOL evolusi). Sumber
+// grounded: mistakes_local — kesalahan yang mr-flow (proxy owner) rekam sendiri di lapangan = kebutuhan
+// riil. Kosong = ga ada friksi (caller skip bersih, BUKAN error). Ke depan idea-inbox mr-flow nyolok di sini.
+func buildFrictionContext(store *agentdb.Store) string {
+	ms, _ := store.ListMistakesEligibleForPromote(1, 10) // tier=raw, hit>=1, urut hit_count DESC
+	if len(ms) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("## FRIKSI NYATA (kesalahan/kebutuhan terekam di lapangan — SUMBER evolusi):\n")
+	b.WriteString("Usulkan evolusi ADDITIF yang beneran ngatasin friksi di bawah (jangan ngarang fitur):\n")
+	for _, m := range ms {
+		rep := ""
+		if m.HitCount > 1 {
+			rep = fmt.Sprintf(" (kambuh %dx)", m.HitCount)
+		}
+		line := "- [" + m.Category + "] " + m.Title + rep + ": " + m.Content
+		if len(line) > 220 {
+			line = line[:220] + "…"
+		}
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
+	return b.String()
+}
 
 func EvolveReflectOnce(ctx context.Context, propose EvolveProposer, focus string) ([]map[string]any, error) {
 	if propose == nil {
@@ -724,10 +759,21 @@ func EvolveReflectOnce(ctx context.Context, propose EvolveProposer, focus string
 		return []map[string]any{}, nil // proposed penuh → skip (bukan error)
 	}
 	selfMap := buildSelfMapContext(store)
-	if selfMap == "" {
-		return nil, fmt.Errorf("self-map semantik kosong — jalanin /api/codemap/reindex + /api/codemap/enrich dulu")
+	friction := buildFrictionContext(store)
+	// ROOT-FIX (barren engine): self-map kosong BUKAN fatal lagi. Dulu codemap_semantic mr-flow sering
+	// kosong/salah-kabel → reflect error tiap cycle → NOL evolusi selamanya. Sekarang proposer tetep jalan
+	// dari FRIKSI NYATA (mistakes) walau peta-kode kosong. Skip bersih (bukan error) HANYA kalau dua-duanya nol.
+	proposerCtx := selfMap
+	if friction != "" {
+		if proposerCtx != "" {
+			proposerCtx += "\n\n"
+		}
+		proposerCtx += friction
 	}
-	drafts, perr := propose(ctx, selfMap, focus)
+	if proposerCtx == "" {
+		return []map[string]any{}, nil // nol sinyal (peta-kode + friksi kosong) → skip bersih
+	}
+	drafts, perr := propose(ctx, proposerCtx, focus)
 	if perr != nil {
 		_, _ = store.IncrementKarma("evolve_reflect_fail", 1)
 		return nil, fmt.Errorf("propose: %w", perr)
@@ -784,6 +830,7 @@ func EvolveReflectOnce(ctx context.Context, propose EvolveProposer, focus string
 	}
 	_, _ = store.IncrementKarma("evolve_reflect_ok", 1)
 	_, _ = store.IncrementKarma("evolve_proposals_total", float64(len(saved)))
+	log.Printf("[evolve] refleksi: %d usulan tersimpan dari %d draft (peta-kode %dch + friksi-nyata %dch)", len(saved), len(drafts), len(selfMap), len(friction))
 	return saved, nil
 }
 
@@ -851,9 +898,15 @@ func EvolveScheduleAutoApply(dep EvolveGateDeps, apply EvolveApplier, judge Coun
 		case "approve":
 			// lanjut: behavior→apply/hold, core→hold. (di bawah switch)
 		case "stage":
-			_ = store.SetEvolveProposalStatus(id, "staged")
-			results = append(results, map[string]any{"id": id, "council": "stage", "reason": v.Reasoning})
-			continue
+			// GUI=KEBENARAN + mode AUTO (owner opt-in otonomi penuh): behavior yg Dewan cuma "stage"
+			// (ragu, minta mata owner) TETEP DI-APPLY di AUTO — behavior = additive lokal, reversible.
+			// Core / gerbang-tutup → TETEP staged (auto-commit core bahaya = WAJIB mata owner).
+			if !(isBehavior && applyAllowed) {
+				_ = store.SetEvolveProposalStatus(id, "staged")
+				results = append(results, map[string]any{"id": id, "council": "stage", "reason": v.Reasoning})
+				continue
+			}
+			// behavior + AUTO + gerbang buka → perlakuin kayak approve (lanjut apply di bawah switch).
 		default: // reject → buang (janitor prune)
 			_ = store.SetEvolveProposalStatus(id, "rejected")
 			results = append(results, map[string]any{"id": id, "council": "reject", "reason": v.Reasoning})

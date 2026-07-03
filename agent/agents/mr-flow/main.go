@@ -341,6 +341,15 @@ func runDaemon() {
 				fmt.Fprintf(os.Stderr, "["+selfID()+"] getUpdates 409 conflict — instance lain ngambil-alih poll telegram, poller lama EXIT (anti zombie/spam).\n")
 				return
 			}
+			// ROOT-FIX zombie-spin (2026-07-03): context canceled = instance INI lagi di-teardown
+			// (hot-reload/unload) → poller HARUS EXIT, bukan sleep+retry. Di guest wasm, time.Sleep
+			// pada context yg udah canceled balik INSTAN → tight-loop (ribuan/detik, banjir log +
+			// makan CPU). Canceled itu TERMINAL (ga akan un-cancel) → retry mubazir. Beda dgn
+			// "context deadline exceeded" (timeout per-call, transien) yg TETEP boleh retry di bawah.
+			if l := strings.ToLower(err.Error()); (strings.Contains(l, "canceled") || strings.Contains(l, "cancelled")) && !strings.Contains(l, "deadline") {
+				fmt.Fprintf(os.Stderr, "["+selfID()+"] getUpdates context canceled — instance di-teardown, poller EXIT (anti zombie-spin).\n")
+				return
+			}
 			fmt.Fprintf(os.Stderr, "["+selfID()+"] getUpdates err: %v, sleep 5s...\n", err)
 			time.Sleep(5 * time.Second)
 			continue
@@ -2074,11 +2083,16 @@ func friendlyLLMError(raw string) string {
 		strings.Contains(low, "503") || strings.Contains(low, "rate") ||
 		strings.Contains(low, "429"):
 		return "⚠️ Provider AI-nya lagi overload/sibuk bro. Ini sementara — coba kirim lagi bentar ya."
+	// timeout/deadline dicek DULUAN: error deadline sering ke-bungkus jadi
+	// "router error: ... context deadline exceeded" → kalau prefix "router error"
+	// dicek lebih dulu, timeout ke-salah-label jadi "gangguan koneksi" (padahal
+	// providernya nyambung, cuma turn-nya keberatan). Cabut akar: klasifikasi
+	// paling spesifik (timeout) sebelum yang generic (router error).
+	case strings.Contains(low, "timeout") || strings.Contains(low, "deadline"):
+		return "⚠️ Turn-nya kelamaan (timeout) — kegedean buat sekali jalan. Gw sambung otomatis; kalau materinya gede, pecah kecil ya."
 	case strings.Contains(low, "all providers failed") || strings.Contains(low, "502") ||
 		strings.HasPrefix(low, "router error"):
 		return "⚠️ Lagi ga bisa nyambung ke AI provider (router gangguan). Coba lagi sebentar, kalau masih, cek router :2402."
-	case strings.Contains(low, "timeout") || strings.Contains(low, "deadline"):
-		return "⚠️ Kelamaan nungguin AI provider (timeout). Coba lagi ya."
 	case raw == "" || raw == "(no choices)" || strings.Contains(low, "no text"):
 		return "⚠️ AI ngebalikin jawaban kosong. Coba ulangi pertanyaan lo."
 	default:

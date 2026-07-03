@@ -96,6 +96,19 @@ export function applyI18n(root = document) {
   });
 }
 
+// loadDomain — SWITCH GUI (2026-07-03): muat 1 domain i18n EKSTENSI on-demand (buat tab plug-in).
+// Domain ekstensi TIDAK perlu masuk DOMAINS (BEKU) — tab daftarin lewat gui_tab_<x>_ext.go, app.js
+// panggil ini buat merge /i18n/<locale>/<domain>.json ke dict. Idempoten (skip kalau udah dimuat).
+export async function loadDomain(domain) {
+  if (!domain || Object.prototype.hasOwnProperty.call(dict, domain)) return;
+  try {
+    const r = await fetch(`/i18n/${activeLocale}/${domain}.json`, { cache: 'no-store' });
+    dict[domain] = r.ok ? await r.json() : {};
+  } catch {
+    dict[domain] = {};
+  }
+}
+
 // Convenience for inline JS that needs the active locale code.
 export function currentLocale() {
   return activeLocale;

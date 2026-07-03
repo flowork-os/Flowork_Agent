@@ -43,6 +43,31 @@ const evolveDrainPerCycle = 4
 // tombol "run now" manual) → dobel proposal/apply. TryLock: kalau lagi jalan, skip.
 var evolveCycleMu sync.Mutex
 
+// evolveFocusRotation — FIX theme-collapse (2026-07-03): dulu focus HARDCODE "refleksi terjadwal
+// otonom" → proposer bias mikir soal refleksi terus → 9/12 usulan tema sama. Sekarang ROTASI 6 angle
+// beda tiap cycle (nutup 5 pilar tujuan) → usulan variatif. Netral, ga nyeret ke satu tema.
+var evolveFocusRotation = []string{
+	"ketahanan & pemulihan OTOMATIS dari kegagalan (resilience) — cegah agent macet/gagal senyap",
+	"hemat token & efisiensi kerja agent — kurangi langkah/panggilan LLM yang mubazir",
+	"keamanan — validasi input, cegah celah, guard tool berbahaya, sanitasi data",
+	"kemampuan/tool BARU yang belum ada — isi celah kapabilitas nyata di lapangan",
+	"keandalan & kontrol buat owner — notifikasi, transparansi progres, jalur recovery",
+	"integrasi channel/skill/provider baru — perluas jangkauan tanpa bongkar inti",
+}
+
+// nextEvolveFocus — ambil focus berikut (rotasi persisten via KV) → tiap cycle beda tema.
+func nextEvolveFocus(db *floworkdb.Store) string {
+	idx := 0
+	if v, _ := db.GetKV("evolve_focus_idx"); strings.TrimSpace(v) != "" {
+		if n, e := strconv.Atoi(strings.TrimSpace(v)); e == nil && n >= 0 {
+			idx = n
+		}
+	}
+	f := evolveFocusRotation[idx%len(evolveFocusRotation)]
+	_ = db.SetKV("evolve_focus_idx", strconv.Itoa((idx+1)%1000000))
+	return f
+}
+
 func evolveScheduleKV() (*floworkdb.Store, error) { return floworkdb.Shared() }
 
 // runEvolveScheduledCycle — satu siklus terjadwal: cek due → refleksi → (auto) auto-apply behavior.
@@ -86,7 +111,7 @@ func runEvolveScheduledCycle(host *kernelhost.Host, fdb *floworkdb.Store, groups
 
 	ctx, cancel := context.WithTimeout(context.Background(), 240*time.Second)
 	defer cancel()
-	saved, rerr := agentmgr.EvolveReflectOnce(ctx, evolveProposer(), "refleksi terjadwal otonom")
+	saved, rerr := agentmgr.EvolveReflectOnce(ctx, evolveProposer(), nextEvolveFocus(db))
 	if rerr != nil {
 		return map[string]any{"error": "refleksi: " + rerr.Error()}
 	}
