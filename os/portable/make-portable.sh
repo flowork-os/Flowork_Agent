@@ -93,8 +93,14 @@ if [ "$SIDECAR_ENABLED" != "0" ]; then
                     bash "$REPO/os/brain-export.sh" "$BRAIN_SRC" \
                          "$OUT/sidecar/brain/flowork-brain.sqlite" || echo "[portable]   WARN: brain-export gagal"
                 fi
+                # PRIVACY+SIZE (audit 2026-07-03): only ship schema + docs. NEVER copy the live
+                # router/brain siblings — brain.vindex (~850M embeddings of the owner's PERSONAL
+                # drawers), *.sqlite.corrupt (~1.4G personal), *.sqlite.seed*, _rag/. The public
+                # brain rides as the sanitized flowork-brain.sqlite above; the runtime rebuilds its
+                # vindex on first boot (RebuildFreshIndex). Whitelist, not blacklist, so a new stray
+                # data file can never leak again.
                 find "$REPO/router/brain" -maxdepth 1 -type f \
-                     ! -name '*.sqlite' ! -name '*.sqlite-*' ! -iname '*OLD*' \
+                     \( -name '*.sql' -o -iname 'README*.md' -o -iname 'NOTE*.md' \) \
                      -exec cp -a {} "$OUT/sidecar/brain/" \; 2>/dev/null || true
             else
                 echo "[portable]   + $rel"
