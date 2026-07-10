@@ -4,7 +4,7 @@
 // === LOCKED FILE ===
 // Status: STABLE — DO NOT MODIFY without owner approval.
 // Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
+// Repo: https://github.com/flowork-os/FLOWCLI
 // 2026-06-15 (owner-approved): classifyRoute GROUNDING — route tool prompt now prefers
 //   'chat' when nothing truly fits / on creation-intent (anti-misroute, e.g. "team
 //   peramal" no longer hijacked to "repo-reviewer"). Prompt-only; wasm rebuilt. Re-locked.
@@ -139,7 +139,7 @@ const (
 	defaultRouter  = "http://127.0.0.1:2402/v1/chat/completions"
 	defaultModel   = "claude-haiku-4-5"
 	defaultPersona = "Lo Mr.Flow — AI Agent di Flowork microkernel buat Mr.Dev. " +
-		"Reply natural Bahasa Indonesia santai (bro/lo/gw OK), concise, no markdown headers. " +
+		"Reply natural Bahasa Indonesia hangat-sopan: sebut diri "saya", panggil user "kamu" (JANGAN gw/gue/lo/loe/bro), concise, no markdown headers. " +
 		"Kalau gak yakin, bilang gak yakin. Hindari halu."
 	pollTimeout  = 25 // seconds
 	respBufBytes = 524288
@@ -418,7 +418,7 @@ func runDaemon() {
 					"category": cat, "subject": subj,
 					"notify_chat_id": strconv.FormatInt(chatID, 10),
 				})
-				dr := "Oke bro, gw nyalain crew " + cat + " buat analisa \"" + subj + "\" — riset beneran lewat crew, bukan ngarang. Hasilnya nyusul ya."
+				dr := "Oke, saya nyalakan crew " + cat + " buat analisa \"" + subj + "\" — riset beneran lewat crew, bukan ngarang. Hasilnya nyusul ya."
 				if err := sendMessage(token, chatID, dr); err != nil {
 					fmt.Fprintf(os.Stderr, "["+selfID()+"] sendMessage err (route): %v\n", err)
 				} else {
@@ -437,7 +437,7 @@ func runDaemon() {
 					"category": cat, "subject": subj,
 					"notify_chat_id": strconv.FormatInt(chatID, 10),
 				})
-				dr := "Oke bro, gw nyalain crew " + cat + " buat \"" + subj + "\" — riset beneran lewat crew, bukan ngarang. Hasilnya nyusul ya."
+				dr := "Oke, saya nyalakan crew " + cat + " buat \"" + subj + "\" — riset beneran lewat crew, bukan ngarang. Hasilnya nyusul ya."
 				if err := sendMessage(token, chatID, dr); err != nil {
 					fmt.Fprintf(os.Stderr, "["+selfID()+"] sendMessage err (classify): %v\n", err)
 				} else {
