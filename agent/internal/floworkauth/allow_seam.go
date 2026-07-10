@@ -51,6 +51,12 @@ func RegisterLoopbackPublic(path string, methods ...string) {
 // loopbackAllowExt — dipanggil isPublicPath (handlers.go, frozen) sebagai
 // fallback terakhir. Default (papan kosong) = false → perilaku lama utuh.
 func loopbackAllowExt(path string, r *http.Request) bool {
+	// TRUSTED-GATEWAY (MERGE GUI 2026-07-10): request bertanda-tangan HMAC sah dari Router
+	// (pemegang shared secret) → owner-authenticated untuk SEMUA path. Loopback tetap dijaga
+	// (koloni bind 127.0.0.1); signature tak bisa dipalsu JS drive-by. Lihat gateway_trust_ext.go.
+	if gatewaySignatureValid(r) && isLocalRequest(r) {
+		return true
+	}
 	loopbackAllowMu.RLock()
 	defer loopbackAllowMu.RUnlock()
 	for _, e := range loopbackAllowList {

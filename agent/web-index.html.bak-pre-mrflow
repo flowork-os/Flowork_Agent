@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<!-- Stable — sidebar + header markup fully data-t / data-tooltip-key driven, do not regress to inline strings. -->
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-t="menu.header.title">Flowork</title>
+  <link rel="stylesheet" href="/css/style.css?v=12">
+  <link rel="stylesheet" href="/css/style_legacy.css?v=1">
+  <script type="module" src="/js/app.js?v=17"></script>
+  <script src="/vendor/mermaid.min.js" onerror="console.warn('mermaid lokal missing, diagram render skipped')"></script>
+</head>
+
+<body>
+  <header>
+    <button id="navToggle" data-tooltip-key="tooltip.header.navToggle">☰</button>
+    <h1>⚡ <span data-t="menu.header.brand">Flowork</span></h1>
+    <span id="sb" class="ba" data-tooltip-key="tooltip.header.statusBadge">● <span data-t="status.aktif">ACTIVE</span></span>
+    <span id="ts"></span>
+    <span class="hdr-spacer"></span>
+    <a href="https://github.com/flowork-os/FLOWCLI" target="_blank" rel="noopener noreferrer" class="hdr-btn hdr-btn--gh" title="Source code — Flowork Agent">★ GitHub</a>
+    <button id="openRouterDrawer" class="hdr-btn hdr-btn--router" title="Flowork Router — open the router panel (LLM gateway) without leaving this page">⚡ Router</button>
+    <a href="https://t.me/+55oqrk75lc43YWE1" target="_blank" rel="noopener noreferrer" class="hdr-btn hdr-btn--tg" title="Komunitas Telegram">✈ Telegram</a>
+    <a href="https://www.paypal.com/paypalme/TeetahDev" target="_blank" rel="noopener noreferrer" class="hdr-btn hdr-btn--pp" title="Dukung pengembangan">❤ Donate</a>
+    <span id="auth-badge" class="auth-badge">—</span>
+    <a href="#" id="logout-link" class="header-logout" data-t="menu.header.logout">logout</a>
+    <button id="themeToggle" data-tooltip-key="tooltip.header.themeToggle"
+      style="background:transparent;border:none;color:var(--text-muted);cursor:pointer;font-size:1.1rem;margin-left:12px;">🌓</button>
+  </header>
+
+  <style>
+    .hdr-spacer { margin-left: auto; }
+    .hdr-btn {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 0.78rem; font-weight: 600; text-decoration: none;
+      padding: 6px 12px; border-radius: 8px; color: #e2e8f0;
+      border: 1px solid rgba(148,163,184,0.2); margin-left: 6px;
+      transition: transform .12s, box-shadow .12s, filter .12s; white-space: nowrap;
+    }
+    .hdr-btn:hover { transform: translateY(-1px); filter: brightness(1.12); }
+    .hdr-btn--gh     { background: linear-gradient(135deg,#1f2430,#11151c); border-color: rgba(148,163,184,0.32); }
+    .hdr-btn--router { background: linear-gradient(135deg,#8b5cf6,#6d28d9); border-color: transparent; box-shadow: 0 0 14px rgba(139,92,246,0.35); }
+    .hdr-btn--tg     { background: linear-gradient(135deg,#2aabee,#1f8fd0); border-color: transparent; color: #fff; }
+    .hdr-btn--pp     { background: linear-gradient(135deg,#f43f5e,#e11d48); border-color: transparent; color: #fff; }
+    @media (max-width: 720px) { .hdr-btn span, .hdr-btn { font-size: 0.7rem; padding: 5px 8px; } }
+    .auth-badge {
+      font-size: 0.82rem;
+      color: var(--text-muted, #94a3b8);
+      padding: 4px 10px;
+      align-self: center;
+      margin-left: 10px;
+    }
+    .header-logout {
+      font-size: 0.78rem;
+      color: var(--text-muted, #94a3b8);
+      text-decoration: none;
+      padding: 4px 10px;
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      border-radius: 6px;
+      transition: background 0.15s, color 0.15s;
+      cursor: pointer;
+    }
+    .header-logout:hover {
+      background: rgba(239, 68, 68, 0.14);
+      color: #fca5a5;
+      border-color: rgba(239, 68, 68, 0.32);
+    }
+
+    /* ── Companion drawer: slide-in the OTHER Flowork app (own port) over this one. ── */
+    .fw-drawer-backdrop {
+      position: fixed; inset: 0; z-index: 9998;
+      background: rgba(3, 5, 12, 0.55); backdrop-filter: blur(2px);
+      opacity: 0; pointer-events: none; transition: opacity .2s ease;
+    }
+    .fw-drawer-backdrop.open { opacity: 1; pointer-events: auto; }
+    .fw-drawer {
+      position: fixed; top: 0; right: 0; z-index: 9999;
+      width: min(1100px, 88vw); height: 100vh;
+      background: var(--bg-core, #090B13);
+      box-shadow: -12px 0 40px rgba(0, 0, 0, 0.5);
+      border-left: 1px solid rgba(139, 92, 246, 0.3);
+      transform: translateX(100%); transition: transform .24s cubic-bezier(.4, 0, .2, 1);
+      display: flex; flex-direction: column;
+    }
+    .fw-drawer.open { transform: translateX(0); }
+    .fw-drawer-bar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 12px; flex: 0 0 auto;
+      background: linear-gradient(135deg, #1a1430, #120c20);
+      border-bottom: 1px solid rgba(139, 92, 246, 0.25);
+    }
+    .fw-drawer-bar .ttl { font-weight: 700; color: #e9d5ff; font-size: .92rem; display: flex; align-items: center; gap: 7px; }
+    .fw-drawer-bar .sp { margin-left: auto; }
+    .fw-drawer-bar a, .fw-drawer-bar button {
+      font: inherit; font-size: .76rem; cursor: pointer; text-decoration: none;
+      color: #cbd5e1; background: rgba(148, 163, 184, .12);
+      border: 1px solid rgba(148, 163, 184, .2); border-radius: 7px; padding: 5px 10px;
+    }
+    .fw-drawer-bar button.x { color: #fca5a5; }
+    .fw-drawer-bar a:hover, .fw-drawer-bar button:hover { filter: brightness(1.2); }
+    .fw-drawer-body { flex: 1 1 auto; position: relative; min-height: 0; }
+    .fw-drawer-body iframe { width: 100%; height: 100%; border: 0; display: block; background: var(--bg-core, #090B13); }
+    .fw-drawer-fallback {
+      position: absolute; inset: 0; display: none; flex-direction: column;
+      align-items: center; justify-content: center; gap: 14px; text-align: center; padding: 24px;
+      color: var(--text-muted, #94a3b8);
+    }
+    .fw-drawer-fallback.show { display: flex; }
+    .fw-drawer-fallback h3 { color: var(--text-main, #f8fafc); margin: 0; }
+    .fw-drawer-fallback a { color: #c4b5fd; }
+    .fw-drawer-spin { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text-muted, #94a3b8); }
+    .fw-drawer-spin.hide { display: none; }
+    @media (max-width: 720px) { .fw-drawer { width: 100vw; } }
+  </style>
+  <script type="module">
+    // Header profile + logout — populated AFTER i18n loads.
+    // Same module URL as /js/app.js (resolved "./i18n.js" → "/js/i18n.js").
+    // Beda query = beda instance ES module = dict kosong → t() balikin key mentah.
+    import { t } from '/js/i18n.js';
+    window.addEventListener('flowork:i18n-ready', async () => {
+      try {
+        const r = await fetch('/api/auth/me');
+        if (r.ok) {
+          const d = await r.json();
+          const icon = d.role === 'owner' ? '👑' : '👥';
+          const badge = document.getElementById('auth-badge');
+          if (badge) badge.textContent = `${icon} ${d.name} (${d.role})`;
+        }
+      } catch (e) { /* ignore */ }
+      const logout = document.getElementById('logout-link');
+      if (logout) {
+        logout.textContent = t('menu.header.logout');
+        logout.addEventListener('click', async (e) => {
+          e.preventDefault();
+          await fetch('/api/auth/logout', { method: 'POST' });
+          window.location.href = '/login';
+        });
+      }
+    });
+  </script>
+
+  <div id="layout">
+    <nav id="nav">
+      <button data-tab="scanner" class="active">🛡️ <span>Threat Radar</span></button>
+      <button data-tab="agents" data-tooltip-key="tooltip.sidebar.agents">🤖 <span data-t="menu.sidebar.agents">AI Agent</span></button>
+      <button data-tab="groups">👥 <span>Group</span></button>
+      <button data-tab="connections">🔌 <span>Connections</span></button>
+      <button data-tab="tools">🔧 <span>Tools</span></button>
+      <button data-tab="schedule">⏰ <span>Schedule</span></button>
+      <button data-tab="triggers">⚡ <span>Trigger</span></button>
+      <button data-tab="otonomi" data-tooltip-key="tooltip.sidebar.otonomi">🧠 <span data-t="menu.sidebar.otonomi">Autonomy</span></button>
+      <button data-tab="apps">▦ <span>App</span></button>
+      <button data-tab="coder">🧬 <span>AI Studio</span></button>
+      <button data-tab="codemap">🗺️ <span>Codemap</span></button>
+      <button data-tab="cognitive">🧠 <span>Cognitive Graph</span></button>
+      <button data-tab="evolution">🌱 <span>Evolution</span></button>
+      <button data-tab="commits">📋 <span>Audit Log</span></button>
+      <button data-tab="settings" data-tooltip-key="tooltip.sidebar.settings">⚙️ <span data-t="menu.sidebar.settings">Settings</span></button>
+      <div class="nav-brand" title="Flowork">
+        <img src="/img/icon.png" alt="Flowork" />
+      </div>
+    </nav>
+    <main id="main">
+      <div class="empty">Loading dashboard modules...</div>
+    </main>
+  </div>
+
+  <!-- Companion drawer: opens the Flowork Router GUI (its own :2402 origin) over this page. -->
+  <div id="routerBackdrop" class="fw-drawer-backdrop"></div>
+  <aside id="routerDrawer" class="fw-drawer" aria-hidden="true">
+    <div class="fw-drawer-bar">
+      <span class="ttl">⚡ Flowork Router</span>
+      <span class="sp"></span>
+      <a id="routerNewTab" href="#" target="_blank" rel="noopener" title="Buka di tab penuh">⤢ Tab</a>
+      <button class="x" id="routerClose" title="Tutup (Esc)">✕ Tutup</button>
+    </div>
+    <div class="fw-drawer-body">
+      <div id="routerSpin" class="fw-drawer-spin">Menyambung ke Router…</div>
+      <div id="routerFallback" class="fw-drawer-fallback">
+        <h3>Router not running</h3>
+        <p>The Router panel needs the router service running on port 2402.<br>Start Flowork Router, then try again.</p>
+        <a href="https://github.com/flowork-os/FLOWCLI" target="_blank" rel="noopener">Pasang / info Flowork Router →</a>
+      </div>
+      <iframe id="routerFrame" title="Flowork Router" loading="lazy"></iframe>
+    </div>
+  </aside>
+
+  <script>
+    // Companion drawer wiring — opens the sibling app (Router :2402) as a slide-in panel.
+    (function () {
+      const PORT = 2402;
+      const url = location.protocol + '//' + location.hostname + ':' + PORT + '/';
+      const drawer = document.getElementById('routerDrawer');
+      const backdrop = document.getElementById('routerBackdrop');
+      const frame = document.getElementById('routerFrame');
+      const spin = document.getElementById('routerSpin');
+      const fallback = document.getElementById('routerFallback');
+      const newTab = document.getElementById('routerNewTab');
+      let loaded = false;
+      newTab.href = url;
+
+      async function reachable() {
+        // Connection-refused → fetch rejects; reachable → resolves (opaque is fine).
+        try {
+          const c = new AbortController();
+          const t = setTimeout(() => c.abort(), 2500);
+          await fetch(url, { mode: 'no-cors', signal: c.signal });
+          clearTimeout(t);
+          return true;
+        } catch (e) { return false; }
+      }
+      async function open() {
+        backdrop.classList.add('open');
+        drawer.classList.add('open');
+        drawer.setAttribute('aria-hidden', 'false');
+        document.body.style.overflow = 'hidden';
+        if (loaded) return;
+        spin.classList.remove('hide');
+        fallback.classList.remove('show');
+        if (await reachable()) {
+          frame.src = url;
+          loaded = true;
+          frame.addEventListener('load', () => spin.classList.add('hide'), { once: true });
+        } else {
+          spin.classList.add('hide');
+          fallback.classList.add('show');
+        }
+      }
+      function close() {
+        backdrop.classList.remove('open');
+        drawer.classList.remove('open');
+        drawer.setAttribute('aria-hidden', 'true');
+        document.body.style.overflow = '';
+      }
+      document.getElementById('openRouterDrawer').addEventListener('click', open);
+      document.getElementById('routerClose').addEventListener('click', close);
+      backdrop.addEventListener('click', close);
+      document.addEventListener('keydown', e => { if (e.key === 'Escape' && drawer.classList.contains('open')) close(); });
+    })();
+  </script>
+</body>
+
+</html>

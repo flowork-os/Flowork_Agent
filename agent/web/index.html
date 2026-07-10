@@ -1,244 +1,306 @@
 <!DOCTYPE html>
-<!-- Stable — sidebar + header markup fully data-t / data-tooltip-key driven, do not regress to inline strings. -->
-<html lang="en">
-
+<!-- Mr.Flow HUD — GUI utama :1987 (ganti GUI tab lama; owner 2026-07-10).
+     Kode ORIGINAL Flowork (aesthetic HUD gelap-cyan). Self-contained: NOL CDN/font
+     eksternal (multi-OS, portable, offline-first). Chat 2 jalur:
+       · KOLONI  → POST /api/chat      (jalur SAMA dgn Telegram → InvokeAgentMessage)
+       · RATU/CLI→ POST /api/cli-chat  (feature_clichat_ext.go → spawn flowcli -p)
+     Halaman ini di belakang login koloni (floworkauth) — cookie flowork_session. -->
+<html lang="id" class="dark">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title data-t="menu.header.title">Flowork</title>
-  <link rel="stylesheet" href="/css/style.css?v=12">
-  <link rel="stylesheet" href="/css/style_legacy.css?v=1">
-  <script type="module" src="/js/app.js?v=17"></script>
-  <script src="/vendor/mermaid.min.js" onerror="console.warn('mermaid lokal missing, diagram render skipped')"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mr.Flow | FloworkOS</title>
+<style>
+  :root{
+    --bg:#05080d; --panel:#0a111a; --line:#123043; --line2:#0d2233;
+    --cyan:#37c6ff; --cyan-dim:#1a7fae; --cyan-glow:rgba(55,198,255,.45);
+    --txt:#c9e6f2; --muted:#4e7d94; --ok:#2fd67c; --warn:#ffb454; --err:#ff5f6b;
+    --mono:ui-monospace,'JetBrains Mono','Cascadia Mono','Fira Code',Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--bg);color:var(--txt);font-family:var(--mono);overflow:hidden}
+  /* ── scanline + vignette ─────────────────────────────────────────── */
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;
+    background:repeating-linear-gradient(0deg,transparent 0 2px,rgba(0,0,0,.12) 2px 4px)}
+  body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;
+    background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.55) 100%)}
+  .up{text-transform:uppercase;letter-spacing:.28em}
+  /* ── top bar ─────────────────────────────────────────────────────── */
+  header{position:fixed;top:0;left:0;right:0;height:52px;display:flex;align-items:center;
+    padding:0 18px;gap:12px;z-index:20;background:linear-gradient(180deg,rgba(5,8,13,.9),transparent)}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok)}
+  .brand{color:var(--cyan);font-weight:700;font-size:1.05rem;letter-spacing:.45em;text-shadow:0 0 14px var(--cyan-glow)}
+  .hspace{flex:1}
+  .hinfo{color:var(--muted);font-size:.62rem;letter-spacing:.2em}
+  .hlink{color:var(--cyan-dim);font-size:.62rem;letter-spacing:.2em}
+  .corner{position:fixed;width:26px;height:26px;border-color:var(--cyan-dim);border-style:solid;opacity:.6;z-index:2}
+  .c-tl{top:8px;left:8px;border-width:2px 0 0 2px}.c-tr{top:8px;right:8px;border-width:2px 2px 0 0}
+  .c-bl{bottom:8px;left:8px;border-width:0 0 2px 2px}.c-br{bottom:8px;right:8px;border-width:0 2px 2px 0}
+  /* ── widgets kiri ────────────────────────────────────────────────── */
+  #widgets{position:fixed;top:64px;left:14px;width:250px;z-index:10;display:flex;flex-direction:column;gap:12px}
+  .wlabel{color:var(--muted);font-size:.6rem;letter-spacing:.34em;margin:0 0 2px 4px}
+  .card{background:linear-gradient(160deg,rgba(13,34,51,.55),rgba(6,12,19,.75));
+    border:1px solid var(--line);border-radius:10px;padding:13px 15px;backdrop-filter:blur(4px)}
+  .card h4{color:var(--muted);font-size:.6rem;letter-spacing:.3em;font-weight:500;margin-bottom:7px}
+  .big{font-size:1.5rem;font-weight:700;color:#eaf7ff;text-shadow:0 0 12px var(--cyan-glow)}
+  .sub{color:var(--muted);font-size:.68rem;margin-top:4px}
+  .clock{font-size:2rem;font-weight:700;color:#eaf7ff;text-shadow:0 0 14px var(--cyan-glow)}
+  .clock .sec{font-size:1rem;color:var(--cyan-dim)}
+  .srow{display:flex;align-items:center;gap:8px;font-size:.7rem;color:var(--txt);margin-top:5px}
+  .srow .ic{width:14px;text-align:center;color:var(--cyan-dim)}
+  .quote{font-size:.74rem;line-height:1.5;font-style:italic;color:#a8d4e6}
+  .quote-by{color:var(--muted);font-size:.62rem;margin-top:6px}
+  /* ── orb tengah ──────────────────────────────────────────────────── */
+  #stage{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:5}
+  #orb{position:relative;width:340px;height:340px}
+  .ring{position:absolute;border-radius:50%;border:1px solid var(--line)}
+  .r1{inset:0;border-style:dashed;animation:spin 40s linear infinite}
+  .r2{inset:28px;border-color:var(--line2);animation:spinr 26s linear infinite}
+  .r3{inset:62px;border-style:dashed;border-color:var(--cyan-dim);opacity:.5;animation:spin 18s linear infinite}
+  .r4{inset:104px;border-color:var(--line);animation:spinr 12s linear infinite}
+  .tick{position:absolute;inset:14px;border-radius:50%;
+    background:conic-gradient(from 0deg,transparent 0 87deg,var(--line2) 87deg 90deg,transparent 90deg 177deg,var(--line2) 177deg 180deg,transparent 180deg 267deg,var(--line2) 267deg 270deg,transparent 270deg 357deg,var(--line2) 357deg 360deg);
+    -webkit-mask:radial-gradient(circle,transparent 62%,#000 63%);mask:radial-gradient(circle,transparent 62%,#000 63%)}
+  #core{position:absolute;inset:142px;border-radius:50%;background:radial-gradient(circle,#8fe1ff 0%,var(--cyan) 35%,rgba(26,127,174,.5) 70%,transparent 100%);
+    box-shadow:0 0 34px var(--cyan-glow),0 0 90px rgba(55,198,255,.2);animation:pulse 3.2s ease-in-out infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes spinr{to{transform:rotate(-360deg)}}
+  @keyframes pulse{0%,100%{transform:scale(1);opacity:.85}50%{transform:scale(1.14);opacity:1}}
+  body.busy #core{animation:pulse .8s ease-in-out infinite;background:radial-gradient(circle,#fff 0%,#8fe1ff 30%,var(--cyan) 60%,transparent 100%)}
+  body.busy .r3{animation-duration:4s}
+  #stateLbl{margin-top:26px;color:var(--muted);font-size:.7rem;letter-spacing:.42em}
+  #stateLbl::before{content:"○ ";color:var(--cyan-dim)}
+  body.busy #stateLbl::before{content:"● ";color:var(--cyan)}
+  /* ── pill bar bawah ──────────────────────────────────────────────── */
+  #pill{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:20;
+    display:flex;align-items:center;gap:14px;padding:12px 22px;border-radius:999px;
+    background:rgba(10,17,26,.85);border:1px solid var(--line);backdrop-filter:blur(6px)}
+  .pbtn{width:52px;height:52px;border-radius:50%;border:1px solid var(--line);cursor:pointer;
+    background:rgba(13,34,51,.5);color:var(--cyan);font-size:1.25rem;display:flex;align-items:center;justify-content:center;
+    transition:box-shadow .15s,border-color .15s,transform .1s}
+  .pbtn:hover{border-color:var(--cyan);box-shadow:0 0 16px var(--cyan-glow);transform:translateY(-1px)}
+  .pbtn.on{border-color:var(--cyan);box-shadow:0 0 18px var(--cyan-glow)}
+  /* ── chat panel ──────────────────────────────────────────────────── */
+  #chat{position:fixed;top:64px;right:14px;bottom:100px;width:430px;max-width:92vw;z-index:15;
+    display:none;flex-direction:column;background:linear-gradient(160deg,rgba(13,34,51,.6),rgba(6,12,19,.9));
+    border:1px solid var(--line);border-radius:12px;backdrop-filter:blur(8px)}
+  #chat.open{display:flex}
+  #chatHead{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line2)}
+  #chatHead .t{color:var(--cyan);font-size:.68rem;letter-spacing:.3em;font-weight:700}
+  #chan{margin-left:auto;display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+  #chan button{background:transparent;border:0;color:var(--muted);font-family:var(--mono);
+    font-size:.6rem;letter-spacing:.14em;padding:5px 12px;cursor:pointer}
+  #chan button.on{background:var(--cyan-dim);color:#04121c;font-weight:700}
+  #msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+  #msgs::-webkit-scrollbar{width:5px}#msgs::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
+  .m{max-width:86%;padding:9px 12px;border-radius:10px;font-size:.78rem;line-height:1.55;white-space:pre-wrap;word-break:break-word}
+  .m.you{align-self:flex-end;background:rgba(26,127,174,.25);border:1px solid var(--cyan-dim)}
+  .m.bot{align-self:flex-start;background:rgba(13,34,51,.6);border:1px solid var(--line)}
+  .m.sys{align-self:center;color:var(--muted);font-size:.64rem;background:transparent;border:0}
+  .m .who{display:block;color:var(--muted);font-size:.58rem;letter-spacing:.2em;margin-bottom:4px}
+  #typing{display:none;padding:0 16px 8px;color:var(--cyan-dim);font-size:.66rem;letter-spacing:.2em}
+  #inRow{display:flex;gap:8px;padding:12px;border-top:1px solid var(--line2)}
+  #inTxt{flex:1;background:rgba(5,8,13,.7);border:1px solid var(--line);border-radius:8px;color:var(--txt);
+    font-family:var(--mono);font-size:.8rem;padding:10px 12px;outline:none;resize:none;max-height:110px}
+  #inTxt:focus{border-color:var(--cyan-dim);box-shadow:0 0 10px rgba(55,198,255,.15)}
+  #send{background:var(--cyan-dim);border:0;border-radius:8px;color:#04121c;font-family:var(--mono);
+    font-weight:700;font-size:.72rem;letter-spacing:.12em;padding:0 18px;cursor:pointer}
+  #send:hover{background:var(--cyan)}
+  #send:disabled{opacity:.4;cursor:default}
+  /* ── footer ──────────────────────────────────────────────────────── */
+  footer{position:fixed;left:18px;right:18px;bottom:8px;display:flex;z-index:20;
+    color:var(--muted);font-size:.58rem;letter-spacing:.24em}
+  footer .fs{flex:1}
+  @media (max-width:900px){#widgets{display:none}#chat{left:14px;width:auto}}
+</style>
 </head>
-
 <body>
+  <div class="corner c-tl"></div><div class="corner c-tr"></div>
+  <div class="corner c-bl"></div><div class="corner c-br"></div>
+
   <header>
-    <button id="navToggle" data-tooltip-key="tooltip.header.navToggle">☰</button>
-    <h1>⚡ <span data-t="menu.header.brand">Flowork</span></h1>
-    <span id="sb" class="ba" data-tooltip-key="tooltip.header.statusBadge">● <span data-t="status.aktif">ACTIVE</span></span>
-    <span id="ts"></span>
-    <span class="hdr-spacer"></span>
-    <a href="https://github.com/flowork-os/Flowork-OS" target="_blank" rel="noopener noreferrer" class="hdr-btn hdr-btn--gh" title="Source code — Flowork Agent">★ GitHub</a>
-    <button id="openRouterDrawer" class="hdr-btn hdr-btn--router" title="Flowork Router — open the router panel (LLM gateway) without leaving this page">⚡ Router</button>
-    <a href="https://t.me/+55oqrk75lc43YWE1" target="_blank" rel="noopener noreferrer" class="hdr-btn hdr-btn--tg" title="Komunitas Telegram">✈ Telegram</a>
-    <a href="https://www.paypal.com/paypalme/TeetahDev" target="_blank" rel="noopener noreferrer" class="hdr-btn hdr-btn--pp" title="Dukung pengembangan">❤ Donate</a>
-    <span id="auth-badge" class="auth-badge">—</span>
-    <a href="#" id="logout-link" class="header-logout" data-t="menu.header.logout">logout</a>
-    <button id="themeToggle" data-tooltip-key="tooltip.header.themeToggle"
-      style="background:transparent;border:none;color:var(--text-muted);cursor:pointer;font-size:1.1rem;margin-left:12px;">🌓</button>
+    <span class="dot"></span>
+    <span class="brand">M R . F L O W</span>
+    <span class="hspace"></span>
+    <span class="hinfo" id="modelInfo">FLOWORK BRAIN · LOCAL</span>
+    <span class="hlink up" id="linkState">NEURAL LINK ACTIVE</span>
   </header>
 
-  <style>
-    .hdr-spacer { margin-left: auto; }
-    .hdr-btn {
-      display: inline-flex; align-items: center; gap: 5px;
-      font-size: 0.78rem; font-weight: 600; text-decoration: none;
-      padding: 6px 12px; border-radius: 8px; color: #e2e8f0;
-      border: 1px solid rgba(148,163,184,0.2); margin-left: 6px;
-      transition: transform .12s, box-shadow .12s, filter .12s; white-space: nowrap;
-    }
-    .hdr-btn:hover { transform: translateY(-1px); filter: brightness(1.12); }
-    .hdr-btn--gh     { background: linear-gradient(135deg,#1f2430,#11151c); border-color: rgba(148,163,184,0.32); }
-    .hdr-btn--router { background: linear-gradient(135deg,#8b5cf6,#6d28d9); border-color: transparent; box-shadow: 0 0 14px rgba(139,92,246,0.35); }
-    .hdr-btn--tg     { background: linear-gradient(135deg,#2aabee,#1f8fd0); border-color: transparent; color: #fff; }
-    .hdr-btn--pp     { background: linear-gradient(135deg,#f43f5e,#e11d48); border-color: transparent; color: #fff; }
-    @media (max-width: 720px) { .hdr-btn span, .hdr-btn { font-size: 0.7rem; padding: 5px 8px; } }
-    .auth-badge {
-      font-size: 0.82rem;
-      color: var(--text-muted, #94a3b8);
-      padding: 4px 10px;
-      align-self: center;
-      margin-left: 10px;
-    }
-    .header-logout {
-      font-size: 0.78rem;
-      color: var(--text-muted, #94a3b8);
-      text-decoration: none;
-      padding: 4px 10px;
-      border: 1px solid rgba(148, 163, 184, 0.18);
-      border-radius: 6px;
-      transition: background 0.15s, color 0.15s;
-      cursor: pointer;
-    }
-    .header-logout:hover {
-      background: rgba(239, 68, 68, 0.14);
-      color: #fca5a5;
-      border-color: rgba(239, 68, 68, 0.32);
-    }
-
-    /* ── Companion drawer: slide-in the OTHER Flowork app (own port) over this one. ── */
-    .fw-drawer-backdrop {
-      position: fixed; inset: 0; z-index: 9998;
-      background: rgba(3, 5, 12, 0.55); backdrop-filter: blur(2px);
-      opacity: 0; pointer-events: none; transition: opacity .2s ease;
-    }
-    .fw-drawer-backdrop.open { opacity: 1; pointer-events: auto; }
-    .fw-drawer {
-      position: fixed; top: 0; right: 0; z-index: 9999;
-      width: min(1100px, 88vw); height: 100vh;
-      background: var(--bg-core, #090B13);
-      box-shadow: -12px 0 40px rgba(0, 0, 0, 0.5);
-      border-left: 1px solid rgba(139, 92, 246, 0.3);
-      transform: translateX(100%); transition: transform .24s cubic-bezier(.4, 0, .2, 1);
-      display: flex; flex-direction: column;
-    }
-    .fw-drawer.open { transform: translateX(0); }
-    .fw-drawer-bar {
-      display: flex; align-items: center; gap: 10px;
-      padding: 8px 12px; flex: 0 0 auto;
-      background: linear-gradient(135deg, #1a1430, #120c20);
-      border-bottom: 1px solid rgba(139, 92, 246, 0.25);
-    }
-    .fw-drawer-bar .ttl { font-weight: 700; color: #e9d5ff; font-size: .92rem; display: flex; align-items: center; gap: 7px; }
-    .fw-drawer-bar .sp { margin-left: auto; }
-    .fw-drawer-bar a, .fw-drawer-bar button {
-      font: inherit; font-size: .76rem; cursor: pointer; text-decoration: none;
-      color: #cbd5e1; background: rgba(148, 163, 184, .12);
-      border: 1px solid rgba(148, 163, 184, .2); border-radius: 7px; padding: 5px 10px;
-    }
-    .fw-drawer-bar button.x { color: #fca5a5; }
-    .fw-drawer-bar a:hover, .fw-drawer-bar button:hover { filter: brightness(1.2); }
-    .fw-drawer-body { flex: 1 1 auto; position: relative; min-height: 0; }
-    .fw-drawer-body iframe { width: 100%; height: 100%; border: 0; display: block; background: var(--bg-core, #090B13); }
-    .fw-drawer-fallback {
-      position: absolute; inset: 0; display: none; flex-direction: column;
-      align-items: center; justify-content: center; gap: 14px; text-align: center; padding: 24px;
-      color: var(--text-muted, #94a3b8);
-    }
-    .fw-drawer-fallback.show { display: flex; }
-    .fw-drawer-fallback h3 { color: var(--text-main, #f8fafc); margin: 0; }
-    .fw-drawer-fallback a { color: #c4b5fd; }
-    .fw-drawer-spin { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text-muted, #94a3b8); }
-    .fw-drawer-spin.hide { display: none; }
-    @media (max-width: 720px) { .fw-drawer { width: 100vw; } }
-  </style>
-  <script type="module">
-    // Header profile + logout — populated AFTER i18n loads.
-    // Same module URL as /js/app.js (resolved "./i18n.js" → "/js/i18n.js").
-    // Beda query = beda instance ES module = dict kosong → t() balikin key mentah.
-    import { t } from '/js/i18n.js';
-    window.addEventListener('flowork:i18n-ready', async () => {
-      try {
-        const r = await fetch('/api/auth/me');
-        if (r.ok) {
-          const d = await r.json();
-          const icon = d.role === 'owner' ? '👑' : '👥';
-          const badge = document.getElementById('auth-badge');
-          if (badge) badge.textContent = `${icon} ${d.name} (${d.role})`;
-        }
-      } catch (e) { /* ignore */ }
-      const logout = document.getElementById('logout-link');
-      if (logout) {
-        logout.textContent = t('menu.header.logout');
-        logout.addEventListener('click', async (e) => {
-          e.preventDefault();
-          await fetch('/api/auth/logout', { method: 'POST' });
-          window.location.href = '/login';
-        });
-      }
-    });
-  </script>
-
-  <div id="layout">
-    <nav id="nav">
-      <button data-tab="scanner" class="active">🛡️ <span>Threat Radar</span></button>
-      <button data-tab="agents" data-tooltip-key="tooltip.sidebar.agents">🤖 <span data-t="menu.sidebar.agents">AI Agent</span></button>
-      <button data-tab="groups">👥 <span>Group</span></button>
-      <button data-tab="connections">🔌 <span>Connections</span></button>
-      <button data-tab="tools">🔧 <span>Tools</span></button>
-      <button data-tab="schedule">⏰ <span>Schedule</span></button>
-      <button data-tab="triggers">⚡ <span>Trigger</span></button>
-      <button data-tab="otonomi" data-tooltip-key="tooltip.sidebar.otonomi">🧠 <span data-t="menu.sidebar.otonomi">Autonomy</span></button>
-      <button data-tab="apps">▦ <span>App</span></button>
-      <button data-tab="coder">🧬 <span>AI Studio</span></button>
-      <button data-tab="codemap">🗺️ <span>Codemap</span></button>
-      <button data-tab="cognitive">🧠 <span>Cognitive Graph</span></button>
-      <button data-tab="evolution">🌱 <span>Evolution</span></button>
-      <button data-tab="commits">📋 <span>Audit Log</span></button>
-      <button data-tab="settings" data-tooltip-key="tooltip.sidebar.settings">⚙️ <span data-t="menu.sidebar.settings">Settings</span></button>
-      <div class="nav-brand" title="Flowork">
-        <img src="/img/icon.png" alt="Flowork" />
-      </div>
-    </nav>
-    <main id="main">
-      <div class="empty">Loading dashboard modules...</div>
-    </main>
-  </div>
-
-  <!-- Companion drawer: opens the Flowork Router GUI (its own :2402 origin) over this page. -->
-  <div id="routerBackdrop" class="fw-drawer-backdrop"></div>
-  <aside id="routerDrawer" class="fw-drawer" aria-hidden="true">
-    <div class="fw-drawer-bar">
-      <span class="ttl">⚡ Flowork Router</span>
-      <span class="sp"></span>
-      <a id="routerNewTab" href="#" target="_blank" rel="noopener" title="Buka di tab penuh">⤢ Tab</a>
-      <button class="x" id="routerClose" title="Tutup (Esc)">✕ Tutup</button>
+  <aside id="widgets">
+    <p class="wlabel">WIDGETS</p>
+    <div class="card">
+      <h4>MR.FLOW</h4>
+      <div class="big" id="greet">Halo, Bos.</div>
+      <p class="sub" id="greetSub">Semua sistem operasional.</p>
     </div>
-    <div class="fw-drawer-body">
-      <div id="routerSpin" class="fw-drawer-spin">Menyambung ke Router…</div>
-      <div id="routerFallback" class="fw-drawer-fallback">
-        <h3>Router not running</h3>
-        <p>The Router panel needs the router service running on port 2402.<br>Start Flowork Router, then try again.</p>
-        <a href="https://github.com/flowork-os/Flowork-OS" target="_blank" rel="noopener">Pasang / info Flowork Router →</a>
-      </div>
-      <iframe id="routerFrame" title="Flowork Router" loading="lazy"></iframe>
+    <div class="card">
+      <h4>WAKTU LOKAL</h4>
+      <div class="clock"><span id="hm">--:--</span><span class="sec" id="ss">.--</span></div>
+      <p class="sub" id="dateLbl">—</p>
+    </div>
+    <div class="card">
+      <h4>STATUS SISTEM</h4>
+      <div class="srow"><span class="ic">●</span><span id="sysOnline" style="color:var(--ok)">MENGHUBUNGI…</span></div>
+      <div class="srow"><span class="ic">⚙</span><span id="sysVer">—</span></div>
+      <div class="srow"><span class="ic">∿</span><span id="sysIx">0 interaksi</span></div>
+      <div class="srow"><span class="ic">⇄</span><span>CLI · TELEGRAM · GUI</span></div>
+    </div>
+    <div class="card">
+      <h4>PIKIRAN</h4>
+      <p class="quote" id="quote">"Cabut akar, jangan tambal."</p>
+      <p class="quote-by">— Doktrin Flowork</p>
     </div>
   </aside>
 
-  <script>
-    // Companion drawer wiring — opens the sibling app (Router :2402) as a slide-in panel.
-    (function () {
-      const PORT = 2402;
-      const url = location.protocol + '//' + location.hostname + ':' + PORT + '/';
-      const drawer = document.getElementById('routerDrawer');
-      const backdrop = document.getElementById('routerBackdrop');
-      const frame = document.getElementById('routerFrame');
-      const spin = document.getElementById('routerSpin');
-      const fallback = document.getElementById('routerFallback');
-      const newTab = document.getElementById('routerNewTab');
-      let loaded = false;
-      newTab.href = url;
+  <main id="stage">
+    <div id="orb">
+      <div class="ring r1"></div><div class="ring r2"></div>
+      <div class="tick"></div>
+      <div class="ring r3"></div><div class="ring r4"></div>
+      <div id="core"></div>
+    </div>
+    <div id="stateLbl" class="up">STANDBY</div>
+  </main>
 
-      async function reachable() {
-        // Connection-refused → fetch rejects; reachable → resolves (opaque is fine).
-        try {
-          const c = new AbortController();
-          const t = setTimeout(() => c.abort(), 2500);
-          await fetch(url, { mode: 'no-cors', signal: c.signal });
-          clearTimeout(t);
-          return true;
-        } catch (e) { return false; }
+  <section id="chat" aria-label="Chat Mr.Flow">
+    <div id="chatHead">
+      <span class="t">MR.FLOW — SECURE CHANNEL</span>
+      <div id="chan">
+        <button id="chKoloni" class="on" onclick="setChan('koloni')" title="Jalur koloni — SAMA persis dengan Telegram (InvokeAgentMessage)">KOLONI</button>
+        <button id="chCli" onclick="setChan('cli')" title="Jalur ratu — FLOWCLI (flowcli -p), loop Claude Code">RATU·CLI</button>
+      </div>
+    </div>
+    <div id="msgs"></div>
+    <div id="typing" class="up">MR.FLOW MEMPROSES…</div>
+    <div id="inRow">
+      <textarea id="inTxt" rows="1" placeholder="Ketik perintah / pertanyaan…"></textarea>
+      <button id="send" onclick="sendMsg()">KIRIM</button>
+    </div>
+  </section>
+
+  <div id="pill">
+    <button class="pbtn" id="micBtn" title="Bicara (speech-to-text browser)" onclick="toggleMic()">🎙</button>
+    <button class="pbtn" id="chatBtn" title="Buka chat" onclick="toggleChat()">💬</button>
+    <button class="pbtn" title="Bersihkan percakapan" onclick="clearChat()">🗑</button>
+  </div>
+
+  <footer>
+    <span class="fs up">MR.FLOW v1 // FLOWORK OS</span>
+    <span class="up" id="secure">SECURE CHANNEL ●</span>
+  </footer>
+
+<script>
+  // ── jam + sapaan ─────────────────────────────────────────────────────
+  const HARI=['Min','Sen','Sel','Rab','Kam','Jum','Sab'];
+  const BLN=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+  function tick(){
+    const d=new Date(),p=n=>String(n).padStart(2,'0');
+    document.getElementById('hm').textContent=p(d.getHours())+':'+p(d.getMinutes());
+    document.getElementById('ss').textContent='.'+p(d.getSeconds());
+    document.getElementById('dateLbl').textContent=HARI[d.getDay()]+', '+d.getDate()+' '+BLN[d.getMonth()]+' '+d.getFullYear();
+    const h=d.getHours(), g=h<4?'Selamat malam':h<11?'Selamat pagi':h<15?'Selamat siang':h<19?'Selamat sore':'Selamat malam';
+    document.getElementById('greet').textContent=g+', Bos.';
+  }
+  tick(); setInterval(tick,1000);
+
+  // ── pikiran (kutipan doktrin Flowork — tulisan owner sendiri) ────────
+  const QUOTES=[
+    '"Cabut akar, jangan tambal."',
+    '"GUI adalah kebenaran."',
+    '"Tumbuh lewat colokan, bukan bobok tembok."',
+    '"Flowork dirancang abadi — bahkan saat dev sudah tiada."',
+    '"Fitur tanpa adopsi adalah sampah."',
+  ];
+  let qi=0;
+  setInterval(()=>{qi=(qi+1)%QUOTES.length;document.getElementById('quote').textContent=QUOTES[qi];},12000);
+
+  // ── status sistem ────────────────────────────────────────────────────
+  async function sysPoll(){
+    try{
+      const r=await fetch('/api/system/health');
+      if(r.ok){const j=await r.json();
+        document.getElementById('sysOnline').textContent='ONLINE';
+        document.getElementById('sysVer').textContent='flowork '+(j.version||'—');
+        document.getElementById('linkState').textContent='NEURAL LINK ACTIVE';
+      }else{throw 0}
+    }catch(e){
+      document.getElementById('sysOnline').textContent='OFFLINE';
+      document.getElementById('sysOnline').style.color='var(--err)';
+      document.getElementById('linkState').textContent='LINK DOWN';
+    }
+  }
+  sysPoll(); setInterval(sysPoll,15000);
+
+  // ── chat (2 jalur: koloni = jalur Telegram · cli = ratu FLOWCLI) ────
+  let chan='koloni', ix=0, busy=false;
+  function setChan(c){chan=c;
+    document.getElementById('chKoloni').classList.toggle('on',c==='koloni');
+    document.getElementById('chCli').classList.toggle('on',c==='cli');
+    addMsg('sys',c==='koloni'?'jalur: KOLONI (= Telegram)':'jalur: RATU·CLI (flowcli)');
+  }
+  function toggleChat(){
+    const c=document.getElementById('chat');c.classList.toggle('open');
+    document.getElementById('chatBtn').classList.toggle('on',c.classList.contains('open'));
+    if(c.classList.contains('open'))document.getElementById('inTxt').focus();
+  }
+  function clearChat(){document.getElementById('msgs').innerHTML='';}
+  function addMsg(kind,text,who){
+    const m=document.createElement('div');m.className='m '+kind;
+    if(who){const w=document.createElement('span');w.className='who up';w.textContent=who;m.appendChild(w);}
+    m.appendChild(document.createTextNode(text));
+    document.getElementById('msgs').appendChild(m);
+    document.getElementById('msgs').scrollTop=1e9;
+  }
+  function setBusy(b){busy=b;document.body.classList.toggle('busy',b);
+    document.getElementById('stateLbl').textContent=b?'MEMPROSES':'STANDBY';
+    document.getElementById('typing').style.display=b?'block':'none';
+    document.getElementById('send').disabled=b;
+  }
+  async function sendMsg(){
+    const t=document.getElementById('inTxt');const text=t.value.trim();
+    if(!text||busy)return;
+    t.value='';
+    if(!document.getElementById('chat').classList.contains('open'))toggleChat();
+    addMsg('you',text,'BOS');
+    setBusy(true);
+    try{
+      let reply;
+      if(chan==='koloni'){
+        // JALUR SAMA dgn Telegram: POST /api/chat → InvokeAgentMessage (channel-agnostic core)
+        const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({text,agent:'mr-flow',user:'gui:owner'})});
+        const raw=await r.text();let j;try{j=JSON.parse(raw)}catch(e){j={reply:raw}}
+        reply=j.reply??j.error??raw;
+      }else{
+        // JALUR RATU: FLOWCLI loop (flowcli -p) via feature_clichat_ext.go
+        const r=await fetch('/api/cli-chat',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({text})});
+        const raw=await r.text();let j;try{j=JSON.parse(raw)}catch(e){j={reply:raw}}
+        reply=j.reply??j.error??raw;
       }
-      async function open() {
-        backdrop.classList.add('open');
-        drawer.classList.add('open');
-        drawer.setAttribute('aria-hidden', 'false');
-        document.body.style.overflow = 'hidden';
-        if (loaded) return;
-        spin.classList.remove('hide');
-        fallback.classList.remove('show');
-        if (await reachable()) {
-          frame.src = url;
-          loaded = true;
-          frame.addEventListener('load', () => spin.classList.add('hide'), { once: true });
-        } else {
-          spin.classList.add('hide');
-          fallback.classList.add('show');
-        }
-      }
-      function close() {
-        backdrop.classList.remove('open');
-        drawer.classList.remove('open');
-        drawer.setAttribute('aria-hidden', 'true');
-        document.body.style.overflow = '';
-      }
-      document.getElementById('openRouterDrawer').addEventListener('click', open);
-      document.getElementById('routerClose').addEventListener('click', close);
-      backdrop.addEventListener('click', close);
-      document.addEventListener('keydown', e => { if (e.key === 'Escape' && drawer.classList.contains('open')) close(); });
-    })();
-  </script>
+      ix++;document.getElementById('sysIx').textContent=ix+' interaksi';
+      addMsg('bot',String(reply||'(kosong)'),chan==='koloni'?'MR.FLOW · KOLONI':'MR.FLOW · RATU');
+    }catch(e){addMsg('sys','error: '+e.message)}
+    setBusy(false);
+  }
+  document.getElementById('inTxt').addEventListener('keydown',e=>{
+    if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();}
+  });
+
+  // ── mic (Web Speech API bawaan browser; fallback sopan) ─────────────
+  let rec=null,listening=false;
+  function toggleMic(){
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(!SR){addMsg('sys','browser tidak mendukung speech-to-text');if(!document.getElementById('chat').classList.contains('open'))toggleChat();return;}
+    if(listening){rec.stop();return;}
+    rec=new SR();rec.lang='id-ID';rec.interimResults=false;
+    rec.onstart=()=>{listening=true;document.getElementById('micBtn').classList.add('on');};
+    rec.onend=()=>{listening=false;document.getElementById('micBtn').classList.remove('on');};
+    rec.onresult=ev=>{const s=ev.results[0][0].transcript;document.getElementById('inTxt').value=s;
+      if(!document.getElementById('chat').classList.contains('open'))toggleChat();sendMsg();};
+    rec.start();
+  }
+</script>
 </body>
-
 </html>
