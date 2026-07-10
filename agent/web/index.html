@@ -1,10 +1,11 @@
 <!DOCTYPE html>
-<!-- Mr.Flow HUD — GUI utama :1987 (ganti GUI tab lama; owner 2026-07-10).
-     Kode ORIGINAL Flowork (aesthetic HUD gelap-cyan). Self-contained: NOL CDN/font
-     eksternal (multi-OS, portable, offline-first). Chat 2 jalur:
-       · KOLONI  → POST /api/chat      (jalur SAMA dgn Telegram → InvokeAgentMessage)
-       · RATU/CLI→ POST /api/cli-chat  (feature_clichat_ext.go → spawn flowcli -p)
-     Halaman ini di belakang login koloni (floworkauth) — cookie flowork_session. -->
+<!-- Mr.Flow HUD — GUI utama :1987 (owner 2026-07-10, batch-2).
+     Kode ORIGINAL Flowork. Self-contained: NOL CDN/font eksternal (portable, offline-first).
+     Fitur: bilingual ID/EN · voice in (STT) + voice out (TTS, prefer suara COWOK) · partikel
+     neural · orb reactor + sweep · widget HOST/ROUTER/status · tombol Dashboard (:2402) ·
+     chat animatif (berpikir/mengetik + typewriter) · kirim GAMBAR (jalur vision sesi koloni)
+     + dokumen teks (inline). Chat 2 jalur: KOLONI (/api/chat = jalur Telegram; gambar via
+     /api/chat/send sesi vision) · RATU/CLI (/api/cli-chat → flowcli -p). Di belakang login koloni. -->
 <html lang="id" class="dark">
 <head>
 <meta charset="UTF-8" />
@@ -20,24 +21,29 @@
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%}
   body{background:var(--bg);color:var(--txt);font-family:var(--mono);overflow:hidden}
-  /* ── scanline + vignette ─────────────────────────────────────────── */
+  #particles{position:fixed;inset:0;z-index:0}
   body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;
     background:repeating-linear-gradient(0deg,transparent 0 2px,rgba(0,0,0,.12) 2px 4px)}
   body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;
     background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.55) 100%)}
   .up{text-transform:uppercase;letter-spacing:.28em}
-  /* ── top bar ─────────────────────────────────────────────────────── */
   header{position:fixed;top:0;left:0;right:0;height:52px;display:flex;align-items:center;
     padding:0 18px;gap:12px;z-index:20;background:linear-gradient(180deg,rgba(5,8,13,.9),transparent)}
   .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok)}
   .brand{color:var(--cyan);font-weight:700;font-size:1.05rem;letter-spacing:.45em;text-shadow:0 0 14px var(--cyan-glow)}
   .hspace{flex:1}
   .hinfo{color:var(--muted);font-size:.62rem;letter-spacing:.2em}
-  .hlink{color:var(--cyan-dim);font-size:.62rem;letter-spacing:.2em}
+  .hbtn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:8px;
+    background:rgba(13,34,51,.5);color:var(--cyan);font-family:var(--mono);font-size:.62rem;
+    letter-spacing:.18em;padding:7px 14px;cursor:pointer;text-decoration:none;transition:box-shadow .15s,border-color .15s}
+  .hbtn:hover{border-color:var(--cyan);box-shadow:0 0 14px var(--cyan-glow)}
+  #langSw{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+  #langSw button{background:transparent;border:0;color:var(--muted);font-family:var(--mono);
+    font-size:.6rem;letter-spacing:.14em;padding:6px 11px;cursor:pointer}
+  #langSw button.on{background:var(--cyan-dim);color:#04121c;font-weight:700}
   .corner{position:fixed;width:26px;height:26px;border-color:var(--cyan-dim);border-style:solid;opacity:.6;z-index:2}
   .c-tl{top:8px;left:8px;border-width:2px 0 0 2px}.c-tr{top:8px;right:8px;border-width:2px 2px 0 0}
   .c-bl{bottom:8px;left:8px;border-width:0 0 2px 2px}.c-br{bottom:8px;right:8px;border-width:0 2px 2px 0}
-  /* ── widgets kiri ────────────────────────────────────────────────── */
   #widgets{position:fixed;top:64px;left:14px;width:250px;z-index:10;display:flex;flex-direction:column;gap:12px}
   .wlabel{color:var(--muted);font-size:.6rem;letter-spacing:.34em;margin:0 0 2px 4px}
   .card{background:linear-gradient(160deg,rgba(13,34,51,.55),rgba(6,12,19,.75));
@@ -51,7 +57,12 @@
   .srow .ic{width:14px;text-align:center;color:var(--cyan-dim)}
   .quote{font-size:.74rem;line-height:1.5;font-style:italic;color:#a8d4e6}
   .quote-by{color:var(--muted);font-size:.62rem;margin-top:6px}
-  /* ── orb tengah ──────────────────────────────────────────────────── */
+  .bar{height:5px;border-radius:3px;background:rgba(18,48,67,.8);margin-top:4px;overflow:hidden}
+  .bar .fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--cyan-dim),var(--cyan));
+    box-shadow:0 0 8px var(--cyan-glow);width:0%;transition:width .6s ease}
+  .bar .fill.hot{background:linear-gradient(90deg,#c96a1f,var(--warn))}
+  .kv{display:flex;justify-content:space-between;font-size:.66rem;color:var(--txt);margin-top:7px}
+  .kv .k{color:var(--muted);letter-spacing:.12em}
   #stage{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:5}
   #orb{position:relative;width:340px;height:340px}
   .ring{position:absolute;border-radius:50%;border:1px solid var(--line)}
@@ -62,6 +73,11 @@
   .tick{position:absolute;inset:14px;border-radius:50%;
     background:conic-gradient(from 0deg,transparent 0 87deg,var(--line2) 87deg 90deg,transparent 90deg 177deg,var(--line2) 177deg 180deg,transparent 180deg 267deg,var(--line2) 267deg 270deg,transparent 270deg 357deg,var(--line2) 357deg 360deg);
     -webkit-mask:radial-gradient(circle,transparent 62%,#000 63%);mask:radial-gradient(circle,transparent 62%,#000 63%)}
+  .sweep{position:absolute;inset:14px;border-radius:50%;pointer-events:none;
+    background:conic-gradient(from 0deg,rgba(55,198,255,.28) 0deg,transparent 70deg);
+    animation:spin 6s linear infinite;
+    -webkit-mask:radial-gradient(circle,transparent 40%,#000 41%,#000 99%,transparent 100%);
+    mask:radial-gradient(circle,transparent 40%,#000 41%,#000 99%,transparent 100%)}
   #core{position:absolute;inset:142px;border-radius:50%;background:radial-gradient(circle,#8fe1ff 0%,var(--cyan) 35%,rgba(26,127,174,.5) 70%,transparent 100%);
     box-shadow:0 0 34px var(--cyan-glow),0 0 90px rgba(55,198,255,.2);animation:pulse 3.2s ease-in-out infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
@@ -69,10 +85,10 @@
   @keyframes pulse{0%,100%{transform:scale(1);opacity:.85}50%{transform:scale(1.14);opacity:1}}
   body.busy #core{animation:pulse .8s ease-in-out infinite;background:radial-gradient(circle,#fff 0%,#8fe1ff 30%,var(--cyan) 60%,transparent 100%)}
   body.busy .r3{animation-duration:4s}
+  body.busy .sweep{animation-duration:2.2s}
   #stateLbl{margin-top:26px;color:var(--muted);font-size:.7rem;letter-spacing:.42em}
   #stateLbl::before{content:"○ ";color:var(--cyan-dim)}
   body.busy #stateLbl::before{content:"● ";color:var(--cyan)}
-  /* ── pill bar bawah ──────────────────────────────────────────────── */
   #pill{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:20;
     display:flex;align-items:center;gap:14px;padding:12px 22px;border-radius:999px;
     background:rgba(10,17,26,.85);border:1px solid var(--line);backdrop-filter:blur(6px)}
@@ -81,8 +97,7 @@
     transition:box-shadow .15s,border-color .15s,transform .1s}
   .pbtn:hover{border-color:var(--cyan);box-shadow:0 0 16px var(--cyan-glow);transform:translateY(-1px)}
   .pbtn.on{border-color:var(--cyan);box-shadow:0 0 18px var(--cyan-glow)}
-  /* ── chat panel ──────────────────────────────────────────────────── */
-  #chat{position:fixed;top:64px;right:14px;bottom:100px;width:430px;max-width:92vw;z-index:15;
+  #chat{position:fixed;top:64px;right:14px;bottom:100px;width:460px;max-width:92vw;z-index:15;
     display:none;flex-direction:column;background:linear-gradient(160deg,rgba(13,34,51,.6),rgba(6,12,19,.9));
     border:1px solid var(--line);border-radius:12px;backdrop-filter:blur(8px)}
   #chat.open{display:flex}
@@ -99,16 +114,30 @@
   .m.bot{align-self:flex-start;background:rgba(13,34,51,.6);border:1px solid var(--line)}
   .m.sys{align-self:center;color:var(--muted);font-size:.64rem;background:transparent;border:0}
   .m .who{display:block;color:var(--muted);font-size:.58rem;letter-spacing:.2em;margin-bottom:4px}
-  #typing{display:none;padding:0 16px 8px;color:var(--cyan-dim);font-size:.66rem;letter-spacing:.2em}
-  #inRow{display:flex;gap:8px;padding:12px;border-top:1px solid var(--line2)}
+  .m img{max-width:100%;border-radius:8px;border:1px solid var(--line);display:block;margin-top:6px}
+  .m .caret{display:inline-block;width:.55em;background:var(--cyan);animation:blink .9s step-start infinite;height:1em;vertical-align:text-bottom}
+  @keyframes blink{50%{opacity:0}}
+  #phase{display:none;align-items:center;gap:8px;padding:2px 16px 8px;color:var(--cyan-dim);font-size:.66rem;letter-spacing:.2em}
+  #phase .pdots i{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--cyan-dim);margin-right:4px;animation:pd 1.2s ease-in-out infinite}
+  #phase .pdots i:nth-child(2){animation-delay:.2s}#phase .pdots i:nth-child(3){animation-delay:.4s}
+  @keyframes pd{0%,100%{transform:translateY(0);opacity:.4}50%{transform:translateY(-4px);opacity:1}}
+  #attachBar{display:none;gap:8px;padding:8px 12px 0;flex-wrap:wrap}
+  .att{position:relative;border:1px solid var(--line);border-radius:8px;padding:4px;background:rgba(5,8,13,.6)}
+  .att img{height:52px;border-radius:5px;display:block}
+  .att .doc{height:52px;min-width:90px;display:flex;align-items:center;justify-content:center;font-size:.6rem;color:var(--muted);padding:0 8px}
+  .att .x{position:absolute;top:-7px;right:-7px;width:18px;height:18px;border-radius:50%;border:1px solid var(--err);
+    background:#1a0b0e;color:var(--err);font-size:.6rem;cursor:pointer;line-height:1}
+  #inRow{display:flex;gap:8px;padding:12px;border-top:1px solid var(--line2);align-items:flex-end}
   #inTxt{flex:1;background:rgba(5,8,13,.7);border:1px solid var(--line);border-radius:8px;color:var(--txt);
     font-family:var(--mono);font-size:.8rem;padding:10px 12px;outline:none;resize:none;max-height:110px}
   #inTxt:focus{border-color:var(--cyan-dim);box-shadow:0 0 10px rgba(55,198,255,.15)}
+  .ibtn{background:rgba(13,34,51,.5);border:1px solid var(--line);border-radius:8px;color:var(--cyan);
+    font-size:1rem;padding:9px 12px;cursor:pointer}
+  .ibtn:hover{border-color:var(--cyan)}
   #send{background:var(--cyan-dim);border:0;border-radius:8px;color:#04121c;font-family:var(--mono);
-    font-weight:700;font-size:.72rem;letter-spacing:.12em;padding:0 18px;cursor:pointer}
+    font-weight:700;font-size:.72rem;letter-spacing:.12em;padding:11px 18px;cursor:pointer}
   #send:hover{background:var(--cyan)}
   #send:disabled{opacity:.4;cursor:default}
-  /* ── footer ──────────────────────────────────────────────────────── */
   footer{position:fixed;left:18px;right:18px;bottom:8px;display:flex;z-index:20;
     color:var(--muted);font-size:.58rem;letter-spacing:.24em}
   footer .fs{flex:1}
@@ -116,6 +145,7 @@
 </style>
 </head>
 <body>
+  <canvas id="particles"></canvas>
   <div class="corner c-tl"></div><div class="corner c-tr"></div>
   <div class="corner c-bl"></div><div class="corner c-br"></div>
 
@@ -124,7 +154,11 @@
     <span class="brand">M R . F L O W</span>
     <span class="hspace"></span>
     <span class="hinfo" id="modelInfo">FLOWORK BRAIN · LOCAL</span>
-    <span class="hlink up" id="linkState">NEURAL LINK ACTIVE</span>
+    <div id="langSw" title="Bahasa / Language">
+      <button id="langId" class="on" onclick="setLang('id')">ID</button>
+      <button id="langEn" onclick="setLang('en')">EN</button>
+    </div>
+    <a class="hbtn" id="dashBtn" href="#" title="Flowork Dashboard (:2402)">⚡ <span data-t="dash">DASHBOARD</span></a>
   </header>
 
   <aside id="widgets">
@@ -135,28 +169,42 @@
       <p class="sub" id="greetSub">Semua sistem operasional.</p>
     </div>
     <div class="card">
-      <h4>WAKTU LOKAL</h4>
+      <h4 data-t="wTime">WAKTU LOKAL</h4>
       <div class="clock"><span id="hm">--:--</span><span class="sec" id="ss">.--</span></div>
       <p class="sub" id="dateLbl">—</p>
     </div>
     <div class="card">
-      <h4>STATUS SISTEM</h4>
-      <div class="srow"><span class="ic">●</span><span id="sysOnline" style="color:var(--ok)">MENGHUBUNGI…</span></div>
+      <h4 data-t="wSys">STATUS SISTEM</h4>
+      <div class="srow"><span class="ic">●</span><span id="sysOnline" style="color:var(--ok)">…</span></div>
       <div class="srow"><span class="ic">⚙</span><span id="sysVer">—</span></div>
       <div class="srow"><span class="ic">∿</span><span id="sysIx">0 interaksi</span></div>
       <div class="srow"><span class="ic">⇄</span><span>CLI · TELEGRAM · GUI</span></div>
     </div>
     <div class="card">
-      <h4>PIKIRAN</h4>
+      <h4>HOST</h4>
+      <div class="kv"><span class="k">CPU</span><span id="cpuV">—</span></div>
+      <div class="bar"><div class="fill" id="cpuBar"></div></div>
+      <div class="kv"><span class="k">RAM</span><span id="memV">—</span></div>
+      <div class="bar"><div class="fill" id="memBar"></div></div>
+      <div class="kv"><span class="k">LOAD</span><span id="loadV">—</span></div>
+    </div>
+    <div class="card">
+      <h4>ROUTER · GATEWAY LLM</h4>
+      <div class="srow"><span class="ic">●</span><span id="rtOnline" style="color:var(--warn)">…</span></div>
+      <div class="srow"><span class="ic">⚙</span><span id="rtVer">—</span></div>
+      <div class="srow"><span class="ic">⏱</span><span id="rtUp">—</span></div>
+    </div>
+    <div class="card">
+      <h4 data-t="wThought">PIKIRAN</h4>
       <p class="quote" id="quote">"Cabut akar, jangan tambal."</p>
-      <p class="quote-by">— Doktrin Flowork</p>
+      <p class="quote-by" data-t="wBy">— Doktrin Flowork</p>
     </div>
   </aside>
 
   <main id="stage">
     <div id="orb">
       <div class="ring r1"></div><div class="ring r2"></div>
-      <div class="tick"></div>
+      <div class="tick"></div><div class="sweep"></div>
       <div class="ring r3"></div><div class="ring r4"></div>
       <div id="core"></div>
     </div>
@@ -167,140 +215,340 @@
     <div id="chatHead">
       <span class="t">MR.FLOW — SECURE CHANNEL</span>
       <div id="chan">
-        <button id="chKoloni" class="on" onclick="setChan('koloni')" title="Jalur koloni — SAMA persis dengan Telegram (InvokeAgentMessage)">KOLONI</button>
-        <button id="chCli" onclick="setChan('cli')" title="Jalur ratu — FLOWCLI (flowcli -p), loop Claude Code">RATU·CLI</button>
+        <button id="chKoloni" class="on" onclick="setChan('koloni')" title="Jalur koloni — sama persis Telegram">KOLONI</button>
+        <button id="chCli" onclick="setChan('cli')" title="Jalur ratu — FLOWCLI (flowcli -p)">RATU·CLI</button>
       </div>
     </div>
     <div id="msgs"></div>
-    <div id="typing" class="up">MR.FLOW MEMPROSES…</div>
+    <div id="phase"><span class="pdots"><i></i><i></i><i></i></span><span id="phaseLbl" class="up">BERPIKIR…</span></div>
+    <div id="attachBar"></div>
     <div id="inRow">
+      <button class="ibtn" id="attBtn" title="Lampirkan gambar / dokumen" onclick="document.getElementById('attFile').click()">📎</button>
+      <input type="file" id="attFile" multiple accept="image/*,.txt,.md,.json,.csv,.log,.yaml,.yml,.xml,.html,.js,.ts,.go,.py,.sh" style="display:none" onchange="pickFiles(this.files)">
       <textarea id="inTxt" rows="1" placeholder="Ketik perintah / pertanyaan…"></textarea>
-      <button id="send" onclick="sendMsg()">KIRIM</button>
+      <button id="send" onclick="sendMsg()" data-t="send">KIRIM</button>
     </div>
   </section>
 
   <div id="pill">
-    <button class="pbtn" id="micBtn" title="Bicara (speech-to-text browser)" onclick="toggleMic()">🎙</button>
+    <button class="pbtn" id="micBtn" title="Bicara (voice command)" onclick="toggleMic()">🎙</button>
     <button class="pbtn" id="chatBtn" title="Buka chat" onclick="toggleChat()">💬</button>
+    <button class="pbtn on" id="ttsBtn" title="Suara balasan (on/off)" onclick="toggleTts()">🔊</button>
     <button class="pbtn" title="Bersihkan percakapan" onclick="clearChat()">🗑</button>
   </div>
 
   <footer>
-    <span class="fs up">MR.FLOW v1 // FLOWORK OS</span>
+    <span class="fs up">MR.FLOW v2 // FLOWORK OS</span>
     <span class="up" id="secure">SECURE CHANNEL ●</span>
   </footer>
 
 <script>
+  // ── i18n ID/EN (persisted) ───────────────────────────────────────────
+  const I18N={
+    id:{dash:'DASHBOARD',wTime:'WAKTU LOKAL',wSys:'STATUS SISTEM',wThought:'PIKIRAN',wBy:'— Doktrin Flowork',
+        send:'KIRIM',ph:'Ketik perintah / pertanyaan…',online:'ONLINE',offline:'OFFLINE',standby:'STANDBY',
+        busy:'MEMPROSES',think:'BERPIKIR…',type:'MENGETIK…',ix:' interaksi',allOk:'Semua sistem operasional.',
+        gM:'Selamat malam',gP:'Selamat pagi',gS:'Selamat siang',gSo:'Selamat sore',boss:'Bos',
+        chanK:'jalur: KOLONI (= Telegram)',chanC:'jalur: RATU·CLI (flowcli)',noStt:'browser tidak mendukung voice command',
+        docBig:'dokumen kegedean (maks 64KB teks)',docBad:'format dokumen belum didukung (pakai teks/gambar)',
+        quotes:['"Cabut akar, jangan tambal."','"GUI adalah kebenaran."','"Tumbuh lewat colokan, bukan bobok tembok."','"Flowork dirancang abadi — bahkan saat dev sudah tiada."','"Fitur tanpa adopsi adalah sampah."']},
+    en:{dash:'DASHBOARD',wTime:'LOCAL TIME',wSys:'SYSTEM STATUS',wThought:'THOUGHT',wBy:'— Flowork Doctrine',
+        send:'SEND',ph:'Type a command / question…',online:'ONLINE',offline:'OFFLINE',standby:'STANDBY',
+        busy:'PROCESSING',think:'THINKING…',type:'TYPING…',ix:' interactions',allOk:'All systems operational.',
+        gM:'Good evening',gP:'Good morning',gS:'Good afternoon',gSo:'Good afternoon',boss:'Boss',
+        chanK:'channel: COLONY (= Telegram)',chanC:'channel: QUEEN·CLI (flowcli)',noStt:'browser does not support voice commands',
+        docBig:'document too large (max 64KB text)',docBad:'document type not supported yet (use text/images)',
+        quotes:['"Pull the root, do not patch."','"The GUI is the truth."','"Grow through sockets, not by breaking walls."','"Flowork is designed to outlive its maker."','"A feature without adoption is garbage."']},
+  };
+  let lang=localStorage.getItem('mrflow_lang')||'id';
+  const T=k=>(I18N[lang]&&I18N[lang][k])??k;
+  function setLang(l){lang=l;localStorage.setItem('mrflow_lang',l);
+    document.getElementById('langId').classList.toggle('on',l==='id');
+    document.getElementById('langEn').classList.toggle('on',l==='en');
+    document.querySelectorAll('[data-t]').forEach(el=>{el.textContent=T(el.getAttribute('data-t'))});
+    document.getElementById('inTxt').placeholder=T('ph');
+    document.getElementById('greetSub').textContent=T('allOk');
+    if(rec){try{rec.abort()}catch(e){}}
+    tick();
+  }
+
+  // ── partikel neural (canvas) — makin rame pas bicara/mikir ──────────
+  const cv=document.getElementById('particles'),cx=cv.getContext('2d');
+  let PW=0,PH=0,pts=[];
+  function pResize(){PW=cv.width=innerWidth;PH=cv.height=innerHeight;}
+  addEventListener('resize',pResize);pResize();
+  const N=Math.min(110,Math.floor(PW*PH/16000));
+  for(let i=0;i<N;i++)pts.push({x:Math.random()*PW,y:Math.random()*PH,
+    vx:(Math.random()-.5)*.35,vy:(Math.random()-.5)*.35,r:Math.random()*1.6+.6});
+  function pTick(){
+    const boost=document.body.classList.contains('busy')?3.2:(speechSynthesis&&speechSynthesis.speaking?2.4:1);
+    cx.clearRect(0,0,PW,PH);
+    for(const p of pts){
+      p.x+=p.vx*boost;p.y+=p.vy*boost;
+      if(p.x<0||p.x>PW)p.vx*=-1;if(p.y<0||p.y>PH)p.vy*=-1;
+      cx.beginPath();cx.arc(p.x,p.y,p.r,0,7);
+      cx.fillStyle=boost>1?'rgba(55,198,255,.5)':'rgba(55,198,255,.28)';cx.fill();
+    }
+    for(let i=0;i<pts.length;i++)for(let j=i+1;j<pts.length;j++){
+      const a=pts[i],b=pts[j],dx=a.x-b.x,dy=a.y-b.y,d2=dx*dx+dy*dy;
+      if(d2<130*130){cx.beginPath();cx.moveTo(a.x,a.y);cx.lineTo(b.x,b.y);
+        cx.strokeStyle='rgba(26,127,174,'+(boost>1?.16:.07)*(1-d2/(130*130))+')';cx.stroke();}
+    }
+    requestAnimationFrame(pTick);
+  }
+  requestAnimationFrame(pTick);
+
   // ── jam + sapaan ─────────────────────────────────────────────────────
-  const HARI=['Min','Sen','Sel','Rab','Kam','Jum','Sab'];
-  const BLN=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+  const HARI={id:['Min','Sen','Sel','Rab','Kam','Jum','Sab'],en:['Sun','Mon','Tue','Wed','Thu','Fri','Sat']};
+  const BLN={id:['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'],
+             en:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']};
   function tick(){
     const d=new Date(),p=n=>String(n).padStart(2,'0');
     document.getElementById('hm').textContent=p(d.getHours())+':'+p(d.getMinutes());
     document.getElementById('ss').textContent='.'+p(d.getSeconds());
-    document.getElementById('dateLbl').textContent=HARI[d.getDay()]+', '+d.getDate()+' '+BLN[d.getMonth()]+' '+d.getFullYear();
-    const h=d.getHours(), g=h<4?'Selamat malam':h<11?'Selamat pagi':h<15?'Selamat siang':h<19?'Selamat sore':'Selamat malam';
-    document.getElementById('greet').textContent=g+', Bos.';
+    document.getElementById('dateLbl').textContent=HARI[lang][d.getDay()]+', '+d.getDate()+' '+BLN[lang][d.getMonth()]+' '+d.getFullYear();
+    const h=d.getHours(),g=h<4?T('gM'):h<11?T('gP'):h<15?T('gS'):h<19?T('gSo'):T('gM');
+    document.getElementById('greet').textContent=g+', '+T('boss')+'.';
   }
-  tick(); setInterval(tick,1000);
-
-  // ── pikiran (kutipan doktrin Flowork — tulisan owner sendiri) ────────
-  const QUOTES=[
-    '"Cabut akar, jangan tambal."',
-    '"GUI adalah kebenaran."',
-    '"Tumbuh lewat colokan, bukan bobok tembok."',
-    '"Flowork dirancang abadi — bahkan saat dev sudah tiada."',
-    '"Fitur tanpa adopsi adalah sampah."',
-  ];
+  tick();setInterval(tick,1000);
   let qi=0;
-  setInterval(()=>{qi=(qi+1)%QUOTES.length;document.getElementById('quote').textContent=QUOTES[qi];},12000);
+  setInterval(()=>{qi=(qi+1)%T('quotes').length;document.getElementById('quote').textContent=T('quotes')[qi];},12000);
 
-  // ── status sistem ────────────────────────────────────────────────────
+  // ── status + stats ───────────────────────────────────────────────────
   async function sysPoll(){
-    try{
-      const r=await fetch('/api/system/health');
-      if(r.ok){const j=await r.json();
-        document.getElementById('sysOnline').textContent='ONLINE';
-        document.getElementById('sysVer').textContent='flowork '+(j.version||'—');
-        document.getElementById('linkState').textContent='NEURAL LINK ACTIVE';
-      }else{throw 0}
-    }catch(e){
-      document.getElementById('sysOnline').textContent='OFFLINE';
-      document.getElementById('sysOnline').style.color='var(--err)';
-      document.getElementById('linkState').textContent='LINK DOWN';
-    }
+    try{const r=await fetch('/api/system/health');if(!r.ok)throw 0;const j=await r.json();
+      document.getElementById('sysOnline').textContent=T('online');
+      document.getElementById('sysOnline').style.color='var(--ok)';
+      document.getElementById('sysVer').textContent='flowork '+(j.version||'—');
+    }catch(e){document.getElementById('sysOnline').textContent=T('offline');
+      document.getElementById('sysOnline').style.color='var(--err)';}
   }
-  sysPoll(); setInterval(sysPoll,15000);
+  sysPoll();setInterval(sysPoll,15000);
+  function fmtUp(s){if(s==null)return '—';s=Number(s);const h=Math.floor(s/3600),m=Math.floor(s%3600/60);
+    return h>0?h+'h '+m+'m':m+'m '+Math.floor(s%60)+'s';}
+  async function statsPoll(){
+    try{const r=await fetch('/api/system/stats');if(!r.ok)throw 0;const j=await r.json();
+      const cpu=j.cpu_pct==null?null:Math.round(j.cpu_pct),mem=j.mem_pct==null?null:Math.round(j.mem_pct);
+      document.getElementById('cpuV').textContent=cpu==null?'n/a':cpu+'%';
+      document.getElementById('memV').textContent=mem==null?'n/a':mem+'% ('+(j.mem_used_mb??'?')+'/'+(j.mem_total_mb??'?')+' MB)';
+      document.getElementById('loadV').textContent=j.load1==null?'n/a':j.load1.toFixed(2);
+      const cb=document.getElementById('cpuBar'),mb=document.getElementById('memBar');
+      cb.style.width=(cpu??0)+'%';cb.classList.toggle('hot',(cpu??0)>80);
+      mb.style.width=(mem??0)+'%';mb.classList.toggle('hot',(mem??0)>85);
+      const rt=j.router||{},ro=document.getElementById('rtOnline');
+      ro.textContent=rt.ok?T('online'):T('offline');ro.style.color=rt.ok?'var(--ok)':'var(--err)';
+      document.getElementById('rtVer').textContent=rt.version||'—';
+      document.getElementById('rtUp').textContent='uptime '+fmtUp(rt.uptime_s);
+    }catch(e){}
+  }
+  statsPoll();setInterval(statsPoll,5000);
 
-  // ── chat (2 jalur: koloni = jalur Telegram · cli = ratu FLOWCLI) ────
-  let chan='koloni', ix=0, busy=false;
+  // ── suara balasan (TTS) — prefer suara COWOK ────────────────────────
+  let ttsOn=true;
+  function toggleTts(){ttsOn=!ttsOn;document.getElementById('ttsBtn').classList.toggle('on',ttsOn);
+    if(!ttsOn&&window.speechSynthesis)speechSynthesis.cancel();}
+  function pickVoice(){
+    if(!window.speechSynthesis)return null;
+    const want=lang==='id'?/^id/i:/^en/i,vs=speechSynthesis.getVoices().filter(v=>want.test(v.lang));
+    // prefer suara laki-laki: nama umum voice cowok / hindari yang jelas cewek
+    const male=vs.find(v=>/male|ardi|reza|arif|guy|david|daniel|fred|alex|george/i.test(v.name)&&!/female/i.test(v.name));
+    const notFemale=vs.find(v=>!/female|siti|dewi|zira|samantha|victoria|karen/i.test(v.name));
+    return male||notFemale||vs[0]||null;
+  }
+  // bersihin markdown/simbol biar TTS ga ngeja "asteris asteris"
+  function cleanForSpeech(text){
+    let t=String(text);
+    t=t.replace(/```[\s\S]*?```/g,lang==='id'?' kode terlampir. ':' code attached. ');
+    t=t.replace(/`([^`]*)`/g,'$1');
+    t=t.replace(/https?:\/\/\S+/g,lang==='id'?' tautan ':' link ');
+    t=t.replace(/!\[[^\]]*\]\([^)]*\)/g,'');            // gambar md
+    t=t.replace(/\[([^\]]*)\]\([^)]*\)/g,'$1');          // link md → teksnya
+    t=t.replace(/^#{1,6}\s+/gm,'');                      // heading
+    t=t.replace(/^\s*[-*+]\s+/gm,'');                    // bullet
+    t=t.replace(/^\s*\d+\.\s+/gm,'');                    // numbered
+    t=t.replace(/[*_~#>|=]{1,}/g,' ');                   // sisa simbol md
+    t=t.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu,''); // emoji
+    return t.replace(/\s+/g,' ').trim().slice(0,1500);
+  }
+  // suara: coba provider TTS ROUTER dulu (natural, suara cowok — diatur di GUI
+  // Media Providers, GUI=truth) → fallback suara browser. Gagal server di-cache 2 menit.
+  let ttsAudio=null,ttsSrvDownUntil=0;
+  async function speak(text){
+    if(!ttsOn)return;
+    const clean=cleanForSpeech(text);
+    if(!clean)return;
+    if(Date.now()>ttsSrvDownUntil){
+      try{
+        const r=await fetch('/api/tts',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({text:clean,lang})});
+        if(r.ok&&!(r.headers.get('Content-Type')||'').includes('json')){
+          const blob=await r.blob();
+          if(ttsAudio){try{ttsAudio.pause()}catch(e){}}
+          if(window.speechSynthesis)speechSynthesis.cancel();
+          ttsAudio=new Audio(URL.createObjectURL(blob));
+          ttsAudio.play().catch(()=>{});
+          return;
+        }
+        ttsSrvDownUntil=Date.now()+120000; // provider belum dipasang → jangan hammer
+      }catch(e){ttsSrvDownUntil=Date.now()+120000;}
+    }
+    if(!window.speechSynthesis)return;
+    try{speechSynthesis.cancel();
+      const u=new SpeechSynthesisUtterance(clean.slice(0,600));
+      u.lang=lang==='id'?'id-ID':'en-US';u.rate=1.04;u.pitch=.72;
+      const v=pickVoice();if(v)u.voice=v;
+      speechSynthesis.speak(u);
+    }catch(e){}
+  }
+  if(window.speechSynthesis)speechSynthesis.onvoiceschanged=()=>{};
+
+  // ── chat 2 jalur + lampiran ─────────────────────────────────────────
+  let chan='koloni',ix=0,busy=false,attachments=[],visionSession=null;
   function setChan(c){chan=c;
     document.getElementById('chKoloni').classList.toggle('on',c==='koloni');
     document.getElementById('chCli').classList.toggle('on',c==='cli');
-    addMsg('sys',c==='koloni'?'jalur: KOLONI (= Telegram)':'jalur: RATU·CLI (flowcli)');
+    addMsg('sys',c==='koloni'?T('chanK'):T('chanC'));
   }
-  function toggleChat(){
-    const c=document.getElementById('chat');c.classList.toggle('open');
+  function toggleChat(){const c=document.getElementById('chat');c.classList.toggle('open');
     document.getElementById('chatBtn').classList.toggle('on',c.classList.contains('open'));
-    if(c.classList.contains('open'))document.getElementById('inTxt').focus();
+    if(c.classList.contains('open'))document.getElementById('inTxt').focus();}
+  function clearChat(){ // hapus = mulai SESI BARU (id chat beda), bukan cuma bersihin layar
+    document.getElementById('msgs').innerHTML='';
+    visionSession=null;
+    addMsg('sys',lang==='id'?'sesi baru dimulai':'new session started');
   }
-  function clearChat(){document.getElementById('msgs').innerHTML='';}
-  function addMsg(kind,text,who){
+  function addMsg(kind,text,who,imgs){
     const m=document.createElement('div');m.className='m '+kind;
     if(who){const w=document.createElement('span');w.className='who up';w.textContent=who;m.appendChild(w);}
-    m.appendChild(document.createTextNode(text));
+    if(text)m.appendChild(document.createTextNode(text));
+    (imgs||[]).forEach(src=>{const im=document.createElement('img');im.src=src;m.appendChild(im);});
     document.getElementById('msgs').appendChild(m);
     document.getElementById('msgs').scrollTop=1e9;
+    return m;
+  }
+  function setPhase(which){ // null | 'think' | 'type'
+    const el=document.getElementById('phase');
+    el.style.display=which?'flex':'none';
+    if(which)document.getElementById('phaseLbl').textContent=T(which==='think'?'think':'type');
   }
   function setBusy(b){busy=b;document.body.classList.toggle('busy',b);
-    document.getElementById('stateLbl').textContent=b?'MEMPROSES':'STANDBY';
-    document.getElementById('typing').style.display=b?'block':'none';
+    document.getElementById('stateLbl').textContent=b?T('busy'):T('standby');
     document.getElementById('send').disabled=b;
+    if(!b)setPhase(null);
+  }
+  async function typewrite(el,text){ // efek ngetik balasan
+    const chunk=Math.max(2,Math.floor(text.length/120));
+    for(let i=0;i<text.length;i+=chunk){
+      el.firstChildTextNode.nodeValue=text.slice(0,i+chunk);
+      document.getElementById('msgs').scrollTop=1e9;
+      await new Promise(r=>setTimeout(r,12));
+    }
+    el.firstChildTextNode.nodeValue=text;
+    const c=el.querySelector('.caret');if(c)c.remove();
+  }
+  // lampiran
+  function renderAttach(){
+    const bar=document.getElementById('attachBar');
+    bar.innerHTML='';bar.style.display=attachments.length?'flex':'none';
+    attachments.forEach((a,i)=>{
+      const d=document.createElement('div');d.className='att';
+      d.innerHTML=(a.kind==='img'?'<img src="'+a.data+'">':'<div class="doc">📄 '+a.name.replace(/[<>"]/g,'')+'</div>')+
+        '<button class="x" onclick="attachments.splice('+i+',1);renderAttach()">✕</button>';
+      bar.appendChild(d);
+    });
+  }
+  function pickFiles(files){
+    for(const f of files){
+      if(f.type.startsWith('image/')){
+        if(f.size>7*1024*1024){addMsg('sys','⚠ '+f.name+' > 7MB');continue;}
+        const rd=new FileReader();
+        rd.onload=()=>{attachments.push({kind:'img',name:f.name,data:rd.result});renderAttach();};
+        rd.readAsDataURL(f);
+      }else{
+        if(f.size>64*1024){addMsg('sys','⚠ '+T('docBig')+': '+f.name);continue;}
+        const rd=new FileReader();
+        rd.onload=()=>{attachments.push({kind:'doc',name:f.name,data:String(rd.result)});renderAttach();};
+        rd.onerror=()=>addMsg('sys','⚠ '+T('docBad'));
+        rd.readAsText(f);
+      }
+    }
+    document.getElementById('attFile').value='';
+  }
+  async function ensureVisionSession(){
+    if(visionSession)return visionSession;
+    const r=await fetch('/api/chat/sessions',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({title:'Mr.Flow HUD'})});
+    const j=await r.json();visionSession=j.session&&j.session.id;return visionSession;
   }
   async function sendMsg(){
-    const t=document.getElementById('inTxt');const text=t.value.trim();
-    if(!text||busy)return;
+    const t=document.getElementById('inTxt');let text=t.value.trim();
+    const atts=attachments.splice(0);renderAttach();
+    if((!text&&!atts.length)||busy)return;
     t.value='';
     if(!document.getElementById('chat').classList.contains('open'))toggleChat();
-    addMsg('you',text,'BOS');
-    setBusy(true);
+    const imgs=atts.filter(a=>a.kind==='img').map(a=>a.data);
+    const docs=atts.filter(a=>a.kind==='doc');
+    // dokumen teks → inline ke pesan (fenced block, kebaca agent apa pun)
+    for(const d of docs)text+='\n\n--- '+d.name+' ---\n```\n'+d.data.slice(0,60000)+'\n```';
+    addMsg('you',text,(lang==='id'?'BOS':'BOSS'),imgs);
+    setBusy(true);setPhase('think');
     try{
       let reply;
-      if(chan==='koloni'){
-        // JALUR SAMA dgn Telegram: POST /api/chat → InvokeAgentMessage (channel-agnostic core)
+      if(imgs.length){ // gambar → jalur sesi vision koloni (images[] data-URL)
+        const sid=await ensureVisionSession();
+        const r=await fetch('/api/chat/send',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({session_id:sid,text,images:imgs})});
+        const raw=await r.text();let j;try{j=JSON.parse(raw)}catch(e){j={}}
+        reply=j.reply??(j.message&&(j.message.text||j.message.content))??(j.assistant&&j.assistant.text)??j.error??raw;
+      }else if(chan==='koloni'){ // teks → jalur SAMA dgn Telegram
         const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},
           body:JSON.stringify({text,agent:'mr-flow',user:'gui:owner'})});
         const raw=await r.text();let j;try{j=JSON.parse(raw)}catch(e){j={reply:raw}}
         reply=j.reply??j.error??raw;
-      }else{
-        // JALUR RATU: FLOWCLI loop (flowcli -p) via feature_clichat_ext.go
+      }else{ // jalur RATU: flowcli -p
         const r=await fetch('/api/cli-chat',{method:'POST',headers:{'Content-Type':'application/json'},
           body:JSON.stringify({text})});
         const raw=await r.text();let j;try{j=JSON.parse(raw)}catch(e){j={reply:raw}}
         reply=j.reply??j.error??raw;
       }
-      ix++;document.getElementById('sysIx').textContent=ix+' interaksi';
-      addMsg('bot',String(reply||'(kosong)'),chan==='koloni'?'MR.FLOW · KOLONI':'MR.FLOW · RATU');
+      ix++;document.getElementById('sysIx').textContent=ix+T('ix');
+      reply=String(reply||'(…)');
+      // fase MENGETIK + typewriter
+      setPhase('type');
+      const m=addMsg('bot','',chan==='koloni'||imgs.length?'MR.FLOW · KOLONI':'MR.FLOW · RATU');
+      const tn=document.createTextNode('');m.appendChild(tn);m.firstChildTextNode=tn;
+      const caret=document.createElement('span');caret.className='caret';m.appendChild(caret);
+      speak(reply);
+      await typewrite(m,reply);
     }catch(e){addMsg('sys','error: '+e.message)}
     setBusy(false);
   }
   document.getElementById('inTxt').addEventListener('keydown',e=>{
     if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();}
   });
+  // paste gambar langsung ke chat
+  document.getElementById('inTxt').addEventListener('paste',e=>{
+    const items=e.clipboardData&&e.clipboardData.items;if(!items)return;
+    for(const it of items)if(it.type.startsWith('image/')){const f=it.getAsFile();if(f)pickFiles([f]);}
+  });
 
-  // ── mic (Web Speech API bawaan browser; fallback sopan) ─────────────
+  // ── voice command (STT bawaan browser, ikut bahasa) ─────────────────
   let rec=null,listening=false;
   function toggleMic(){
     const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-    if(!SR){addMsg('sys','browser tidak mendukung speech-to-text');if(!document.getElementById('chat').classList.contains('open'))toggleChat();return;}
+    if(!SR){addMsg('sys',T('noStt'));if(!document.getElementById('chat').classList.contains('open'))toggleChat();return;}
     if(listening){rec.stop();return;}
-    rec=new SR();rec.lang='id-ID';rec.interimResults=false;
+    rec=new SR();rec.lang=lang==='id'?'id-ID':'en-US';rec.interimResults=false;
     rec.onstart=()=>{listening=true;document.getElementById('micBtn').classList.add('on');};
     rec.onend=()=>{listening=false;document.getElementById('micBtn').classList.remove('on');};
     rec.onresult=ev=>{const s=ev.results[0][0].transcript;document.getElementById('inTxt').value=s;
       if(!document.getElementById('chat').classList.contains('open'))toggleChat();sendMsg();};
     rec.start();
   }
+
+  // ── boot ─────────────────────────────────────────────────────────────
+  document.getElementById('dashBtn').href=location.protocol+'//'+location.hostname+':2402/';
+  setLang(lang);
 </script>
 </body>
 </html>
