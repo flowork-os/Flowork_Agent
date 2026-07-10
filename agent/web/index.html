@@ -412,10 +412,12 @@
   function toggleChat(){const c=document.getElementById('chat');c.classList.toggle('open');
     document.getElementById('chatBtn').classList.toggle('on',c.classList.contains('open'));
     if(c.classList.contains('open'))document.getElementById('inTxt').focus();}
-  function clearChat(){ // hapus = mulai SESI BARU (id chat beda), bukan cuma bersihin layar
+  function clearChat(){ // hapus = SESI BARU total: layar + sesi vision + memori jalur koloni
     document.getElementById('msgs').innerHTML='';
     visionSession=null;
-    addMsg('sys',lang==='id'?'sesi baru dimulai':'new session started');
+    fetch('/api/chat/wipe',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({agent:'mr-flow'})}).catch(()=>{});
+    addMsg('sys',lang==='id'?'sesi baru dimulai (memori percakapan koloni dihapus)':'new session started (colony chat memory wiped)');
   }
   function addMsg(kind,text,who,imgs){
     const m=document.createElement('div');m.className='m '+kind;
